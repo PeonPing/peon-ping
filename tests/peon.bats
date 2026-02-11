@@ -62,6 +62,14 @@ teardown() {
   ! afplay_was_called
 }
 
+@test "PermissionRequest plays a permission sound" {
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Perm"* ]]
+}
+
 # ============================================================
 # Disabled config
 # ============================================================
@@ -321,6 +329,13 @@ JSON
 @test "paused file suppresses notification on permission_prompt" {
   touch "$TEST_DIR/.paused"
   run_peon '{"hook_event_name":"Notification","notification_type":"permission_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "paused file suppresses sound on PermissionRequest" {
+  touch "$TEST_DIR/.paused"
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   ! afplay_was_called
 }

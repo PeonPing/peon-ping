@@ -47,12 +47,12 @@ teardown() {
 @test "fresh install registers hooks in settings.json" {
   bash "$CLONE_DIR/install.sh"
   [ -f "$TEST_HOME/.claude/settings.json" ]
-  # Check that all four events are registered
+  # Check that all five events are registered
   /usr/bin/python3 -c "
 import json
 s = json.load(open('$TEST_HOME/.claude/settings.json'))
 hooks = s.get('hooks', {})
-for event in ['SessionStart', 'UserPromptSubmit', 'Stop', 'Notification']:
+for event in ['SessionStart', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest']:
     assert event in hooks, f'{event} not in hooks'
     found = any('peon.sh' in h.get('command','') for entry in hooks[event] for h in entry.get('hooks',[]))
     assert found, f'peon.sh not registered for {event}'

@@ -468,6 +468,14 @@ case "$EVENT" in
       exit 0
     fi
     ;;
+  PermissionRequest)
+    CATEGORY="permission"
+    STATUS="needs approval"
+    MARKER="● "
+    NOTIFY=1
+    NOTIFY_COLOR="red"
+    MSG="$PROJECT  —  A tool is waiting for your permission"
+    ;;
   # PostToolUseFailure — no sound. Claude retries on its own.
   *)
     exit 0
