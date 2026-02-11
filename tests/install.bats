@@ -63,7 +63,8 @@ print('OK')
   bash "$CLONE_DIR/install.sh"
   [ -f "$INSTALL_DIR/VERSION" ]
   version=$(cat "$INSTALL_DIR/VERSION" | tr -d '[:space:]')
-  [ "$version" = "1.0.0" ]
+  expected=$(cat "$CLONE_DIR/VERSION" | tr -d '[:space:]')
+  [ "$version" = "$expected" ]
 }
 
 @test "update preserves existing config" {

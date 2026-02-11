@@ -962,7 +962,52 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
         </div>
       </div>
 
-      <!-- Pack 2: Soviet Engineer -->
+      <!-- Pack 2: Human Peasant -->
+      <div class="carousel-slide" data-pack="peasant">
+        <div class="pack-card-full">
+          <div class="pack-header">
+            <div class="pack-badge">New</div>
+            <div class="pack-name">Human Peasant</div>
+            <div class="pack-game">Warcraft III</div>
+            <code class="pack-id">peasant</code>
+            <div class="pack-credit">Added by <a href="https://github.com/thomasKn">@thomasKn</a></div>
+          </div>
+          <div class="pack-sounds">
+            <button class="pack-sound-btn" data-src="audio/PeasantReady1.mp3" aria-label="Play: Ready to work.">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Ready to work."</span>
+              <span class="pack-sound-cat">greeting</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/PeasantYes2.mp3" aria-label="Play: Yes, milord.">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Yes, milord."</span>
+              <span class="pack-sound-cat">acknowledge</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/PeasantYes4.mp3" aria-label="Play: Off I go, then!">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Off I go, then!"</span>
+              <span class="pack-sound-cat">acknowledge</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/PeasantWhat1.mp3" aria-label="Play: Yes, milord?">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Yes, milord?"</span>
+              <span class="pack-sound-cat">permission</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/PeasantYesAttack4.mp3" aria-label="Play: That's it. I'm dead.">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"That's it. I'm dead."</span>
+              <span class="pack-sound-cat">error</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/PeasantAngry1.mp3" aria-label="Play: You're the king? Well, I didn't vote for you.">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"I didn't vote for you."</span>
+              <span class="pack-sound-cat">annoyed</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pack 3: Soviet Engineer -->
       <div class="carousel-slide" data-pack="ra2_soviet_engineer">
         <div class="pack-card-full">
           <div class="pack-header">
@@ -1007,7 +1052,7 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
         </div>
       </div>
 
-      <!-- Pack 3: StarCraft Battlecruiser -->
+      <!-- Pack 4: StarCraft Battlecruiser -->
       <div class="carousel-slide" data-pack="sc_battlecruiser">
         <div class="pack-card-full">
           <div class="pack-header">
@@ -1052,7 +1097,7 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
         </div>
       </div>
 
-      <!-- Pack 4: Sarah Kerrigan -->
+      <!-- Pack 5: Sarah Kerrigan -->
       <div class="carousel-slide" data-pack="sc_kerrigan">
         <div class="pack-card-full">
           <div class="pack-header">
@@ -1105,14 +1150,15 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
 
   <div class="carousel-dots">
     <button class="carousel-dot active" data-index="0" aria-label="Orc Peon"></button>
-    <button class="carousel-dot" data-index="1" aria-label="Soviet Engineer"></button>
-    <button class="carousel-dot" data-index="2" aria-label="Battlecruiser"></button>
-    <button class="carousel-dot" data-index="3" aria-label="Sarah Kerrigan"></button>
+    <button class="carousel-dot" data-index="1" aria-label="Human Peasant"></button>
+    <button class="carousel-dot" data-index="2" aria-label="Soviet Engineer"></button>
+    <button class="carousel-dot" data-index="3" aria-label="Battlecruiser"></button>
+    <button class="carousel-dot" data-index="4" aria-label="Sarah Kerrigan"></button>
   </div>
 
   <div class="contribute-cta">
     <p>Want to add a pack? Drop your sound files in <code>packs/&lt;name&gt;/sounds/</code>, add a manifest, and <a href="https://github.com/tonyyont/peon-ping/pulls">open a PR</a>.</p>
-    <p class="contribute-ideas">Ideas: Human Peasant, Night Elf Wisp, Undead Acolyte, Protoss Probe, SCV, Zeratul, Jim Raynor, GLaDOS &hellip;</p>
+    <p class="contribute-ideas">Ideas: Night Elf Wisp, Undead Acolyte, Protoss Probe, SCV, Zeratul, Jim Raynor, GLaDOS &hellip;</p>
   </div>
 </div>
 </section>
