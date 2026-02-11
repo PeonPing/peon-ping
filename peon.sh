@@ -43,19 +43,21 @@ print('PERM_MODE=' + shlex.quote(d.get('permission_mode', '')))
 " <<< "$INPUT" 2>/dev/null)"
 
 # --- Detect agent/teammate sessions (suppress sounds for non-interactive sessions) ---
-# Teammate sessions use permission_mode like "acceptEdits", "delegate", etc.
-# We track these by session_id because Notification events lack permission_mode.
+# Only truly autonomous modes are agents; interactive modes (default, acceptEdits, plan) are not.
+# We track agent sessions by session_id because Notification events lack permission_mode.
+AGENT_MODES="delegate"
 IS_AGENT=$(/usr/bin/python3 -c "
 import json, os
 state_file = '$STATE'
 session_id = '$SESSION_ID'
 perm_mode = '$PERM_MODE'
+agent_modes = set('$AGENT_MODES'.split())
 try:
     state = json.load(open(state_file))
 except:
     state = {}
 agent_sessions = set(state.get('agent_sessions', []))
-if perm_mode and perm_mode != 'default':
+if perm_mode and perm_mode in agent_modes:
     agent_sessions.add(session_id)
     state['agent_sessions'] = list(agent_sessions)
     os.makedirs(os.path.dirname(state_file) or '.', exist_ok=True)
@@ -200,8 +202,7 @@ case "$EVENT" in
     STATUS="working"
     ;;
   Stop)
-    # No sound — Stop fires after each completion step in multi-tool chains.
-    # Notification(idle_prompt) is the real "Claude is done" signal.
+    CATEGORY="complete"
     STATUS="done"
     MARKER="● "
     ;;
@@ -213,7 +214,7 @@ case "$EVENT" in
       NOTIFY=1
       MSG="$PROJECT — A tool is waiting for your permission"
     elif [ "$NTYPE" = "idle_prompt" ]; then
-      CATEGORY="complete"
+      # No sound — Stop already played the completion sound.
       STATUS="done"
       MARKER="● "
       NOTIFY=1
@@ -245,7 +246,7 @@ fi
 if [ -n "$CATEGORY" ]; then
   SOUND_FILE=$(pick_sound "$CATEGORY")
   if [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ]; then
-    afplay -v "$VOLUME" "$SOUND_FILE" &
+    nohup afplay -v "$VOLUME" "$SOUND_FILE" >/dev/null 2>&1 &
   fi
 fi
 
@@ -255,7 +256,7 @@ if [ -n "$NOTIFY" ]; then
   case "$FRONTMOST" in
     Terminal|iTerm2|Warp|Alacritty|kitty|WezTerm|Ghostty) ;; # terminal is focused, skip notification
     *)
-      osascript - "$MSG" "$TITLE" <<'APPLESCRIPT' &
+      nohup osascript - "$MSG" "$TITLE" >/dev/null 2>&1 <<'APPLESCRIPT' &
 on run argv
   display notification (item 1 of argv) with title (item 2 of argv)
 end run
