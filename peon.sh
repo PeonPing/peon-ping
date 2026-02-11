@@ -21,6 +21,9 @@ case "${1:-}" in
     exit 0 ;;
   --help|-h)
     echo "Usage: peon --pause | --resume | --toggle | --status"; exit 0 ;;
+  --*)
+    echo "Unknown option: $1" >&2
+    echo "Usage: peon --pause | --resume | --toggle | --status" >&2; exit 1 ;;
 esac
 
 INPUT=$(cat)

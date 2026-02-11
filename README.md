@@ -31,7 +31,7 @@ Plus Terminal tab titles (`● project: done`) and macOS notifications when Term
 
 ## Quick controls
 
-Need to mute sounds during a meeting or pairing session? Two options:
+Need to mute sounds and notifications during a meeting or pairing session? Two options:
 
 | Method | Command | When |
 |---|---|---|
@@ -46,7 +46,7 @@ peon --resume   # Unmute sounds
 peon --status   # Check if paused or active
 ```
 
-Pausing is instant and persists across sessions until you resume. Tab titles remain active when paused.
+Pausing mutes sounds and desktop notifications instantly. Persists across sessions until you resume. Tab titles remain active when paused.
 
 ## Configuration
 

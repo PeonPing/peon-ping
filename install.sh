@@ -108,8 +108,10 @@ SKILL_DIR="$HOME/.claude/skills/peon-ping-toggle"
 mkdir -p "$SKILL_DIR"
 if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/peon-ping-toggle" ]; then
   cp "$SCRIPT_DIR/skills/peon-ping-toggle/SKILL.md" "$SKILL_DIR/"
-else
+elif [ -z "$SCRIPT_DIR" ]; then
   curl -fsSL "$REPO_BASE/skills/peon-ping-toggle/SKILL.md" -o "$SKILL_DIR/SKILL.md"
+else
+  echo "Warning: skills/peon-ping-toggle not found in local clone, skipping skill install"
 fi
 
 # --- Add shell alias ---
