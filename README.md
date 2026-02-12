@@ -8,7 +8,7 @@
 
 Claude Code doesn't notify you when it finishes or needs permission. You tab away, lose focus, and waste 15 minutes getting back into flow. peon-ping fixes this with Warcraft III Peon voice lines — so you never miss a beat, and your terminal sounds like Orgrimmar.
 
-**See it in action** &rarr; [peon-ping.vercel.app](https://peon-ping.vercel.app/)
+**See it in action** &rarr; [peonping.com](https://peonping.com/)
 
 ## Install
 
@@ -145,5 +145,5 @@ Sound files are property of their respective publishers (Blizzard Entertainment,
 
 ## Links
 
-- [Landing page](https://peon-ping.vercel.app/)
+- [Landing page](https://peonping.com/)
 - [License (MIT)](LICENSE)
