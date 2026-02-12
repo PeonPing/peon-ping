@@ -42,8 +42,8 @@ else
 fi
 
 # --- Prerequisites ---
-if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ]; then
-  echo "Error: peon-ping requires macOS or WSL (Windows Subsystem for Linux)"
+if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ] && [ "$PLATFORM" != "linux" ]; then
+  echo "Error: peon-ping requires macOS or WSL (Windows Subsystem for Linux) or Linux"
   exit 1
 fi
 
@@ -57,6 +57,12 @@ if [ "$PLATFORM" = "mac" ]; then
     echo "Error: afplay is required (should be built into macOS)"
     exit 1
   fi
+elif [ "$PLATFORM" = "linux" ]; then
+  if ! command -v ffplay &>/dev/null; then
+    echo "Error: ffplay is required"
+    exit 1
+  fi
+
 elif [ "$PLATFORM" = "wsl" ]; then
   if ! command -v powershell.exe &>/dev/null; then
     echo "Error: powershell.exe is required (should be available in WSL)"
@@ -261,6 +267,8 @@ TEST_SOUND=$({ ls "$PACK_DIR/sounds/"*.wav "$PACK_DIR/sounds/"*.mp3 "$PACK_DIR/s
 if [ -n "$TEST_SOUND" ]; then
   if [ "$PLATFORM" = "mac" ]; then
     afplay -v 0.3 "$TEST_SOUND"
+  elif [ "$PLATFORM" = "linux" ]; then
+	  ffplay -nodisp -autoexit -hide_banner -loglevel error  "$TEST_SOUND"
   elif [ "$PLATFORM" = "wsl" ]; then
     wpath=$(wslpath -w "$TEST_SOUND")
     # Convert backslashes to forward slashes for file:/// URI

@@ -29,6 +29,9 @@ play_sound() {
     mac)
       nohup afplay -v "$vol" "$file" >/dev/null 2>&1 &
       ;;
+    linux)
+      nohup ffplay -nodisp -autoexit -hide_banner -loglevel error "$file" > /dev/null 2>&1 &
+      ;;
     wsl)
       local wpath
       wpath=$(wslpath -w "$file")
