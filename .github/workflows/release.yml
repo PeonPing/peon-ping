@@ -2,21 +2,36 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 jobs:
   checksums:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Generate checksums
         run: |
           shasum -a 256 install.sh uninstall.sh peon.sh completions.bash VERSION packs/*/* > checksums.txt
 
-      - name: Upload checksums
-        uses: actions/upload-release-artifact@v4
+      - name: Commit checksums to main
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add checksums.txt
+          git commit -m "Update checksums.txt" || echo "No changes to commit"
+          git push
+
+      # Upload to release if this was a tagged release
+      - name: Upload checksums to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
         with:
-          name: checksums
-          path: checksums.txt
+          files: checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
