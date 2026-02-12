@@ -1,0 +1,197 @@
+{
+  "cesp_version": "1.0",
+  "name": "acolyte_de",
+  "display_name": "Undead Acolyte (DE)",
+  "version": "1.0.0",
+  "author": {
+    "name": "Kaffeetasse",
+    "github": "Kaffeetasse"
+  },
+  "license": "CC-BY-NC-4.0",
+  "language": "de",
+  "categories": {
+    "session.start": {
+      "sounds": [
+        {
+          "file": "sounds/AcolyteReady1.wav",
+          "label": "Die Verdammten stehen bereit.",
+          "sha256": "f4fa040605435d1ba66406dcfb8c5a4e073f713083ff6cf48c77a27c6e397634"
+        },
+        {
+          "file": "sounds/AcolyteWhat1.wav",
+          "label": "Mein Leben für Ner'Zhul!",
+          "sha256": "3c8bce0fe658f22636038731cc2ac91d7f5d782e318478945ac733fd0a7a1a9e"
+        },
+        {
+          "file": "sounds/AcolyteWhat3.wav",
+          "label": "Euer Befehl, Meister?",
+          "sha256": "4092b9bcc12b80107e07096edf0ded6cba806b7f208acd5cadeaaeb488103a1b"
+        }
+      ]
+    },
+    "task.acknowledge": {
+      "sounds": [
+        {
+          "file": "sounds/AcolyteYes1.wav",
+          "label": "Ich gehorche mit Freuden.",
+          "sha256": "407e9ca991969908a0ba45f655889c77fd24bb5273e95fab35e08c0d68c4a105"
+        },
+        {
+          "file": "sounds/AcolyteYes2.wav",
+          "label": "Ja, Meister.",
+          "sha256": "6a74e1337e4b52f13d2fb80f4ac0179284c07b981f231f0d27545098107ce75c"
+        },
+        {
+          "file": "sounds/AcolyteYes3.wav",
+          "label": "Mein Schicksal ist besiegelt.",
+          "sha256": "4bcca92cb0926474fcf995dbf6d2e7be3c7146c56e067778ca156d8dc89bd65b"
+        },
+        {
+          "file": "sounds/AcolyteYes4.wav",
+          "label": "Euer Wille geschehe.",
+          "sha256": "7c68810578a9c019effbaea426a8eba2fcb935813bd2dedbd5e9e4b5ab85dc7a"
+        },
+        {
+          "file": "sounds/AcolyteYesAttack1.wav",
+          "label": "Der Tod soll herrschen!",
+          "sha256": "0dd338c21640c498d388d07e382a5e84de2bdf272933c0cd9763ebcbd4e43e4f"
+        },
+        {
+          "file": "sounds/AcolyteYesAttack2.wav",
+          "label": "Fürchtet den Sensenmann!",
+          "sha256": "2d6c24b7865d57639d210a0620c85c17c3ea6e53a593c445e6917c02288ebf19"
+        },
+        {
+          "file": "sounds/AcolyteYesAttack3.wav",
+          "label": "Das Leben erlösche!",
+          "sha256": "08726b8196a2cf95003aa4cfaccc1d9fa07a50a1d4e4a0ad9f16d1ddaff74ea0"
+        }
+      ]
+    },
+    "task.complete": {
+      "sounds": [
+        {
+          "file": "sounds/AcolyteBuildingComplete1.wav",
+          "label": "Die Beschwörung ist abgeschlossen.",
+          "sha256": "315f75dd4bbd10e0da8283b8ca390290f73aafcf9b037cbcbb7e0a8bc50f9aff"
+        },
+        {
+          "file": "sounds/NecromancerResearchComplete1.wav",
+          "label": "Forschung abgeschlossen.",
+          "sha256": "458860c3332b74d12a39d25c8afdf0bc610546206531d5126b6157e81f32563a"
+        },
+        {
+          "file": "sounds/AcolyteReady1.wav",
+          "label": "Die Verdammten stehen bereit.",
+          "sha256": "f4fa040605435d1ba66406dcfb8c5a4e073f713083ff6cf48c77a27c6e397634"
+        },
+        {
+          "file": "sounds/AcolyteYes1.wav",
+          "label": "Ich gehorche mit Freuden.",
+          "sha256": "407e9ca991969908a0ba45f655889c77fd24bb5273e95fab35e08c0d68c4a105"
+        },
+        {
+          "file": "sounds/AcolyteYes2.wav",
+          "label": "Ja, Meister.",
+          "sha256": "6a74e1337e4b52f13d2fb80f4ac0179284c07b981f231f0d27545098107ce75c"
+        },
+        {
+          "file": "sounds/AcolyteWhat5.wav",
+          "label": "Ich beuge mich eurem Willen.",
+          "sha256": "da6a607433c87ad543b0db106781057a84b5822261d8437b281e13a134d93a9c"
+        },
+        {
+          "file": "sounds/AcolyteWhat4.wav",
+          "label": "Wo soll mein Blut vergossen werden?",
+          "sha256": "f9bf7e4af3df14eb015c80732e685d8e6b961cfba89705f37d510d7e29a29460"
+        }
+      ]
+    },
+    "task.error": {
+      "sounds": [
+        {
+          "file": "sounds/AcolyteDeath1.wav",
+          "label": "Uah.",
+          "sha256": "a2c157cc39e3921dcc33b862906787f08b4004a9ee529459fc336628d24bdd05"
+        },
+        {
+          "file": "sounds/AcolytePissed4.wav",
+          "label": "Lasst Blut die Schwachen ertränken!",
+          "sha256": "36bc25e651ddf99b494eda30a8ccf2b4929fcf87720a332e61777abcb0409f33"
+        }
+      ]
+    },
+    "input.required": {
+      "sounds": [
+        {
+          "file": "sounds/AcolyteWhat1.wav",
+          "label": "Mein Leben für Ner'Zhul!",
+          "sha256": "3c8bce0fe658f22636038731cc2ac91d7f5d782e318478945ac733fd0a7a1a9e"
+        },
+        {
+          "file": "sounds/AcolyteWhat2.wav",
+          "label": "Ich wünsche nur zu dienen.",
+          "sha256": "7627042a97cf1153a66ab08e4fa2b48b960bdc6ca87e97f7ac50b8402b046621"
+        },
+        {
+          "file": "sounds/AcolyteWhat3.wav",
+          "label": "Euer Befehl, Meister?",
+          "sha256": "4092b9bcc12b80107e07096edf0ded6cba806b7f208acd5cadeaaeb488103a1b"
+        },
+        {
+          "file": "sounds/AcolyteWhat4.wav",
+          "label": "Wo soll mein Blut vergossen werden?",
+          "sha256": "f9bf7e4af3df14eb015c80732e685d8e6b961cfba89705f37d510d7e29a29460"
+        },
+        {
+          "file": "sounds/AcolyteWhat5.wav",
+          "label": "Ich beuge mich eurem Willen.",
+          "sha256": "da6a607433c87ad543b0db106781057a84b5822261d8437b281e13a134d93a9c"
+        }
+      ]
+    },
+    "resource.limit": {
+      "sounds": [
+        {
+          "file": "sounds/NecromancerNoFood1.wav",
+          "label": "Errichtet mehr Ziggurats!",
+          "sha256": "42dd73b600a2f4166c1d2e093a82a527a07e4c0bee93d1cc9d0b9846aaea9fe2"
+        },
+        {
+          "file": "sounds/NecromancerNoGold1.wav",
+          "label": "Es ist mehr Gold erforderlich!",
+          "sha256": "22f58f80b67cb54de137b96ac62fb99fbfaa16ac1316b9f8d3e49aee7e923349"
+        }
+      ]
+    },
+    "user.spam": {
+      "sounds": [
+        {
+          "file": "sounds/AcolytePissed1.wav",
+          "label": "Dies ist die Stunde der Geißel.",
+          "sha256": "ee2d2a1a3c1c832cf80396447789411338088c366ecded36f332533b89147e05"
+        },
+        {
+          "file": "sounds/AcolytePissed2.wav",
+          "label": "Tod soll die Welt säubern.",
+          "sha256": "ebecc508c4a4232cc0dfd6fc81f8980e2aac76791609c09fc768e95346bffca4"
+        },
+        {
+          "file": "sounds/AcolytePissed3.wav",
+          "label": "Ich sehe nur Schwärze... oh, ich habe die Kapuze unten.",
+          "sha256": "61d3f2e57e26052004cb244302338433d6fc534303e0fa9f40df91f689c9fadd"
+        },
+        {
+          "file": "sounds/AcolytePissed7.wav",
+          "label": "Möchtet Ihr das Geheimnis ewigen Glücks wissen? Seite 246.",
+          "sha256": "b3631ddfd69008dd7af5bb994c75a9d326377f9d4f1e757a57545000e83d6b7c"
+        },
+        {
+          "file": "sounds/AcolytePissed8.wav",
+          "label": "Beschreitet Ihr erst den dunklen Weg, wird er für immer Euer Schicksal bestimmen... und Ihr seid pflegeversichert.",
+          "sha256": "2e249e1dc35791a35f3714f18467211fc5a67d4727a4b027cf3111329ffac363"
+        }
+      ]
+    }
+  }
+}
