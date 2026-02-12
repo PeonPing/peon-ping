@@ -1,0 +1,70 @@
+{
+  "name": "ra_soviet",
+  "display_name": "Red Alert Soviet Soldier",
+  "categories": {
+    "greeting": {
+      "sounds": [
+        { "file": "SovietAwaitingOrders.wav", "line": "Awaiting orders." },
+        { "file": "SovietAwaitingOrders2.wav", "line": "Awaiting orders." },
+        { "file": "SovietAwaitingOrders3.wav", "line": "Awaiting orders." },
+        { "file": "SovietReadyAndWaiting.wav", "line": "Ready and waiting." },
+        { "file": "SovietReporting.wav", "line": "Reporting." },
+        { "file": "SovietReporting2.wav", "line": "Reporting." },
+        { "file": "SovietReporting3.wav", "line": "Reporting." }
+      ]
+    },
+    "acknowledge": {
+      "sounds": [
+        { "file": "SovietAcknowledged.wav", "line": "Acknowledged." },
+        { "file": "SovietAcknowledged2.wav", "line": "Acknowledged." },
+        { "file": "SovietAcknowledged3.wav", "line": "Acknowledged." },
+        { "file": "SovietAffirmative.wav", "line": "Affirmative." },
+        { "file": "SovietAffirmative2.wav", "line": "Affirmative." },
+        { "file": "SovietAgreed.wav", "line": "Agreed." },
+        { "file": "SovietAsYouWish.wav", "line": "As you wish." },
+        { "file": "SovietAtOnce.wav", "line": "At once." },
+        { "file": "SovietVeryWell.wav", "line": "Very well." },
+        { "file": "SovietOfCourse.wav", "line": "Of course." }
+      ]
+    },
+    "complete": {
+      "sounds": [
+        { "file": "SovietReadyAndWaiting.wav", "line": "Ready and waiting." },
+        { "file": "SovietReporting.wav", "line": "Reporting." },
+        { "file": "SovietReporting2.wav", "line": "Reporting." },
+        { "file": "SovietReporting3.wav", "line": "Reporting." },
+        { "file": "SovietAwaitingOrders.wav", "line": "Awaiting orders." },
+        { "file": "SovietAwaitingOrders2.wav", "line": "Awaiting orders." },
+        { "file": "SovietAwaitingOrders3.wav", "line": "Awaiting orders." }
+      ]
+    },
+    "error": {
+      "sounds": [
+        { "file": "Yell1.wav", "line": "Aaaaaaahhh!" },
+        { "file": "Yell2.wav", "line": "Eeeeeeah!" },
+        { "file": "Yell3.wav", "line": "Aaaaugh!" },
+        { "file": "Yell4.wav", "line": "Aaarrgh!" },
+        { "file": "Yell5.wav", "line": "Uuuuagh!" }
+      ]
+    },
+    "permission": {
+      "sounds": [
+        { "file": "SovietComrade.wav", "line": "Comrade?" },
+        { "file": "SovietYesSir.wav", "line": "Yes, sir?" },
+        { "file": "SovietYesSir2.wav", "line": "Yes, sir?" },
+        { "file": "SovietYesSir3.wav", "line": "Yes, sir?" }
+      ]
+    },
+    "resource_limit": {
+      "sounds": [
+        { "file": "Squish.wav", "line": "*Horrible Squelching Noise*." }
+      ]
+    },
+    "annoyed": {
+      "sounds": [
+        { "file": "NukeExplosion.wav", "line": "*Angry Explosion Sounds*." },
+        { "file": "Flames.wav", "line": "*Angry Flamethrower Noises*" }
+      ]
+    }
+  }
+}

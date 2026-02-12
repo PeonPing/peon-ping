@@ -101,6 +101,7 @@ The config lives at `$CLAUDE_CONFIG_DIR/hooks/peon-ping/config.json` (default: `
 | `peasant_fr` | Human Peasant (Warcraft III, French) | "Oui, monseigneur?", "C'est fait!", "Prêt, monsieur." | [@thomasKn](https://github.com/thomasKn) |
 | `ra2_kirov` | Kirov Airship (Red Alert 2) | "Kirov reporting", "Bombardiers to your stations", "Helium mix optimal" | [@i-zhirov](https://github.com/i-zhirov) |
 | `ra2_soviet_engineer` | Soviet Engineer (Red Alert 2) | "Tools ready", "Yes, commander", "Engineering" | [@msukkari](https://github.com/msukkari) |
+| `ra_soviet` | Soviet Soldier (Red Alert) | "Awaiting orders.", "Acknowledged.", "Comrade?" | [@JairusKhan](https://github.com/JairusKhan) |
 | `peon_ru` | Orc Peon (Warcraft III, Russian) | "Готов вкалывать!", "Работа, работа.", "Оки-доки." | [@maksimfedin](https://github.com/maksimfedin) |
 | `peasant_ru` | Human Peasant (Warcraft III, Russian) | "Да, господин?", "Готово.", "Ну, я пошёл!" | [@maksimfedin](https://github.com/maksimfedin) |
 | `acolyte_ru` | Undead Acolyte (Warcraft III, Russian) | "Моя жизнь за Нер'зула!", "Да, повелитель.", "Тени служат мне." | [@maksimfedin](https://github.com/maksimfedin) |
