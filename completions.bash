@@ -25,10 +25,9 @@ _peon_completions() {
   return 0
 }
 
-complete -F _peon_completions peon
-
-# zsh compatibility: if running under zsh, enable bashcompinit
+# zsh compatibility: if running under zsh, enable bashcompinit first
 if [ -n "$ZSH_VERSION" ]; then
   autoload -Uz bashcompinit 2>/dev/null && bashcompinit
-  complete -F _peon_completions peon
 fi
+
+complete -F _peon_completions peon
