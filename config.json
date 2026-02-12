@@ -2,6 +2,7 @@
   "active_pack": "peon",
   "volume": 0.5,
   "enabled": true,
+  "local_only": false,
   "categories": {
     "greeting": true,
     "acknowledge": true,

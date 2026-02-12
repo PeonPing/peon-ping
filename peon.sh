@@ -50,6 +50,24 @@ CONFIG="$CONFIG_DIR/config.json"
 STATE="$CONFIG_DIR/.state.json"
 PAUSED_FILE="$CONFIG_DIR/.paused"
 
+# --- Check local_only setting from global config ---
+LOCAL_ONLY=false
+if [[ -f "$SCRIPT_DIR/config.json" ]]; then
+  LOCAL_ONLY=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$SCRIPT_DIR/config.json'))
+    print('true' if cfg.get('local_only', False) else 'false')
+except:
+    print('false')
+" 2>/dev/null)
+fi
+
+if [[ "$LOCAL_ONLY" == "true" && "$CONFIG_DIR" == "$SCRIPT_DIR" ]]; then
+  # Local-only mode is enabled but no local config found
+  exit 0
+fi
+
 # --- Platform-aware audio playback ---
 play_sound() {
   local file="$1" vol="$2"

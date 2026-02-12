@@ -119,6 +119,7 @@ Edit `~/.claude/hooks/peon-ping/config.json` (global) or `./.claude/hooks/peon-p
 - **categories**: Toggle individual sound types on/off
 - **annoyed_threshold / annoyed_window_seconds**: How many prompts in N seconds triggers the easter egg
 - **pack_rotation**: Array of pack names (e.g. `["peon", "sc_kerrigan", "peasant"]`). Each Claude Code session randomly gets one pack from the list and keeps it for the whole session. Leave empty `[]` to use `active_pack` instead.
+- **local_only**: When `true` in global config, the hook only runs if a local (project-specific) config exists. Useful for teams who want to enforce per-project configuration. Set in `~/.claude/hooks/peon-ping/config.json` to apply globally.
 
 ## Sound packs
 
