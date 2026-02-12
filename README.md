@@ -1,6 +1,6 @@
 # peon-ping
 
-![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue)
+![macOS](https://img.shields.io/badge/macOS-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01)
 
@@ -8,15 +8,45 @@
 
 Claude Code doesn't notify you when it finishes or needs permission. You tab away, lose focus, and waste 15 minutes getting back into flow. peon-ping fixes this with Warcraft III Peon voice lines — so you never miss a beat, and your terminal sounds like Orgrimmar.
 
-**See it in action** &rarr; [peon-ping.vercel.app](https://peon-ping.vercel.app/)
+**See it in action** → [peon-ping.vercel.app](https://peon-ping.vercel.app/)
 
 ## Install
+
+### macOS / Linux / WSL2
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tonyyont/peon-ping/main/install.sh | bash
 ```
 
-One command. Takes 10 seconds. macOS and WSL2 (Windows). Re-run to update (sounds and config preserved).
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/tonyyont/peon-ping/main/install.ps1 | iex
+```
+
+One command. Takes 10 seconds. Re-run to update (sounds and config preserved).
+
+### Test before installing (Windows)
+
+Check if your system meets all requirements:
+
+```powershell
+irm https://raw.githubusercontent.com/tonyyont/peon-ping/main/test-windows.ps1 | iex
+```
+
+### Manual installation from local clone
+
+**macOS / Linux / WSL2:**
+```bash
+cd peon-ping
+bash ./install.sh
+```
+
+**Windows:**
+```powershell
+cd peon-ping
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
 
 ## What you'll hear
 
@@ -28,6 +58,11 @@ One command. Takes 10 seconds. macOS and WSL2 (Windows). Re-run to update (sound
 | Rapid prompts (3+ in 10s) | Easter egg | *"Me busy, leave me alone!"* |
 
 Plus Terminal tab titles (`● project: done`) and desktop notifications when your terminal isn't focused.
+
+**Windows notifications** appear as custom colored popups centered on all screens:
+- **Blue**: Task complete
+- **Red**: Permission needed
+- **Yellow**: Waiting for input
 
 ## Quick controls
 
@@ -49,25 +84,33 @@ peon --pack <name>    # Switch to a specific pack
 peon --pack           # Cycle to the next pack
 ```
 
-Tab completion is supported — type `peon --pack <TAB>` to see available pack names.
+**Note:** Tab completion is supported on Unix systems. Windows users: after install, restart your PowerShell terminal to use the `peon` command.
 
 Pausing mutes sounds and desktop notifications instantly. Persists across sessions until you resume. Tab titles remain active when paused.
 
 ## Configuration
 
-Edit `~/.claude/hooks/peon-ping/config.json`:
+Edit the config file:
+- **Unix**: `~/.claude/hooks/peon-ping/config.json`
+- **Windows**: `%USERPROFILE%\.claude\hooks\peon-ping\config.json`
 
 ```json
 {
+  "active_pack": "peon",
   "volume": 0.5,
+  "enabled": true,
   "categories": {
     "greeting": true,
     "acknowledge": true,
     "complete": true,
     "error": true,
     "permission": true,
+    "resource_limit": true,
     "annoyed": true
-  }
+  },
+  "annoyed_threshold": 3,
+  "annoyed_window_seconds": 10,
+  "pack_rotation": []
 }
 ```
 
@@ -97,29 +140,100 @@ peon --pack                       # cycle to the next pack
 peon --packs                      # list all packs
 ```
 
-Or edit `~/.claude/hooks/peon-ping/config.json` directly:
-
-```json
-{ "active_pack": "ra2_soviet_engineer" }
-```
-
 Want to add your own pack? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Requirements
+
+### All platforms
+- **Claude Code** with hooks support
+- **Python 3.7+** (Python 3 on Unix, Python or Python 3 on Windows)
+
+### Platform-specific
+
+**macOS:**
+- `afplay` for audio (built into macOS)
+- AppleScript for notifications (built into macOS)
+
+**Windows:**
+- Windows 10/11
+- PowerShell 5.1+ (built into Windows)
+- `System.Windows.Media.MediaPlayer` for audio
+- `System.Windows.Forms` for notifications
+
+**WSL2:**
+- `powershell.exe` (available in WSL)
+- `wslpath` (built into WSL)
+- Calls Windows audio and notification APIs from Linux
+
+## Troubleshooting
+
+### Windows: "python is not recognized"
+
+Install Python from:
+- [python.org](https://www.python.org/downloads/) (check "Add Python to PATH")
+- Microsoft Store: `winget install Python.Python.3.12`
+
+### Windows: "peon command not found"
+
+The `peon` function is added to your PowerShell profile. Either:
+1. Restart your PowerShell terminal, or
+2. Reload your profile: `. $PROFILE`
+
+### Windows: ExecutionPolicy errors
+
+If you get "cannot be loaded because running scripts is disabled":
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+This allows local scripts to run while protecting against remote unsigned scripts.
+
+### All platforms: Audio not playing
+
+1. Check your system volume is not muted
+2. Test with: `peon --toggle` (toggle twice to test)
+3. Verify sound files exist:
+   - **Unix**: `~/.claude/hooks/peon-ping/packs/peon/sounds/`
+   - **Windows**: `%USERPROFILE%\.claude\hooks\peon-ping\packs\peon\sounds\`
+
+### All platforms: Sounds play but no notifications
+
+Check if your terminal is in focus. Notifications only appear when the terminal is NOT focused (to avoid distraction during active work).
+
 ## Uninstall
+
+### macOS / Linux / WSL2
 
 ```bash
 bash ~/.claude/hooks/peon-ping/uninstall.sh
 ```
 
-## Requirements
+### Windows
 
-- macOS (uses `afplay` and AppleScript) or WSL2 (uses PowerShell `MediaPlayer` and WinForms)
-- Claude Code with hooks support
-- python3
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
+```
+
+The uninstaller will:
+- Remove all peon-ping files
+- Clean up hooks from settings.json
+- Remove shell aliases/functions
+- Optionally restore any backed-up notify.sh
 
 ## How it works
 
-`peon.sh` is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, and `Notification` events. On each event it maps to a sound category, picks a random voice line (avoiding repeats), plays it via `afplay` (macOS) or PowerShell `MediaPlayer` (WSL2), and updates your Terminal tab title.
+`peon.sh` (Unix) / `peon.ps1` (Windows) is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, and `Notification` events.
+
+On each event it:
+1. Maps the event to a sound category
+2. Picks a random voice line (avoiding recent repeats)
+3. Plays audio via platform-native APIs:
+   - **macOS**: `afplay`
+   - **Windows**: `System.Windows.Media.MediaPlayer`
+   - **WSL2**: PowerShell MediaPlayer via `powershell.exe`
+4. Updates your terminal tab title
+5. Shows desktop notification if terminal is not in focus
 
 Sound files are property of their respective publishers (Blizzard Entertainment, EA) and are included in the repo for convenience.
 
@@ -127,3 +241,4 @@ Sound files are property of their respective publishers (Blizzard Entertainment,
 
 - [Landing page](https://peon-ping.vercel.app/)
 - [License (MIT)](LICENSE)
+- [Contributing guidelines](CONTRIBUTING.md)

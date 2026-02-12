@@ -1,6 +1,39 @@
+# Environment
 .vercel
 .env
+
+# Dependencies
 node_modules/
+
+# Build output
 video/out/
+
+# Logs
 firebase-debug.log
+*.log
+
+# Claude Code
 .claude/
+
+# Temporary files
+*.tmp
+*.bak
+*~
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
