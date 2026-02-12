@@ -55,7 +55,7 @@ Pausing mutes sounds and desktop notifications instantly. Persists across sessio
 
 ## Configuration
 
-Edit `~/.claude/hooks/peon-ping/config.json`:
+Edit `$CLAUDE_CONFIG_DIR/hooks/peon-ping/config.json` (default: `~/.claude/hooks/peon-ping/config.json`):
 
 ```json
 {
@@ -97,7 +97,7 @@ peon --pack                       # cycle to the next pack
 peon --packs                      # list all packs
 ```
 
-Or edit `~/.claude/hooks/peon-ping/config.json` directly:
+Or edit the config file directly:
 
 ```json
 { "active_pack": "ra2_soviet_engineer" }
@@ -108,7 +108,7 @@ Want to add your own pack? See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Uninstall
 
 ```bash
-bash ~/.claude/hooks/peon-ping/uninstall.sh
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/hooks/peon-ping/uninstall.sh
 ```
 
 ## Requirements

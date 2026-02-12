@@ -4,8 +4,9 @@
 # Re-running updates core files; sounds are version-controlled in the repo
 set -euo pipefail
 
-INSTALL_DIR="$HOME/.claude/hooks/peon-ping"
-SETTINGS="$HOME/.claude/settings.json"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+INSTALL_DIR="$CLAUDE_DIR/hooks/peon-ping"
+SETTINGS="$CLAUDE_DIR/settings.json"
 REPO_BASE="https://raw.githubusercontent.com/tonyyont/peon-ping/main"
 
 # All available sound packs (add new packs here)
@@ -68,8 +69,8 @@ elif [ "$PLATFORM" = "wsl" ]; then
   fi
 fi
 
-if [ ! -d "$HOME/.claude" ]; then
-  echo "Error: ~/.claude/ not found. Is Claude Code installed?"
+if [ ! -d "$CLAUDE_DIR" ]; then
+  echo "Error: $CLAUDE_DIR not found. Is Claude Code installed?"
   exit 1
 fi
 
@@ -133,7 +134,7 @@ fi
 chmod +x "$INSTALL_DIR/peon.sh"
 
 # --- Install skill (slash command) ---
-SKILL_DIR="$HOME/.claude/skills/peon-ping-toggle"
+SKILL_DIR="$CLAUDE_DIR/skills/peon-ping-toggle"
 mkdir -p "$SKILL_DIR"
 if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/peon-ping-toggle" ]; then
   cp "$SCRIPT_DIR/skills/peon-ping-toggle/SKILL.md" "$SKILL_DIR/"
@@ -144,7 +145,7 @@ else
 fi
 
 # --- Add shell alias ---
-ALIAS_LINE='alias peon="bash ~/.claude/hooks/peon-ping/peon.sh"'
+ALIAS_LINE="alias peon=\"bash $INSTALL_DIR/peon.sh\""
 for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
   if [ -f "$rcfile" ] && ! grep -qF 'alias peon=' "$rcfile"; then
     echo "" >> "$rcfile"
@@ -155,7 +156,7 @@ for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
 done
 
 # --- Add tab completion ---
-COMPLETION_LINE='[ -f ~/.claude/hooks/peon-ping/completions.bash ] && source ~/.claude/hooks/peon-ping/completions.bash'
+COMPLETION_LINE="[ -f $INSTALL_DIR/completions.bash ] && source $INSTALL_DIR/completions.bash"
 for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
   if [ -f "$rcfile" ] && ! grep -qF 'peon-ping/completions.bash' "$rcfile"; then
     echo "$COMPLETION_LINE" >> "$rcfile"
@@ -177,7 +178,7 @@ done
 
 # --- Backup existing notify.sh (fresh install only) ---
 if [ "$UPDATING" = false ]; then
-  NOTIFY_SH="$HOME/.claude/hooks/notify.sh"
+  NOTIFY_SH="$CLAUDE_DIR/hooks/notify.sh"
   if [ -f "$NOTIFY_SH" ]; then
     cp "$NOTIFY_SH" "$NOTIFY_SH.backup"
     echo ""
@@ -192,8 +193,8 @@ echo "Updating Claude Code hooks in settings.json..."
 python3 -c "
 import json, os, sys
 
-settings_path = os.path.expanduser('~/.claude/settings.json')
-hook_cmd = os.path.expanduser('~/.claude/hooks/peon-ping/peon.sh')
+settings_path = '$SETTINGS'
+hook_cmd = '$INSTALL_DIR/peon.sh'
 
 # Load existing settings
 if os.path.exists(settings_path):
@@ -251,7 +252,7 @@ echo "Testing sound..."
 ACTIVE_PACK=$(python3 -c "
 import json, os
 try:
-    c = json.load(open(os.path.expanduser('~/.claude/hooks/peon-ping/config.json')))
+    c = json.load(open('$INSTALL_DIR/config.json'))
     print(c.get('active_pack', 'peon'))
 except:
     print('peon')

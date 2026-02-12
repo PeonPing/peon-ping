@@ -18,7 +18,7 @@ detect_platform() {
 }
 PLATFORM=$(detect_platform)
 
-PEON_DIR="${CLAUDE_PEON_DIR:-$HOME/.claude/hooks/peon-ping}"
+PEON_DIR="${CLAUDE_PEON_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping}"
 CONFIG="$PEON_DIR/config.json"
 STATE="$PEON_DIR/.state.json"
 

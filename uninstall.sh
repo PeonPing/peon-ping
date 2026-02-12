@@ -3,10 +3,22 @@
 # Removes peon hooks and optionally restores notify.sh
 set -euo pipefail
 
-INSTALL_DIR="$HOME/.claude/hooks/peon-ping"
-SETTINGS="$HOME/.claude/settings.json"
-NOTIFY_BACKUP="$HOME/.claude/hooks/notify.sh.backup"
-NOTIFY_SH="$HOME/.claude/hooks/notify.sh"
+# Derive CLAUDE_DIR from script location if inside a claude directory hierarchy
+CLAUDE_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ "${BASH_SOURCE[0]}" != "bash" ]; then
+  _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+  _candidate="$(cd "$_script_dir/../.." 2>/dev/null && pwd)"
+  if [[ "$_script_dir" == */hooks/peon-ping ]] && [ -f "$_candidate/settings.json" ]; then
+    CLAUDE_DIR="$_candidate"
+  fi
+fi
+if [ -z "$CLAUDE_DIR" ]; then
+  CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+fi
+INSTALL_DIR="$CLAUDE_DIR/hooks/peon-ping"
+SETTINGS="$CLAUDE_DIR/settings.json"
+NOTIFY_BACKUP="$CLAUDE_DIR/hooks/notify.sh.backup"
+NOTIFY_SH="$CLAUDE_DIR/hooks/notify.sh"
 
 echo "=== peon-ping uninstaller ==="
 echo ""
