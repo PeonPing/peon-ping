@@ -28,17 +28,13 @@ function Play-Sound {
         [double]$Volume
     )
 
-    Start-Job -ScriptBlock {
-        param($FilePath, $Vol)
-        Add-Type -AssemblyName PresentationCore
-        $player = New-Object System.Windows.Media.MediaPlayer
-        $player.Open([Uri]::new($FilePath))
-        $player.Volume = $Vol
-        Start-Sleep -Milliseconds 200
-        $player.Play()
-        Start-Sleep -Seconds 3
-        $player.Close()
-    } -ArgumentList $File, $Volume | Out-Null
+    # Use SoundPlayer instead of MediaPlayer - more reliable in background
+    Start-Process powershell.exe -ArgumentList @(
+        '-NoProfile',
+        '-WindowStyle', 'Hidden',
+        '-Command',
+        "`$player = New-Object System.Media.SoundPlayer; `$player.SoundLocation = '$File'; `$player.Play()"
+    ) -WindowStyle Hidden
 }
 
 # --- Platform-aware notification ---
