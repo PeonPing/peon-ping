@@ -19,8 +19,15 @@ detect_platform() {
 PLATFORM=$(detect_platform)
 
 # --- Script and config directory resolution ---
-# Scripts and sounds always come from global location
 SCRIPT_DIR="$HOME/.claude/hooks/peon-ping"
+
+resolve_packs_dir() {
+  if [[ -n "${CLAUDE_PEON_DIR:-}" ]]; then
+    echo "$CLAUDE_PEON_DIR/packs"
+  else
+    echo "$SCRIPT_DIR/packs"
+  fi
+}
 
 # Config resolution (local takes precedence over global)
 resolve_config_dir() {
@@ -37,6 +44,7 @@ resolve_config_dir() {
   fi
 }
 
+PACKS_DIR=$(resolve_packs_dir)
 CONFIG_DIR=$(resolve_config_dir)
 CONFIG="$CONFIG_DIR/config.json"
 STATE="$CONFIG_DIR/.state.json"
@@ -170,7 +178,7 @@ try:
     active = json.load(open(config_path)).get('active_pack', 'peon')
 except:
     active = 'peon'
-packs_dir = '$SCRIPT_DIR/packs'
+packs_dir = '$PACKS_DIR'
 for m in sorted(glob.glob(os.path.join(packs_dir, '*/manifest.json'))):
     info = json.load(open(m))
     name = info.get('name', os.path.basename(os.path.dirname(m)))
@@ -191,7 +199,7 @@ try:
 except:
     cfg = {}
 active = cfg.get('active_pack', 'peon')
-packs_dir = '$SCRIPT_DIR/packs'
+packs_dir = '$PACKS_DIR'
 names = sorted([
     os.path.basename(os.path.dirname(m))
     for m in glob.glob(os.path.join(packs_dir, '*/manifest.json'))
@@ -217,7 +225,7 @@ print(f'peon-ping: switched to {next_pack} ({display})')
 import json, os, glob, sys
 config_path = '$CONFIG'
 pack_arg = '$PACK_ARG'
-packs_dir = '$SCRIPT_DIR/packs'
+packs_dir = '$PACKS_DIR'
 names = sorted([
     os.path.basename(os.path.dirname(m))
     for m in glob.glob(os.path.join(packs_dir, '*/manifest.json'))
@@ -276,6 +284,7 @@ q = shlex.quote
 config_path = '$CONFIG'
 state_file = '$STATE'
 script_dir = '$SCRIPT_DIR'
+packs_dir = '$PACKS_DIR'
 paused = '$PAUSED' == 'true'
 agent_modes = {'delegate'}
 state_dirty = False
@@ -413,7 +422,7 @@ if category and not cat_enabled.get(category, True):
 # --- Pick sound (skip if no category or paused) ---
 sound_file = ''
 if category and not paused:
-    pack_dir = os.path.join(script_dir, 'packs', active_pack)
+    pack_dir = os.path.join(packs_dir, active_pack)
     try:
         manifest = json.load(open(os.path.join(pack_dir, 'manifest.json')))
         sounds = manifest.get('categories', {}).get(category, {}).get('sounds', [])
