@@ -11,6 +11,7 @@ REPO_BASE="https://raw.githubusercontent.com/tonyyont/peon-ping/main"
 # --- Install mode flags ---
 INSTALL_MODE="global"  # default: global only
 SKIP_CHECKSUM=false    # default: verify checksums if available
+INIT_CONFIG=false
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -23,6 +24,10 @@ while [[ $# -gt 0 ]]; do
       INSTALL_MODE="both"
       shift
       ;;
+    --init-config)
+      INIT_CONFIG=true
+      shift
+      ;;
     --skip-checksum)
       SKIP_CHECKSUM=true
       shift
@@ -33,10 +38,14 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --local          Install hook in local .claude/ directory (project-specific)"
       echo "  --both           Install in both local and global locations"
+      echo "  --init-config    Create local config directory for per-project settings"
       echo "  --skip-checksum  Skip checksum verification (for development/testing)"
       echo "  --help           Show this help message"
       echo ""
       echo "Default behavior (no flag): Install globally in ~/.claude/"
+      echo ""
+      echo "New architecture: Scripts are always global, config can be local."
+      echo "Use --init-config to create per-project config."
       echo ""
       echo "Security: When downloading from GitHub, checksums are verified if available."
       exit 0
@@ -177,6 +186,98 @@ if [ ! -d "$HOME/.claude" ]; then
   echo "Error: ~/.claude/ not found. Is Claude Code installed?"
   exit 1
 fi
+
+# --- Detect duplicate installations ---
+LOCAL_DIR="$PWD/.claude/hooks/peon-ping"
+GLOBAL_DIR="$HOME/.claude/hooks/peon-ping"
+
+has_coordination_feature() {
+  local peon_path="$1"
+  if [ -f "$peon_path" ]; then
+    if grep -q "Skip if local installation exists in PWD" "$peon_path" 2>/dev/null; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+check_duplicate() {
+  local install_mode="$1"
+
+  if [ "$install_mode" = "global" ] || [ "$install_mode" = "" ]; then
+    if [ -f "$LOCAL_DIR/peon.sh" ]; then
+      if has_coordination_feature "$LOCAL_DIR/peon.sh"; then
+        # Local has coordination - just remind
+        echo ""
+        echo "=== Note: Local Installation Exists ==="
+        echo ""
+        echo "You have peon-ping installed locally at $PWD/.claude/"
+        echo "Adding global installation. Both will coordinate automatically"
+        echo "(local takes precedence when in this project)."
+        echo ""
+      else
+        # Local is old - warn and suggest update
+        echo ""
+        echo "=== Warning: Existing Local Installation ==="
+        echo ""
+        echo "You have an older peon-ping installed locally at $PWD/.claude/"
+        echo "This version doesn't support automatic coordination."
+        echo ""
+        echo "Options:"
+        echo "  1. Use './install.sh --both' to update local with coordination feature"
+        echo "  2. Uninstall local first, then install global"
+        echo ""
+        read -p "Proceed anyway? (Y/n): " -n 1 -r
+        echo
+        if [[ "$REPLY" =~ ^[Nn]$ ]]; then
+          echo "Aborted. Consider using './install.sh --both' instead."
+          exit 0
+        fi
+      fi
+    fi
+  elif [ "$install_mode" = "local" ]; then
+    if [ -f "$GLOBAL_DIR/peon.sh" ]; then
+      if has_coordination_feature "$GLOBAL_DIR/peon.sh"; then
+        # Global has coordination - just remind
+        echo ""
+        echo "=== Note: Global Installation Exists ==="
+        echo ""
+        echo "You have peon-ping installed globally at ~/.claude/hooks/peon-ping/"
+        echo "Adding local installation. Both will coordinate automatically"
+        echo "(local takes precedence when in this project)."
+        echo ""
+      else
+        # Global is old - warn and suggest update
+        echo ""
+        echo "=== Warning: Existing Global Installation ==="
+        echo ""
+        echo "You have an older peon-ping installed globally at ~/.claude/hooks/peon-ping/"
+        echo "This version doesn't support automatic coordination."
+        echo ""
+        echo "Options:"
+        echo "  1. Update global first: './install.sh' in a directory without local"
+        echo "  2. Use './install.sh --both' to update both with coordination feature"
+        echo ""
+        read -p "Proceed anyway? (Y/n): " -n 1 -r
+        echo
+        if [[ "$REPLY" =~ ^[Nn]$ ]]; then
+          echo "Aborted. Consider updating global installation first."
+          exit 0
+        fi
+      fi
+    fi
+  elif [ "$install_mode" = "both" ]; then
+    echo ""
+    echo "=== Note: Both Install Modes ==="
+    echo ""
+    echo "Installing in both local and global locations."
+    echo "Local hooks will take precedence over global hooks in Claude Code."
+    echo "Coordination is now automatic - no action needed."
+    echo ""
+  fi
+}
+
+check_duplicate "$INSTALL_MODE"
 
 # --- Detect if running from local clone or curl|bash ---
 SCRIPT_DIR=""
@@ -448,129 +549,46 @@ echo "  peon --toggle      — toggle sounds from any terminal"
 echo "  peon --status      — check if sounds are paused"
 echo ""
 
-# --- Handle local install mode ---
 if [ "$INSTALL_MODE" = "local" ] || [ "$INSTALL_MODE" = "both" ]; then
   echo ""
-  echo "=== Installing local hook ==="
-  
-  local_dir="$PWD/.claude/peon-ping"
-  local_settings="$PWD/.claude/settings.json"
-  
-  # Check if local directory needs updating (separate from global)
-  local_updating=false
-  if [ -f "$local_dir/peon.sh" ]; then
-    local_updating=true
-  fi
-  
-  mkdir -p "$local_dir/packs"
-  mkdir -p "$local_dir/sounds"
-  
-  for pack in $PACKS; do
-    mkdir -p "$local_dir/packs/$pack/sounds"
-  done
-  
-  if [ -n "$SCRIPT_DIR" ]; then
-    cp -r "$SCRIPT_DIR/packs/"* "$local_dir/packs/"
-    cp "$SCRIPT_DIR/peon.sh" "$local_dir/"
-    cp "$SCRIPT_DIR/completions.bash" "$local_dir/"
-    cp "$SCRIPT_DIR/VERSION" "$local_dir/"
-    if [ "$local_updating" = false ]; then
-      cp "$SCRIPT_DIR/config.json" "$local_dir/"
-    fi
-  else
-    curl -fsSL "$REPO_BASE/peon.sh" -o "$local_dir/peon.sh"
-    curl -fsSL "$REPO_BASE/completions.bash" -o "$local_dir/completions.bash"
-    curl -fsSL "$REPO_BASE/VERSION" -o "$local_dir/VERSION"
-    for pack in $PACKS; do
-      curl -fsSL "$REPO_BASE/packs/$pack/manifest.json" -o "$local_dir/packs/$pack/manifest.json"
-      manifest="$local_dir/packs/$pack/manifest.json"
-      python3 -c "
-import json
-m = json.load(open('$manifest'))
-seen = set()
-for cat in m.get('categories', {}).values():
-    for s in cat.get('sounds', []):
-        f = s['file']
-        if f not in seen:
-            seen.add(f)
-            print(f)
-" | while read -r sfile; do
-        curl -fsSL "$REPO_BASE/packs/$pack/sounds/$sfile" -o "$local_dir/packs/$pack/sounds/$sfile" </dev/null
-      done
-    done
-    if [ "$local_updating" = false ]; then
-      curl -fsSL "$REPO_BASE/config.json" -o "$local_dir/config.json"
-    fi
-    verify_checksums "$local_dir"
-  fi
-  
-  chmod +x "$local_dir/peon.sh"
-  
-  if [ "$local_updating" = false ]; then
-    echo '{}' > "$local_dir/.state.json"
-  fi
-  
-  echo "Registering local hooks in $local_settings..."
-  
-  python3 -c "
-import json, os
-
-settings_path = '$local_settings'
-hook_cmd = '$PWD/.claude/peon-ping/peon.sh'
-
-if os.path.exists(settings_path):
-    with open(settings_path) as f:
-        settings = json.load(f)
-else:
-    settings = {}
-
-hooks = settings.setdefault('hooks', {})
-
-peon_hook = {
-    'type': 'command',
-    'command': hook_cmd,
-    'timeout': 10
-}
-
-peon_entry = {
-    'matcher': '',
-    'hooks': [peon_hook]
-}
-
-events = ['SessionStart', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest']
-
-for event in events:
-    event_hooks = hooks.get(event, [])
-    event_hooks = [
-        h for h in event_hooks
-        if not any(
-            'notify.sh' in hk.get('command', '') or 'peon.sh' in hk.get('command', '')
-            for hk in h.get('hooks', [])
-        )
-    ]
-    event_hooks.append(peon_entry)
-    hooks[event] = event_hooks
-
-settings['hooks'] = hooks
-
-with open(settings_path, 'w') as f:
-    json.dump(settings, f, indent=2)
-    f.write('\n')
-
-print('Hooks registered for: ' + ', '.join(events))
-"
-  
+  echo "=== DEPRECATION WARNING ==="
   echo ""
-  echo "Local hook installed: $local_dir"
+  echo "The --local and --both flags are deprecated."
+  echo "Scripts are now always installed globally."
+  echo ""
+  echo "To create per-project configuration, use:"
+  echo "  ./install.sh --init-config"
+  echo ""
+  INIT_CONFIG=true
 fi
 
-if [ "$INSTALL_MODE" = "both" ]; then
+if [ "$INIT_CONFIG" = true ]; then
   echo ""
-  echo "Both local and global hooks are now installed."
-  echo "  Local:   $PWD/.claude/"
-  echo "  Global:  $INSTALL_DIR"
+  echo "=== Initializing local config ==="
+  
+  local_config_dir="$PWD/.claude/hooks/peon-ping"
+  
+  mkdir -p "$local_config_dir"
+  
+  if [ -f "$local_config_dir/config.json" ]; then
+    echo "Local config already exists: $local_config_dir/config.json"
+  else
+    if [ -n "$SCRIPT_DIR" ]; then
+      cp "$SCRIPT_DIR/config.json" "$local_config_dir/"
+    else
+      curl -fsSL "$REPO_BASE/config.json" -o "$local_config_dir/config.json"
+    fi
+    echo "Created local config: $local_config_dir/config.json"
+  fi
+  
+  if [ ! -f "$local_config_dir/.state.json" ]; then
+    echo '{}' > "$local_config_dir/.state.json"
+    echo "Created local state: $local_config_dir/.state.json"
+  fi
+  
   echo ""
-  echo "Note: Local hooks take precedence over global hooks in Claude Code."
+  echo "Local config initialized."
+  echo "This project will now use local config while sharing global scripts."
 fi
 
 echo ""

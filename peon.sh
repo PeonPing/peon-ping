@@ -18,24 +18,29 @@ detect_platform() {
 }
 PLATFORM=$(detect_platform)
 
-# --- Config directory resolution ---
-resolve_peon_dir() {
+# --- Script and config directory resolution ---
+# Scripts and sounds always come from global location
+SCRIPT_DIR="$HOME/.claude/hooks/peon-ping"
+
+# Config resolution (local takes precedence over global)
+resolve_config_dir() {
   local cwd="${PEON_CWD:-$PWD}"
-  local local_dir="$cwd/.claude/peon-ping"
+  local local_dir="$cwd/.claude/hooks/peon-ping"
 
   # Priority: 1) Local config (project directory), 2) CLAUDE_PEON_DIR env var, 3) Global default
-  if [[ -d "$local_dir" ]]; then
+  if [[ -f "$local_dir/config.json" ]]; then
     echo "$local_dir"
   elif [[ -n "${CLAUDE_PEON_DIR:-}" ]]; then
     echo "$CLAUDE_PEON_DIR"
   else
-    echo "$HOME/.claude/hooks/peon-ping"
+    echo "$SCRIPT_DIR"
   fi
 }
 
-PEON_DIR=$(resolve_peon_dir)
-CONFIG="$PEON_DIR/config.json"
-STATE="$PEON_DIR/.state.json"
+CONFIG_DIR=$(resolve_config_dir)
+CONFIG="$CONFIG_DIR/config.json"
+STATE="$CONFIG_DIR/.state.json"
+PAUSED_FILE="$CONFIG_DIR/.paused"
 
 # --- Platform-aware audio playback ---
 play_sound() {
@@ -147,7 +152,6 @@ terminal_is_focused() {
 }
 
 # --- CLI subcommands (must come before INPUT=$(cat) which blocks on stdin) ---
-PAUSED_FILE="$PEON_DIR/.paused"
 case "${1:-}" in
   --pause)   touch "$PAUSED_FILE"; echo "peon-ping: sounds paused"; exit 0 ;;
   --resume)  rm -f "$PAUSED_FILE"; echo "peon-ping: sounds resumed"; exit 0 ;;
@@ -166,7 +170,7 @@ try:
     active = json.load(open(config_path)).get('active_pack', 'peon')
 except:
     active = 'peon'
-packs_dir = '$PEON_DIR/packs'
+packs_dir = '$SCRIPT_DIR/packs'
 for m in sorted(glob.glob(os.path.join(packs_dir, '*/manifest.json'))):
     info = json.load(open(m))
     name = info.get('name', os.path.basename(os.path.dirname(m)))
@@ -187,7 +191,7 @@ try:
 except:
     cfg = {}
 active = cfg.get('active_pack', 'peon')
-packs_dir = '$PEON_DIR/packs'
+packs_dir = '$SCRIPT_DIR/packs'
 names = sorted([
     os.path.basename(os.path.dirname(m))
     for m in glob.glob(os.path.join(packs_dir, '*/manifest.json'))
@@ -213,7 +217,7 @@ print(f'peon-ping: switched to {next_pack} ({display})')
 import json, os, glob, sys
 config_path = '$CONFIG'
 pack_arg = '$PACK_ARG'
-packs_dir = '$PEON_DIR/packs'
+packs_dir = '$SCRIPT_DIR/packs'
 names = sorted([
     os.path.basename(os.path.dirname(m))
     for m in glob.glob(os.path.join(packs_dir, '*/manifest.json'))
@@ -260,7 +264,7 @@ INPUT=$(cat)
 # echo "$(date): peon hook — $INPUT" >> /tmp/peon-ping-debug.log
 
 PAUSED=false
-[ -f "$PEON_DIR/.paused" ] && PAUSED=true
+[ -f "$PAUSED_FILE" ] && PAUSED=true
 
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
@@ -271,7 +275,7 @@ q = shlex.quote
 
 config_path = '$CONFIG'
 state_file = '$STATE'
-peon_dir = '$PEON_DIR'
+script_dir = '$SCRIPT_DIR'
 paused = '$PAUSED' == 'true'
 agent_modes = {'delegate'}
 state_dirty = False
@@ -409,7 +413,7 @@ if category and not cat_enabled.get(category, True):
 # --- Pick sound (skip if no category or paused) ---
 sound_file = ''
 if category and not paused:
-    pack_dir = os.path.join(peon_dir, 'packs', active_pack)
+    pack_dir = os.path.join(script_dir, 'packs', active_pack)
     try:
         manifest = json.load(open(os.path.join(pack_dir, 'manifest.json')))
         sounds = manifest.get('categories', {}).get(category, {}).get('sounds', [])
@@ -449,7 +453,7 @@ print('SOUND_FILE=' + q(sound_file))
 # --- Check for updates (SessionStart only, once per day, non-blocking) ---
 if [ "$EVENT" = "SessionStart" ]; then
   (
-    CHECK_FILE="$PEON_DIR/.last_update_check"
+    CHECK_FILE="$SCRIPT_DIR/.last_update_check"
     NOW=$(date +%s)
     LAST_CHECK=0
     [ -f "$CHECK_FILE" ] && LAST_CHECK=$(cat "$CHECK_FILE" 2>/dev/null || echo 0)
@@ -458,24 +462,24 @@ if [ "$EVENT" = "SessionStart" ]; then
     if [ "$ELAPSED" -gt 86400 ]; then
       echo "$NOW" > "$CHECK_FILE"
       LOCAL_VERSION=""
-      [ -f "$PEON_DIR/VERSION" ] && LOCAL_VERSION=$(cat "$PEON_DIR/VERSION" | tr -d '[:space:]')
+      [ -f "$SCRIPT_DIR/VERSION" ] && LOCAL_VERSION=$(cat "$SCRIPT_DIR/VERSION" | tr -d '[:space:]')
       REMOTE_VERSION=$(curl -fsSL --connect-timeout 3 --max-time 5 \
         "https://raw.githubusercontent.com/tonyyont/peon-ping/main/VERSION" 2>/dev/null | tr -d '[:space:]')
       if [ -n "$REMOTE_VERSION" ] && [ -n "$LOCAL_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
         # Write update notice to a file so we can display it
-        echo "$REMOTE_VERSION" > "$PEON_DIR/.update_available"
+        echo "$REMOTE_VERSION" > "$SCRIPT_DIR/.update_available"
       else
-        rm -f "$PEON_DIR/.update_available"
+        rm -f "$SCRIPT_DIR/.update_available"
       fi
     fi
   ) &>/dev/null &
 fi
 
 # --- Show update notice (if available, on SessionStart only) ---
-if [ "$EVENT" = "SessionStart" ] && [ -f "$PEON_DIR/.update_available" ]; then
-  NEW_VER=$(cat "$PEON_DIR/.update_available" 2>/dev/null | tr -d '[:space:]')
+if [ "$EVENT" = "SessionStart" ] && [ -f "$SCRIPT_DIR/.update_available" ]; then
+  NEW_VER=$(cat "$SCRIPT_DIR/.update_available" 2>/dev/null | tr -d '[:space:]')
   CUR_VER=""
-  [ -f "$PEON_DIR/VERSION" ] && CUR_VER=$(cat "$PEON_DIR/VERSION" | tr -d '[:space:]')
+  [ -f "$SCRIPT_DIR/VERSION" ] && CUR_VER=$(cat "$SCRIPT_DIR/VERSION" | tr -d '[:space:]')
   if [ -n "$NEW_VER" ]; then
     echo "peon-ping update available: ${CUR_VER:-?} → $NEW_VER — run: curl -fsSL https://raw.githubusercontent.com/tonyyont/peon-ping/main/install.sh | bash" >&2
   fi

@@ -82,9 +82,26 @@ Tab completion is supported — type `peon --pack <TAB>` to see available pack n
 
 Pausing mutes sounds and desktop notifications instantly. Persists across sessions until you resume. Tab titles remain active when paused.
 
+## Per-Project Configuration
+
+You can have different settings for different projects:
+
+```bash
+# Install globally once
+./install.sh
+
+# In a specific project, create local config
+./install.sh --init-config
+```
+
+This creates `./.claude/hooks/peon-ping/config.json` in your project — perfect for:
+- Different volume levels per project
+- Different sound packs per project
+- Project-specific settings that don't affect other work
+
 ## Configuration
 
-Edit `~/.claude/hooks/peon-ping/config.json`:
+Edit `~/.claude/hooks/peon-ping/config.json` (global) or `./.claude/hooks/peon-ping/config.json` (project-specific):
 
 ```json
 {
