@@ -1,0 +1,48 @@
+{
+  "name": "syava_bodyachkom",
+  "display_name": "Sява - Бодрячком",
+  "categories": {
+    "greeting": {
+      "sounds": [
+        { "file": "01_bodyachkom_patsanchiki.wav", "line": "Бодрячком, пацанчики, бодрячком!" },
+        { "file": "06_derzhimsya.wav", "line": "Опа! Бодрячком! Держимся бодрячком!" }
+      ]
+    },
+    "acknowledge": {
+      "sounds": [
+        { "file": "02_opa.wav", "line": "Опа!" },
+        { "file": "05_kachaet.wav", "line": "Качает музяка" },
+        { "file": "10_kachaet_outro.wav", "line": "Опа! Качает музяка всяко" }
+      ]
+    },
+    "complete": {
+      "sounds": [
+        { "file": "09_derzhimsya_outro.wav", "line": "Держимся бодрячком" },
+        { "file": "10_kachaet_outro.wav", "line": "Опа! Качает музяка всяко" },
+        { "file": "02_opa.wav", "line": "Опа!" }
+      ]
+    },
+    "error": {
+      "sounds": [
+        { "file": "08_opa_nihuya.wav", "line": "Опа, нихуя!" }
+      ]
+    },
+    "permission": {
+      "sounds": [
+        { "file": "07_cheche.wav", "line": "Чё, чё?" },
+        { "file": "02_opa.wav", "line": "Опа!" }
+      ]
+    },
+    "resource_limit": {
+      "sounds": [
+        { "file": "08_opa_nihuya.wav", "line": "Опа, нихуя!" }
+      ]
+    },
+    "annoyed": {
+      "sounds": [
+        { "file": "11_da_ladno.wav", "line": "Да ладно!" },
+        { "file": "08_opa_nihuya.wav", "line": "Опа, нихуя!" }
+      ]
+    }
+  }
+}
