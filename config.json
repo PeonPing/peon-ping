@@ -2,6 +2,7 @@
   "active_pack": "peon",
   "volume": 0.5,
   "enabled": true,
+  "desktop_notifications": true,
   "categories": {
     "greeting": true,
     "acknowledge": true,

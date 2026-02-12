@@ -8,7 +8,7 @@ _peon_completions() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
   # Top-level options
-  opts="--pause --resume --toggle --status --packs --pack --help"
+  opts="--pause --resume --toggle --status --packs --pack --notifications-on --notifications-off --help"
 
   if [ "$prev" = "--pack" ]; then
     # Complete pack names by scanning manifest files

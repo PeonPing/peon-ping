@@ -282,6 +282,41 @@ case "${1:-}" in
     exit 0 ;;
   --status)
     [ -f "$PAUSED_FILE" ] && echo "peon-ping: paused" || echo "peon-ping: active"
+    python3 -c "
+import json
+try:
+    c = json.load(open('$CONFIG'))
+    dn = c.get('desktop_notifications', True)
+    print('peon-ping: desktop notifications ' + ('on' if dn else 'off'))
+except:
+    print('peon-ping: desktop notifications on')
+"
+    exit 0 ;;
+  --notifications-on)
+    python3 -c "
+import json
+config_path = '$CONFIG'
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+cfg['desktop_notifications'] = True
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: desktop notifications on')
+"
+    exit 0 ;;
+  --notifications-off)
+    python3 -c "
+import json
+config_path = '$CONFIG'
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+cfg['desktop_notifications'] = False
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: desktop notifications off')
+"
     exit 0 ;;
   --packs)
     python3 -c "
@@ -364,14 +399,16 @@ print(f'peon-ping: switched to {pack_arg} ({display})')
 Usage: peon <command>
 
 Commands:
-  --pause        Mute sounds
-  --resume       Unmute sounds
-  --toggle       Toggle mute on/off
-  --status       Check if paused or active
-  --packs        List available sound packs
-  --pack <name>  Switch to a specific pack
-  --pack         Cycle to the next pack
-  --help         Show this help
+  --pause              Mute sounds
+  --resume             Unmute sounds
+  --toggle             Toggle mute on/off
+  --status             Check if paused or active
+  --packs              List available sound packs
+  --pack <name>        Switch to a specific pack
+  --pack               Cycle to the next pack
+  --notifications-on   Enable desktop notifications
+  --notifications-off  Disable desktop notifications
+  --help               Show this help
 HELPEOF
     exit 0 ;;
   --*)
@@ -412,6 +449,7 @@ if str(cfg.get('enabled', True)).lower() == 'false':
     sys.exit(0)
 
 volume = cfg.get('volume', 0.5)
+desktop_notif = cfg.get('desktop_notifications', True)
 active_pack = cfg.get('active_pack', 'peon')
 pack_rotation = cfg.get('pack_rotation', [])
 annoyed_threshold = int(cfg.get('annoyed_threshold', 3))
@@ -581,6 +619,7 @@ print('MARKER=' + q(marker))
 print('NOTIFY=' + q(notify))
 print('NOTIFY_COLOR=' + q(notify_color))
 print('MSG=' + q(msg))
+print('DESKTOP_NOTIF=' + ('true' if desktop_notif else 'false'))
 print('SOUND_FILE=' + q(sound_file))
 " <<< "$INPUT" 2>/dev/null)"
 
@@ -641,7 +680,7 @@ if [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ]; then
 fi
 
 # --- Smart notification: only when terminal is NOT frontmost ---
-if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ]; then
+if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
   if ! terminal_is_focused; then
     send_notification "$MSG" "$TITLE" "${NOTIFY_COLOR:-red}"
   fi

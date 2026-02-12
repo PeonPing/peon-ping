@@ -15,4 +15,6 @@ complete -c peon -l pack -d "Switch active sound pack" -r -a "(
     end
   end
 )"
+complete -c peon -l notifications-on -d "Enable desktop notifications"
+complete -c peon -l notifications-off -d "Disable desktop notifications"
 complete -c peon -l help -d "Show help message"

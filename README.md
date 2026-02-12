@@ -49,12 +49,14 @@ Need to mute sounds and notifications during a meeting or pairing session? Two o
 Other CLI commands:
 
 ```bash
-peon --pause          # Mute sounds
-peon --resume         # Unmute sounds
-peon --status         # Check if paused or active
-peon --packs          # List available sound packs
-peon --pack <name>    # Switch to a specific pack
-peon --pack           # Cycle to the next pack
+peon --pause              # Mute sounds
+peon --resume             # Unmute sounds
+peon --status             # Check if paused or active
+peon --packs              # List available sound packs
+peon --pack <name>        # Switch to a specific pack
+peon --pack               # Cycle to the next pack
+peon --notifications-on   # Enable desktop notifications
+peon --notifications-off  # Disable desktop notifications
 ```
 
 Tab completion is supported — type `peon --pack <TAB>` to see available pack names.
@@ -82,6 +84,7 @@ The config lives at `$CLAUDE_CONFIG_DIR/hooks/peon-ping/config.json` (default: `
 ```
 
 - **volume**: 0.0–1.0 (quiet enough for the office)
+- **desktop_notifications**: `true`/`false` — toggle desktop notification popups independently from sounds (default: `true`)
 - **categories**: Toggle individual sound types on/off
 - **annoyed_threshold / annoyed_window_seconds**: How many prompts in N seconds triggers the easter egg
 - **pack_rotation**: Array of pack names (e.g. `["peon", "sc_kerrigan", "peasant"]`). Each Claude Code session randomly gets one pack from the list and keeps it for the whole session. Leave empty `[]` to use `active_pack` instead.
