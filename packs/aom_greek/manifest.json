@@ -1,0 +1,54 @@
+{
+  "name": "aom_greek",
+  "display_name": "Age of Mythology - Greek Villager",
+  "categories": {
+    "greeting": {
+      "sounds": [
+        { "file": "Greeks_Villager_Male_Select_4_AoM.wav", "line": "Πρόσταγμα? (Command?)" },
+        { "file": "Greeks_Villager_Male_Select_1_AoM.wav", "line": "Λέγε (Speak)" },
+        { "file": "Greeks_Villager_Male_Select_3_AoM.wav", "line": "Ἕτοιμος (Ready)" }
+      ]
+    },
+    "acknowledge": {
+      "sounds": [
+        { "file": "Greeks_Villager_Male_Task_1_AoM.wav", "line": "Ἔστω (Let it be)" },
+        { "file": "Greeks_Villager_Male_Task_2_AoM.wav", "line": "Ναί (Yes)" },
+        { "file": "Greeks_Villager_Male_Task_3_AoM.wav", "line": "Μάλιστα (Of course)" },
+        { "file": "Greeks_Villager_Male_Task_4_AoM.wav", "line": "Βούλομαι (I will)" }
+      ]
+    },
+    "complete": {
+      "sounds": [
+        { "file": "Greeks_Villager_Male_Build_AoM.wav", "line": "Τέκτων (Mason)" },
+        { "file": "Greeks_Villager_Male_Task_1_AoM.wav", "line": "Ἔστω (Let it be)" },
+        { "file": "Greeks_Villager_Male_Task_2_AoM.wav", "line": "Ναί (Yes)" },
+        { "file": "Greeks_Villager_Male_Task_3_AoM.wav", "line": "Μάλιστα (Of course)" },
+        { "file": "Greeks_Villager_Male_Select_3_AoM.wav", "line": "Ἕτοιμος (Ready)" }
+      ]
+    },
+    "error": {
+      "sounds": [
+        { "file": "Greeks_Villager_Male_Attack_AoM.wav", "line": "Εἰσβολή! (Invasion!)" }
+      ]
+    },
+    "permission": {
+      "sounds": [
+        { "file": "Greeks_Villager_Male_Select_4_AoM.wav", "line": "Πρόσταγμα? (Command?)" },
+        { "file": "Greeks_Villager_Male_Select_1_AoM.wav", "line": "Λέγε (Speak)" },
+        { "file": "Greeks_Villager_Male_Select_2_AoM.wav", "line": "Πρόσεχε! (Be careful!)" }
+      ]
+    },
+    "resource_limit": {
+      "sounds": [
+        { "file": "Greeks_Villager_Male_Select_2_AoM.wav", "line": "Πρόσεχε! (Be careful!)" }
+      ]
+    },
+    "annoyed": {
+      "sounds": [
+        { "file": "Greeks_Villager_Male_Attack_AoM.wav", "line": "Εἰσβολή! (Invasion!)" },
+        { "file": "Greeks_Villager_Male_Chop_AoM.wav", "line": "Δρυτόμος (Woodcutter)" },
+        { "file": "Greeks_Villager_Male_Select_2_AoM.wav", "line": "Πρόσεχε! (Be careful!)" }
+      ]
+    }
+  }
+}
