@@ -5,7 +5,6 @@
     "greeting": {
       "sounds": [
         { "file": "ReadyToServe.mp3", "line": "Ready to serve." },
-        { "file": "WhatIsIt.mp3", "line": "What is it?" },
         { "file": "MyLord.mp3", "line": "My lord?" },
         { "file": "Hello.mp3", "line": "Hello." },
         { "file": "Yes.mp3", "line": "Yes?" }
@@ -22,8 +21,7 @@
     "complete": {
       "sounds": [
         { "file": "JobsDone.mp3", "line": "Job's done." },
-        { "file": "Building.mp3", "line": "Building." },
-        { "file": "MoreWork.mp3", "line": "More work?" }
+        { "file": "Building.mp3", "line": "Building." }
       ]
     },
     "error": {
