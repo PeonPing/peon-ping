@@ -475,6 +475,51 @@ JSON
   [[ "$sound2" == *"/packs/sc_kerrigan/sounds/"* ]]
 }
 
+# ============================================================
+# Linux platform support
+# ============================================================
+
+@test "Linux: SessionStart plays sound via pw-play" {
+  run_peon_linux '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  pw_play_was_called
+  sound=$(pw_play_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
+}
+
+@test "Linux: Stop plays complete sound via pw-play" {
+  run_peon_linux '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  pw_play_was_called
+  sound=$(pw_play_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
+}
+
+@test "Linux: permission notification sends notify-send" {
+  run_peon_linux '{"hook_event_name":"Notification","notification_type":"permission_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  notify_send_was_called
+  log_line=$(cat "$TEST_DIR/notify-send.log")
+  [[ "$log_line" == *"--urgency=normal"* ]]
+}
+
+@test "Linux: volume is passed to pw-play" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+JSON
+  run_peon_linux '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  pw_play_was_called
+  log_line=$(tail -1 "$TEST_DIR/pw-play.log")
+  [[ "$log_line" == *"--volume 0.3"* ]]
+}
+
+@test "Linux: paused file suppresses sound" {
+  touch "$TEST_DIR/.paused"
+  run_peon_linux '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! pw_play_was_called
+}
+
 @test "empty pack_rotation falls back to active_pack" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {

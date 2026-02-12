@@ -16,7 +16,7 @@ detect_platform() {
     *) echo "unknown" ;;
   esac
 }
-PLATFORM=$(detect_platform)
+PLATFORM="${PEON_PLATFORM:-$(detect_platform)}"
 
 PEON_DIR="${CLAUDE_PEON_DIR:-$HOME/.claude/hooks/peon-ping}"
 CONFIG="$PEON_DIR/config.json"
@@ -44,6 +44,15 @@ play_sound() {
         Start-Sleep -Seconds 3
         \$p.Close()
       " &>/dev/null &
+      ;;
+    linux)
+      if command -v pw-play &>/dev/null; then
+        nohup pw-play --volume "$vol" "$file" >/dev/null 2>&1 &
+      elif command -v paplay &>/dev/null; then
+        local pa_vol
+        pa_vol=$(python3 -c "print(int(float('$vol') * 65536))")
+        nohup paplay --volume "$pa_vol" "$file" >/dev/null 2>&1 &
+      fi
       ;;
   esac
 }
@@ -106,6 +115,17 @@ APPLESCRIPT
         " &>/dev/null
         rm -rf "$slot_dir/slot-$slot"
       ) &
+      ;;
+    linux)
+      if command -v notify-send &>/dev/null; then
+        local urgency="normal"
+        case "$color" in
+          red)    urgency="normal" ;;
+          yellow) urgency="low" ;;
+          blue)   urgency="low" ;;
+        esac
+        nohup notify-send --urgency="$urgency" "$title" "$msg" >/dev/null 2>&1 &
+      fi
       ;;
   esac
 }

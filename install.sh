@@ -42,8 +42,8 @@ else
 fi
 
 # --- Prerequisites ---
-if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ]; then
-  echo "Error: peon-ping requires macOS or WSL (Windows Subsystem for Linux)"
+if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ] && [ "$PLATFORM" != "linux" ]; then
+  echo "Error: peon-ping requires macOS, Linux, or WSL (Windows Subsystem for Linux)"
   exit 1
 fi
 
@@ -65,6 +65,14 @@ elif [ "$PLATFORM" = "wsl" ]; then
   if ! command -v wslpath &>/dev/null; then
     echo "Error: wslpath is required (should be built into WSL)"
     exit 1
+  fi
+elif [ "$PLATFORM" = "linux" ]; then
+  if ! command -v pw-play &>/dev/null && ! command -v paplay &>/dev/null; then
+    echo "Error: pw-play (PipeWire) or paplay (PulseAudio) is required for audio playback"
+    exit 1
+  fi
+  if ! command -v notify-send &>/dev/null; then
+    echo "Warning: notify-send not found — desktop notifications will be skipped"
   fi
 fi
 
@@ -275,6 +283,12 @@ if [ -n "$TEST_SOUND" ]; then
       Start-Sleep -Seconds 3
       \$p.Close()
     " 2>/dev/null
+  elif [ "$PLATFORM" = "linux" ]; then
+    if command -v pw-play &>/dev/null; then
+      pw-play --volume 0.3 "$TEST_SOUND" 2>/dev/null
+    elif command -v paplay &>/dev/null; then
+      paplay --volume 19660 "$TEST_SOUND" 2>/dev/null
+    fi
   fi
   echo "Sound working!"
 else

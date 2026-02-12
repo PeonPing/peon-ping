@@ -130,6 +130,27 @@ fi
 SCRIPT
   chmod +x "$MOCK_BIN/osascript"
 
+  # Mock pw-play — log calls instead of playing sound (PipeWire)
+  cat > "$MOCK_BIN/pw-play" <<'SCRIPT'
+#!/bin/bash
+echo "$@" >> "${CLAUDE_PEON_DIR}/pw-play.log"
+SCRIPT
+  chmod +x "$MOCK_BIN/pw-play"
+
+  # Mock paplay — log calls instead of playing sound (PulseAudio)
+  cat > "$MOCK_BIN/paplay" <<'SCRIPT'
+#!/bin/bash
+echo "$@" >> "${CLAUDE_PEON_DIR}/paplay.log"
+SCRIPT
+  chmod +x "$MOCK_BIN/paplay"
+
+  # Mock notify-send — log calls instead of sending notification
+  cat > "$MOCK_BIN/notify-send" <<'SCRIPT'
+#!/bin/bash
+echo "$@" >> "${CLAUDE_PEON_DIR}/notify-send.log"
+SCRIPT
+  chmod +x "$MOCK_BIN/notify-send"
+
   # Mock curl — return a configurable version string
   cat > "$MOCK_BIN/curl" <<'SCRIPT'
 #!/bin/bash
@@ -151,10 +172,10 @@ teardown_test_env() {
   rm -rf "$TEST_DIR"
 }
 
-# Helper: run peon.sh with a JSON event
+# Helper: run peon.sh with a JSON event (defaults to mac platform for existing tests)
 run_peon() {
   local json="$1"
-  echo "$json" | bash "$PEON_SH" 2>"$TEST_DIR/stderr.log"
+  echo "$json" | PEON_PLATFORM="${PEON_PLATFORM:-mac}" bash "$PEON_SH" 2>"$TEST_DIR/stderr.log"
   PEON_EXIT=$?
   PEON_STDERR=$(cat "$TEST_DIR/stderr.log" 2>/dev/null)
 }
@@ -179,4 +200,30 @@ afplay_call_count() {
   else
     echo "0"
   fi
+}
+
+# Helper: check if pw-play was called
+pw_play_was_called() {
+  [ -f "$TEST_DIR/pw-play.log" ] && [ -s "$TEST_DIR/pw-play.log" ]
+}
+
+# Helper: get the sound file pw-play was called with
+pw_play_sound() {
+  if [ -f "$TEST_DIR/pw-play.log" ]; then
+    # pw-play log format: --volume 0.5 /path/to/sound.wav
+    tail -1 "$TEST_DIR/pw-play.log" | awk '{print $NF}'
+  fi
+}
+
+# Helper: check if notify-send was called
+notify_send_was_called() {
+  [ -f "$TEST_DIR/notify-send.log" ] && [ -s "$TEST_DIR/notify-send.log" ]
+}
+
+# Helper: run peon.sh with a JSON event on Linux platform
+run_peon_linux() {
+  local json="$1"
+  echo "$json" | PEON_PLATFORM=linux bash "$PEON_SH" 2>"$TEST_DIR/stderr.log"
+  PEON_EXIT=$?
+  PEON_STDERR=$(cat "$TEST_DIR/stderr.log" 2>/dev/null)
 }
