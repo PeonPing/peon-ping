@@ -8,11 +8,10 @@ user_invocable: true
 
 Toggle peon-ping sounds on or off.
 
-Run the following command using the Bash tool:
+Run the appropriate command using the Bash tool based on the user's platform:
 
-```bash
-bash ~/.claude/hooks/peon-ping/peon.sh --toggle
-```
+- **Windows**: `python ~/.claude/hooks/peon-ping/peon.py --toggle`
+- **macOS / WSL / Linux**: `bash ~/.claude/hooks/peon-ping/peon.sh --toggle`
 
 Report the output to the user. The command will print either:
 - `peon-ping: sounds paused` — sounds are now muted

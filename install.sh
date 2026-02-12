@@ -43,7 +43,8 @@ fi
 
 # --- Prerequisites ---
 if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ]; then
-  echo "Error: peon-ping requires macOS or WSL (Windows Subsystem for Linux)"
+  echo "Error: this bash installer requires macOS or WSL."
+  echo "On native Windows, use: python install.py"
   exit 1
 fi
 
@@ -91,9 +92,12 @@ if [ -n "$SCRIPT_DIR" ]; then
   # Local clone — copy files directly (including sounds)
   cp -r "$SCRIPT_DIR/packs/"* "$INSTALL_DIR/packs/"
   cp "$SCRIPT_DIR/peon.sh" "$INSTALL_DIR/"
+  cp "$SCRIPT_DIR/peon.py" "$INSTALL_DIR/"
+  cp "$SCRIPT_DIR/install.py" "$INSTALL_DIR/"
   cp "$SCRIPT_DIR/completions.bash" "$INSTALL_DIR/"
   cp "$SCRIPT_DIR/VERSION" "$INSTALL_DIR/"
   cp "$SCRIPT_DIR/uninstall.sh" "$INSTALL_DIR/"
+  cp "$SCRIPT_DIR/uninstall.py" "$INSTALL_DIR/"
   if [ "$UPDATING" = false ]; then
     cp "$SCRIPT_DIR/config.json" "$INSTALL_DIR/"
   fi
@@ -101,9 +105,12 @@ else
   # curl|bash — download from GitHub (sounds are version-controlled in repo)
   echo "Downloading from GitHub..."
   curl -fsSL "$REPO_BASE/peon.sh" -o "$INSTALL_DIR/peon.sh"
+  curl -fsSL "$REPO_BASE/peon.py" -o "$INSTALL_DIR/peon.py"
+  curl -fsSL "$REPO_BASE/install.py" -o "$INSTALL_DIR/install.py"
   curl -fsSL "$REPO_BASE/completions.bash" -o "$INSTALL_DIR/completions.bash"
   curl -fsSL "$REPO_BASE/VERSION" -o "$INSTALL_DIR/VERSION"
   curl -fsSL "$REPO_BASE/uninstall.sh" -o "$INSTALL_DIR/uninstall.sh"
+  curl -fsSL "$REPO_BASE/uninstall.py" -o "$INSTALL_DIR/uninstall.py"
   for pack in $PACKS; do
     curl -fsSL "$REPO_BASE/packs/$pack/manifest.json" -o "$INSTALL_DIR/packs/$pack/manifest.json"
   done
