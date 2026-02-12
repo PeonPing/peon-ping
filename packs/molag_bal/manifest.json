@@ -1,0 +1,59 @@
+{
+  "name": "molag_bal",
+  "display_name": "Molag Bal",
+  "categories": {
+    "greeting": {
+      "sounds": [
+        { "file": "greeting_1.wav", "line": "Speak." },
+        { "file": "greeting_2.wav", "line": "Mortal." },
+        { "file": "greeting_3.wav", "line": "What do you see from that little cage?" },
+        { "file": "greeting_4.wav", "line": "Molag Bal" },
+        { "file": "greeting_5.wav", "line": "The Lord of Domination." }
+      ]
+    },
+    "acknowledge": {
+      "sounds": [
+        { "file": "acknowledge_1.wav", "line": "Fine." },
+        { "file": "acknowledge_2.wav", "line": "Yes." },
+        { "file": "acknowledge_3.wav", "line": "Ah." },
+        { "file": "acknowledge_4.wav", "line": "You bend to me." },
+        { "file": "acknowledge_5.wav", "line": "Make him bend to me." }
+      ]
+    },
+    "complete": {
+      "sounds": [
+        { "file": "complete_1.wav", "line": "Know that I will be watching." },
+        { "file": "complete_2.wav", "line": "Your prize is waiting." },
+        { "file": "complete_3.wav", "line": "You're mine now." },
+        { "file": "complete_4.wav", "line": "When your enemy lies broken and bloody." },
+        { "file": "complete_5.wav", "line": "You'll get the freedom your kind enjoys." }
+      ]
+    },
+    "error": {
+      "sounds": [
+        { "file": "error_1.wav", "line": "No." },
+        { "file": "error_2.wav", "line": "Try it again." },
+        { "file": "error_3.wav", "line": "Know your place, mortal." },
+        { "file": "error_4.wav", "line": "Did you think I would so easily reward you?" }
+      ]
+    },
+    "permission": {
+      "sounds": [
+        { "file": "permission_1.wav", "line": "I want the priest to bend his knee." },
+        { "file": "permission_2.wav", "line": "I want the priest to give me his soul." },
+        { "file": "permission_3.wav", "line": "Speak." },
+        { "file": "permission_4.wav", "line": "What do you see from that little cage?" }
+      ]
+    },
+    "annoyed": {
+      "sounds": [
+        { "file": "annoyed_1.wav", "line": "Crush him." },
+        { "file": "annoyed_2.wav", "line": "Crush his bones, tear at his flesh." },
+        { "file": "annoyed_3.wav", "line": "Know your place, mortal." },
+        { "file": "annoyed_4.wav", "line": "You mortals in your frail, pathetic bodies." },
+        { "file": "annoyed_5.wav", "line": "Ha ha ha ha ha ha." },
+        { "file": "annoyed_6.wav", "line": "The weak would be punished by the strong." }
+      ]
+    }
+  }
+}
