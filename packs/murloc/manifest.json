@@ -1,0 +1,41 @@
+{
+  "name": "murloc",
+  "display_name": "Murloc",
+  "categories": {
+    "greeting": {
+      "sounds": [
+        { "file": "mrrgll.mp3", "line": "Mrglglgl!" }
+      ]
+    },
+    "acknowledge": {
+      "sounds": [
+        { "file": "mrrgll.mp3", "line": "Glrrm… mrrglll" }
+      ]
+    },
+    "complete": {
+      "sounds": [
+        { "file": "mrrgll.mp3", "line": "Mrrglglgl" }
+      ]
+    },
+    "error": {
+      "sounds": [
+        { "file": "mrrgll.mp3", "line": "Mrrrgglll?!" }
+      ]
+    },
+    "permission": {
+      "sounds": [
+        { "file": "mrrgll.mp3", "line": "Glrrm" }
+      ]
+    },
+    "resource_limit": {
+      "sounds": [
+        { "file": "mrrgll.mp3", "line": "Mrglgl" }
+      ]
+    },
+    "annoyed": {
+      "sounds": [
+        { "file": "mrrgll.mp3", "line": "MRRRGLLL!" }
+      ]
+    }
+  }
+}
