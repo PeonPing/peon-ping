@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  checksums:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate checksums
+        run: |
+          shasum -a 256 install.sh uninstall.sh peon.sh completions.bash VERSION packs/*/* > checksums.txt
+
+      - name: Upload checksums
+        uses: actions/upload-release-artifact@v4
+        with:
+          name: checksums
+          path: checksums.txt

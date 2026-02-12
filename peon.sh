@@ -18,7 +18,22 @@ detect_platform() {
 }
 PLATFORM=$(detect_platform)
 
-PEON_DIR="${CLAUDE_PEON_DIR:-$HOME/.claude/hooks/peon-ping}"
+# --- Config directory resolution ---
+resolve_peon_dir() {
+  local cwd="${PEON_CWD:-$PWD}"
+  local local_dir="$cwd/.claude/peon-ping"
+
+  # Priority: 1) Local config (project directory), 2) CLAUDE_PEON_DIR env var, 3) Global default
+  if [[ -d "$local_dir" ]]; then
+    echo "$local_dir"
+  elif [[ -n "${CLAUDE_PEON_DIR:-}" ]]; then
+    echo "$CLAUDE_PEON_DIR"
+  else
+    echo "$HOME/.claude/hooks/peon-ping"
+  fi
+}
+
+PEON_DIR=$(resolve_peon_dir)
 CONFIG="$PEON_DIR/config.json"
 STATE="$PEON_DIR/.state.json"
 

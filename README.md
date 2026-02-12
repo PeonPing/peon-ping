@@ -12,11 +12,40 @@ Claude Code doesn't notify you when it finishes or needs permission. You tab awa
 
 ## Install
 
+### Recommended: Clone the repository
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tonyyont/peon-ping/main/install.sh | bash
+git clone https://github.com/tonyyont/peon-ping.git
+cd peon-ping
+./install.sh
 ```
 
-One command. Takes 10 seconds. macOS and WSL2 (Windows). Re-run to update (sounds and config preserved).
+This is the recommended method — you can review the code before running and easily pull updates.
+
+### Alternative: Direct install (forks supported)
+
+For forks, replace `tonyyont` with your fork's owner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/YOUR_FORK_NAME/peon-ping/main/install.sh | bash
+```
+
+> **Security Note:** Running `curl | bash` pipes remote code directly to your shell. Always review scripts before running. For forks, verify the repository is trustworthy. The git clone method lets you inspect the code first.
+
+### Verifying releases
+
+For releases, you can verify the download checksum:
+
+```bash
+# Download the release and checksum file
+curl -fSL https://github.com/tonyyont/peon-ping/releases/download/vX.X.X/peon-ping-X.X.X.tar.gz -o peon-ping.tar.gz
+curl -fSL https://github.com/tonyyont/peon-ping/releases/download/vX.X.X/checksums.txt -o checksums.txt
+
+# Verify
+sha256sum -c checksums.txt --ignore-missing
+```
+
+Takes 10 seconds. macOS and WSL2 (Windows). Re-run to update (sounds and config preserved).
 
 ## What you'll hear
 
