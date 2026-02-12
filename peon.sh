@@ -411,6 +411,99 @@ print(f'peon-ping: switched to {pack_arg} ({display})')
 " || exit 1
     fi
     exit 0 ;;
+  --remove)
+    REMOVE_ARG="${2:-}"
+    if [ -n "$REMOVE_ARG" ]; then
+      PACKS_TO_REMOVE=$(python3 -c "
+import json, os, sys
+
+config_path = '$CONFIG'
+peon_dir = '$PEON_DIR'
+packs_dir = os.path.join(peon_dir, 'packs')
+remove_arg = '$REMOVE_ARG'
+
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+active = cfg.get('active_pack', 'peon')
+
+installed = sorted([
+    d for d in os.listdir(packs_dir)
+    if os.path.isdir(os.path.join(packs_dir, d)) and (
+        os.path.exists(os.path.join(packs_dir, d, 'openpeon.json')) or
+        os.path.exists(os.path.join(packs_dir, d, 'manifest.json'))
+    )
+])
+
+requested = [p.strip() for p in remove_arg.split(',') if p.strip()]
+errors = []
+valid = []
+for p in requested:
+    if p not in installed:
+        errors.append(f'Pack \"{p}\" not found.')
+    elif p == active:
+        errors.append(f'Cannot remove \"{p}\" — it is the active pack. Switch first with: peon --pack <other>')
+    else:
+        valid.append(p)
+
+if errors:
+    for e in errors:
+        print(e, file=sys.stderr)
+    sys.exit(1)
+
+remaining = len(installed) - len(valid)
+if remaining < 1:
+    print('Cannot remove all packs — at least 1 must remain.', file=sys.stderr)
+    sys.exit(1)
+
+print(','.join(valid))
+" 2>&1) || { echo "$PACKS_TO_REMOVE" >&2; exit 1; }
+    else
+      echo "Usage: peon --remove <pack1,pack2,...>" >&2
+      echo "Run 'peon --packs' to see installed packs." >&2
+      exit 1
+    fi
+
+    # If we got here with packs to remove, confirm and delete
+    if [ -z "$PACKS_TO_REMOVE" ]; then
+      exit 0
+    fi
+
+    # Count packs
+    PACK_COUNT=$(echo "$PACKS_TO_REMOVE" | tr ',' '\n' | wc -l | tr -d ' ')
+    read -r -p "Remove ${PACK_COUNT} pack(s)? [y/N] " CONFIRM
+    case "$CONFIRM" in
+      [yY]|[yY][eE][sS]) ;;
+      *) echo "Cancelled."; exit 0 ;;
+    esac
+
+    # Delete pack directories and clean config
+    python3 -c "
+import json, os, shutil
+
+config_path = '$CONFIG'
+peon_dir = '$PEON_DIR'
+packs_dir = os.path.join(peon_dir, 'packs')
+to_remove = '$PACKS_TO_REMOVE'.split(',')
+
+for pack in to_remove:
+    pack_path = os.path.join(packs_dir, pack)
+    if os.path.isdir(pack_path):
+        shutil.rmtree(pack_path)
+        print(f'Removed {pack}')
+
+# Clean pack_rotation in config
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+rotation = cfg.get('pack_rotation', [])
+if rotation:
+    cfg['pack_rotation'] = [p for p in rotation if p not in to_remove]
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+"
+    exit 0 ;;
   --help|-h)
     cat <<'HELPEOF'
 Usage: peon <command>
@@ -423,6 +516,7 @@ Commands:
   --packs              List available sound packs
   --pack <name>        Switch to a specific pack
   --pack               Cycle to the next pack
+  --remove <p1,p2>     Remove specific packs
   --notifications-on   Enable desktop notifications
   --notifications-off  Disable desktop notifications
   --help               Show this help

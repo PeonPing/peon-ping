@@ -8,9 +8,9 @@ _peon_completions() {
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
   # Top-level options
-  opts="--pause --resume --toggle --status --packs --pack --notifications-on --notifications-off --help"
+  opts="--pause --resume --toggle --status --packs --pack --remove --notifications-on --notifications-off --help"
 
-  if [ "$prev" = "--pack" ]; then
+  if [ "$prev" = "--pack" ] || [ "$prev" = "--remove" ]; then
     # Complete pack names by scanning manifest files
     packs_dir="${CLAUDE_PEON_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping}/packs"
     if [ -d "$packs_dir" ]; then

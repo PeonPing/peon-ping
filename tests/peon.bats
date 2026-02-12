@@ -618,6 +618,86 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
 }
 
 # ============================================================
+# --remove (non-interactive pack removal)
+# ============================================================
+
+@test "--remove <name> removes pack directory" {
+  [ -d "$TEST_DIR/packs/sc_kerrigan" ]
+  echo "y" | bash "$PEON_SH" --remove sc_kerrigan
+  [ ! -d "$TEST_DIR/packs/sc_kerrigan" ]
+}
+
+@test "--remove <name> prints confirmation" {
+  run bash -c 'echo "y" | bash "$0" --remove sc_kerrigan' "$PEON_SH"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Removed sc_kerrigan"* ]]
+}
+
+@test "--remove <name> cleans pack_rotation in config" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon", "sc_kerrigan"]
+}
+JSON
+  echo "y" | bash "$PEON_SH" --remove sc_kerrigan
+  rotation=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('pack_rotation', []))")
+  [[ "$rotation" == *"peon"* ]]
+  [[ "$rotation" != *"sc_kerrigan"* ]]
+}
+
+@test "--remove active pack errors" {
+  run bash "$PEON_SH" --remove peon
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"active pack"* ]]
+  # Pack should still exist
+  [ -d "$TEST_DIR/packs/peon" ]
+}
+
+@test "--remove nonexistent pack errors" {
+  run bash "$PEON_SH" --remove nonexistent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not found"* ]]
+}
+
+@test "--remove last remaining pack errors" {
+  # Remove sc_kerrigan first so only peon remains
+  rm -rf "$TEST_DIR/packs/sc_kerrigan"
+  run bash "$PEON_SH" --remove peon
+  [ "$status" -ne 0 ]
+  # Should error either because it's active or because it's the last one
+  [ -d "$TEST_DIR/packs/peon" ]
+}
+
+@test "--remove multiple packs at once" {
+  # Add a third pack so we can remove two and still have one left
+  mkdir -p "$TEST_DIR/packs/glados/sounds"
+  cat > "$TEST_DIR/packs/glados/manifest.json" <<'JSON'
+{
+  "name": "glados",
+  "display_name": "GLaDOS",
+  "categories": {
+    "session.start": { "sounds": [{ "file": "Hello1.wav", "label": "Hello" }] }
+  }
+}
+JSON
+  touch "$TEST_DIR/packs/glados/sounds/Hello1.wav"
+
+  echo "y" | bash "$PEON_SH" --remove sc_kerrigan,glados
+  [ ! -d "$TEST_DIR/packs/sc_kerrigan" ]
+  [ ! -d "$TEST_DIR/packs/glados" ]
+  # Active pack still present
+  [ -d "$TEST_DIR/packs/peon" ]
+}
+
+@test "--help shows --remove command" {
+  run bash "$PEON_SH" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--remove"* ]]
+}
+
+# ============================================================
 # Pack rotation
 # ============================================================
 
