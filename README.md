@@ -31,7 +31,7 @@ One command. Takes 10 seconds. Re-run to update (sounds and config preserved).
 Check if your system meets all requirements:
 
 ```powershell
-irm https://raw.githubusercontent.com/tonyyont/peon-ping/main/test-windows.ps1 | iex
+irm https://raw.githubusercontent.com/tonyyont/peon-ping/main/tests/test-windows.ps1 | iex
 ```
 
 ### Manual installation from local clone
@@ -236,6 +236,20 @@ On each event it:
 5. Shows desktop notification if terminal is not in focus
 
 Sound files are property of their respective publishers (Blizzard Entertainment, EA) and are included in the repo for convenience.
+
+## Testing
+
+**Unix/Linux/macOS** - BATS tests:
+```bash
+bats tests/
+```
+
+**Windows** - PowerShell test suite:
+```powershell
+powershell -ExecutionPolicy Bypass -File tests\test-windows.ps1
+```
+
+See [tests/README.md](tests/README.md) for detailed testing documentation.
 
 ## Links
 
