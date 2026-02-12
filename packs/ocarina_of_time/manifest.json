@@ -1,0 +1,47 @@
+{
+  "name": "ocarina_of_time",
+  "display_name": "Ocarina of Time",
+  "categories": {
+    "greeting": {
+      "sounds": [
+        { "file": "OOT_Navi_Hello1.wav", "line": "Hello!" },
+        { "file": "OOT_Navi_Hey1.wav", "line": "Hey!" },
+        { "file": "OOT_6amRooster.wav", "line": "Rooster crowing" }
+      ]
+    },
+    "acknowledge": {
+      "sounds": [
+        { "file": "OOT_Fairy.wav", "line": "" }
+      ]
+    },
+    "complete": {
+      "sounds": [
+        { "file": "OOT_Navi_Look1.wav", "line": "Look!" },
+        { "file": "OOT_Navi_Listen1.wav", "line": "Listen!" },
+        { "file": "OOT_Secret.wav", "line": "" }
+      ]
+    },
+    "error": {
+      "sounds": [
+        { "file": "OOT_Navi_WatchOut1.wav", "line": "Watch out!" },
+        { "file": "OOT_Goron_Oop.wav", "line": "Oop!" }
+      ]
+    },
+    "permission": {
+      "sounds": [
+        { "file": "OOT_YoungZelda_Hmm.wav", "line": "Hmm?" },
+        { "file": "OOT_Nabooru_Hmm.wav", "line": "Hmm?" }
+      ]
+    },
+    "resource_limit": {
+      "sounds": [
+        { "file": "OOT_Navi_Bonk.wav", "line": "Eep" }
+      ]
+    },
+    "annoyed": {
+      "sounds": [
+        { "file": "OOT_Dialogue_No.wav", "line": "" }
+      ]
+    }
+  }
+}
