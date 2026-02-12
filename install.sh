@@ -195,6 +195,17 @@ else
   echo "Warning: skills/peon-ping-toggle not found in local clone, skipping skill install"
 fi
 
+# --- Install config skill ---
+CONFIG_SKILL_DIR="$BASE_DIR/skills/peon-ping-config"
+mkdir -p "$CONFIG_SKILL_DIR"
+if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/peon-ping-config" ]; then
+  cp "$SCRIPT_DIR/skills/peon-ping-config/SKILL.md" "$CONFIG_SKILL_DIR/"
+elif [ -z "$SCRIPT_DIR" ]; then
+  curl -fsSL "$REPO_BASE/skills/peon-ping-config/SKILL.md" -o "$CONFIG_SKILL_DIR/SKILL.md"
+else
+  echo "Warning: skills/peon-ping-config not found in local clone, skipping config skill install"
+fi
+
 # --- Add shell alias (global install only) ---
 if [ "$LOCAL_MODE" = false ]; then
   ALIAS_LINE="alias peon=\"bash $INSTALL_DIR/peon.sh\""
