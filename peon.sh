@@ -45,6 +45,26 @@ play_sound() {
         \$p.Close()
       " &>/dev/null &
       ;;
+    linux)
+      # Convert volume (0.0-1.0) to percentage (0-100) for some players
+      local vol_pct
+      vol_pct=$(awk "BEGIN {printf \"%.0f\", $vol * 100}")
+      (
+        if command -v paplay &>/dev/null; then
+          # PulseAudio - volume is percentage (65536 = 100%)
+          local pa_vol
+          pa_vol=$(awk "BEGIN {printf \"%.0f\", $vol * 65536}")
+          paplay --volume="$pa_vol" "$file" 2>/dev/null
+        elif command -v aplay &>/dev/null; then
+          # ALSA - no volume control, just play
+          aplay -q "$file" 2>/dev/null
+        elif command -v mpv &>/dev/null; then
+          mpv --no-video --really-quiet --volume="$vol_pct" "$file" 2>/dev/null
+        elif command -v ffplay &>/dev/null; then
+          ffplay -nodisp -autoexit -v quiet -volume "$vol_pct" "$file" 2>/dev/null
+        fi
+      ) &
+      ;;
   esac
 }
 
@@ -107,6 +127,20 @@ APPLESCRIPT
         rm -rf "$slot_dir/slot-$slot"
       ) &
       ;;
+    linux)
+      # Map color to urgency level for notify-send
+      local urgency="normal"
+      case "$color" in
+        red)    urgency="critical" ;;
+        yellow) urgency="normal"   ;;
+        blue)   urgency="low"      ;;
+      esac
+      (
+        if command -v notify-send &>/dev/null; then
+          notify-send --urgency="$urgency" --expire-time=4000 "$title" "$msg" 2>/dev/null
+        fi
+      ) &
+      ;;
   esac
 }
 
@@ -123,6 +157,19 @@ terminal_is_focused() {
       ;;
     wsl)
       # Checking Windows focus from WSL adds too much latency; always notify
+      return 1
+      ;;
+    linux)
+      # Try xdotool for X11-based desktops
+      if command -v xdotool &>/dev/null; then
+        local active_window
+        active_window=$(xdotool getactivewindow getwindowname 2>/dev/null)
+        case "$active_window" in
+          *Terminal*|*terminal*|*iTerm*|*Alacritty*|*kitty*|*WezTerm*|*Ghostty*|*Konsole*|*konsole*|*gnome-terminal*|*xterm*|*rxvt*|*tilix*|*terminator*|*foot*) return 0 ;;
+          *) return 1 ;;
+        esac
+      fi
+      # Fallback: always notify if we can't detect focus
       return 1
       ;;
     *)

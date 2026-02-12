@@ -1,6 +1,6 @@
 # peon-ping
 
-![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue)
+![macOS](https://img.shields.io/badge/macOS-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01)
 
@@ -16,7 +16,7 @@ Claude Code doesn't notify you when it finishes or needs permission. You tab awa
 curl -fsSL https://raw.githubusercontent.com/tonyyont/peon-ping/main/install.sh | bash
 ```
 
-One command. Takes 10 seconds. macOS and WSL2 (Windows). Re-run to update (sounds and config preserved).
+One command. Takes 10 seconds. macOS, Linux, and WSL2 (Windows). Re-run to update (sounds and config preserved).
 
 ## What you'll hear
 
@@ -113,13 +113,15 @@ bash ~/.claude/hooks/peon-ping/uninstall.sh
 
 ## Requirements
 
-- macOS (uses `afplay` and AppleScript) or WSL2 (uses PowerShell `MediaPlayer` and WinForms)
+- **macOS**: uses `afplay` and AppleScript (built-in)
+- **Linux**: uses `paplay` (PulseAudio), `aplay` (ALSA), `mpv`, or `ffplay` for audio; `notify-send` for notifications; `xdotool` for focus detection (optional)
+- **WSL2**: uses PowerShell `MediaPlayer` and WinForms
 - Claude Code with hooks support
 - python3
 
 ## How it works
 
-`peon.sh` is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, and `Notification` events. On each event it maps to a sound category, picks a random voice line (avoiding repeats), plays it via `afplay` (macOS) or PowerShell `MediaPlayer` (WSL2), and updates your Terminal tab title.
+`peon.sh` is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, and `Notification` events. On each event it maps to a sound category, picks a random voice line (avoiding repeats), plays it via `afplay` (macOS), `paplay`/`aplay`/`mpv`/`ffplay` (Linux), or PowerShell `MediaPlayer` (WSL2), and updates your Terminal tab title.
 
 Sound files are property of their respective publishers (Blizzard Entertainment, EA) and are included in the repo for convenience.
 

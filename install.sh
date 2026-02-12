@@ -42,8 +42,8 @@ else
 fi
 
 # --- Prerequisites ---
-if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ]; then
-  echo "Error: peon-ping requires macOS or WSL (Windows Subsystem for Linux)"
+if [ "$PLATFORM" != "mac" ] && [ "$PLATFORM" != "wsl" ] && [ "$PLATFORM" != "linux" ]; then
+  echo "Error: peon-ping requires macOS, Linux, or WSL (Windows Subsystem for Linux)"
   exit 1
 fi
 
@@ -66,6 +66,23 @@ elif [ "$PLATFORM" = "wsl" ]; then
     echo "Error: wslpath is required (should be built into WSL)"
     exit 1
   fi
+elif [ "$PLATFORM" = "linux" ]; then
+  # Check for at least one audio player
+  LINUX_AUDIO_PLAYER=""
+  if command -v paplay &>/dev/null; then
+    LINUX_AUDIO_PLAYER="paplay"
+  elif command -v aplay &>/dev/null; then
+    LINUX_AUDIO_PLAYER="aplay"
+  elif command -v mpv &>/dev/null; then
+    LINUX_AUDIO_PLAYER="mpv"
+  elif command -v ffplay &>/dev/null; then
+    LINUX_AUDIO_PLAYER="ffplay"
+  fi
+  if [ -z "$LINUX_AUDIO_PLAYER" ]; then
+    echo "Error: No audio player found. Install one of: paplay (PulseAudio), aplay (ALSA), mpv, or ffplay"
+    exit 1
+  fi
+  echo "Found audio player: $LINUX_AUDIO_PLAYER"
 fi
 
 if [ ! -d "$HOME/.claude" ]; then
@@ -275,6 +292,17 @@ if [ -n "$TEST_SOUND" ]; then
       Start-Sleep -Seconds 3
       \$p.Close()
     " 2>/dev/null
+  elif [ "$PLATFORM" = "linux" ]; then
+    # Try available audio players in order of preference
+    if command -v paplay &>/dev/null; then
+      paplay "$TEST_SOUND" 2>/dev/null
+    elif command -v aplay &>/dev/null; then
+      aplay -q "$TEST_SOUND" 2>/dev/null
+    elif command -v mpv &>/dev/null; then
+      mpv --no-video --really-quiet --volume=30 "$TEST_SOUND" 2>/dev/null
+    elif command -v ffplay &>/dev/null; then
+      ffplay -nodisp -autoexit -v quiet -volume 30 "$TEST_SOUND" 2>/dev/null
+    fi
   fi
   echo "Sound working!"
 else
