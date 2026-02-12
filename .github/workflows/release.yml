@@ -17,7 +17,7 @@ jobs:
 
       - name: Generate checksums
         run: |
-          shasum -a 256 install.sh uninstall.sh peon.sh completions.bash VERSION packs/*/* > checksums.txt
+          shasum -a 256 install.sh uninstall.sh peon.sh completions.bash VERSION $(find packs -type f) > checksums.txt
 
       - name: Commit checksums to main
         run: |
