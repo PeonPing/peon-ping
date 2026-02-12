@@ -12,7 +12,7 @@ _peon_completions() {
 
   if [ "$prev" = "--pack" ]; then
     # Complete pack names by scanning manifest files
-    packs_dir="${CLAUDE_PEON_DIR:-$HOME/.claude/hooks/peon-ping}/packs"
+    packs_dir="${CLAUDE_PEON_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping}/packs"
     if [ -d "$packs_dir" ]; then
       local names
       names=$(find "$packs_dir" -maxdepth 2 -name manifest.json -exec dirname {} \; 2>/dev/null | xargs -I{} basename {} | sort)
