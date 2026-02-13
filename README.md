@@ -180,23 +180,6 @@ The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/` and creates
 
 </details>
 
-**Configuration** (`~/.config/opencode/peon-ping/config.json`):
-
-```json
-{
-  "active_pack": "peon",
-  "volume": 0.5,
-  "categories": {
-    "session.start": true,
-    "task.acknowledge": true,
-    "task.complete": true,
-    "task.error": true,
-    "input.required": true,
-    "user.spam": true
-  }
-}
-```
-
 > **Tip:** Install `terminal-notifier` (`brew install terminal-notifier`) for richer notifications with subtitle and grouping support.
 
 ### Kiro setup
