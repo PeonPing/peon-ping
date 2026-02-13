@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'adapters/opencode/**'
-      - 'tests/opencode/**'
+      - 'tests/peon-ping-internals.test.ts'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
@@ -14,7 +14,7 @@ on:
     branches: [main]
     paths:
       - 'adapters/opencode/**'
-      - 'tests/opencode/**'
+      - 'tests/peon-ping-internals.test.ts'
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'

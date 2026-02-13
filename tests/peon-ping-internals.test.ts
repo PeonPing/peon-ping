@@ -35,7 +35,7 @@ import {
   escapeAppleScript,
   createDebounceChecker,
   createSpamChecker,
-} from "../../adapters/opencode/peon-ping-internals.js"
+} from "../adapters/opencode/peon-ping-internals.js"
 
 // ---------------------------------------------------------------------------
 // Helpers
