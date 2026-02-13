@@ -2,11 +2,13 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
 
 jobs:
-  checksums:
+  checksums-main:
+    if: github.ref == 'refs/heads/main'
     runs-on: macos-latest
     permissions:
       contents: write
@@ -17,7 +19,24 @@ jobs:
 
       - name: Generate checksums
         run: |
-          shasum -a 256 install.sh uninstall.sh peon.sh completions.bash VERSION $(find packs -type f) > checksums.txt
+          files=(
+            install.sh
+            uninstall.sh
+            peon.sh
+            relay.sh
+            completions.bash
+            completions.fish
+            VERSION
+            config.json
+            adapters/codex.sh
+            adapters/cursor.sh
+            adapters/opencode.sh
+            adapters/opencode/peon-ping.ts
+            skills/peon-ping-toggle/SKILL.md
+            skills/peon-ping-config/SKILL.md
+            docs/peon-icon.png
+          )
+          shasum -a 256 "${files[@]}" > checksums.txt
 
       - name: Commit checksums to main
         run: |
@@ -27,11 +46,42 @@ jobs:
           git commit -m "Update checksums.txt" || echo "No changes to commit"
           git push
 
-      # Upload to release if this was a tagged release
+  checksums-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate checksums
+        run: |
+          files=(
+            install.sh
+            uninstall.sh
+            peon.sh
+            relay.sh
+            completions.bash
+            completions.fish
+            VERSION
+            config.json
+            adapters/codex.sh
+            adapters/cursor.sh
+            adapters/opencode.sh
+            adapters/opencode/peon-ping.ts
+            skills/peon-ping-toggle/SKILL.md
+            skills/peon-ping-config/SKILL.md
+            docs/peon-icon.png
+          )
+          shasum -a 256 "${files[@]}" > checksums.txt
+
       - name: Upload checksums to release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
           files: checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

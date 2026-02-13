@@ -25,6 +25,18 @@ OPENCODE_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugins"
 PEON_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/peon-ping"
 PACKS_DIR="$HOME/.openpeon/packs"
 
+is_safe_source_repo() {
+  [[ "$1" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]
+}
+
+is_safe_source_ref() {
+  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] && [[ "$1" != *".."* ]] && [[ "$1" != /* ]]
+}
+
+is_safe_source_path() {
+  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] && [[ "$1" != *".."* ]] && [[ "$1" != /* ]]
+}
+
 # --- Colors ---
 BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' RESET=$'\033[0m'
 
@@ -118,34 +130,38 @@ mkdir -p "$PACKS_DIR"
 if [ ! -d "$PACKS_DIR/$DEFAULT_PACK" ]; then
   info "Installing default sound pack '$DEFAULT_PACK' from registry..."
 
-  PACK_INFO=$(curl -fsSL "$REGISTRY_URL" 2>/dev/null \
-    | python3 -c "
+  REGISTRY_JSON=$(curl -fsSL "$REGISTRY_URL" 2>/dev/null || true)
+  PACK_INFO=$(PACK_NAME="$DEFAULT_PACK" python3 -c "
 import sys, json
 reg = json.load(sys.stdin)
 for p in reg.get('packs', []):
-    if p.get('name') == '$DEFAULT_PACK':
+    if p.get('name') == __import__('os').environ.get('PACK_NAME'):
         print(p.get('source_repo', ''))
         print(p.get('source_ref', ''))
         print(p.get('source_path', ''))
         break
-" 2>/dev/null || echo "")
+" <<< "$REGISTRY_JSON" 2>/dev/null || echo "")
 
   SOURCE_REPO=$(echo "$PACK_INFO" | sed -n '1p')
   SOURCE_REF=$(echo "$PACK_INFO" | sed -n '2p')
   SOURCE_PATH=$(echo "$PACK_INFO" | sed -n '3p')
 
-  if [ -n "$SOURCE_REPO" ] && [ -n "$SOURCE_REF" ]; then
+  if is_safe_source_repo "$SOURCE_REPO" && is_safe_source_ref "$SOURCE_REF" && is_safe_source_path "$SOURCE_PATH"; then
     TMPDIR_PACK=$(mktemp -d)
     TARBALL_URL="https://github.com/${SOURCE_REPO}/archive/refs/tags/${SOURCE_REF}.tar.gz"
     if curl -fsSL "$TARBALL_URL" -o "$TMPDIR_PACK/pack.tar.gz" 2>/dev/null; then
-      tar xzf "$TMPDIR_PACK/pack.tar.gz" -C "$TMPDIR_PACK" 2>/dev/null
-      EXTRACTED=$(find "$TMPDIR_PACK" -maxdepth 1 -type d ! -path "$TMPDIR_PACK" | head -1)
-      if [ -n "$EXTRACTED" ] && [ -d "$EXTRACTED/${SOURCE_PATH}" ]; then
-        mkdir -p "$PACKS_DIR/$DEFAULT_PACK"
-        cp -r "$EXTRACTED/${SOURCE_PATH}/"* "$PACKS_DIR/$DEFAULT_PACK/"
-        info "Pack '$DEFAULT_PACK' installed to $PACKS_DIR/$DEFAULT_PACK"
+      if tar tzf "$TMPDIR_PACK/pack.tar.gz" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+        warn "Pack archive contains unsafe paths; skipping extraction."
       else
-        warn "Could not find pack in downloaded archive."
+        tar xzf "$TMPDIR_PACK/pack.tar.gz" -C "$TMPDIR_PACK" 2>/dev/null
+        EXTRACTED=$(find "$TMPDIR_PACK" -maxdepth 1 -type d ! -path "$TMPDIR_PACK" | head -1)
+        if [ -n "$EXTRACTED" ] && [ -d "$EXTRACTED/${SOURCE_PATH}" ]; then
+          mkdir -p "$PACKS_DIR/$DEFAULT_PACK"
+          cp -r "$EXTRACTED/${SOURCE_PATH}/"* "$PACKS_DIR/$DEFAULT_PACK/"
+          info "Pack '$DEFAULT_PACK' installed to $PACKS_DIR/$DEFAULT_PACK"
+        else
+          warn "Could not find pack in downloaded archive."
+        fi
       fi
     else
       warn "Could not download pack from registry. You can install packs manually later."

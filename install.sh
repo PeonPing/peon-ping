@@ -303,6 +303,27 @@ fi
 PACKS=""
 ALL_PACKS=""
 REGISTRY_JSON=""
+
+is_safe_pack_name() {
+  [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+is_safe_source_repo() {
+  [[ "$1" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]
+}
+
+is_safe_source_ref() {
+  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] && [[ "$1" != *".."* ]] && [[ "$1" != /* ]]
+}
+
+is_safe_source_path() {
+  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] && [[ "$1" != *".."* ]] && [[ "$1" != /* ]]
+}
+
+is_safe_filename() {
+  [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
 echo "Fetching pack registry..."
 if REGISTRY_JSON=$(curl -fsSL "$REGISTRY_URL" 2>/dev/null); then
   ALL_PACKS=$(python3 -c "
@@ -332,6 +353,11 @@ fi
 
 # --- Download sound packs ---
 for pack in $PACKS; do
+  if ! is_safe_pack_name "$pack"; then
+    echo "  Warning: skipping invalid pack name: $pack" >&2
+    continue
+  fi
+
   mkdir -p "$INSTALL_DIR/packs/$pack/sounds"
 
   # Get source info from registry (or use fallback)
@@ -339,20 +365,32 @@ for pack in $PACKS; do
   SOURCE_REF=""
   SOURCE_PATH=""
   if [ -n "$REGISTRY_JSON" ]; then
-    eval "$(python3 -c "
+    PACK_META=$(PACK_NAME="$pack" python3 -c "
 import json, sys
 data = json.loads(sys.stdin.read())
 for p in data.get('packs', []):
-    if p['name'] == '$pack':
-        print(f\"SOURCE_REPO='{p.get('source_repo', '')}'\")
-        print(f\"SOURCE_REF='{p.get('source_ref', 'main')}'\")
-        print(f\"SOURCE_PATH='{p.get('source_path', '')}'\")
+    if p.get('name') == __import__('os').environ.get('PACK_NAME'):
+        print(p.get('source_repo', ''))
+        print(p.get('source_ref', 'main'))
+        print(p.get('source_path', ''))
         break
-" <<< "$REGISTRY_JSON")"
+" <<< "$REGISTRY_JSON" 2>/dev/null || true)
+    SOURCE_REPO=$(printf '%s\n' "$PACK_META" | sed -n '1p')
+    SOURCE_REF=$(printf '%s\n' "$PACK_META" | sed -n '2p')
+    SOURCE_PATH=$(printf '%s\n' "$PACK_META" | sed -n '3p')
   fi
 
-  # Fallback if no registry data
-  if [ -z "$SOURCE_REPO" ]; then
+  if [ -n "$SOURCE_REPO" ] && ! is_safe_source_repo "$SOURCE_REPO"; then
+    SOURCE_REPO=""
+  fi
+  if [ -n "$SOURCE_REF" ] && ! is_safe_source_ref "$SOURCE_REF"; then
+    SOURCE_REF=""
+  fi
+  if [ -n "$SOURCE_PATH" ] && ! is_safe_source_path "$SOURCE_PATH"; then
+    SOURCE_PATH=""
+  fi
+
+  if [ -z "$SOURCE_REPO" ] || [ -z "$SOURCE_REF" ] || [ -z "$SOURCE_PATH" ]; then
     SOURCE_REPO="$FALLBACK_REPO"
     SOURCE_REF="$FALLBACK_REF"
     SOURCE_PATH="$pack"
@@ -385,6 +423,10 @@ for cat in m.get('categories', {}).values():
             seen.add(basename)
             print(basename)
 " | while read -r sfile; do
+    if ! is_safe_filename "$sfile"; then
+      echo "  Warning: skipped unsafe filename in $pack: $sfile" >&2
+      continue
+    fi
     if ! curl -fsSL "$PACK_BASE/sounds/$sfile" -o "$INSTALL_DIR/packs/$pack/sounds/$sfile" </dev/null 2>/dev/null; then
       echo "  Warning: failed to download $pack/sounds/$sfile" >&2
     fi

@@ -941,11 +941,14 @@ if category and not paused:
             last_played[category] = pick['file']
             state['last_played'] = last_played
             state_dirty = True
-            file_ref = pick['file']
+            file_ref = str(pick.get('file', ''))
             if '/' in file_ref:
-                sound_file = os.path.join(pack_dir, file_ref)
+                candidate = os.path.realpath(os.path.join(pack_dir, file_ref))
             else:
-                sound_file = os.path.join(pack_dir, 'sounds', file_ref)
+                candidate = os.path.realpath(os.path.join(pack_dir, 'sounds', file_ref))
+            pack_root = os.path.realpath(pack_dir) + os.sep
+            if candidate.startswith(pack_root):
+                sound_file = candidate
     except:
         pass
 
