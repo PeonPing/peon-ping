@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/install",
+      "destination": "https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh",
+      "statusCode": 302
+    }
+  ]
+}

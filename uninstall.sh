@@ -3,10 +3,17 @@
 # Removes peon hooks and optionally restores notify.sh
 set -euo pipefail
 
-INSTALL_DIR="$HOME/.claude/hooks/peon-ping"
-SETTINGS="$HOME/.claude/settings.json"
-NOTIFY_BACKUP="$HOME/.claude/hooks/notify.sh.backup"
-NOTIFY_SH="$HOME/.claude/hooks/notify.sh"
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(cd "$INSTALL_DIR/../.." && pwd)"
+SETTINGS="$BASE_DIR/settings.json"
+
+IS_LOCAL=true
+if [ "$BASE_DIR" = "$HOME/.claude" ]; then
+  IS_LOCAL=false
+fi
+
+NOTIFY_BACKUP="$BASE_DIR/hooks/notify.sh.backup"
+NOTIFY_SH="$BASE_DIR/hooks/notify.sh"
 
 echo "=== peon-ping uninstaller ==="
 echo ""
@@ -53,8 +60,8 @@ else:
 "
 fi
 
-# --- Restore notify.sh backup ---
-if [ -f "$NOTIFY_BACKUP" ]; then
+# --- Restore notify.sh backup (global install only) ---
+if [ "$IS_LOCAL" = false ] && [ -f "$NOTIFY_BACKUP" ]; then
   echo ""
   read -p "Restore original notify.sh from backup? [Y/n] " -n 1 -r
   echo
@@ -100,6 +107,22 @@ print('Restored notify.sh hooks for: SessionStart, UserPromptSubmit, Stop, Notif
     rm "$NOTIFY_BACKUP"
     echo "notify.sh restored"
   fi
+fi
+
+# --- Remove fish completions ---
+FISH_COMPLETIONS="$HOME/.config/fish/completions/peon.fish"
+if [ -f "$FISH_COMPLETIONS" ]; then
+  rm "$FISH_COMPLETIONS"
+  echo "Removed fish completions"
+fi
+
+# --- Remove skill directory ---
+SKILL_DIR="$BASE_DIR/skills/peon-ping-toggle"
+if [ -d "$SKILL_DIR" ]; then
+  echo ""
+  echo "Removing $SKILL_DIR..."
+  rm -rf "$SKILL_DIR"
+  echo "Removed skill"
 fi
 
 # --- Remove install directory ---

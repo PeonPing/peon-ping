@@ -287,7 +287,7 @@ const OutroCard: React.FC = () => {
           Install peon-ping
         </div>
         <div style={{ fontFamily: "monospace", fontSize: 24, color: GOLD, backgroundColor: "rgba(255,255,255,0.05)", padding: "14px 28px", borderRadius: 6, border: "1px solid rgba(212,165,32,0.3)" }}>
-          github.com/tonyyont/peon-ping
+          github.com/PeonPing/peon-ping
         </div>
         <div style={{ fontFamily: "monospace", fontSize: 18, color: "rgba(255,255,255,0.35)", marginTop: 30 }}>
           Submit your own pack via PR

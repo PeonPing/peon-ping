@@ -9,43 +9,43 @@ setup_test_env() {
   mkdir -p "$TEST_DIR/packs/peon/sounds"
   mkdir -p "$TEST_DIR/packs/sc_kerrigan/sounds"
 
-  # Create minimal manifest
+  # Create minimal manifest (CESP category names)
   cat > "$TEST_DIR/packs/peon/manifest.json" <<'JSON'
 {
   "name": "peon",
   "display_name": "Orc Peon",
   "categories": {
-    "greeting": {
+    "session.start": {
       "sounds": [
-        { "file": "Hello1.wav", "line": "Ready to work?" },
-        { "file": "Hello2.wav", "line": "Yes?" }
+        { "file": "Hello1.wav", "label": "Ready to work?" },
+        { "file": "Hello2.wav", "label": "Yes?" }
       ]
     },
-    "acknowledge": {
+    "task.acknowledge": {
       "sounds": [
-        { "file": "Ack1.wav", "line": "Work, work." }
+        { "file": "Ack1.wav", "label": "Work, work." }
       ]
     },
-    "complete": {
+    "task.complete": {
       "sounds": [
-        { "file": "Done1.wav", "line": "Something need doing?" },
-        { "file": "Done2.wav", "line": "Ready to work?" }
+        { "file": "Done1.wav", "label": "Something need doing?" },
+        { "file": "Done2.wav", "label": "Ready to work?" }
       ]
     },
-    "error": {
+    "task.error": {
       "sounds": [
-        { "file": "Error1.wav", "line": "Me not that kind of orc!" }
+        { "file": "Error1.wav", "label": "Me not that kind of orc!" }
       ]
     },
-    "permission": {
+    "input.required": {
       "sounds": [
-        { "file": "Perm1.wav", "line": "Something need doing?" },
-        { "file": "Perm2.wav", "line": "Hmm?" }
+        { "file": "Perm1.wav", "label": "Something need doing?" },
+        { "file": "Perm2.wav", "label": "Hmm?" }
       ]
     },
-    "annoyed": {
+    "user.spam": {
       "sounds": [
-        { "file": "Angry1.wav", "line": "Me busy, leave me alone!" }
+        { "file": "Angry1.wav", "label": "Me busy, leave me alone!" }
       ]
     }
   }
@@ -63,14 +63,14 @@ JSON
   "name": "sc_kerrigan",
   "display_name": "Sarah Kerrigan (StarCraft)",
   "categories": {
-    "greeting": {
+    "session.start": {
       "sounds": [
-        { "file": "Hello1.wav", "line": "What now?" }
+        { "file": "Hello1.wav", "label": "What now?" }
       ]
     },
-    "complete": {
+    "task.complete": {
       "sounds": [
-        { "file": "Done1.wav", "line": "I gotcha." }
+        { "file": "Done1.wav", "label": "I gotcha." }
       ]
     }
   }
@@ -81,20 +81,20 @@ JSON
     touch "$TEST_DIR/packs/sc_kerrigan/sounds/$f"
   done
 
-  # Create default config
+  # Create default config (CESP category names)
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
   "active_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "categories": {
-    "greeting": true,
-    "acknowledge": true,
-    "complete": true,
-    "error": true,
-    "permission": true,
-    "resource_limit": true,
-    "annoyed": true
+    "session.start": true,
+    "task.acknowledge": true,
+    "task.complete": true,
+    "task.error": true,
+    "input.required": true,
+    "resource.limit": true,
+    "user.spam": true
   },
   "annoyed_threshold": 3,
   "annoyed_window_seconds": 10
@@ -118,6 +118,15 @@ echo "$@" >> "${CLAUDE_PEON_DIR}/afplay.log"
 SCRIPT
   chmod +x "$MOCK_BIN/afplay"
 
+  # Mock Linux audio backends — log calls instead of playing sound
+  for player in pw-play paplay ffplay mpv play aplay; do
+    cat > "$MOCK_BIN/$player" <<'SCRIPT'
+#!/bin/bash
+echo "$@" >> "${CLAUDE_PEON_DIR}/linux_audio.log"
+SCRIPT
+    chmod +x "$MOCK_BIN/$player"
+  done
+
   # Mock osascript — log calls instead of running AppleScript
   cat > "$MOCK_BIN/osascript" <<'SCRIPT'
 #!/bin/bash
@@ -130,9 +139,22 @@ fi
 SCRIPT
   chmod +x "$MOCK_BIN/osascript"
 
-  # Mock curl — return a configurable version string
+  # Mock curl — handles both version checks and relay requests
   cat > "$MOCK_BIN/curl" <<'SCRIPT'
 #!/bin/bash
+# Check if this is a relay request (devcontainer audio/notification/health)
+for arg in "$@"; do
+  if [[ "$arg" == *"/play?"* ]] || [[ "$arg" == *"/notify"* ]] || [[ "$arg" == *"/health"* ]]; then
+    echo "RELAY: $*" >> "${CLAUDE_PEON_DIR}/relay_curl.log"
+    # Simulate relay availability based on marker file
+    if [ -f "${CLAUDE_PEON_DIR}/.relay_available" ]; then
+      exit 0
+    else
+      exit 7  # curl exit code for connection refused
+    fi
+  fi
+done
+# Version check behavior
 if [ -f "${CLAUDE_PEON_DIR}/.mock_remote_version" ]; then
   cat "${CLAUDE_PEON_DIR}/.mock_remote_version"
 else
@@ -154,6 +176,7 @@ teardown_test_env() {
 # Helper: run peon.sh with a JSON event
 run_peon() {
   local json="$1"
+  export PEON_TEST=1
   echo "$json" | bash "$PEON_SH" 2>"$TEST_DIR/stderr.log"
   PEON_EXIT=$?
   PEON_STDERR=$(cat "$TEST_DIR/stderr.log" 2>/dev/null)
@@ -176,6 +199,39 @@ afplay_sound() {
 afplay_call_count() {
   if [ -f "$TEST_DIR/afplay.log" ]; then
     wc -l < "$TEST_DIR/afplay.log" | tr -d ' '
+  else
+    echo "0"
+  fi
+}
+
+# Helper: check if a Linux audio player was called
+linux_audio_was_called() {
+  [ -f "$TEST_DIR/linux_audio.log" ] && [ -s "$TEST_DIR/linux_audio.log" ]
+}
+
+# Helper: get the command line used for Linux audio
+linux_audio_cmdline() {
+  if [ -f "$TEST_DIR/linux_audio.log" ]; then
+    tail -1 "$TEST_DIR/linux_audio.log"
+  fi
+}
+
+# Helper: check if a relay curl request was made
+relay_was_called() {
+  [ -f "$TEST_DIR/relay_curl.log" ] && [ -s "$TEST_DIR/relay_curl.log" ]
+}
+
+# Helper: get the relay curl request line
+relay_cmdline() {
+  if [ -f "$TEST_DIR/relay_curl.log" ]; then
+    tail -1 "$TEST_DIR/relay_curl.log"
+  fi
+}
+
+# Helper: get relay call count
+relay_call_count() {
+  if [ -f "$TEST_DIR/relay_curl.log" ]; then
+    wc -l < "$TEST_DIR/relay_curl.log" | tr -d ' '
   else
     echo "0"
   fi

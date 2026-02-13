@@ -2,17 +2,19 @@
   "active_pack": "peon",
   "volume": 0.5,
   "enabled": true,
-  "local_only": false,
+  "desktop_notifications": true,
   "categories": {
-    "greeting": true,
-    "acknowledge": true,
-    "complete": true,
-    "error": true,
-    "permission": true,
-    "resource_limit": true,
-    "annoyed": true
+    "session.start": true,
+    "task.acknowledge": true,
+    "task.complete": true,
+    "task.error": true,
+    "input.required": true,
+    "resource.limit": true,
+    "user.spam": true
   },
   "annoyed_threshold": 3,
   "annoyed_window_seconds": 10,
-  "pack_rotation": []
+  "silent_window_seconds": 0,
+  "pack_rotation": [],
+  "pack_rotation_mode": "random"
 }

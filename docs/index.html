@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>peon-ping — Stop babysitting your terminal</title>
-<meta name="description" content="Warcraft III Peon voice lines as Claude Code notifications. Never miss when Claude needs you.">
+<meta name="description" content="Game character voice lines as notifications for Claude Code, Codex, Cursor & more. 40+ sound packs. Never miss when your AI agent needs you.">
 <meta property="og:title" content="peon-ping — Stop babysitting your terminal">
-<meta property="og:description" content="Warcraft III Peon voice lines as Claude Code notifications. Never miss when Claude needs you.">
+<meta property="og:description" content="Game character voice lines as notifications for Claude Code, Codex, Cursor & more. 40+ sound packs. Never miss when your AI agent needs you.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://peon-ping.vercel.app/">
-<meta property="og:image" content="https://peon-ping.vercel.app/og-image.svg">
+<meta property="og:url" content="https://peonping.com/">
+<meta property="og:image" content="https://peonping.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://peon-ping.vercel.app/og-image.svg">
+<meta name="twitter:image" content="https://peonping.com/og-image.png">
 <meta name="theme-color" content="#ffab01">
 <link rel="icon" href="peon-icon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -558,6 +558,170 @@ a:hover { text-decoration: underline; }
   font-style: italic;
 }
 
+/* --- Pack picker --- */
+.picker-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.picker-filter {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 6px 14px;
+  background: var(--wc3-card-bg);
+  border: 1px solid var(--wc3-card-border);
+  border-radius: 4px;
+  color: var(--wc3-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.picker-filter:hover { border-color: rgba(var(--wc3-gold-rgb), 0.4); }
+.picker-filter.active {
+  background: rgba(var(--wc3-gold-rgb), 0.1);
+  border-color: var(--wc3-gold);
+  color: var(--wc3-gold);
+}
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--wc3-card-border) transparent;
+}
+.picker-grid::-webkit-scrollbar { width: 6px; }
+.picker-grid::-webkit-scrollbar-track { background: transparent; }
+.picker-grid::-webkit-scrollbar-thumb { background: var(--wc3-card-border); border-radius: 3px; }
+.picker-card {
+  background: var(--wc3-card-bg);
+  border: 1px solid var(--wc3-card-border);
+  border-radius: 4px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  user-select: none;
+}
+.picker-card:hover { border-color: rgba(var(--wc3-gold-rgb), 0.4); }
+.picker-card.selected {
+  border-color: var(--wc3-gold);
+  background: rgba(var(--wc3-gold-rgb), 0.06);
+}
+.picker-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.picker-checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1.5px solid var(--wc3-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--wc3-gold);
+  transition: all 0.2s;
+}
+.picker-card.selected .picker-checkbox {
+  border-color: var(--wc3-gold);
+  background: rgba(var(--wc3-gold-rgb), 0.15);
+}
+.picker-card-name {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--wc3-text-bright);
+  text-shadow: var(--wc3-text-shadow);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.picker-card-meta {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--wc3-text-dim);
+  margin-bottom: 8px;
+}
+.picker-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.picker-default-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--wc3-gold);
+  background: rgba(var(--wc3-gold-rgb), 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.picker-card-preview {
+  background: none;
+  border: 1px solid rgba(var(--wc3-gold-rgb), 0.2);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--wc3-gold);
+  font-size: 0.65rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.picker-card-preview:hover {
+  background: rgba(var(--wc3-gold-rgb), 0.15);
+  border-color: rgba(var(--wc3-gold-rgb), 0.5);
+}
+.picker-card-preview.playing {
+  background: rgba(var(--wc3-gold-rgb), 0.25);
+  border-color: var(--wc3-gold);
+}
+.picker-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.picker-count {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--wc3-gold);
+  margin-right: auto;
+}
+.picker-btn {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 5px 12px;
+  background: var(--wc3-card-bg);
+  border: 1px solid var(--wc3-card-border);
+  border-radius: 4px;
+  color: var(--wc3-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.picker-btn:hover { border-color: rgba(var(--wc3-gold-rgb), 0.4); color: var(--wc3-text-bright); }
+.picker-command { text-align: center; }
+.picker-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: var(--wc3-text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
 /* --- Features strip (accent stripe) --- */
 .features-grid {
   display: grid;
@@ -657,6 +821,7 @@ footer a:hover { color: var(--wc3-gold); }
     display: none;
   }
   .atmosphere-orb { width: 600px; height: 600px; }
+  .picker-grid { grid-template-columns: repeat(2, 1fr); max-height: 360px; }
 }
 
 /* --- Scrollbar & Selection --- */
@@ -786,14 +951,16 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
   <p class="hero-label">peon-ping</p>
   <h1>Stop babysitting your terminal</h1>
   <p class="hero-sub">
-    Your Peon pings you the instant Claude Code finishes or needs permission.
-    Never lose flow to a silent terminal again &mdash;
-    <strong>and your workspace sounds like Orgrimmar.</strong>
+    Game character voice lines the instant <strong>Claude Code</strong>, <strong>Codex</strong>, <strong>Cursor</strong>, or <strong>OpenCode</strong> finishes or needs permission.
+    Never lose flow to a silent terminal again.
   </p>
   <div class="install-block" onclick="copyInstall(this)" title="Click to copy" role="button" aria-label="Copy install command">
-    <code>curl -fsSL https://raw.githubusercontent.com/tonyyont/peon-ping/main/install.sh | bash</code>
+    <code>brew install PeonPing/tap/peon-ping</code>
     <button class="copy-btn" aria-label="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M3 11V2.5A1.5 1.5 0 014.5 1H10"/></svg></button>
   </div>
+  <p style="text-align:center; margin-top: 0.75rem; color: var(--wc3-text-dim); font-size: 0.85rem;">
+    or <code style="color: var(--wc3-gold); font-size: 0.85rem;">curl -fsSL peonping.com/install | bash</code>
+  </p>
 </div>
 </section>
 
@@ -1141,6 +1308,50 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
           </div>
         </div>
       </div>
+      <!-- Pack 6: TF2 Engineer -->
+      <div class="carousel-slide" data-pack="tf2_engineer">
+        <div class="pack-card-full">
+          <div class="pack-header">
+            <div class="pack-badge">New</div>
+            <div class="pack-name">TF2 Engineer</div>
+            <div class="pack-game">Team Fortress 2</div>
+            <code class="pack-id">tf2_engineer</code>
+            <div class="pack-credit">Added by <a href="https://github.com/Arie">@Arie</a></div>
+          </div>
+          <div class="pack-sounds">
+            <button class="pack-sound-btn" data-src="audio/Engineer_battlecry03.mp3" aria-label="Play: Cowboy up!">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Cowboy up!"</span>
+              <span class="pack-sound-cat">greeting</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/Engineer_autobuildingsentry01.mp3" aria-label="Play: Sentry going up.">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Sentry going up."</span>
+              <span class="pack-sound-cat">acknowledge</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/Eng_quest_complete_easy_01.mp3" aria-label="Play: Nice work!">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Nice work!"</span>
+              <span class="pack-sound-cat">complete</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/Engineer_autodestroyedsentry01.mp3" aria-label="Play: Sentry down!">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Sentry down!"</span>
+              <span class="pack-sound-cat">error</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/Engineer_wranglekills01.mp3" aria-label="Play: This thing ain't on auto-pilot, son!">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Ain't on auto-pilot, son!"</span>
+              <span class="pack-sound-cat">permission</span>
+            </button>
+            <button class="pack-sound-btn" data-src="audio/Engineer_goldenwrenchkill04.mp3" aria-label="Play: Erectin' a statue of a moron.">
+              <span class="pack-sound-icon">&#9654;</span>
+              <span class="pack-sound-quote">"Erectin' a statue of a moron."</span>
+              <span class="pack-sound-cat">annoyed</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <button class="carousel-arrow carousel-next" aria-label="Next pack">
@@ -1154,11 +1365,50 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
     <button class="carousel-dot" data-index="2" aria-label="Soviet Engineer"></button>
     <button class="carousel-dot" data-index="3" aria-label="Battlecruiser"></button>
     <button class="carousel-dot" data-index="4" aria-label="Sarah Kerrigan"></button>
+    <button class="carousel-dot" data-index="5" aria-label="TF2 Engineer"></button>
   </div>
 
   <div class="contribute-cta">
-    <p>Want to add a pack? Drop your sound files in <code>packs/&lt;name&gt;/sounds/</code>, add a manifest, and <a href="https://github.com/tonyyont/peon-ping/pulls">open a PR</a>.</p>
-    <p class="contribute-ideas">Ideas: Night Elf Wisp, Undead Acolyte, Protoss Probe, SCV, Zeratul, Jim Raynor, GLaDOS &hellip;</p>
+    <p><strong><span class="pack-count">40+</span> packs and counting!</strong> You're only seeing a few above &mdash; there are many more including GLaDOS, StarCraft Terran units, Czech, Spanish &amp; Russian &amp; Polish Warcraft packs, and others.</p>
+    <p>Run <code>peon packs list</code> to see them all, or <a href="https://openpeon.com/packs">browse the full catalog at openpeon.com</a>.</p>
+    <p class="contribute-ideas"><strong>Want to add your own?</strong> Any game, any character &mdash; create a GitHub repo with your sounds, register it, and it's available to everyone. <a href="https://openpeon.com/create">Create a pack &rarr;</a></p>
+  </div>
+</div>
+</section>
+
+<!-- ============ PACK PICKER ============ -->
+<section id="picker">
+<div class="container">
+  <p class="section-label">Build your install</p>
+  <h2 class="section-title">Pick your packs</h2>
+  <p class="section-desc">Select the sound packs you want. Your custom install command updates live.</p>
+
+  <div class="picker-filters">
+    <button class="picker-filter active" data-lang="all">All</button>
+    <button class="picker-filter" data-lang="en">English</button>
+    <button class="picker-filter" data-lang="ru">Russian</button>
+    <button class="picker-filter" data-lang="es">Spanish</button>
+    <button class="picker-filter" data-lang="fr">French</button>
+    <button class="picker-filter" data-lang="cs">Czech</button>
+    <button class="picker-filter" data-lang="other">Other</button>
+  </div>
+
+  <div class="picker-grid" id="pickerGrid">
+    <div class="picker-loading">Loading packs from registry...</div>
+  </div>
+
+  <div class="picker-controls">
+    <span class="picker-count" id="pickerCount">0 packs selected</span>
+    <button class="picker-btn" id="pickerSelectDefaults">Defaults</button>
+    <button class="picker-btn" id="pickerSelectAll">All</button>
+    <button class="picker-btn" id="pickerSelectNone">None</button>
+  </div>
+
+  <div class="picker-command">
+    <div class="install-block" onclick="copyInstall(this)" title="Click to copy" role="button" aria-label="Copy custom install command">
+      <code id="pickerCommandCode">curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash</code>
+      <button class="copy-btn" aria-label="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M3 11V2.5A1.5 1.5 0 014.5 1H10"/></svg></button>
+    </div>
   </div>
 </div>
 </section>
@@ -1198,10 +1448,24 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
       </div>
     </div>
     <div class="feature-card">
+      <div class="feature-icon">&#x1f514;</div>
+      <div class="feature-text">
+        <h3>Desktop notifications</h3>
+        <p>Push alerts when your terminal isn't focused. Never miss a permission prompt again.</p>
+      </div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">&#x1f6e0;</div>
+      <div class="feature-text">
+        <h3>Multi-IDE</h3>
+        <p>Works with Claude Code, Codex, Cursor, and OpenCode. Adapters for any IDE with hooks.</p>
+      </div>
+    </div>
+    <div class="feature-card">
       <div class="feature-icon">&#x1f4e6;</div>
       <div class="feature-text">
         <h3>Pack system</h3>
-        <p>Orc Peon, Soviet Engineer, Battlecruiser, Kerrigan, and more. <a href="#packs">Submit your own.</a></p>
+        <p><span class="pack-count">40+</span> packs across 7 languages. <a href="#picker">Pick your favorites</a> or <a href="https://openpeon.com/create">create your own.</a></p>
       </div>
     </div>
   </div>
@@ -1212,23 +1476,35 @@ html { scrollbar-width: thin; scrollbar-color: var(--wc3-card-border) var(--wc3-
 <section id="install">
 <div class="container" style="text-align: center;">
   <h2 class="section-title">Ready to work?</h2>
-  <p class="section-desc" style="margin: 0 auto 32px;">One command. Takes 10 seconds. Works with any Claude Code setup on macOS.</p>
+  <p class="section-desc" style="margin: 0 auto 32px;">One command. Works with Claude Code, Codex, Cursor, and OpenCode on macOS, Linux, and WSL2.</p>
   <div class="install-block" onclick="copyInstall(this)" title="Click to copy" role="button" aria-label="Copy install command">
-    <code>curl -fsSL https://raw.githubusercontent.com/tonyyont/peon-ping/main/install.sh | bash</code>
+    <code>brew install PeonPing/tap/peon-ping</code>
     <button class="copy-btn" aria-label="Copy to clipboard"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M3 11V2.5A1.5 1.5 0 014.5 1H10"/></svg></button>
   </div>
+  <p style="text-align:center; margin-top: 0.75rem; color: var(--wc3-text-dim); font-size: 0.85rem;">
+    or <code style="color: var(--wc3-gold); font-size: 0.85rem;">curl -fsSL peonping.com/install | bash</code>
+  </p>
 </div>
 </section>
 
 <!-- ============ FOOTER ============ -->
 <footer>
 <div class="container">
-  <p>MIT License &middot; <a href="https://github.com/tonyyont/peon-ping">GitHub</a></p>
-  <p>Sound files are property of their respective publishers. <a href="https://github.com/tonyyont/peon-ping/pulls">Contribute a pack</a></p>
+  <p>MIT License &middot; <a href="https://github.com/PeonPing/peon-ping">GitHub</a></p>
+  <p>Sound files are property of their respective publishers. <a href="https://github.com/PeonPing/peon-ping/pulls">Contribute a pack</a></p>
 </div>
 </footer>
 
 <script>
+// --- Dynamic pack count from registry ---
+fetch('https://peonping.github.io/registry/index.json')
+  .then(r => r.json())
+  .then(data => {
+    const count = Array.isArray(data) ? data.length : (data.packs ? data.packs.length : Object.keys(data).length);
+    document.querySelectorAll('.pack-count').forEach(el => { el.textContent = count + '+'; });
+  })
+  .catch(() => {}); // keep fallback "40+" on failure
+
 // --- Copy install command ---
 const clipboardSVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M3 11V2.5A1.5 1.5 0 014.5 1H10"/></svg>';
 const checkSVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4"/></svg>';
@@ -1412,6 +1688,158 @@ document.getElementById('packs').addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft') goToSlide(packIndex - 1);
   if (e.key === 'ArrowRight') goToSlide(packIndex + 1);
 });
+
+// --- Pack picker ---
+const REGISTRY_URL = 'https://peonping.github.io/registry/index.json';
+const DEFAULT_PACKS = new Set(['peon','peasant','glados','sc_kerrigan','sc_battlecruiser','ra2_kirov','dota2_axe','duke_nukem','tf2_engineer','hd2_helldiver']);
+let registryPacks = [];
+let selectedPacks = new Set(DEFAULT_PACKS);
+let pickerAudio = null;
+let pickerPlayingBtn = null;
+let activeFilter = 'all';
+
+async function loadRegistry() {
+  try {
+    const resp = await fetch(REGISTRY_URL);
+    const data = await resp.json();
+    registryPacks = data.packs || [];
+    renderPicker();
+    updatePickerCommand();
+  } catch (e) {
+    document.getElementById('pickerGrid').innerHTML = '<div class="picker-loading">Could not load registry. Use the default install command above.</div>';
+  }
+}
+
+function renderPicker() {
+  const grid = document.getElementById('pickerGrid');
+  grid.innerHTML = '';
+  const knownLangs = ['en','ru','es','fr','cs'];
+  const filtered = registryPacks.filter(p => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'other') return !knownLangs.includes(p.language);
+    return p.language === activeFilter;
+  });
+  filtered.forEach(pack => {
+    const card = document.createElement('div');
+    const sel = selectedPacks.has(pack.name);
+    const isDef = DEFAULT_PACKS.has(pack.name);
+    card.className = 'picker-card' + (sel ? ' selected' : '');
+    card.dataset.pack = pack.name;
+    const sizeKB = Math.round(pack.total_size_bytes / 1024);
+    const langLabel = pack.language ? pack.language.toUpperCase() : 'EN';
+    card.innerHTML =
+      '<div class="picker-card-top">' +
+        '<div class="picker-checkbox">' + (sel ? '\u2713' : '') + '</div>' +
+        '<div class="picker-card-name">' + pack.display_name + '</div>' +
+      '</div>' +
+      '<div class="picker-card-meta">' + langLabel + ' \u00b7 ' + pack.sound_count + ' sounds \u00b7 ' + sizeKB + ' KB</div>' +
+      '<div class="picker-card-bottom">' +
+        (isDef ? '<span class="picker-default-badge">default</span>' : '<span></span>') +
+        (pack.preview_sounds && pack.preview_sounds.length ? '<button class="picker-card-preview" data-pack="' + pack.name + '" aria-label="Preview ' + pack.display_name + '">&#9654;</button>' : '') +
+      '</div>';
+    card.addEventListener('click', function(e) {
+      if (e.target.closest('.picker-card-preview')) return;
+      togglePickerPack(pack.name);
+    });
+    grid.appendChild(card);
+  });
+}
+
+function togglePickerPack(name) {
+  if (selectedPacks.has(name)) selectedPacks.delete(name);
+  else selectedPacks.add(name);
+  var card = document.querySelector('.picker-card[data-pack="' + name + '"]');
+  if (card) {
+    card.classList.toggle('selected', selectedPacks.has(name));
+    card.querySelector('.picker-checkbox').textContent = selectedPacks.has(name) ? '\u2713' : '';
+  }
+  updatePickerCommand();
+}
+
+function updatePickerCommand() {
+  var code = document.getElementById('pickerCommandCode');
+  var count = document.getElementById('pickerCount');
+  count.textContent = selectedPacks.size + ' pack' + (selectedPacks.size !== 1 ? 's' : '') + ' selected';
+  var base = 'curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash';
+  if (selectedPacks.size === 0 || setsEqual(selectedPacks, DEFAULT_PACKS)) {
+    code.textContent = base;
+  } else if (selectedPacks.size === registryPacks.length) {
+    code.textContent = base + ' -s -- --all';
+  } else {
+    var sorted = Array.from(selectedPacks).sort();
+    code.textContent = base + ' -s -- --packs=' + sorted.join(',');
+  }
+}
+
+function setsEqual(a, b) {
+  if (a.size !== b.size) return false;
+  for (var item of a) if (!b.has(item)) return false;
+  return true;
+}
+
+// Preview audio from picker
+document.getElementById('pickerGrid').addEventListener('click', function(e) {
+  var previewBtn = e.target.closest('.picker-card-preview');
+  if (!previewBtn) return;
+  e.stopPropagation();
+  var packName = previewBtn.dataset.pack;
+  var pack = registryPacks.find(function(p) { return p.name === packName; });
+  if (!pack || !pack.preview_sounds || !pack.preview_sounds.length) return;
+  // Toggle off if same
+  if (pickerPlayingBtn === previewBtn && pickerAudio && !pickerAudio.paused) {
+    pickerAudio.pause(); pickerAudio.currentTime = 0;
+    previewBtn.classList.remove('playing');
+    previewBtn.innerHTML = '&#9654;';
+    pickerAudio = null; pickerPlayingBtn = null;
+    return;
+  }
+  // Stop any playing
+  if (pickerAudio) { pickerAudio.pause(); pickerAudio.currentTime = 0; }
+  if (pickerPlayingBtn) { pickerPlayingBtn.classList.remove('playing'); pickerPlayingBtn.innerHTML = '&#9654;'; }
+  if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+  if (currentCard) { currentCard.classList.remove('playing'); currentCard.querySelector('.audio-play-icon').innerHTML = '&#9654;'; currentAudio = null; currentCard = null; }
+  stopPackAudio();
+  // Build URL
+  var soundFile = pack.preview_sounds[0];
+  var sp = pack.source_path ? pack.source_path + '/' : '';
+  var url = 'https://raw.githubusercontent.com/' + pack.source_repo + '/' + pack.source_ref + '/' + sp + 'sounds/' + soundFile;
+  pickerAudio = new Audio(url);
+  pickerAudio.play().catch(function(){});
+  previewBtn.classList.add('playing');
+  previewBtn.innerHTML = '&#9632;';
+  pickerPlayingBtn = previewBtn;
+  pickerAudio.addEventListener('ended', function() {
+    previewBtn.classList.remove('playing');
+    previewBtn.innerHTML = '&#9654;';
+    pickerAudio = null; pickerPlayingBtn = null;
+  });
+});
+
+// Filter buttons
+document.querySelectorAll('.picker-filter').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.picker-filter').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    activeFilter = btn.dataset.lang;
+    renderPicker();
+  });
+});
+
+// Select all / none / defaults
+document.getElementById('pickerSelectAll').addEventListener('click', function() {
+  selectedPacks = new Set(registryPacks.map(function(p) { return p.name; }));
+  renderPicker(); updatePickerCommand();
+});
+document.getElementById('pickerSelectNone').addEventListener('click', function() {
+  selectedPacks = new Set();
+  renderPicker(); updatePickerCommand();
+});
+document.getElementById('pickerSelectDefaults').addEventListener('click', function() {
+  selectedPacks = new Set(DEFAULT_PACKS);
+  renderPicker(); updatePickerCommand();
+});
+
+loadRegistry();
 </script>
 </body>
 </html>

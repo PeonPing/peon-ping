@@ -1,60 +1,71 @@
 # peon-ping
 
-![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue)
+![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01)
+![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01)
 
-**Your Peon pings you when Claude Code needs attention.**
+**Game character voice lines when your AI coding agent needs attention.**
 
-Claude Code doesn't notify you when it finishes or needs permission. You tab away, lose focus, and waste 15 minutes getting back into flow. peon-ping fixes this with Warcraft III Peon voice lines — so you never miss a beat, and your terminal sounds like Orgrimmar.
+AI coding agents don't notify you when they finish or need permission. You tab away, lose focus, and waste 15 minutes getting back into flow. peon-ping fixes this with voice lines from Warcraft, StarCraft, Portal, Zelda, and more — works with **Claude Code**, **Codex**, **Cursor**, and **OpenCode**.
 
-**See it in action** &rarr; [peon-ping.vercel.app](https://peon-ping.vercel.app/)
+**See it in action** &rarr; [peonping.com](https://peonping.com/)
 
 ## Install
 
-### Recommended: Clone the repository
-
 ```bash
-git clone https://github.com/kenyiu/peon-ping.git
-cd peon-ping
-./install.sh
+brew install PeonPing/tap/peon-ping
 ```
 
-This is the recommended method — you can review the code before running and easily pull updates.
+Then run `peon-ping-setup` to register hooks and download sound packs. macOS and Linux.
 
-### Alternative: Direct install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/kenyiu/peon-ping/main/install.sh | bash
-```
-
-> **Security Note:** Running `curl | bash` pipes remote code directly to your shell. Always review scripts before running. For forks, verify the repository is trustworthy. The git clone method lets you inspect the code first.
-
-### Verifying releases
-
-For releases, you can verify the download checksum:
+**Or install via curl** (macOS, Linux, WSL2):
 
 ```bash
-# Download the release and checksum file
-curl -fSL https://github.com/kenyiu/peon-ping/releases/download/vX.X.X/peon-ping-X.X.X.tar.gz -o peon-ping.tar.gz
-curl -fSL https://github.com/kenyiu/peon-ping/releases/download/vX.X.X/checksums.txt -o checksums.txt
-
-# Verify
-sha256sum -c checksums.txt --ignore-missing
+curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
 ```
 
-Takes 10 seconds. macOS and WSL2 (Windows). Re-run to update (sounds and config preserved).
+One command. Takes 10 seconds. Re-run to update (sounds and config preserved). Installs 10 curated English packs by default.
+
+**Install all packs** (every language and franchise):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --all
+```
+
+**Project-local install** — installs into `.claude/` in the current project instead of `~/.claude/`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --local
+```
+
+Local installs don't add the `peon` CLI alias or shell completions — use `/peon-ping-toggle` inside Claude Code instead.
+
+**Explicit global mode** (same as default):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --global
+```
+
+**Initialize local config only** (without reinstalling scripts):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --init-local-config
+```
+
+If a global install exists and you install local (or vice versa), the installer will prompt to remove the existing one to avoid conflicts.
 
 ## What you'll hear
 
-| Event | Sound | Examples |
+| Event | CESP Category | Examples |
 |---|---|---|
-| Session starts | Greeting | *"Ready to work?"*, *"Yes?"*, *"What you want?"* |
-| Task finishes | Acknowledgment | *"Work, work."*, *"I can do that."*, *"Okie dokie."* |
-| Permission needed | Alert | *"Something need doing?"*, *"Hmm?"*, *"What you want?"* |
-| Rapid prompts (3+ in 10s) | Easter egg | *"Me busy, leave me alone!"* |
+| Session starts | `session.start` | *"Ready to work?"*, *"Yes?"*, *"What you want?"* |
+| Task finishes | `task.complete` | *"Work, work."*, *"I can do that."*, *"Okie dokie."* |
+| Permission needed | `input.required` | *"Something need doing?"*, *"Hmm?"*, *"What you want?"* |
+| Rapid prompts (3+ in 10s) | `user.spam` | *"Me busy, leave me alone!"* |
 
 Plus Terminal tab titles (`● project: done`) and desktop notifications when your terminal isn't focused.
+
+peon-ping implements the [Coding Event Sound Pack Specification (CESP)](https://github.com/PeonPing/openpeon) — an open standard for coding event sounds that any agentic IDE can adopt.
 
 ## Quick controls
 
@@ -63,122 +74,117 @@ Need to mute sounds and notifications during a meeting or pairing session? Two o
 | Method | Command | When |
 |---|---|---|
 | **Slash command** | `/peon-ping-toggle` | While working in Claude Code |
-| **CLI** | `peon --toggle` | From any terminal tab |
+| **CLI** | `peon toggle` | From any terminal tab |
 
 Other CLI commands:
 
 ```bash
-peon --pause          # Mute sounds
-peon --resume         # Unmute sounds
-peon --status         # Check if paused or active
-peon --packs          # List available sound packs
-peon --pack <name>    # Switch to a specific pack
-peon --pack           # Cycle to the next pack
+peon pause                # Mute sounds
+peon resume               # Unmute sounds
+peon status               # Check if paused or active
+peon packs list           # List installed sound packs
+peon packs use <name>     # Switch to a specific pack
+peon packs next           # Cycle to the next pack
+peon packs remove <p1,p2> # Remove specific packs
+peon notifications on     # Enable desktop notifications
+peon notifications off    # Disable desktop notifications
 ```
 
-Tab completion is supported — type `peon --pack <TAB>` to see available pack names.
+Tab completion is supported — type `peon packs use <TAB>` to see available pack names.
 
 Pausing mutes sounds and desktop notifications instantly. Persists across sessions until you resume. Tab titles remain active when paused.
 
-## Installation Modes
-
-Choose one installation mode:
-
-```bash
-# Global install (default)
-./install.sh
-# or explicitly
-./install.sh --global
-
-# Local install (current project only)
-./install.sh --local
-```
-
-`--global` installs to `~/.claude/hooks/peon-ping/` and wires global hooks.
-
-`--local` installs to `./.claude/hooks/peon-ping/` for the current project only.
-
-If the opposite mode is already installed, the installer will prompt you to remove it to avoid conflicts.
-
-To create only a local project config without reinstalling scripts:
-
-```bash
-./install.sh --init-local-config
-```
-
-This creates `./.claude/hooks/peon-ping/config.json` in your project.
-
 ## Configuration
 
-Edit `~/.claude/hooks/peon-ping/config.json` (global) or `./.claude/hooks/peon-ping/config.json` (project-specific):
+peon-ping installs a `/peon-ping-toggle` slash command in Claude Code. You can also just ask Claude to change settings for you — e.g. "enable round-robin pack rotation", "set volume to 0.3", or "add glados to my pack rotation". No need to edit config files manually.
+
+The config lives at `$CLAUDE_CONFIG_DIR/hooks/peon-ping/config.json` (default: `~/.claude/hooks/peon-ping/config.json`):
 
 ```json
 {
   "volume": 0.5,
   "categories": {
-    "greeting": true,
-    "acknowledge": true,
-    "complete": true,
-    "error": true,
-    "permission": true,
-    "annoyed": true
+    "session.start": true,
+    "task.acknowledge": true,
+    "task.complete": true,
+    "task.error": true,
+    "input.required": true,
+    "resource.limit": true,
+    "user.spam": true
   }
 }
 ```
 
 - **volume**: 0.0–1.0 (quiet enough for the office)
-- **categories**: Toggle individual sound types on/off
-- **annoyed_threshold / annoyed_window_seconds**: How many prompts in N seconds triggers the easter egg
-- **pack_rotation**: Array of pack names (e.g. `["peon", "sc_kerrigan", "peasant"]`). Each Claude Code session randomly gets one pack from the list and keeps it for the whole session. Leave empty `[]` to use `active_pack` instead.
+- **desktop_notifications**: `true`/`false` — toggle desktop notification popups independently from sounds (default: `true`)
+- **categories**: Toggle individual CESP sound categories on/off (e.g. `"session.start": false` to disable greeting sounds)
+- **annoyed_threshold / annoyed_window_seconds**: How many prompts in N seconds triggers the `user.spam` easter egg
+- **silent_window_seconds**: Suppress `task.complete` sounds and notifications for tasks shorter than N seconds. (e.g. `10` to only hear sounds for tasks that take longer than 10 seconds)
+- **pack_rotation**: Array of pack names (e.g. `["peon", "sc_kerrigan", "peasant"]`). Each session randomly gets one pack from the list and keeps it for the whole session. Leave empty `[]` to use `active_pack` instead.
+
+## Multi-IDE Support
+
+peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE-specific events to the [CESP standard](https://github.com/PeonPing/openpeon).
+
+| IDE | Status | Setup |
+|---|---|---|
+| **Claude Code** | Built-in | `curl \| bash` install handles everything |
+| **OpenAI Codex** | Adapter | Add `command = "bash ~/.claude/hooks/peon-ping/adapters/codex.sh"` to `~/.codex/config.toml` under `[notify]` |
+| **Cursor** | Adapter | Add hook entries to `~/.cursor/hooks.json` pointing to `adapters/cursor.sh` |
+| **OpenCode** | Adapter | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh \| bash` |
 
 ## Sound packs
 
-| Pack | Character | Sounds | By |
-|---|---|---|---|
-| `peon` (default) | Orc Peon (Warcraft III) | "Ready to work?", "Work, work.", "Okie dokie." | [@tonyyont](https://github.com/tonyyont) |
-| `peon_fr` | Orc Peon (Warcraft III, French) | "Prêt à travailler?", "Travail, travail.", "D'accord." | [@thomasKn](https://github.com/thomasKn) |
-| `peon_pl` | Orc Peon (Warcraft III, Polish) | Polish voice lines | [@askowronski](https://github.com/askowronski) |
-| `peasant` | Human Peasant (Warcraft III) | "Yes, milord?", "Job's done!", "Ready, sir." | [@thomasKn](https://github.com/thomasKn) |
-| `peasant_fr` | Human Peasant (Warcraft III, French) | "Oui, monseigneur?", "C'est fait!", "Prêt, monsieur." | [@thomasKn](https://github.com/thomasKn) |
-| `ra2_soviet_engineer` | Soviet Engineer (Red Alert 2) | "Tools ready", "Yes, commander", "Engineering" | [@msukkari](https://github.com/msukkari) |
-| `sc_battlecruiser` | Battlecruiser (StarCraft) | "Battlecruiser operational", "Make it happen", "Engage" | [@garysheng](https://github.com/garysheng) |
-| `sc_kerrigan` | Sarah Kerrigan (StarCraft) | "I gotcha", "What now?", "Easily amused, huh?" | [@garysheng](https://github.com/garysheng) |
+40+ packs across Warcraft, StarCraft, Red Alert, Portal, Zelda, Dota 2, Helldivers 2, Elder Scrolls, and more. The default install includes 10 curated English packs:
 
-Switch packs from the CLI:
+| Pack | Character | Sounds |
+|---|---|---|
+| `peon` (default) | Orc Peon (Warcraft III) | "Ready to work?", "Work, work.", "Okie dokie." |
+| `peasant` | Human Peasant (Warcraft III) | "Yes, milord?", "Job's done!", "Ready, sir." |
+| `glados` | GLaDOS (Portal) | "Oh, it's you.", "You monster.", "Your entire team is dead." |
+| `sc_kerrigan` | Sarah Kerrigan (StarCraft) | "I gotcha", "What now?", "Easily amused, huh?" |
+| `sc_battlecruiser` | Battlecruiser (StarCraft) | "Battlecruiser operational", "Make it happen", "Engage" |
+| `ra2_kirov` | Kirov Airship (Red Alert 2) | "Kirov reporting", "Bombardiers to your stations" |
+| `dota2_axe` | Axe (Dota 2) | "Axe is ready!", "Axe-actly!", "Come and get it!" |
+| `duke_nukem` | Duke Nukem | "Hail to the king!", "Groovy.", "Balls of steel." |
+| `tf2_engineer` | Engineer (Team Fortress 2) | "Sentry going up.", "Nice work!", "Cowboy up!" |
+| `hd2_helldiver` | Helldiver (Helldivers 2) | "For democracy!", "How 'bout a nice cup of Liber-tea?" |
+
+**[Browse all packs with audio previews &rarr; openpeon.com/packs](https://openpeon.com/packs)**
+
+Install all with `--all`, or switch packs anytime:
 
 ```bash
-peon --pack ra2_soviet_engineer   # switch to a specific pack
-peon --pack                       # cycle to the next pack
-peon --packs                      # list all packs
+peon packs use glados             # switch to a specific pack
+peon packs next                   # cycle to the next pack
+peon packs list                   # list all installed packs
 ```
 
-Or edit `~/.claude/hooks/peon-ping/config.json` directly:
-
-```json
-{ "active_pack": "ra2_soviet_engineer" }
-```
-
-Want to add your own pack? See [CONTRIBUTING.md](CONTRIBUTING.md).
+Want to add your own pack? See the [full guide at openpeon.com/create](https://openpeon.com/create) or [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Uninstall
 
 ```bash
-bash ~/.claude/hooks/peon-ping/uninstall.sh
+bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/hooks/peon-ping/uninstall.sh        # global
+bash .claude/hooks/peon-ping/uninstall.sh           # project-local
 ```
 
 ## Requirements
 
-- macOS (uses `afplay` and AppleScript) or WSL2 (uses PowerShell `MediaPlayer` and WinForms)
+- macOS (uses `afplay` and AppleScript), WSL2 (uses PowerShell `MediaPlayer` and WinForms), or Linux (uses `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` and `notify-send`)
 - Claude Code with hooks support
 - python3
 
 ## How it works
 
-`peon.sh` is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, and `Notification` events. On each event it maps to a sound category, picks a random voice line (avoiding repeats), plays it via `afplay` (macOS) or PowerShell `MediaPlayer` (WSL2), and updates your Terminal tab title.
+`peon.sh` is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, `Notification`, and `PermissionRequest` events. On each event it maps to a CESP sound category, picks a random voice line (avoiding repeats), plays it via `afplay` (macOS), PowerShell `MediaPlayer` (WSL2), or `paplay`/`ffplay`/`mpv`/`aplay` (Linux), and updates your Terminal tab title.
 
-Sound files are property of their respective publishers (Blizzard Entertainment, EA) and are included in the repo for convenience.
+Sound packs are downloaded from the [OpenPeon registry](https://github.com/PeonPing/registry) at install time. The official packs are hosted in [PeonPing/og-packs](https://github.com/PeonPing/og-packs). Sound files are property of their respective publishers (Blizzard, Valve, EA, etc.) and are distributed under fair use for personal notification purposes.
 
 ## Links
 
-- [Landing page](https://peon-ping.vercel.app/)
+- [peonping.com](https://peonping.com/) — landing page
+- [openpeon.com](https://openpeon.com/) — CESP spec, pack browser, creation guide
+- [OpenPeon registry](https://github.com/PeonPing/registry) — pack registry (GitHub Pages)
+- [og-packs](https://github.com/PeonPing/og-packs) — official sound packs
 - [License (MIT)](LICENSE)

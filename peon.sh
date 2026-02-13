@@ -10,70 +10,143 @@ detect_platform() {
     Linux)
       if grep -qi microsoft /proc/version 2>/dev/null; then
         echo "wsl"
+      elif [ "${REMOTE_CONTAINERS:-}" = "true" ] || [ "${CODESPACES:-}" = "true" ]; then
+        echo "devcontainer"
       else
         echo "linux"
       fi ;;
     *) echo "unknown" ;;
   esac
 }
-PLATFORM=$(detect_platform)
+PLATFORM=${PLATFORM:-$(detect_platform)}
 
-# --- Script and config directory resolution ---
-SCRIPT_DIR="$HOME/.claude/hooks/peon-ping"
+PEON_DIR="${CLAUDE_PEON_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+CONFIG="$PEON_DIR/config.json"
+STATE="$PEON_DIR/.state.json"
 
-resolve_packs_dir() {
-  if [[ -n "${CLAUDE_PEON_DIR:-}" ]]; then
-    echo "$CLAUDE_PEON_DIR/packs"
+# --- Linux audio backend detection ---
+detect_linux_player() {
+  # Helper to check if a player is available (respects test-mode disable markers)
+  player_available() {
+    local cmd="$1"
+    command -v "$cmd" &>/dev/null || return 1
+    # In test mode, check for disable marker
+    [ "${PEON_TEST:-0}" = "1" ] && [ -f "${CLAUDE_PEON_DIR}/.disabled_${cmd}" ] && return 1
+    return 0
+  }
+
+  if player_available pw-play; then
+    echo "pw-play"
+  elif player_available paplay; then
+    echo "paplay"
+  elif player_available ffplay; then
+    echo "ffplay"
+  elif player_available mpv; then
+    echo "mpv"
+  elif player_available play; then
+    echo "play"
+  elif player_available aplay; then
+    echo "aplay"
   else
-    echo "$SCRIPT_DIR/packs"
+    # Warn only once per process to avoid spam
+    if [ -z "${WARNED_NO_LINUX_AUDIO_BACKEND:-}" ]; then
+      echo "WARNING: No audio backend found. Please install one of: pw-play, paplay, ffplay, mpv, play (SoX), or aplay" >&2
+      WARNED_NO_LINUX_AUDIO_BACKEND=1
+    fi
+    return 1
   fi
 }
 
-# Config resolution (local takes precedence over global)
-resolve_config_dir() {
-  local cwd="${PEON_CWD:-$PWD}"
-  local local_dir="$cwd/.claude/hooks/peon-ping"
+# --- Linux audio playback with backend-specific volume handling ---
+play_linux_sound() {
+  local file="$1" vol="$2" player="$3"
 
-  # Priority: 1) Local config (project directory), 2) CLAUDE_PEON_DIR env var, 3) Global default
-  if [[ -f "$local_dir/config.json" ]]; then
-    echo "$local_dir"
-  elif [[ -n "${CLAUDE_PEON_DIR:-}" ]]; then
-    echo "$CLAUDE_PEON_DIR"
-  else
-    echo "$SCRIPT_DIR"
+  # Skip playback if no backend available
+  [ -z "$player" ] && return 0
+
+  # Background mode: use nohup & for async playback (default)
+  # Synchronous mode: no nohup/& for tests (when PEON_TEST=1)
+  local use_bg=true
+  [ "${PEON_TEST:-0}" = "1" ] && use_bg=false
+
+  case "$player" in
+    pw-play)
+      # pw-play (PipeWire) expects volume as float 0.0-1.0 (unlike paplay 0-65536, ffplay/mpv 0-100)
+      if [ "$use_bg" = true ]; then
+        nohup pw-play --volume "$vol" "$file" >/dev/null 2>&1 &
+      else
+        pw-play --volume "$vol" "$file" >/dev/null 2>&1
+      fi
+      ;;
+    paplay)
+      local pa_vol
+      pa_vol=$(python3 -c "print(max(0, min(65536, int($vol * 65536))))")
+      if [ "$use_bg" = true ]; then
+        nohup paplay --volume="$pa_vol" "$file" >/dev/null 2>&1 &
+      else
+        paplay --volume="$pa_vol" "$file" >/dev/null 2>&1
+      fi
+      ;;
+    ffplay)
+      local ff_vol
+      ff_vol=$(python3 -c "print(max(0, min(100, int($vol * 100))))")
+      if [ "$use_bg" = true ]; then
+        nohup ffplay -nodisp -autoexit -volume "$ff_vol" "$file" >/dev/null 2>&1 &
+      else
+        ffplay -nodisp -autoexit -volume "$ff_vol" "$file" >/dev/null 2>&1
+      fi
+      ;;
+    mpv)
+      local mpv_vol
+      mpv_vol=$(python3 -c "print(max(0, min(100, int($vol * 100))))")
+      if [ "$use_bg" = true ]; then
+        nohup mpv --no-video --volume="$mpv_vol" "$file" >/dev/null 2>&1 &
+      else
+        mpv --no-video --volume="$mpv_vol" "$file" >/dev/null 2>&1
+      fi
+      ;;
+    play)
+      if [ "$use_bg" = true ]; then
+        nohup play -v "$vol" "$file" >/dev/null 2>&1 &
+      else
+        play -v "$vol" "$file" >/dev/null 2>&1
+      fi
+      ;;
+    aplay)
+      if [ "$use_bg" = true ]; then
+        nohup aplay -q "$file" >/dev/null 2>&1 &
+      else
+        aplay -q "$file" >/dev/null 2>&1
+      fi
+      ;;
+  esac
+}
+
+# --- Kill any previously playing peon-ping sound ---
+kill_previous_sound() {
+  local pidfile="$PEON_DIR/.sound.pid"
+  if [ -f "$pidfile" ]; then
+    local old_pid
+    old_pid=$(cat "$pidfile" 2>/dev/null)
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      kill "$old_pid" 2>/dev/null
+    fi
+    rm -f "$pidfile"
   fi
 }
 
-PACKS_DIR=$(resolve_packs_dir)
-CONFIG_DIR=$(resolve_config_dir)
-CONFIG="$CONFIG_DIR/config.json"
-STATE="$CONFIG_DIR/.state.json"
-PAUSED_FILE="$CONFIG_DIR/.paused"
-
-# --- Check local_only setting from global config ---
-LOCAL_ONLY=false
-if [[ -f "$SCRIPT_DIR/config.json" ]]; then
-  LOCAL_ONLY=$(python3 -c "
-import json
-try:
-    cfg = json.load(open('$SCRIPT_DIR/config.json'))
-    print('true' if cfg.get('local_only', False) else 'false')
-except:
-    print('false')
-" 2>/dev/null)
-fi
-
-if [[ "$LOCAL_ONLY" == "true" && "$CONFIG_DIR" == "$SCRIPT_DIR" ]]; then
-  # Local-only mode is enabled but no local config found
-  exit 0
-fi
+save_sound_pid() {
+  echo "$1" > "$PEON_DIR/.sound.pid"
+}
 
 # --- Platform-aware audio playback ---
 play_sound() {
   local file="$1" vol="$2"
+  kill_previous_sound
   case "$PLATFORM" in
     mac)
       nohup afplay -v "$vol" "$file" >/dev/null 2>&1 &
+      save_sound_pid $!
       ;;
     wsl)
       local wpath
@@ -90,6 +163,30 @@ play_sound() {
         Start-Sleep -Seconds 3
         \$p.Close()
       " &>/dev/null &
+      save_sound_pid $!
+      ;;
+    devcontainer)
+      local relay_host="${PEON_RELAY_HOST:-host.docker.internal}"
+      local relay_port="${PEON_RELAY_PORT:-19998}"
+      local rel_path="${file#$PEON_DIR/}"
+      local encoded_path
+      encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$rel_path" 2>/dev/null || echo "$rel_path")
+      if [ "${PEON_TEST:-0}" = "1" ]; then
+        curl -sf -H "X-Volume: $vol" \
+          "http://${relay_host}:${relay_port}/play?file=${encoded_path}" 2>/dev/null
+      else
+        nohup curl -sf -H "X-Volume: $vol" \
+          "http://${relay_host}:${relay_port}/play?file=${encoded_path}" >/dev/null 2>&1 &
+        save_sound_pid $!
+      fi
+      ;;
+    linux)
+      local player
+      player=$(detect_linux_player) || player=""
+      if [ -n "$player" ]; then
+        play_linux_sound "$file" "$vol" "$player"
+        save_sound_pid $!
+      fi
       ;;
   esac
 }
@@ -98,13 +195,38 @@ play_sound() {
 # Args: msg, title, color (red/blue/yellow)
 send_notification() {
   local msg="$1" title="$2" color="${3:-red}"
+  local icon_path="$PEON_DIR/docs/peon-icon.png"
   case "$PLATFORM" in
     mac)
-      nohup osascript - "$msg" "$title" >/dev/null 2>&1 <<'APPLESCRIPT' &
+      # Use terminal-native escape sequences where supported (shows terminal icon).
+      # Falls back to terminal-notifier (with peon icon) or osascript.
+      case "${TERM_PROGRAM:-}" in
+        iTerm.app)
+          # iTerm2 OSC 9 — notification with iTerm2 icon
+          printf '\e]9;%s\007' "$title: $msg" 2>/dev/null
+          ;;
+        kitty)
+          # Kitty OSC 99
+          printf '\e]99;i=peon:d=0;%s\e\\' "$title: $msg" 2>/dev/null
+          ;;
+        *)
+          if command -v terminal-notifier &>/dev/null && [ -f "$icon_path" ]; then
+            # terminal-notifier supports custom icon (brew install terminal-notifier)
+            nohup terminal-notifier \
+              -title "$title" \
+              -message "$msg" \
+              -appIcon "$icon_path" \
+              -group "peon-ping" >/dev/null 2>&1 &
+          else
+            # Terminal.app, Warp, Ghostty, etc. — no native escape; use osascript
+            nohup osascript - "$msg" "$title" >/dev/null 2>&1 <<'APPLESCRIPT' &
 on run argv
   display notification (item 1 of argv) with title (item 2 of argv)
 end run
 APPLESCRIPT
+          fi
+          ;;
+      esac
       ;;
     wsl)
       # Map color name to RGB
@@ -114,6 +236,10 @@ APPLESCRIPT
         yellow) rgb_r=200 rgb_g=160 rgb_b=0   ;;
         red)    rgb_r=180 rgb_g=0   rgb_b=0   ;;
       esac
+      local icon_win_path=""
+      if [ -f "$icon_path" ]; then
+        icon_win_path=$(wslpath -w "$icon_path" 2>/dev/null || true)
+      fi
       (
         # Claim a popup slot for vertical stacking
         slot_dir="/tmp/peon-ping-popups"
@@ -138,12 +264,27 @@ APPLESCRIPT
               (\$screen.WorkingArea.X + (\$screen.WorkingArea.Width - 500) / 2),
               (\$screen.WorkingArea.Y + $y_offset)
             )
-            \$label = New-Object System.Windows.Forms.Label
+            \$iconLeft = 10
+            \$iconSize = 60
+            if ('$icon_win_path' -ne '' -and (Test-Path '$icon_win_path')) {
+              \$pb = New-Object System.Windows.Forms.PictureBox
+              \$pb.Image = [System.Drawing.Image]::FromFile('$icon_win_path')
+              \$pb.SizeMode = 'Zoom'
+              \$pb.Size = New-Object System.Drawing.Size(\$iconSize, \$iconSize)
+              \$pb.Location = New-Object System.Drawing.Point(\$iconLeft, 10)
+              \$pb.BackColor = [System.Drawing.Color]::Transparent
+              \$form.Controls.Add(\$pb)
+              \$label = New-Object System.Windows.Forms.Label
+              \$label.Location = New-Object System.Drawing.Point((\$iconLeft + \$iconSize + 5), 0)
+              \$label.Size = New-Object System.Drawing.Size((500 - \$iconLeft - \$iconSize - 15), 80)
+            } else {
+              \$label = New-Object System.Windows.Forms.Label
+              \$label.Dock = 'Fill'
+            }
             \$label.Text = '$msg'
             \$label.ForeColor = [System.Drawing.Color]::White
             \$label.Font = New-Object System.Drawing.Font('Segoe UI', 16, [System.Drawing.FontStyle]::Bold)
             \$label.TextAlign = 'MiddleCenter'
-            \$label.Dock = 'Fill'
             \$form.Controls.Add(\$label)
             \$form.Show()
           }
@@ -152,6 +293,30 @@ APPLESCRIPT
         " &>/dev/null
         rm -rf "$slot_dir/slot-$slot"
       ) &
+      ;;
+    devcontainer)
+      local relay_host="${PEON_RELAY_HOST:-host.docker.internal}"
+      local relay_port="${PEON_RELAY_PORT:-19998}"
+      local json_title json_msg
+      json_title=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$title" 2>/dev/null || echo "\"$title\"")
+      json_msg=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$msg" 2>/dev/null || echo "\"$msg\"")
+      nohup curl -sf -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"title\":${json_title},\"message\":${json_msg},\"color\":\"$color\"}" \
+        "http://${relay_host}:${relay_port}/notify" >/dev/null 2>&1 &
+      ;;
+    linux)
+      if command -v notify-send &>/dev/null; then
+        local urgency="normal"
+        case "$color" in
+          red) urgency="critical" ;;
+        esac
+        local icon_flag=""
+        if [ -f "$icon_path" ]; then
+          icon_flag="--icon=$icon_path"
+        fi
+        nohup notify-send --urgency="$urgency" $icon_flag "$title" "$msg" >/dev/null 2>&1 &
+      fi
       ;;
   esac
 }
@@ -171,6 +336,21 @@ terminal_is_focused() {
       # Checking Windows focus from WSL adds too much latency; always notify
       return 1
       ;;
+    devcontainer)
+      # Cannot detect host window focus from a container; always notify
+      return 1
+      ;;
+    linux)
+      # Only use xdotool on X11; fallback to always notify on Wayland or if xdotool is missing
+      if [ "${XDG_SESSION_TYPE:-}" = "x11" ] && command -v xdotool &>/dev/null; then
+        local win_name
+        win_name=$(xdotool getactivewindow getwindowname 2>/dev/null || echo "")
+        if [[ "$win_name" =~ (terminal|konsole|alacritty|kitty|wezterm|foot|tilix|gnome-terminal|xterm|xfce4-terminal|sakura|terminator|st|urxvt|ghostty) ]]; then
+          return 0
+        fi
+      fi
+      return 1
+      ;;
     *)
       return 1
       ;;
@@ -178,38 +358,184 @@ terminal_is_focused() {
 }
 
 # --- CLI subcommands (must come before INPUT=$(cat) which blocks on stdin) ---
+PAUSED_FILE="$PEON_DIR/.paused"
 case "${1:-}" in
-  --pause)   touch "$PAUSED_FILE"; echo "peon-ping: sounds paused"; exit 0 ;;
-  --resume)  rm -f "$PAUSED_FILE"; echo "peon-ping: sounds resumed"; exit 0 ;;
-  --toggle)
+  pause)   touch "$PAUSED_FILE"; echo "peon-ping: sounds paused"; exit 0 ;;
+  resume)  rm -f "$PAUSED_FILE"; echo "peon-ping: sounds resumed"; exit 0 ;;
+  toggle)
     if [ -f "$PAUSED_FILE" ]; then rm -f "$PAUSED_FILE"; echo "peon-ping: sounds resumed"
     else touch "$PAUSED_FILE"; echo "peon-ping: sounds paused"; fi
     exit 0 ;;
-  --status)
+  status)
     [ -f "$PAUSED_FILE" ] && echo "peon-ping: paused" || echo "peon-ping: active"
-    exit 0 ;;
-  --packs)
     python3 -c "
+import json, os
+
+config_path = '$CONFIG'
+peon_dir = '$PEON_DIR'
+
+# --- Config ---
+try:
+    c = json.load(open(config_path))
+except:
+    c = {}
+
+dn = c.get('desktop_notifications', True)
+print('peon-ping: desktop notifications ' + ('on' if dn else 'off'))
+
+# --- Active pack ---
+active = c.get('active_pack', 'peon')
+packs_dir = os.path.join(peon_dir, 'packs')
+display_name = active
+pack_count = 0
+if os.path.isdir(packs_dir):
+    for d in os.listdir(packs_dir):
+        dpath = os.path.join(packs_dir, d)
+        if not os.path.isdir(dpath):
+            continue
+        has_manifest = (
+            os.path.exists(os.path.join(dpath, 'openpeon.json')) or
+            os.path.exists(os.path.join(dpath, 'manifest.json'))
+        )
+        if has_manifest:
+            pack_count += 1
+            if d == active:
+                for mname in ('openpeon.json', 'manifest.json'):
+                    mpath = os.path.join(dpath, mname)
+                    if os.path.exists(mpath):
+                        try:
+                            display_name = json.load(open(mpath)).get('display_name', active)
+                        except:
+                            pass
+                        break
+print(f'peon-ping: active pack: {active} ({display_name})')
+print(f'peon-ping: {pack_count} pack(s) installed')
+
+# --- IDE detection ---
+home = os.path.expanduser('~')
+claude_dir = os.environ.get('CLAUDE_CONFIG_DIR', os.path.join(home, '.claude'))
+xdg_config = os.environ.get('XDG_CONFIG_HOME', os.path.join(home, '.config'))
+opencode_dir = os.path.join(xdg_config, 'opencode')
+
+ides = []
+
+# Claude Code: check if hooks are registered
+claude_hooks_dir = os.path.join(claude_dir, 'hooks', 'peon-ping')
+if os.path.isdir(claude_dir):
+    if os.path.exists(os.path.join(claude_hooks_dir, 'peon.sh')):
+        ides.append(('Claude Code', claude_dir, 'installed'))
+    else:
+        ides.append(('Claude Code', claude_dir, 'detected (not set up)'))
+
+# OpenCode: check if plugin is installed
+opencode_plugin = os.path.join(opencode_dir, 'plugins', 'peon-ping.ts')
+if os.path.isdir(opencode_dir):
+    if os.path.exists(opencode_plugin):
+        ides.append(('OpenCode', opencode_dir, 'installed'))
+    else:
+        ides.append(('OpenCode', opencode_dir, 'detected (not set up)'))
+
+if ides:
+    print('peon-ping: IDEs')
+    for name, path, status in ides:
+        marker = '[x]' if 'installed' == status else '[ ]'
+        print(f'  {marker} {name:12s} {path} ({status})')
+else:
+    print('peon-ping: no supported IDEs detected')
+"
+    exit 0 ;;
+  notifications)
+    case "${2:-}" in
+      on)
+        python3 -c "
+import json
+config_path = '$CONFIG'
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+cfg['desktop_notifications'] = True
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: desktop notifications on')
+"
+        exit 0 ;;
+      off)
+        python3 -c "
+import json
+config_path = '$CONFIG'
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+cfg['desktop_notifications'] = False
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: desktop notifications off')
+"
+        exit 0 ;;
+      *)
+        echo "Usage: peon notifications <on|off>" >&2; exit 1 ;;
+    esac ;;
+  packs)
+    case "${2:-}" in
+      list)
+        python3 -c "
 import json, os, glob
 config_path = '$CONFIG'
 try:
     active = json.load(open(config_path)).get('active_pack', 'peon')
 except:
     active = 'peon'
-packs_dir = '$PACKS_DIR'
-for m in sorted(glob.glob(os.path.join(packs_dir, '*/manifest.json'))):
-    info = json.load(open(m))
-    name = info.get('name', os.path.basename(os.path.dirname(m)))
-    display = info.get('display_name', name)
-    marker = ' *' if name == active else ''
-    print(f'  {name:24s} {display}{marker}')
+packs_dir = '$PEON_DIR/packs'
+for d in sorted(os.listdir(packs_dir)):
+    for mname in ('openpeon.json', 'manifest.json'):
+        mpath = os.path.join(packs_dir, d, mname)
+        if os.path.exists(mpath):
+            info = json.load(open(mpath))
+            name = info.get('name', d)
+            display = info.get('display_name', name)
+            marker = ' *' if name == active else ''
+            print(f'  {name:24s} {display}{marker}')
+            break
 "
-    exit 0 ;;
-  --pack)
-    PACK_ARG="${2:-}"
-    if [ -z "$PACK_ARG" ]; then
-      # No argument — cycle to next pack alphabetically
-      python3 -c "
+        exit 0 ;;
+      use)
+        PACK_ARG="${3:-}"
+        if [ -z "$PACK_ARG" ]; then
+          echo "Usage: peon packs use <name>" >&2; exit 1
+        fi
+        python3 -c "
+import json, os, glob, sys
+config_path = '$CONFIG'
+pack_arg = '$PACK_ARG'
+packs_dir = '$PEON_DIR/packs'
+names = sorted([
+    d for d in os.listdir(packs_dir)
+    if os.path.isdir(os.path.join(packs_dir, d)) and (
+        os.path.exists(os.path.join(packs_dir, d, 'openpeon.json')) or
+        os.path.exists(os.path.join(packs_dir, d, 'manifest.json'))
+    )
+])
+if pack_arg not in names:
+    print(f'Error: pack \"{pack_arg}\" not found.', file=sys.stderr)
+    print(f'Available packs: {\", \".join(names)}', file=sys.stderr)
+    sys.exit(1)
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+cfg['active_pack'] = pack_arg
+json.dump(cfg, open(config_path, 'w'), indent=2)
+display = pack_arg
+for mname in ('openpeon.json', 'manifest.json'):
+    mpath = os.path.join(packs_dir, pack_arg, mname)
+    if os.path.exists(mpath):
+        display = json.load(open(mpath)).get('display_name', pack_arg)
+        break
+print(f'peon-ping: switched to {pack_arg} ({display})')
+" || exit 1
+        exit 0 ;;
+      next)
+        python3 -c "
 import json, os, glob
 config_path = '$CONFIG'
 try:
@@ -217,10 +543,13 @@ try:
 except:
     cfg = {}
 active = cfg.get('active_pack', 'peon')
-packs_dir = '$PACKS_DIR'
+packs_dir = '$PEON_DIR/packs'
 names = sorted([
-    os.path.basename(os.path.dirname(m))
-    for m in glob.glob(os.path.join(packs_dir, '*/manifest.json'))
+    d for d in os.listdir(packs_dir)
+    if os.path.isdir(os.path.join(packs_dir, d)) and (
+        os.path.exists(os.path.join(packs_dir, d, 'openpeon.json')) or
+        os.path.exists(os.path.join(packs_dir, d, 'manifest.json'))
+    )
 ])
 if not names:
     print('Error: no packs found', flush=True)
@@ -233,56 +562,159 @@ except ValueError:
 cfg['active_pack'] = next_pack
 json.dump(cfg, open(config_path, 'w'), indent=2)
 # Read display name
-mpath = os.path.join(packs_dir, next_pack, 'manifest.json')
-display = json.load(open(mpath)).get('display_name', next_pack)
+for mname in ('openpeon.json', 'manifest.json'):
+    mpath = os.path.join(packs_dir, next_pack, mname)
+    if os.path.exists(mpath):
+        display = json.load(open(mpath)).get('display_name', next_pack)
+        break
 print(f'peon-ping: switched to {next_pack} ({display})')
 "
-    else
-      # Argument given — set specific pack
-      python3 -c "
-import json, os, glob, sys
+        exit 0 ;;
+      remove)
+        REMOVE_ARG="${3:-}"
+        if [ -n "$REMOVE_ARG" ]; then
+          PACKS_TO_REMOVE=$(python3 -c "
+import json, os, sys
+
 config_path = '$CONFIG'
-pack_arg = '$PACK_ARG'
-packs_dir = '$PACKS_DIR'
-names = sorted([
-    os.path.basename(os.path.dirname(m))
-    for m in glob.glob(os.path.join(packs_dir, '*/manifest.json'))
-])
-if pack_arg not in names:
-    print(f'Error: pack \"{pack_arg}\" not found.', file=sys.stderr)
-    print(f'Available packs: {\", \".join(names)}', file=sys.stderr)
-    sys.exit(1)
+peon_dir = '$PEON_DIR'
+packs_dir = os.path.join(peon_dir, 'packs')
+remove_arg = '$REMOVE_ARG'
+
 try:
     cfg = json.load(open(config_path))
 except:
     cfg = {}
-cfg['active_pack'] = pack_arg
-json.dump(cfg, open(config_path, 'w'), indent=2)
-mpath = os.path.join(packs_dir, pack_arg, 'manifest.json')
-display = json.load(open(mpath)).get('display_name', pack_arg)
-print(f'peon-ping: switched to {pack_arg} ({display})')
-" || exit 1
+active = cfg.get('active_pack', 'peon')
+
+installed = sorted([
+    d for d in os.listdir(packs_dir)
+    if os.path.isdir(os.path.join(packs_dir, d)) and (
+        os.path.exists(os.path.join(packs_dir, d, 'openpeon.json')) or
+        os.path.exists(os.path.join(packs_dir, d, 'manifest.json'))
+    )
+])
+
+requested = [p.strip() for p in remove_arg.split(',') if p.strip()]
+errors = []
+valid = []
+for p in requested:
+    if p not in installed:
+        errors.append(f'Pack \"{p}\" not found.')
+    elif p == active:
+        errors.append(f'Cannot remove \"{p}\" — it is the active pack. Switch first with: peon packs use <other>')
+    else:
+        valid.append(p)
+
+if errors:
+    for e in errors:
+        print(e, file=sys.stderr)
+    sys.exit(1)
+
+remaining = len(installed) - len(valid)
+if remaining < 1:
+    print('Cannot remove all packs — at least 1 must remain.', file=sys.stderr)
+    sys.exit(1)
+
+print(','.join(valid))
+" 2>&1) || { echo "$PACKS_TO_REMOVE" >&2; exit 1; }
+        else
+          echo "Usage: peon packs remove <pack1,pack2,...>" >&2
+          echo "Run 'peon packs list' to see installed packs." >&2
+          exit 1
+        fi
+
+        # If we got here with packs to remove, confirm and delete
+        if [ -z "$PACKS_TO_REMOVE" ]; then
+          exit 0
+        fi
+
+        # Count packs
+        PACK_COUNT=$(echo "$PACKS_TO_REMOVE" | tr ',' '\n' | wc -l | tr -d ' ')
+        read -r -p "Remove ${PACK_COUNT} pack(s)? [y/N] " CONFIRM
+        case "$CONFIRM" in
+          [yY]|[yY][eE][sS]) ;;
+          *) echo "Cancelled."; exit 0 ;;
+        esac
+
+        # Delete pack directories and clean config
+        python3 -c "
+import json, os, shutil
+
+config_path = '$CONFIG'
+peon_dir = '$PEON_DIR'
+packs_dir = os.path.join(peon_dir, 'packs')
+to_remove = '$PACKS_TO_REMOVE'.split(',')
+
+for pack in to_remove:
+    pack_path = os.path.join(packs_dir, pack)
+    if os.path.isdir(pack_path):
+        shutil.rmtree(pack_path)
+        print(f'Removed {pack}')
+
+# Clean pack_rotation in config
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+rotation = cfg.get('pack_rotation', [])
+if rotation:
+    cfg['pack_rotation'] = [p for p in rotation if p not in to_remove]
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+"
+        exit 0 ;;
+      *)
+        echo "Usage: peon packs <list|use|next|remove>" >&2; exit 1 ;;
+    esac ;;
+  relay)
+    RELAY_SCRIPT="$PEON_DIR/relay.sh"
+    if [ ! -f "$RELAY_SCRIPT" ]; then
+      echo "Error: relay.sh not found at $PEON_DIR" >&2
+      echo "Re-run the installer to get the relay script." >&2
+      exit 1
     fi
-    exit 0 ;;
-  --help|-h)
+    shift
+    exec bash "$RELAY_SCRIPT" "$@"
+    ;;
+  help|--help|-h)
     cat <<'HELPEOF'
 Usage: peon <command>
 
 Commands:
-  --pause        Mute sounds
-  --resume       Unmute sounds
-  --toggle       Toggle mute on/off
-  --status       Check if paused or active
-  --packs        List available sound packs
-  --pack <name>  Switch to a specific pack
-  --pack         Cycle to the next pack
-  --help         Show this help
+  pause                Mute sounds
+  resume               Unmute sounds
+  toggle               Toggle mute on/off
+  status               Check if paused or active
+  notifications on     Enable desktop notifications
+  notifications off    Disable desktop notifications
+  help                 Show this help
+
+Pack management:
+  packs list           List installed sound packs
+  packs use <name>     Switch to a specific pack
+  packs next           Cycle to the next pack
+  packs remove <p1,p2> Remove specific packs
+
+Relay (devcontainer/Codespaces):
+  relay [--port=N]     Start audio relay on the host
 HELPEOF
     exit 0 ;;
   --*)
     echo "Unknown option: $1" >&2
-    echo "Run 'peon --help' for usage." >&2; exit 1 ;;
+    echo "Run 'peon help' for usage." >&2; exit 1 ;;
+  ?*)
+    echo "Unknown command: $1" >&2
+    echo "Run 'peon help' for usage." >&2; exit 1 ;;
 esac
+
+# If no CLI arg was given and stdin is a terminal (not a pipe from Claude Code),
+# the user likely ran `peon` bare — show help instead of blocking on cat.
+if [ -t 0 ]; then
+  echo "Usage: peon <command>"
+  echo ""
+  echo "Run 'peon help' for full command list."
+  exit 0
+fi
 
 INPUT=$(cat)
 
@@ -290,7 +722,7 @@ INPUT=$(cat)
 # echo "$(date): peon hook — $INPUT" >> /tmp/peon-ping-debug.log
 
 PAUSED=false
-[ -f "$PAUSED_FILE" ] && PAUSED=true
+[ -f "$PEON_DIR/.paused" ] && PAUSED=true
 
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
@@ -301,8 +733,7 @@ q = shlex.quote
 
 config_path = '$CONFIG'
 state_file = '$STATE'
-script_dir = '$SCRIPT_DIR'
-packs_dir = '$PACKS_DIR'
+peon_dir = '$PEON_DIR'
 paused = '$PAUSED' == 'true'
 agent_modes = {'delegate'}
 state_dirty = False
@@ -318,13 +749,15 @@ if str(cfg.get('enabled', True)).lower() == 'false':
     sys.exit(0)
 
 volume = cfg.get('volume', 0.5)
+desktop_notif = cfg.get('desktop_notifications', True)
 active_pack = cfg.get('active_pack', 'peon')
 pack_rotation = cfg.get('pack_rotation', [])
 annoyed_threshold = int(cfg.get('annoyed_threshold', 3))
 annoyed_window = float(cfg.get('annoyed_window_seconds', 10))
+silent_window = float(cfg.get('silent_window_seconds', 0))
 cats = cfg.get('categories', {})
 cat_enabled = {}
-for c in ['greeting','acknowledge','complete','error','permission','resource_limit','annoyed']:
+for c in ['session.start','task.acknowledge','task.complete','task.error','input.required','resource.limit','user.spam']:
     cat_enabled[c] = str(cats.get(c, True)).lower() == 'true'
 
 # --- Parse event JSON from stdin ---
@@ -355,13 +788,19 @@ elif session_id in agent_sessions:
     print('PEON_EXIT=true')
     sys.exit(0)
 
-# --- Pack rotation: pin a random pack per session ---
+# --- Pack rotation: pin a pack per session ---
 if pack_rotation:
     session_packs = state.get('session_packs', {})
     if session_id in session_packs and session_packs[session_id] in pack_rotation:
         active_pack = session_packs[session_id]
     else:
-        active_pack = random.choice(pack_rotation)
+        rotation_mode = cfg.get('pack_rotation_mode', 'random')
+        if rotation_mode == 'round-robin':
+            rotation_index = state.get('rotation_index', 0) % len(pack_rotation)
+            active_pack = pack_rotation[rotation_index]
+            state['rotation_index'] = rotation_index + 1
+        else:
+            active_pack = random.choice(pack_rotation)
         session_packs[session_id] = active_pack
         state['session_packs'] = session_packs
         state_dirty = True
@@ -381,11 +820,11 @@ notify_color = ''
 msg = ''
 
 if event == 'SessionStart':
-    category = 'greeting'
+    category = 'session.start'
     status = 'ready'
 elif event == 'UserPromptSubmit':
     status = 'working'
-    if cat_enabled.get('annoyed', True):
+    if cat_enabled.get('user.spam', True):
         all_ts = state.get('prompt_timestamps', {})
         if isinstance(all_ts, list):
             all_ts = {}
@@ -396,17 +835,34 @@ elif event == 'UserPromptSubmit':
         state['prompt_timestamps'] = all_ts
         state_dirty = True
         if len(ts) >= annoyed_threshold:
-            category = 'annoyed'
+            category = 'user.spam'
+    if silent_window > 0:
+        prompt_starts = state.get('prompt_start_times', {})
+        prompt_starts[session_id] = time.time()
+        state['prompt_start_times'] = prompt_starts
+        state_dirty = True
 elif event == 'Stop':
-    category = 'complete'
+    category = 'task.complete'
+    silent = False
+    if silent_window > 0:
+        prompt_starts = state.get('prompt_start_times', {})
+        # start_time=0 when no prior prompt; 0 is falsy so short-circuits to not-silent
+        start_time = prompt_starts.pop(session_id, 0)
+        if start_time and (time.time() - start_time) < silent_window:
+            silent = True
+        state['prompt_start_times'] = prompt_starts
+        state_dirty = True
     status = 'done'
-    marker = '\u25cf '
-    notify = '1'
-    notify_color = 'blue'
-    msg = project + '  \u2014  Task complete'
+    if not silent:
+        marker = '\u25cf '
+        notify = '1'
+        notify_color = 'blue'
+        msg = project + '  \u2014  Task complete'
+    else:
+        category = ''
 elif event == 'Notification':
     if ntype == 'permission_prompt':
-        category = 'permission'
+        category = 'input.required'
         status = 'needs approval'
         marker = '\u25cf '
         notify = '1'
@@ -422,7 +878,7 @@ elif event == 'Notification':
         print('PEON_EXIT=true')
         sys.exit(0)
 elif event == 'PermissionRequest':
-    category = 'permission'
+    category = 'input.required'
     status = 'needs approval'
     marker = '\u25cf '
     notify = '1'
@@ -433,6 +889,32 @@ else:
     print('PEON_EXIT=true')
     sys.exit(0)
 
+# --- Debounce rapid Stop events (e.g. background task completions) ---
+if event == 'Stop':
+    now = time.time()
+    last_stop = state.get('last_stop_time', 0)
+    if now - last_stop < 5:
+        category = ''
+        notify = ''
+    state['last_stop_time'] = now
+    state_dirty = True
+
+# --- Suppress sounds during session replay (claude -c) ---
+# When continuing a session, Claude fires SessionStart then immediately replays
+# old events. Suppress all sounds within 3s of SessionStart for the same session.
+now = time.time()
+if event == 'SessionStart':
+    session_starts = state.get('session_start_times', {})
+    session_starts[session_id] = now
+    state['session_start_times'] = session_starts
+    state_dirty = True
+elif category:
+    session_starts = state.get('session_start_times', {})
+    start_time = session_starts.get(session_id, 0)
+    if start_time and (now - start_time) < 3:
+        category = ''
+        notify = ''
+
 # --- Check if category is enabled ---
 if category and not cat_enabled.get(category, True):
     category = ''
@@ -440,9 +922,16 @@ if category and not cat_enabled.get(category, True):
 # --- Pick sound (skip if no category or paused) ---
 sound_file = ''
 if category and not paused:
-    pack_dir = os.path.join(packs_dir, active_pack)
+    pack_dir = os.path.join(peon_dir, 'packs', active_pack)
     try:
-        manifest = json.load(open(os.path.join(pack_dir, 'manifest.json')))
+        manifest = None
+        for mname in ('openpeon.json', 'manifest.json'):
+            mpath = os.path.join(pack_dir, mname)
+            if os.path.exists(mpath):
+                manifest = json.load(open(mpath))
+                break
+        if not manifest:
+            manifest = {}
         sounds = manifest.get('categories', {}).get(category, {}).get('sounds', [])
         if sounds:
             last_played = state.get('last_played', {})
@@ -452,7 +941,11 @@ if category and not paused:
             last_played[category] = pick['file']
             state['last_played'] = last_played
             state_dirty = True
-            sound_file = os.path.join(pack_dir, 'sounds', pick['file'])
+            file_ref = pick['file']
+            if '/' in file_ref:
+                sound_file = os.path.join(pack_dir, file_ref)
+            else:
+                sound_file = os.path.join(pack_dir, 'sounds', file_ref)
     except:
         pass
 
@@ -471,21 +964,12 @@ print('MARKER=' + q(marker))
 print('NOTIFY=' + q(notify))
 print('NOTIFY_COLOR=' + q(notify_color))
 print('MSG=' + q(msg))
+print('DESKTOP_NOTIF=' + ('true' if desktop_notif else 'false'))
 print('SOUND_FILE=' + q(sound_file))
 " <<< "$INPUT" 2>/dev/null)"
 
 # If Python signalled early exit (disabled, agent, unknown event), bail out
 [ "${PEON_EXIT:-true}" = "true" ] && exit 0
-
-# --- Config/state directory helpers (support CLAUDE_PEON_DIR override) ---
-resolve_peon_dir() {
-  if [[ -n "${CLAUDE_PEON_DIR:-}" ]]; then
-    echo "$CLAUDE_PEON_DIR"
-  else
-    echo "$SCRIPT_DIR"
-  fi
-}
-PEON_DIR=$(resolve_peon_dir)
 
 # --- Check for updates (SessionStart only, once per day, non-blocking) ---
 if [ "$EVENT" = "SessionStart" ]; then
@@ -501,7 +985,7 @@ if [ "$EVENT" = "SessionStart" ]; then
       LOCAL_VERSION=""
       [ -f "$PEON_DIR/VERSION" ] && LOCAL_VERSION=$(cat "$PEON_DIR/VERSION" | tr -d '[:space:]')
       REMOTE_VERSION=$(curl -fsSL --connect-timeout 3 --max-time 5 \
-        "https://raw.githubusercontent.com/kenyiu/peon-ping/main/VERSION" 2>/dev/null | tr -d '[:space:]')
+        "https://raw.githubusercontent.com/PeonPing/peon-ping/main/VERSION" 2>/dev/null | tr -d '[:space:]')
       if [ -n "$REMOTE_VERSION" ] && [ -n "$LOCAL_VERSION" ] && [ "$REMOTE_VERSION" != "$LOCAL_VERSION" ]; then
         # Write update notice to a file so we can display it
         echo "$REMOTE_VERSION" > "$PEON_DIR/.update_available"
@@ -516,15 +1000,25 @@ fi
 if [ "$EVENT" = "SessionStart" ] && [ -f "$PEON_DIR/.update_available" ]; then
   NEW_VER=$(cat "$PEON_DIR/.update_available" 2>/dev/null | tr -d '[:space:]')
   CUR_VER=""
-  [ -f "$PEON_DIR/VERSION" ] && CUR_VER=$(cat "$PEON_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')
+  [ -f "$PEON_DIR/VERSION" ] && CUR_VER=$(cat "$PEON_DIR/VERSION" | tr -d '[:space:]')
   if [ -n "$NEW_VER" ]; then
-    echo "peon-ping update available: ${CUR_VER:-?} → $NEW_VER — run: curl -fsSL https://raw.githubusercontent.com/kenyiu/peon-ping/main/install.sh | bash" >&2
+    echo "peon-ping update available: ${CUR_VER:-?} → $NEW_VER — run: curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash" >&2
   fi
 fi
 
 # --- Show pause status on SessionStart ---
 if [ "$EVENT" = "SessionStart" ] && [ "$PAUSED" = "true" ]; then
-  echo "peon-ping: sounds paused — run 'peon --resume' or '/peon-ping-toggle' to unpause" >&2
+  echo "peon-ping: sounds paused — run 'peon resume' or '/peon-ping-toggle' to unpause" >&2
+fi
+
+# --- Devcontainer relay guidance on SessionStart ---
+if [ "$EVENT" = "SessionStart" ] && [ "$PLATFORM" = "devcontainer" ]; then
+  RELAY_HOST="${PEON_RELAY_HOST:-host.docker.internal}"
+  RELAY_PORT="${PEON_RELAY_PORT:-19998}"
+  if ! curl -sf --connect-timeout 1 --max-time 2 "http://${RELAY_HOST}:${RELAY_PORT}/health" >/dev/null 2>&1; then
+    echo "peon-ping: devcontainer detected but audio relay not reachable at ${RELAY_HOST}:${RELAY_PORT}" >&2
+    echo "peon-ping: run 'peon relay' on your host machine to enable sounds" >&2
+  fi
 fi
 
 # --- Build tab title ---
@@ -541,7 +1035,7 @@ if [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ]; then
 fi
 
 # --- Smart notification: only when terminal is NOT frontmost ---
-if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ]; then
+if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
   if ! terminal_is_focused; then
     send_notification "$MSG" "$TITLE" "${NOTIFY_COLOR:-red}"
   fi
