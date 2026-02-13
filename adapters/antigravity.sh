@@ -57,7 +57,24 @@ if [ ! -d "$BRAIN_DIR" ]; then
 fi
 
 # --- State: track known GUIDs and their last-seen artifact type ---
-declare -A KNOWN_GUIDS  # GUID -> last artifact type seen (task|implementation_plan|walkthrough)
+# Uses a temp file instead of associative array (macOS ships Bash 3.2, no declare -A)
+# Format: one line per GUID as "GUID:artifact_type"
+GUID_STATE_FILE=$(mktemp "${TMPDIR:-/tmp}/peon-antigravity-state.XXXXXX")
+
+guid_get() {
+  # Get last-seen artifact type for a GUID, or empty string
+  local guid="$1"
+  grep "^${guid}:" "$GUID_STATE_FILE" 2>/dev/null | tail -1 | cut -d: -f2 || true
+}
+
+guid_set() {
+  # Set the artifact type for a GUID
+  local guid="$1" artifact_type="$2"
+  # Remove old entry, append new
+  grep -v "^${guid}:" "$GUID_STATE_FILE" > "${GUID_STATE_FILE}.tmp" 2>/dev/null || true
+  mv "${GUID_STATE_FILE}.tmp" "$GUID_STATE_FILE"
+  echo "${guid}:${artifact_type}" >> "$GUID_STATE_FILE"
+}
 
 # --- Emit a peon.sh event ---
 emit_event() {
@@ -103,13 +120,14 @@ except:
 
   [ -z "$artifact_type" ] && return
 
-  local prev="${KNOWN_GUIDS[$guid]:-}"
+  local prev
+  prev=$(guid_get "$guid")
 
   case "$artifact_type" in
     task)
       if [ -z "$prev" ]; then
         # New task = new session
-        KNOWN_GUIDS[$guid]="task"
+        guid_set "$guid" "task"
         info "New agent session: ${guid:0:8}"
         emit_event "SessionStart" "$guid"
       fi
@@ -117,7 +135,7 @@ except:
     implementation_plan)
       if [ "$prev" != "implementation_plan" ] && [ "$prev" != "walkthrough" ]; then
         # Moved to execution phase
-        KNOWN_GUIDS[$guid]="implementation_plan"
+        guid_set "$guid" "implementation_plan"
         info "Agent working: ${guid:0:8}"
         emit_event "UserPromptSubmit" "$guid"
       fi
@@ -125,7 +143,7 @@ except:
     walkthrough)
       if [ "$prev" != "walkthrough" ]; then
         # Moved to verification = task complete
-        KNOWN_GUIDS[$guid]="walkthrough"
+        guid_set "$guid" "walkthrough"
         info "Agent completed: ${guid:0:8}"
         emit_event "Stop" "$guid"
       fi
@@ -136,6 +154,7 @@ except:
 # --- Cleanup ---
 cleanup() {
   info "Stopping Antigravity watcher..."
+  rm -f "$GUID_STATE_FILE" "${GUID_STATE_FILE}.tmp"
   # Kill any child processes (fswatch/inotifywait)
   kill 0 2>/dev/null
   exit 0
