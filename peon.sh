@@ -328,7 +328,7 @@ terminal_is_focused() {
       local frontmost
       frontmost=$(osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>/dev/null)
       case "$frontmost" in
-        Terminal|iTerm2|Warp|Alacritty|kitty|WezTerm|Ghostty) return 0 ;;
+        Terminal|iTerm2|Warp|Alacritty|kitty|WezTerm|ghostty) return 0 ;;
         *) return 1 ;;
       esac
       ;;

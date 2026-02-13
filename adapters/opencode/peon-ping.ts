@@ -152,7 +152,7 @@ const TERMINAL_APPS = [
   "Alacritty",
   "kitty",
   "WezTerm",
-  "Ghostty",
+  "ghostty",
   "Hyper",
 ]
 
