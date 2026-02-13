@@ -653,5 +653,6 @@ if ($Updating) {
     Write-Host "  Start Claude Code and you'll hear: `"Ready to work?`"" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
+    Write-Host "  To uninstall: powershell -ExecutionPolicy Bypass -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
 }
 Write-Host ""```

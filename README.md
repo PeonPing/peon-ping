@@ -252,9 +252,21 @@ Want to add your own pack? See the [full guide at openpeon.com/create](https://o
 
 ## Uninstall
 
+**macOS/Linux:**
+
 ```bash
 bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/hooks/peon-ping/uninstall.sh        # global
 bash .claude/hooks/peon-ping/uninstall.sh           # project-local
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Standard uninstall (prompts before deleting sounds)
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
+
+# Keep sound packs (removes everything else)
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepSounds
 ```
 
 ## Requirements
