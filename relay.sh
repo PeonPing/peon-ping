@@ -180,9 +180,13 @@ def play_sound_on_host(path, volume):
         ]
         for cmd_args, name in players:
             if shutil.which(name):
+                env = os.environ.copy()
+                if name == "pw-play":
+                    env["LC_ALL"] = "C"
                 subprocess.Popen(
                     cmd_args,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    env=env,
                 )
                 return
         print(f"  WARNING: no audio backend found on host", file=sys.stderr)

@@ -814,7 +814,7 @@ except Exception:
       " 2>/dev/null
     elif [ "$PLATFORM" = "linux" ]; then
       if command -v pw-play &>/dev/null; then
-        pw-play --volume=0.3 "$TEST_SOUND" 2>/dev/null
+        LC_ALL=C pw-play --volume=0.3 "$TEST_SOUND" 2>/dev/null
       elif command -v paplay &>/dev/null; then
         paplay --volume="$(python3 -c "print(int(0.3 * 65536))")" "$TEST_SOUND" 2>/dev/null
       elif command -v ffplay &>/dev/null; then
