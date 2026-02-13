@@ -1093,12 +1093,9 @@ elif event == 'Stop':
         category = ''
 elif event == 'Notification':
     if ntype == 'permission_prompt':
-        category = 'input.required'
+        # Sound is handled by the PermissionRequest event; only set tab title here
         status = 'needs approval'
         marker = '\u25cf '
-        notify = '1'
-        notify_color = 'red'
-        msg = project + '  \u2014  Permission needed'
     elif ntype == 'idle_prompt':
         status = 'done'
         marker = '\u25cf '
