@@ -217,11 +217,12 @@ send_notification() {
       case "${TERM_PROGRAM:-}" in
         iTerm.app)
           # iTerm2 OSC 9 — notification with iTerm2 icon
-          printf '\e]9;%s\007' "$title: $msg" 2>/dev/null
+          # Write to /dev/tty to bypass Claude Code stdout capture
+          printf '\e]9;%s\007' "$title: $msg" > /dev/tty 2>/dev/null || true
           ;;
         kitty)
           # Kitty OSC 99
-          printf '\e]99;i=peon:d=0;%s\e\\' "$title: $msg" 2>/dev/null
+          printf '\e]99;i=peon:d=0;%s\e\\' "$title: $msg" > /dev/tty 2>/dev/null || true
           ;;
         *)
           if command -v terminal-notifier &>/dev/null && [ -f "$icon_path" ]; then
@@ -1114,6 +1115,8 @@ if str(cfg.get('enabled', True)).lower() == 'false':
 
 volume = cfg.get('volume', 0.5)
 desktop_notif = cfg.get('desktop_notifications', True)
+tab_color_cfg = cfg.get('tab_color', {})
+tab_color_enabled = str(tab_color_cfg.get('enabled', True)).lower() != 'false'
 active_pack = cfg.get('active_pack', 'peon')
 pack_rotation = cfg.get('pack_rotation', [])
 annoyed_threshold = int(cfg.get('annoyed_threshold', 3))
@@ -1336,6 +1339,24 @@ if state_dirty:
     os.makedirs(os.path.dirname(state_file) or '.', exist_ok=True)
     json.dump(state, open(state_file, 'w'))
 
+# --- iTerm2 tab color mapping ---
+# Configurable via config.json: tab_color.enabled (default true),
+# tab_color.colors.{ready,working,done,needs_approval} as [r,g,b] arrays.
+tab_color_rgb = ''
+if tab_color_enabled:
+    default_colors = {
+        'ready':          [65, 115, 80],   # muted green
+        'working':        [130, 105, 50],  # muted amber
+        'done':           [65, 100, 140],  # muted blue
+        'needs_approval': [150, 70, 70],   # muted red
+    }
+    custom = tab_color_cfg.get('colors', {})
+    colors = {k: custom.get(k, v) for k, v in default_colors.items()}
+    status_key = status.replace(' ', '_') if status else ''
+    if status_key in colors:
+        rgb = colors[status_key]
+        tab_color_rgb = f'{rgb[0]} {rgb[1]} {rgb[2]}'
+
 # --- Output shell variables ---
 print('PEON_EXIT=false')
 print('EVENT=' + q(event))
@@ -1351,6 +1372,7 @@ mn = cfg.get('mobile_notify', {})
 mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
 print('SOUND_FILE=' + q(sound_file))
+print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 " <<< "$INPUT" 2>/dev/null)"
 
 # If Python signalled early exit (disabled, agent, unknown event), bail out
@@ -1421,8 +1443,19 @@ fi
 TITLE="${MARKER}${PROJECT}: ${STATUS}"
 
 # --- Set tab title via ANSI escape (works in Warp, iTerm2, Terminal.app, etc.) ---
+# Write to /dev/tty so the escape sequence reaches the terminal directly.
+# Claude Code captures hook stdout, so plain printf would be swallowed.
 if [ -n "$TITLE" ]; then
-  printf '\033]0;%s\007' "$TITLE"
+  printf '\033]0;%s\007' "$TITLE" > /dev/tty 2>/dev/null || true
+fi
+
+# --- Set iTerm2 tab color (OSC 6) ---
+# Uses /dev/tty for the same reason as tab title above.
+if [ -n "$TAB_COLOR_RGB" ] && [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]]; then
+  read -r _R _G _B <<< "$TAB_COLOR_RGB"
+  printf "\033]6;1;bg;red;brightness;%d\a" "$_R" > /dev/tty 2>/dev/null || true
+  printf "\033]6;1;bg;green;brightness;%d\a" "$_G" > /dev/tty 2>/dev/null || true
+  printf "\033]6;1;bg;blue;brightness;%d\a" "$_B" > /dev/tty 2>/dev/null || true
 fi
 
 # --- Play sound ---
