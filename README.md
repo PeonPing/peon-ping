@@ -90,12 +90,16 @@ peon packs next           # Cycle to the next pack
 peon packs remove <p1,p2> # Remove specific packs
 peon notifications on     # Enable desktop notifications
 peon notifications off    # Disable desktop notifications
+peon preview              # Play all sounds from session.start
+peon preview <category>   # Play all sounds from a specific category
 peon mobile ntfy <topic>  # Set up phone notifications (free)
 peon mobile off           # Disable phone notifications
 peon mobile test          # Send a test notification
 peon relay --daemon       # Start audio relay (for SSH/devcontainer)
 peon relay --stop         # Stop background relay
 ```
+
+Available CESP categories for `peon preview`: `session.start`, `task.acknowledge`, `task.complete`, `task.error`, `input.required`, `resource.limit`, `user.spam`.
 
 Tab completion is supported — type `peon packs use <TAB>` to see available pack names.
 

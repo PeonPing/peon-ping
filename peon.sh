@@ -1000,6 +1000,8 @@ Commands:
   notifications on     Enable desktop notifications
   notifications off    Disable desktop notifications
   preview [category]   Play all sounds from a category (default: session.start)
+                       Categories: session.start, task.acknowledge, task.complete,
+                       task.error, input.required, resource.limit, user.spam
   help                 Show this help
 
 Pack management:
