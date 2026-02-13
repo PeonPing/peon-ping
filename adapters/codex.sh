@@ -3,11 +3,10 @@
 # Translates Codex notify events into peon.sh stdin JSON
 #
 # Setup: Add to ~/.codex/config.toml:
-#   [notify]
-#   command = "bash ~/.claude/hooks/peon-ping/adapters/codex.sh"
+#   notify = ["bash", "/absolute/path/to/.claude/hooks/peon-ping/adapters/codex.sh"]
 #
 # Or if installed locally:
-#   command = "bash .claude/hooks/peon-ping/adapters/codex.sh"
+#   notify = ["bash", "/absolute/path/to/peon-ping/adapters/codex.sh"]
 
 set -euo pipefail
 
