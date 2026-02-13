@@ -92,6 +92,7 @@ peon notifications on     # Enable desktop notifications
 peon notifications off    # Disable desktop notifications
 peon preview              # Play all sounds from session.start
 peon preview <category>   # Play all sounds from a specific category
+peon preview --list       # List all categories in the active pack
 peon mobile ntfy <topic>  # Set up phone notifications (free)
 peon mobile off           # Disable phone notifications
 peon mobile test          # Send a test notification
