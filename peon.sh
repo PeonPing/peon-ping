@@ -906,6 +906,46 @@ print('service=' + mn.get('service', ''))
     ;;
   preview)
     PREVIEW_CAT="${2:-session.start}"
+    # --list: show all categories and sound counts in the active pack
+    if [ "$PREVIEW_CAT" = "--list" ]; then
+      python3 -c "
+import json, os, sys
+
+peon_dir = '$PEON_DIR'
+config_path = '$CONFIG'
+
+try:
+    cfg = json.load(open(config_path))
+except:
+    cfg = {}
+active_pack = cfg.get('active_pack', 'peon')
+
+pack_dir = os.path.join(peon_dir, 'packs', active_pack)
+if not os.path.isdir(pack_dir):
+    print('peon-ping: pack \"' + active_pack + '\" not found.', file=sys.stderr)
+    sys.exit(1)
+manifest = None
+for mname in ('openpeon.json', 'manifest.json'):
+    mpath = os.path.join(pack_dir, mname)
+    if os.path.exists(mpath):
+        manifest = json.load(open(mpath))
+        break
+if not manifest:
+    print('peon-ping: no manifest found for pack \"' + active_pack + '\".', file=sys.stderr)
+    sys.exit(1)
+
+display_name = manifest.get('display_name', active_pack)
+categories = manifest.get('categories', {})
+print('peon-ping: categories in ' + display_name)
+print()
+for cat in sorted(categories):
+    sounds = categories[cat].get('sounds', [])
+    count = len(sounds)
+    unit = 'sound' if count == 1 else 'sounds'
+    print(f'  {cat:24s} {count} {unit}')
+"
+      exit $? ;
+    fi
     # Use Python to load config, find manifest, and list sounds for the category
     PREVIEW_OUTPUT=$(python3 -c "
 import json, os, sys
@@ -1000,6 +1040,7 @@ Commands:
   notifications on     Enable desktop notifications
   notifications off    Disable desktop notifications
   preview [category]   Play all sounds from a category (default: session.start)
+  preview --list       List all categories and sound counts in the active pack
                        Categories: session.start, task.acknowledge, task.complete,
                        task.error, input.required, resource.limit, user.spam
   help                 Show this help

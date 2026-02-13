@@ -1313,3 +1313,13 @@ assert mn['service'] == 'ntfy', 'service should be preserved'
   output=$(bash "$PEON_SH" help)
   [[ "$output" == *"preview"* ]]
 }
+
+@test "preview --list shows all categories with sound counts" {
+  run bash "$PEON_SH" preview --list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"categories in"* ]]
+  [[ "$output" == *"session.start"* ]]
+  [[ "$output" == *"task.complete"* ]]
+  [[ "$output" == *"user.spam"* ]]
+  [[ "$output" == *"sounds"* ]]
+}
