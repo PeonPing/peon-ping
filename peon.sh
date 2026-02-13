@@ -540,21 +540,87 @@ case "${1:-}" in
   status)
     [ -f "$PAUSED_FILE" ] && echo "peon-ping: paused" || echo "peon-ping: active"
     python3 -c "
-import json
+import json, os
+
+config_path = '$CONFIG'
+peon_dir = '$PEON_DIR'
+
+# --- Config ---
 try:
-    c = json.load(open('$CONFIG'))
-    dn = c.get('desktop_notifications', True)
-    print('peon-ping: desktop notifications ' + ('on' if dn else 'off'))
-    mn = c.get('mobile_notify', {})
-    if mn and mn.get('service'):
-        enabled = mn.get('enabled', True)
-        svc = mn.get('service', '?')
-        print(f'peon-ping: mobile notifications ' + ('on' if enabled else 'off') + f' ({svc})')
-    else:
-        print('peon-ping: mobile notifications not configured')
+    c = json.load(open(config_path))
 except Exception:
-    print('peon-ping: desktop notifications on')
+    c = {}
+
+dn = c.get('desktop_notifications', True)
+print('peon-ping: desktop notifications ' + ('on' if dn else 'off'))
+
+mn = c.get('mobile_notify', {})
+if mn and mn.get('service'):
+    enabled = mn.get('enabled', True)
+    svc = mn.get('service', '?')
+    print(f'peon-ping: mobile notifications ' + ('on' if enabled else 'off') + f' ({svc})')
+else:
     print('peon-ping: mobile notifications not configured')
+
+# --- Active pack ---
+active = c.get('active_pack', 'peon')
+packs_dir = os.path.join(peon_dir, 'packs')
+display_name = active
+pack_count = 0
+if os.path.isdir(packs_dir):
+    for d in os.listdir(packs_dir):
+        dpath = os.path.join(packs_dir, d)
+        if not os.path.isdir(dpath):
+            continue
+        has_manifest = (
+            os.path.exists(os.path.join(dpath, 'openpeon.json')) or
+            os.path.exists(os.path.join(dpath, 'manifest.json'))
+        )
+        if has_manifest:
+            pack_count += 1
+            if d == active:
+                for mname in ('openpeon.json', 'manifest.json'):
+                    mpath = os.path.join(dpath, mname)
+                    if os.path.exists(mpath):
+                        try:
+                            display_name = json.load(open(mpath)).get('display_name', active)
+                        except Exception:
+                            pass
+                        break
+print(f'peon-ping: active pack: {active} ({display_name})')
+print(f'peon-ping: {pack_count} pack(s) installed')
+
+# --- IDE detection ---
+home = os.path.expanduser('~')
+claude_dir = os.environ.get('CLAUDE_CONFIG_DIR', os.path.join(home, '.claude'))
+xdg_config = os.environ.get('XDG_CONFIG_HOME', os.path.join(home, '.config'))
+opencode_dir = os.path.join(xdg_config, 'opencode')
+
+ides = []
+
+# Claude Code: check if hooks are registered
+claude_hooks_dir = os.path.join(claude_dir, 'hooks', 'peon-ping')
+if os.path.isdir(claude_dir):
+    if os.path.exists(os.path.join(claude_hooks_dir, 'peon.sh')):
+        ides.append(('Claude Code', claude_dir, 'installed'))
+    else:
+        ides.append(('Claude Code', claude_dir, 'detected (not set up)'))
+
+# OpenCode: check if plugin is installed
+opencode_plugin = os.path.join(opencode_dir, 'plugins', 'peon-ping.ts')
+if os.path.isdir(opencode_dir):
+    if os.path.exists(opencode_plugin):
+        ides.append(('OpenCode', opencode_dir, 'installed'))
+    else:
+        ides.append(('OpenCode', opencode_dir, 'detected (not set up)'))
+
+if ides:
+    print('peon-ping: IDEs')
+    for name, path, status in ides:
+        marker = '[x]' if status == 'installed' else '[ ]'
+        print(f'  {marker} {name:12s} {path} ({status})')
+else:
+    print('peon-ping: no supported IDEs detected')
 "
     exit 0 ;;
   notifications)
