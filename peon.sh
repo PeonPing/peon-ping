@@ -149,19 +149,18 @@ play_sound() {
       save_sound_pid $!
       ;;
     wsl)
-      local wpath
-      wpath=$(wslpath -w "$file")
-      # Convert backslashes to forward slashes for file:/// URI
-      wpath="${wpath//\\//}"
+      local tmpdir tmpfile
+      tmpdir=$(powershell.exe -NoProfile -NonInteractive -Command '[System.IO.Path]::GetTempPath()' 2>/dev/null | tr -d '\r')
+      tmpfile="$(wslpath -u "${tmpdir}peon-ping-sound.wav")"
+      if command -v ffmpeg &>/dev/null; then
+        ffmpeg -y -i "$file" -filter:a "volume=$vol" "$tmpfile" 2>/dev/null
+      elif [[ "$file" == *.wav ]]; then
+        cp "$file" "$tmpfile"
+      else
+        return 0
+      fi
       powershell.exe -NoProfile -NonInteractive -Command "
-        Add-Type -AssemblyName PresentationCore
-        \$p = New-Object System.Windows.Media.MediaPlayer
-        \$p.Open([Uri]::new('file:///$wpath'))
-        \$p.Volume = $vol
-        Start-Sleep -Milliseconds 200
-        \$p.Play()
-        Start-Sleep -Seconds 3
-        \$p.Close()
+        (New-Object Media.SoundPlayer '${tmpdir}peon-ping-sound.wav').PlaySync()
       " &>/dev/null &
       save_sound_pid $!
       ;;
