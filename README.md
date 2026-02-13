@@ -182,6 +182,39 @@ The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/` and creates
 
 > **Tip:** Install `terminal-notifier` (`brew install terminal-notifier`) for richer notifications with subtitle and grouping support.
 
+<details>
+<summary>🎨 Optional: custom peon icon for notifications</summary>
+
+By default, `terminal-notifier` shows a generic Terminal icon. You can replace it with the peon icon using built-in macOS tools (`sips` + `iconutil`) — no extra dependencies needed.
+
+**Why this is needed:** `terminal-notifier`'s `-appIcon` flag uses a deprecated API that modern macOS ignores. Replacing `Terminal.icns` inside the app bundle is the only reliable workaround.
+
+```bash
+# 1. Generate .icns from peon-icon.png
+ICON="$HOME/.config/opencode/peon-ping/peon-icon.png"
+mkdir -p /tmp/peon.iconset
+for s in 16 32 64 128 256 512; do
+  sips -z $s $s "$ICON" --out "/tmp/peon.iconset/icon_${s}x${s}.png"
+  sips -z $((s*2)) $((s*2)) "$ICON" --out "/tmp/peon.iconset/icon_${s}x${s}@2x.png"
+done
+iconutil -c icns /tmp/peon.iconset -o /tmp/peon.icns
+
+# 2. Find terminal-notifier app bundle and replace the icon
+APP=$(dirname $(dirname $(dirname $(readlink -f $(which terminal-notifier)))))
+cp "$APP/Contents/Resources/Terminal.icns" "$APP/Contents/Resources/Terminal.icns.backup"
+cp /tmp/peon.icns "$APP/Contents/Resources/Terminal.icns"
+touch "$APP"
+
+# 3. Clean up
+rm -rf /tmp/peon.iconset /tmp/peon.icns
+```
+
+After `brew upgrade terminal-notifier`, re-run these commands to re-apply the icon.
+
+> **Future:** When [jamf/Notifier](https://github.com/jamf/Notifier) ships to Homebrew ([#32](https://github.com/jamf/Notifier/issues/32)), the plugin will migrate to it — Notifier has built-in `--rebrand` support, no icon hacks needed.
+
+</details>
+
 ### Kiro setup
 
 Create `~/.kiro/agents/peon-ping.json`:
