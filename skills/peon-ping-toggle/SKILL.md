@@ -10,10 +10,19 @@ Toggle peon-ping sounds on or off. Also handles any peon-ping configuration chan
 
 ## Toggle sounds
 
-Run the following command using the Bash tool:
+On Unix, run the following command using the Bash tool:
 
 ```bash
 bash "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/hooks/peon-ping/peon.sh toggle
+```
+
+On Windows, use the PowerShell tool:
+```powershell
+$claudeDir = $env:CLAUDE_CONFIG_DIR
+if (-not $claudeDir -or $claudeDir -eq "") {
+  $claudeDir = Join-Path $HOME ".claude"
+}
+& (Join-Path $claudeDir "hooks/peon-ping/peon.ps1") toggle
 ```
 
 Report the output to the user. The command will print either:
