@@ -708,7 +708,7 @@ peon_entry = {
 }
 
 # Events to register
-events = ['SessionStart', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest']
+events = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest']
 
 for event in events:
     event_hooks = hooks.get(event, [])

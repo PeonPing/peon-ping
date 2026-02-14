@@ -1285,7 +1285,7 @@ raw_event = event_data.get('hook_event_name', '')
 # Claude Code's own PascalCase names pass through unchanged via dict.get fallback.
 _cursor_event_map = {
     'sessionStart': 'SessionStart',
-    'sessionEnd': 'SessionStart',
+    'sessionEnd': 'SessionEnd',
     'beforeSubmitPrompt': 'UserPromptSubmit',
     'stop': 'Stop',
     'preToolUse': 'UserPromptSubmit',
@@ -1415,6 +1415,20 @@ elif event == 'PermissionRequest':
     notify = '1'
     notify_color = 'red'
     msg = project + '  \u2014  Permission needed'
+elif event == 'SessionEnd':
+    # Clean up state for this session
+    for key in ('session_packs', 'prompt_timestamps', 'session_start_times', 'prompt_start_times'):
+        d = state.get(key, {})
+        if session_id in d:
+            del d[session_id]
+            state[key] = d
+    agent_sessions.discard(session_id)
+    state['agent_sessions'] = list(agent_sessions)
+    state_dirty = True
+    os.makedirs(os.path.dirname(state_file) or '.', exist_ok=True)
+    json.dump(state, open(state_file, 'w'))
+    print('PEON_EXIT=true')
+    sys.exit(0)
 else:
     # Unknown event (e.g. PostToolUseFailure) — exit cleanly
     print('PEON_EXIT=true')
