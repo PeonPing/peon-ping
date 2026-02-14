@@ -227,6 +227,28 @@ json.dump(c, open('$CONFIG_DIR/config.json', 'w'))
 }
 
 # ============================================================
+# Relay config fields
+# ============================================================
+
+@test "re-install preserves user-added relay_host and relay_port in config" {
+  bash "$OPENCODE_SH"
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$CONFIG_DIR/config.json'))
+c['relay_host'] = 'my-relay.local'
+c['relay_port'] = 12345
+json.dump(c, open('$CONFIG_DIR/config.json', 'w'))
+"
+  bash "$OPENCODE_SH"
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$CONFIG_DIR/config.json'))
+assert c.get('relay_host') == 'my-relay.local', f'relay_host lost: {c}'
+assert c.get('relay_port') == 12345, f'relay_port lost: {c}'
+"
+}
+
+# ============================================================
 # Registry failure graceful handling
 # ============================================================
 

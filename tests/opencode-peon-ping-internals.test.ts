@@ -6,7 +6,7 @@
  * pack resolution with rotation, debounce, and spam detection.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 
 vi.mock("node:fs", () => ({
   readFileSync: vi.fn(),
@@ -17,7 +17,17 @@ vi.mock("node:fs", () => ({
   mkdirSync: vi.fn(),
 }))
 
+vi.mock("node:os", async () => {
+  const actual = await vi.importActual<typeof import("node:os")>("node:os")
+  return {
+    ...actual,
+    platform: vi.fn(() => "darwin"),
+    homedir: actual.homedir,
+  }
+})
+
 import * as fs from "node:fs"
+import * as os from "node:os"
 import {
   CESP_CATEGORIES,
   DEFAULT_CONFIG,
@@ -25,7 +35,9 @@ import {
   type CESPManifest,
   type CESPSound,
   type CESPCategoryEntry,
+  type PeonConfig,
   type PeonState,
+  type RuntimePlatform,
   loadConfig,
   loadManifest,
   migrateLegacyManifest,
@@ -38,6 +50,8 @@ import {
   escapeAppleScript,
   createDebounceChecker,
   createSpamChecker,
+  detectPlatform,
+  getRelayConfig,
 } from "../adapters/opencode/peon-ping-internals.js"
 
 // ---------------------------------------------------------------------------
@@ -450,5 +464,110 @@ describe("createSpamChecker", () => {
     check(105)
     // At 112, entry at 100 is outside window -> only 105 + 112 = 2
     expect(check(112)).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// detectPlatform
+// ---------------------------------------------------------------------------
+
+describe("detectPlatform", () => {
+  const savedEnv = { ...process.env }
+
+  afterEach(() => {
+    // Restore environment
+    delete process.env.SSH_CONNECTION
+    delete process.env.SSH_CLIENT
+    delete process.env.REMOTE_CONTAINERS
+    delete process.env.CODESPACES
+    vi.mocked(os.platform).mockReturnValue("darwin")
+  })
+
+  it("returns 'ssh' when SSH_CONNECTION is set", () => {
+    process.env.SSH_CONNECTION = "1.2.3.4 56789 5.6.7.8 22"
+    expect(detectPlatform()).toBe("ssh")
+  })
+
+  it("returns 'ssh' when SSH_CLIENT is set", () => {
+    process.env.SSH_CLIENT = "1.2.3.4 56789 22"
+    expect(detectPlatform()).toBe("ssh")
+  })
+
+  it("returns 'devcontainer' when REMOTE_CONTAINERS is set", () => {
+    process.env.REMOTE_CONTAINERS = "true"
+    expect(detectPlatform()).toBe("devcontainer")
+  })
+
+  it("returns 'devcontainer' when CODESPACES is set", () => {
+    process.env.CODESPACES = "true"
+    expect(detectPlatform()).toBe("devcontainer")
+  })
+
+  it("returns 'mac' on darwin without SSH env vars", () => {
+    vi.mocked(os.platform).mockReturnValue("darwin")
+    expect(detectPlatform()).toBe("mac")
+  })
+
+  it("returns 'linux' on linux without SSH/WSL", () => {
+    vi.mocked(os.platform).mockReturnValue("linux")
+    vi.mocked(fs.readFileSync).mockReturnValue("Linux version 5.15.0")
+    expect(detectPlatform()).toBe("linux")
+  })
+
+  it("SSH takes priority over devcontainer when both are set", () => {
+    process.env.SSH_CONNECTION = "1.2.3.4 56789 5.6.7.8 22"
+    process.env.REMOTE_CONTAINERS = "true"
+    expect(detectPlatform()).toBe("ssh")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// getRelayConfig
+// ---------------------------------------------------------------------------
+
+describe("getRelayConfig", () => {
+  afterEach(() => {
+    delete process.env.PEON_RELAY_HOST
+    delete process.env.PEON_RELAY_PORT
+  })
+
+  it("returns localhost:19998 for SSH platform with no overrides", () => {
+    const config: PeonConfig = { ...DEFAULT_CONFIG }
+    const relay = getRelayConfig(config, "ssh")
+    expect(relay).toEqual({ host: "localhost", port: 19998 })
+  })
+
+  it("returns host.docker.internal:19998 for devcontainer with no overrides", () => {
+    const config: PeonConfig = { ...DEFAULT_CONFIG }
+    const relay = getRelayConfig(config, "devcontainer")
+    expect(relay).toEqual({ host: "host.docker.internal", port: 19998 })
+  })
+
+  it("respects PEON_RELAY_HOST env var override", () => {
+    process.env.PEON_RELAY_HOST = "custom-host"
+    const config: PeonConfig = { ...DEFAULT_CONFIG }
+    const relay = getRelayConfig(config, "ssh")
+    expect(relay.host).toBe("custom-host")
+  })
+
+  it("respects PEON_RELAY_PORT env var override", () => {
+    process.env.PEON_RELAY_PORT = "12345"
+    const config: PeonConfig = { ...DEFAULT_CONFIG }
+    const relay = getRelayConfig(config, "ssh")
+    expect(relay.port).toBe(12345)
+  })
+
+  it("respects config relay_host / relay_port fields", () => {
+    const config: PeonConfig = { ...DEFAULT_CONFIG, relay_host: "cfg-host", relay_port: 9999 }
+    const relay = getRelayConfig(config, "ssh")
+    expect(relay).toEqual({ host: "cfg-host", port: 9999 })
+  })
+
+  it("config fields take priority over env vars", () => {
+    process.env.PEON_RELAY_HOST = "env-host"
+    process.env.PEON_RELAY_PORT = "11111"
+    const config: PeonConfig = { ...DEFAULT_CONFIG, relay_host: "cfg-host", relay_port: 9999 }
+    const relay = getRelayConfig(config, "ssh")
+    expect(relay).toEqual({ host: "cfg-host", port: 9999 })
   })
 })

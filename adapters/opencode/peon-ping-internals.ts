@@ -80,6 +80,43 @@ export interface PeonConfig {
   pack_rotation: string[]
   packs_dir?: string
   debounce_ms: number
+  relay_host?: string
+  relay_port?: number
+}
+
+// ---------------------------------------------------------------------------
+// Platform Detection & Relay
+// ---------------------------------------------------------------------------
+
+export type RuntimePlatform = "mac" | "linux" | "wsl" | "ssh" | "devcontainer"
+
+export interface RelayConfig {
+  host: string
+  port: number
+}
+
+export function detectPlatform(): RuntimePlatform {
+  if (process.env.SSH_CONNECTION || process.env.SSH_CLIENT) return "ssh"
+  if (process.env.REMOTE_CONTAINERS || process.env.CODESPACES) return "devcontainer"
+  if (os.platform() === "linux") {
+    try {
+      const ver = fs.readFileSync("/proc/version", "utf8")
+      if (/microsoft/i.test(ver)) return "wsl"
+    } catch {}
+    return "linux"
+  }
+  if (os.platform() === "darwin") return "mac"
+  return "linux"
+}
+
+export function getRelayConfig(config: PeonConfig, platform: RuntimePlatform): RelayConfig {
+  const host = config.relay_host
+    || process.env.PEON_RELAY_HOST
+    || (platform === "devcontainer" ? "host.docker.internal" : "localhost")
+  const port = config.relay_port
+    || Number(process.env.PEON_RELAY_PORT)
+    || 19998
+  return { host, port }
 }
 
 /** Internal runtime state */
