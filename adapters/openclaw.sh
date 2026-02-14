@@ -27,8 +27,9 @@ if [ ! -f "$PEON_DIR/peon.sh" ]; then
 fi
 
 OC_EVENT="${1:-task.complete}"
+NTYPE=""
 
-# Map CESP category names to Claude Code hook events (which peon.sh expects)
+# Map OpenClaw event names to Claude Code hook events (which peon.sh expects)
 case "$OC_EVENT" in
   session.start|greeting|ready)
     EVENT="SessionStart"
@@ -41,8 +42,6 @@ case "$OC_EVENT" in
     ;;
   task.error|error|fail)
     EVENT="Stop"
-    # peon.sh detects errors from transcript content; force error category
-    # by setting a non-zero exit in the transcript
     ;;
   input.required|permission|input|waiting)
     EVENT="Notification"
@@ -60,9 +59,20 @@ case "$OC_EVENT" in
     ;;
 esac
 
-NTYPE="${NTYPE:-}"
 SESSION_ID="openclaw-${OPENCLAW_SESSION_ID:-$$}"
-CWD="${PWD}"
 
-echo "{\"hook_event_name\":\"$EVENT\",\"notification_type\":\"$NTYPE\",\"cwd\":\"$CWD\",\"session_id\":\"$SESSION_ID\",\"permission_mode\":\"\"}" \
-  | bash "$PEON_DIR/peon.sh"
+# Build JSON safely — use jq if available, fall back to printf
+if command -v jq &>/dev/null; then
+  jq -nc \
+    --arg hook "$EVENT" \
+    --arg ntype "$NTYPE" \
+    --arg cwd "$PWD" \
+    --arg sid "$SESSION_ID" \
+    '{hook_event_name:$hook, notification_type:$ntype, cwd:$cwd, session_id:$sid, permission_mode:""}'
+else
+  # Fallback: printf with %s (session_id and cwd are the only dynamic risk;
+  # session_id is PID-based and cwd rarely contains quotes, but this is
+  # best-effort without jq)
+  printf '{"hook_event_name":"%s","notification_type":"%s","cwd":"%s","session_id":"%s","permission_mode":""}\n' \
+    "$EVENT" "$NTYPE" "$PWD" "$SESSION_ID"
+fi | bash "$PEON_DIR/peon.sh"
