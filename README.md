@@ -205,7 +205,7 @@ The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/` and creates
 - **Spam detection** — detects 3+ rapid prompts within 10 seconds, triggers `user.spam` voice lines
 
 <details>
-<summary>Screenshot: desktop notifications with custom peon icon</summary>
+<summary>🖼️ Screenshot: desktop notifications with custom peon icon</summary>
 
 ![peon-ping OpenCode notifications](https://github.com/user-attachments/assets/e433f9d1-2782-44af-a176-71875f3f532c)
 
@@ -214,7 +214,7 @@ The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/` and creates
 > **Tip:** Install `terminal-notifier` (`brew install terminal-notifier`) for richer notifications with subtitle and grouping support.
 
 <details>
-<summary>Optional: custom peon icon for notifications</summary>
+<summary>🎨 Optional: custom peon icon for notifications</summary>
 
 By default, `terminal-notifier` shows a generic Terminal icon. The included script replaces it with the peon icon using built-in macOS tools (`sips` + `iconutil`) — no extra dependencies.
 
