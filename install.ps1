@@ -181,10 +181,10 @@ if (-not $Updating) {
 $scriptsDir = Join-Path $InstallDir "scripts"
 New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
 
-$winPlaySource = Join-Path $PSScriptRoot "scripts\win-play.ps1"
 $winPlayTarget = Join-Path $scriptsDir "win-play.ps1"
+$winPlaySource = if ($PSScriptRoot) { Join-Path $PSScriptRoot "scripts\win-play.ps1" } else { $null }
 
-if (Test-Path $winPlaySource) {
+if ($winPlaySource -and (Test-Path $winPlaySource)) {
     # Local install: copy from repo
     Copy-Item -Path $winPlaySource -Destination $winPlayTarget -Force
 } else {
@@ -609,13 +609,13 @@ Write-Host "  Hooks registered for: $($events -join ', ')" -ForegroundColor Gree
 Write-Host ""
 Write-Host "Installing skills..."
 
-$skillsSourceDir = Join-Path $PSScriptRoot "skills"
+$skillsSourceDir = if ($PSScriptRoot) { Join-Path $PSScriptRoot "skills" } else { $null }
 $skillsTargetDir = Join-Path $ClaudeDir "skills"
 New-Item -ItemType Directory -Path $skillsTargetDir -Force | Out-Null
 
 $skillNames = @("peon-ping-toggle", "peon-ping-config")
 
-if (Test-Path $skillsSourceDir) {
+if ($skillsSourceDir -and (Test-Path $skillsSourceDir)) {
     # Local install: copy from repo
     foreach ($skillName in $skillNames) {
         $skillSource = Join-Path $skillsSourceDir $skillName
@@ -648,10 +648,10 @@ if (Test-Path $skillsSourceDir) {
 }
 
 # --- Install uninstall script ---
-$uninstallSource = Join-Path $PSScriptRoot "uninstall.ps1"
+$uninstallSource = if ($PSScriptRoot) { Join-Path $PSScriptRoot "uninstall.ps1" } else { $null }
 $uninstallTarget = Join-Path $InstallDir "uninstall.ps1"
 
-if (Test-Path $uninstallSource) {
+if ($uninstallSource -and (Test-Path $uninstallSource)) {
     # Local install: copy from repo
     Copy-Item -Path $uninstallSource -Destination $uninstallTarget -Force
 } else {
