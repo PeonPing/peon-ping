@@ -539,6 +539,26 @@ a:hover { text-decoration: underline; }
 }
 
 /* --- Pack picker --- */
+.picker-search {
+  width: 100%;
+  max-width: 360px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  background: var(--wc3-card-bg);
+  border: 1px solid var(--wc3-card-border);
+  border-radius: 4px;
+  color: var(--wc3-text);
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 16px;
+}
+.picker-search::placeholder {
+  color: var(--wc3-text-muted);
+}
+.picker-search:focus {
+  border-color: var(--wc3-gold);
+}
 .picker-filters {
   display: flex;
   gap: 8px;
