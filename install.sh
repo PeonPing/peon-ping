@@ -696,21 +696,26 @@ else:
 
 hooks = settings.setdefault('hooks', {})
 
-peon_hook = {
+peon_hook_sync = {
     'type': 'command',
     'command': hook_cmd,
     'timeout': 10
 }
-
-peon_entry = {
-    'matcher': '',
-    'hooks': [peon_hook]
+peon_hook_async = {
+    'type': 'command',
+    'command': hook_cmd,
+    'timeout': 10,
+    'async': True
 }
 
-# Events to register
+# SessionStart runs sync so stderr messages (update notice, pause status,
+# relay guidance) appear immediately. All other events run async.
+sync_events = ('SessionStart',)
 events = ['SessionStart', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest']
 
 for event in events:
+    hook = peon_hook_sync if event in sync_events else peon_hook_async
+    peon_entry = dict(matcher='', hooks=[hook])
     event_hooks = hooks.get(event, [])
     # Remove any existing notify.sh or peon.sh entries
     event_hooks = [
