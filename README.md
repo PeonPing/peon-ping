@@ -332,6 +332,48 @@ Environment variables: `PEON_RELAY_PORT`, `PEON_RELAY_HOST`, `PEON_RELAY_BIND`.
 
 If peon-ping detects an SSH or container session but can't reach the relay, it prints setup instructions on `SessionStart`.
 
+### Category-based API (for lightweight remote hooks)
+
+The relay supports a category-based endpoint that handles sound selection server-side. This is useful for remote machines where peon-ping isn't installed — the remote hook only needs to send a category name, and the relay picks a random sound from the active pack.
+
+**Endpoints:**
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Health check (returns "OK") |
+| `GET /play?file=<path>` | Play a specific sound file (legacy) |
+| `GET /play?category=<cat>` | Play random sound from category (recommended) |
+| `POST /notify` | Send desktop notification |
+
+**Example remote hook (`scripts/remote-hook.sh`):**
+
+```bash
+#!/bin/bash
+RELAY_URL="${PEON_RELAY_URL:-http://127.0.0.1:19998}"
+EVENT=$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hook_event_name',''))" 2>/dev/null)
+case "$EVENT" in
+  SessionStart)      CATEGORY="session.start" ;;
+  Stop)              CATEGORY="task.complete" ;;
+  PermissionRequest) CATEGORY="input.required" ;;
+  *)                 exit 0 ;;
+esac
+curl -sf "${RELAY_URL}/play?category=${CATEGORY}" >/dev/null 2>&1 &
+```
+
+Copy this to your remote machine and register it in `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{"command": "bash /path/to/remote-hook.sh"}],
+    "Stop": [{"command": "bash /path/to/remote-hook.sh"}],
+    "PermissionRequest": [{"command": "bash /path/to/remote-hook.sh"}]
+  }
+}
+```
+
+The relay reads `config.json` on your local machine to get the active pack and volume, loads the pack's manifest, and picks a random sound while avoiding repeats.
+
 ## Mobile notifications
 
 Get push notifications on your phone when tasks finish or need attention — useful when you're away from your desk.

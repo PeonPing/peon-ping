@@ -1,6 +1,6 @@
 #!/bin/bash
-# peon-ping audio relay server
-# Runs on your LOCAL machine to play sounds requested by peon-ping over SSH or from devcontainers.
+# peon-ping audio relay server (enhanced for remote category-based playback)
+# Runs on your LOCAL machine to play sounds requested over SSH tunnels.
 #
 # Usage:
 #   peon relay                          Start relay on default port (19998)
@@ -10,6 +10,12 @@
 #   peon relay --stop                   Stop background relay
 #   peon relay --status                 Check if relay is running
 #   peon relay --peon-dir=/path/to/dir  Use custom peon-ping directory
+#
+# Endpoints:
+#   GET /health                         Health check (returns "OK")
+#   GET /play?file=<path>               Play a specific sound file (legacy)
+#   GET /play?category=<category>       Play a random sound from category (new)
+#   POST /notify                        Send desktop notification
 #
 # The relay receives HTTP requests from the remote/container and plays audio
 # using the host's native audio backend (afplay on macOS, PipeWire/PulseAudio/etc on Linux).
@@ -57,6 +63,12 @@ for arg in "$@"; do
       echo "  1. On your LOCAL machine: peon relay --daemon"
       echo "  2. Connect with: ssh -R 19998:localhost:19998 <host>"
       echo "  3. peon-ping on the remote will auto-detect SSH and use the relay"
+      echo ""
+      echo "Endpoints:"
+      echo "  GET /health                 Health check"
+      echo "  GET /play?file=<path>       Play specific sound file"
+      echo "  GET /play?category=<cat>    Play random sound from category"
+      echo "  POST /notify                Send desktop notification"
       exit 0
       ;;
   esac
@@ -149,7 +161,7 @@ if [ "$DAEMON_MODE" = "true" ]; then
   exit 0
 fi
 
-echo "peon-ping relay v1.0"
+echo "peon-ping relay v2.0 (category-aware)"
 echo "  Listening: ${BIND_ADDR}:${RELAY_PORT}"
 echo "  Peon dir:  ${PEON_DIR}"
 echo "  Platform:  ${HOST_PLATFORM}"
@@ -162,6 +174,7 @@ import http.server
 import json
 import os
 import posixpath
+import random
 import shutil
 import subprocess
 import sys
@@ -171,6 +184,118 @@ PEON_DIR = os.path.realpath(sys.argv[1])
 HOST_PLATFORM = sys.argv[2]
 BIND_ADDR = sys.argv[3]
 PORT = int(sys.argv[4])
+
+CONFIG_FILE = os.path.join(PEON_DIR, "config.json")
+STATE_FILE = os.path.join(PEON_DIR, ".state.json")
+
+# Build list of allowed path prefixes (PEON_DIR + any symlink targets within it)
+ALLOWED_PREFIXES = [PEON_DIR + os.sep]
+for entry in os.listdir(PEON_DIR):
+    entry_path = os.path.join(PEON_DIR, entry)
+    if os.path.islink(entry_path):
+        real_target = os.path.realpath(entry_path)
+        if os.path.isdir(real_target):
+            ALLOWED_PREFIXES.append(real_target + os.sep)
+
+
+def is_path_allowed(full_path):
+    """Check if a path is within allowed directories."""
+    for prefix in ALLOWED_PREFIXES:
+        if full_path.startswith(prefix) or full_path == prefix.rstrip(os.sep):
+            return True
+    return False
+
+
+def load_config():
+    """Load peon-ping config.json."""
+    try:
+        with open(CONFIG_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def load_state():
+    """Load .state.json for tracking last-played sounds."""
+    try:
+        with open(STATE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_state(state):
+    """Save .state.json."""
+    try:
+        os.makedirs(os.path.dirname(STATE_FILE) or ".", exist_ok=True)
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f)
+    except Exception:
+        pass
+
+
+def pick_sound_for_category(category):
+    """
+    Pick a random sound file for the given category.
+    Avoids repeating the last-played sound for that category.
+    Returns (file_path, volume) or (None, None) if not found.
+    """
+    config = load_config()
+    active_pack = config.get("active_pack", "peon")
+    volume = config.get("volume", 0.5)
+
+    pack_dir = os.path.join(PEON_DIR, "packs", active_pack)
+    if not os.path.isdir(pack_dir):
+        return None, None
+
+    # Load manifest
+    manifest = None
+    for mname in ("openpeon.json", "manifest.json"):
+        mpath = os.path.join(pack_dir, mname)
+        if os.path.exists(mpath):
+            try:
+                with open(mpath) as f:
+                    manifest = json.load(f)
+                break
+            except Exception:
+                pass
+    if not manifest:
+        return None, None
+
+    # Get sounds for category
+    cat_data = manifest.get("categories", {}).get(category, {})
+    sounds = cat_data.get("sounds", [])
+    if not sounds:
+        return None, None
+
+    # Load state to avoid repeats
+    state = load_state()
+    last_played = state.get("last_played", {})
+    last_file = last_played.get(category, "")
+
+    # Filter out last-played if there's more than one sound
+    candidates = sounds if len(sounds) <= 1 else [s for s in sounds if s.get("file") != last_file]
+    pick = random.choice(candidates)
+
+    # Update state
+    last_played[category] = pick.get("file", "")
+    state["last_played"] = last_played
+    save_state(state)
+
+    # Resolve file path
+    file_ref = pick.get("file", "")
+    if "/" in file_ref:
+        candidate = os.path.realpath(os.path.join(pack_dir, file_ref))
+    else:
+        candidate = os.path.realpath(os.path.join(pack_dir, "sounds", file_ref))
+
+    pack_root = os.path.realpath(pack_dir) + os.sep
+    if not candidate.startswith(pack_root):
+        return None, None
+    if not os.path.isfile(candidate):
+        return None, None
+
+    return candidate, volume
 
 
 def play_sound_on_host(path, volume):
@@ -216,7 +341,7 @@ def play_sound_on_host(path, volume):
                 ).strip()
             except subprocess.CalledProcessError:
                 pass
-        
+
         # Use win-play.ps1 if available, otherwise inline PowerShell
         win_play_script = os.path.join(os.path.dirname(PEON_DIR), "scripts", "win-play.ps1")
         if os.path.isfile(win_play_script):
@@ -282,9 +407,25 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
             return
 
         params = urllib.parse.parse_qs(parsed.query)
+
+        # --- New: category-based sound selection ---
+        category = params.get("category", [""])[0]
+        if category:
+            sound_file, volume = pick_sound_for_category(category)
+            if not sound_file:
+                self.send_error(404, f"No sounds for category: {category}")
+                return
+            play_sound_on_host(sound_file, volume)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(f"OK: {os.path.basename(sound_file)}".encode())
+            return
+
+        # --- Legacy: file-based playback ---
         file_rel = params.get("file", [""])[0]
         if not file_rel:
-            self.send_error(400, "Missing file parameter")
+            self.send_error(400, "Missing file or category parameter")
             return
 
         # --- Path traversal protection ---
@@ -294,7 +435,7 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
             self.send_error(403, "Forbidden")
             return
         full_path = os.path.realpath(os.path.join(PEON_DIR, file_rel))
-        if not full_path.startswith(PEON_DIR + os.sep) and full_path != PEON_DIR:
+        if not is_path_allowed(full_path):
             self.send_error(403, "Forbidden")
             return
         if not os.path.isfile(full_path):
