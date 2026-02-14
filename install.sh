@@ -823,7 +823,11 @@ except Exception:
       elif command -v mpv &>/dev/null; then
         mpv --no-video --volume=30 "$TEST_SOUND" 2>/dev/null
       elif command -v aplay &>/dev/null; then
-        aplay -q "$TEST_SOUND" 2>/dev/null
+        if [[ "$TEST_SOUND" == *.wav ]]; then
+          aplay -q "$TEST_SOUND" 2>/dev/null
+        else
+          echo "Warning: aplay found but test sound is not WAV. Install pw-play, paplay, ffplay, mpv, or play (SoX)."
+        fi
       fi
     fi
     echo "Sound working!"
