@@ -1,7 +1,8 @@
 # peon-ping
 
-![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
+![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+
 ![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01)
 
 **Game character voice lines when your AI coding agent needs attention.**
@@ -9,6 +10,23 @@
 AI coding agents don't notify you when they finish or need permission. You tab away, lose focus, and waste 15 minutes getting back into flow. peon-ping fixes this with voice lines from Warcraft, StarCraft, Portal, Zelda, and more — works with **Claude Code**, **Codex**, **Cursor**, **OpenCode**, **Kilo CLI**, **Kiro**, **Windsurf**, and **Google Antigravity**.
 
 **See it in action** &rarr; [peonping.com](https://peonping.com/)
+
+---
+
+- [Install](#install)
+- [What you'll hear](#what-youll-hear)
+- [Quick controls](#quick-controls)
+- [Configuration](#configuration)
+- [Multi-IDE support](#multi-ide-support)
+- [Remote development](#remote-development-ssh--devcontainers--codespaces)
+- [Mobile notifications](#mobile-notifications)
+- [Sound packs](#sound-packs)
+- [Uninstall](#uninstall)
+- [Requirements](#requirements)
+- [How it works](#how-it-works)
+- [Links](#links)
+
+---
 
 ## Install
 
@@ -26,12 +44,11 @@ Then run `peon-ping-setup` to register hooks and download sound packs. macOS and
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
 ```
 
-### Option 3: Installer for windows
+### Option 3: Installer for Windows
 
 ```powershell
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.ps1" -UseBasicParsing | Invoke-Expression
 ```
-
 
 Installs 10 curated English packs by default. Re-run to update while preserving config/state. Or **[pick your packs interactively at peonping.com](https://peonping.com/#picker)** and get a custom install command.
 
@@ -55,7 +72,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh 
 
 If a global install exists and you install local (or vice versa), the installer prompts you to remove the existing one to avoid conflicts.
 
-### Option 3: Clone and inspect first
+### Option 4: Clone and inspect first
 
 ```bash
 git clone https://github.com/PeonPing/peon-ping.git
@@ -115,7 +132,12 @@ Pausing mutes sounds and desktop notifications instantly. Persists across sessio
 
 ## Configuration
 
-peon-ping installs a `/peon-ping-toggle` slash command in Claude Code. You can also just ask Claude to change settings for you — e.g. "enable round-robin pack rotation", "set volume to 0.3", or "add glados to my pack rotation". No need to edit config files manually.
+peon-ping installs two slash commands in Claude Code:
+
+- `/peon-ping-toggle` — mute/unmute sounds
+- `/peon-ping-config` — change any setting (volume, packs, categories, etc.)
+
+You can also just ask Claude to change settings for you — e.g. "enable round-robin pack rotation", "set volume to 0.3", or "add glados to my pack rotation". No need to edit config files manually.
 
 Config location depends on install mode:
 
@@ -183,7 +205,7 @@ The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/` and creates
 - **Spam detection** — detects 3+ rapid prompts within 10 seconds, triggers `user.spam` voice lines
 
 <details>
-<summary>🖼️ Screenshot: desktop notifications with custom peon icon</summary>
+<summary>Screenshot: desktop notifications with custom peon icon</summary>
 
 ![peon-ping OpenCode notifications](https://github.com/user-attachments/assets/e433f9d1-2782-44af-a176-71875f3f532c)
 
@@ -192,7 +214,7 @@ The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/` and creates
 > **Tip:** Install `terminal-notifier` (`brew install terminal-notifier`) for richer notifications with subtitle and grouping support.
 
 <details>
-<summary>🎨 Optional: custom peon icon for notifications</summary>
+<summary>Optional: custom peon icon for notifications</summary>
 
 By default, `terminal-notifier` shows a generic Terminal icon. The included script replaces it with the peon icon using built-in macOS tools (`sips` + `iconutil`) — no extra dependencies.
 
@@ -391,14 +413,22 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-pi
 
 ## Requirements
 
-- macOS (uses `afplay` and AppleScript), Windows (native PowerShell or WSL2, uses PowerShell `MediaPlayer` and WinForms), or Linux (uses `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` and `notify-send`)
-- Claude Code with hooks support
-- python3 (not required for native Windows)
-- For SSH/remote: `curl` on the remote host
+- **macOS** — `afplay` (built-in), AppleScript for notifications
+- **Linux** — one of: `pw-play`, `paplay`, `ffplay`, `mpv`, `play` (SoX), or `aplay`; `notify-send` for notifications
+- **Windows** — native PowerShell with `MediaPlayer` and WinForms (no WSL required), or WSL2
+- **All platforms** — `python3` (not required for native Windows)
+- **SSH/remote** — `curl` on the remote host
+- **IDE** — Claude Code with hooks support (or any supported IDE via [adapters](#multi-ide-support))
 
 ## How it works
 
-`peon.sh` is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, `Notification`, and `PermissionRequest` events. On each event it maps to a CESP sound category, picks a random voice line (avoiding repeats), plays it via `afplay` (macOS), PowerShell `MediaPlayer` (WSL2), or `paplay`/`ffplay`/`mpv`/`aplay` (Linux), and updates your Terminal tab title. In SSH sessions, devcontainers, and Codespaces, audio and notification requests are forwarded over HTTP to a relay server (`relay.sh`) running on your local machine.
+`peon.sh` is a Claude Code hook registered for `SessionStart`, `UserPromptSubmit`, `Stop`, `Notification`, and `PermissionRequest` events. On each event:
+
+1. **Event mapping** — an embedded Python block maps the hook event to a [CESP](https://github.com/PeonPing/openpeon) sound category (`session.start`, `task.complete`, `input.required`, etc.)
+2. **Sound selection** — picks a random voice line from the active pack's manifest, avoiding repeats
+3. **Audio playback** — plays the sound asynchronously via `afplay` (macOS), PowerShell `MediaPlayer` (WSL2), or `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` (Linux)
+4. **Notifications** — updates the Terminal tab title and sends a desktop notification if the terminal isn't focused
+5. **Remote routing** — in SSH sessions, devcontainers, and Codespaces, audio and notification requests are forwarded over HTTP to a [relay server](#remote-development-ssh--devcontainers--codespaces) on your local machine
 
 Sound packs are downloaded from the [OpenPeon registry](https://github.com/PeonPing/registry) at install time. The official packs are hosted in [PeonPing/og-packs](https://github.com/PeonPing/og-packs). Sound files are property of their respective publishers (Blizzard, Valve, EA, etc.) and are distributed under fair use for personal notification purposes.
 
