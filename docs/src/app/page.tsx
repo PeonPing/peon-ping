@@ -653,7 +653,7 @@ export default function LandingPage() {
   }, []);
 
   /* ---- Picker: filter and search ---- */
-  const knownLangs = ["en", "ru", "es", "fr", "cs"];
+  const knownLangs = ["en", "ru", "es", "fr", "cs", "pt-BR"];
   const filteredPacks = registryPacks
     .filter((p) => {
       if (activeFilter === "all") return true;
@@ -1012,6 +1012,7 @@ export default function LandingPage() {
               { lang: "es", label: "Spanish" },
               { lang: "fr", label: "French" },
               { lang: "cs", label: "Czech" },
+              { lang: "pt-BR", label: "Portuguese (BR)" },
               { lang: "other", label: "Other" },
               { lang: "all", label: "All" },
             ].map((f) => (
