@@ -355,7 +355,51 @@ is_safe_source_path() {
 }
 
 is_safe_filename() {
-  [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
+  [[ "$1" =~ ^[A-Za-z0-9._?!-]+$ ]]
+}
+
+# URL-encode characters that break raw GitHub URLs (e.g. ? in filenames)
+urlencode_filename() {
+  local f="$1"
+  f="${f//\?/%3F}"
+  f="${f//\!/%21}"
+  f="${f//\#/%23}"
+  printf '%s' "$f"
+}
+
+# Compute sha256 of a file (portable across macOS and Linux)
+file_sha256() {
+  if command -v shasum &>/dev/null; then
+    shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1
+  elif command -v sha256sum &>/dev/null; then
+    sha256sum "$1" 2>/dev/null | cut -d' ' -f1
+  else
+    # fallback: use python
+    python3 -c "import hashlib; print(hashlib.sha256(open('$1','rb').read()).hexdigest())" 2>/dev/null
+  fi
+}
+
+# Check if a downloaded sound file matches its stored checksum
+is_cached_valid() {
+  local filepath="$1" checksums_file="$2" filename="$3"
+  [ -s "$filepath" ] || return 1
+  [ -f "$checksums_file" ] || return 1
+  local stored_hash current_hash
+  stored_hash=$(grep "^$filename " "$checksums_file" 2>/dev/null | cut -d' ' -f2)
+  [ -n "$stored_hash" ] || return 1
+  current_hash=$(file_sha256 "$filepath")
+  [ "$stored_hash" = "$current_hash" ]
+}
+
+# Store checksum for a downloaded file
+store_checksum() {
+  local checksums_file="$1" filename="$2" filepath="$3"
+  local hash
+  hash=$(file_sha256 "$filepath")
+  # Remove old entry if present, then append new one
+  grep -v "^$filename " "$checksums_file" > "$checksums_file.tmp" 2>/dev/null || true
+  echo "$filename $hash" >> "$checksums_file.tmp"
+  mv "$checksums_file.tmp" "$checksums_file"
 }
 
 echo "Fetching pack registry..."
@@ -433,8 +477,6 @@ for pack in $PACKS; do
 
   PACK_INDEX=$((PACK_INDEX + 1))
 
-  # Clear old sound files before downloading new ones (fixes stale files after pack updates)
-  rm -rf "$INSTALL_DIR/packs/$pack/sounds"
   mkdir -p "$INSTALL_DIR/packs/$pack/sounds"
 
   # Get source info from registry (or use fallback)
@@ -498,6 +540,9 @@ for cat in m.get('categories', {}).values():
 print(len(seen))
 " 2>/dev/null || echo "?")
 
+  CHECKSUMS_FILE="$INSTALL_DIR/packs/$pack/.checksums"
+  touch "$CHECKSUMS_FILE"
+
   if [ "$IS_TTY" = true ] && [ "$SOUND_COUNT" != "?" ]; then
     local_file_count=0
     local_byte_count=0
@@ -509,8 +554,13 @@ print(len(seen))
         echo "  Warning: skipped unsafe filename in $pack: $sfile" >&2
         continue
       fi
-      if curl -fsSL "$PACK_BASE/sounds/$sfile" \
+      if is_cached_valid "$INSTALL_DIR/packs/$pack/sounds/$sfile" "$CHECKSUMS_FILE" "$sfile"; then
+        local_file_count=$((local_file_count + 1))
+        fsize=$(wc -c < "$INSTALL_DIR/packs/$pack/sounds/$sfile" | tr -d ' ')
+        local_byte_count=$((local_byte_count + fsize))
+      elif curl -fsSL "$PACK_BASE/sounds/$(urlencode_filename "$sfile")" \
            -o "$INSTALL_DIR/packs/$pack/sounds/$sfile" </dev/null 2>/dev/null; then
+        store_checksum "$CHECKSUMS_FILE" "$sfile" "$INSTALL_DIR/packs/$pack/sounds/$sfile"
         local_file_count=$((local_file_count + 1))
         fsize=$(wc -c < "$INSTALL_DIR/packs/$pack/sounds/$sfile" | tr -d ' ')
         local_byte_count=$((local_byte_count + fsize))
@@ -558,7 +608,10 @@ for cat in m.get('categories', {}).values():
         echo "  Warning: skipped unsafe filename in $pack: $sfile" >&2
         continue
       fi
-      if curl -fsSL "$PACK_BASE/sounds/$sfile" -o "$INSTALL_DIR/packs/$pack/sounds/$sfile" </dev/null 2>/dev/null; then
+      if is_cached_valid "$INSTALL_DIR/packs/$pack/sounds/$sfile" "$CHECKSUMS_FILE" "$sfile"; then
+        printf "."
+      elif curl -fsSL "$PACK_BASE/sounds/$(urlencode_filename "$sfile")" -o "$INSTALL_DIR/packs/$pack/sounds/$sfile" </dev/null 2>/dev/null; then
+        store_checksum "$CHECKSUMS_FILE" "$sfile" "$INSTALL_DIR/packs/$pack/sounds/$sfile"
         printf "."
       else
         printf "x"
