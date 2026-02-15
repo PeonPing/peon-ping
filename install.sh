@@ -1002,4 +1002,4 @@ if [ "$LOCAL_MODE" = false ]; then
   echo "  peon status        — check if sounds are paused"
 fi
 echo ""
-echo "Ready to work!"
+echo "Ready to work! (run 'peon toggle' to mute)"
