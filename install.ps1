@@ -15,6 +15,18 @@ $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
 
 $ErrorActionPreference = "Stop"
 
+# --- Input validation (mirrors install.sh safety checks) ---
+function Test-SafePackName($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+function Test-SafeSourceRepo($n)  { $n -match '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' }
+function Test-SafeSourceRef($n)   { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+function Test-SafeSourcePath($n)  { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+function Test-SafeFilename($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+
+# --- Fallback pack list (used when registry is unreachable) ---
+$FallbackPacks = @("acolyte_de", "acolyte_ru", "aoe2", "aom_greek", "brewmaster_ru", "dota2_axe", "duke_nukem", "glados", "hd2_helldiver", "molag_bal", "murloc", "ocarina_of_time", "peon", "peon_cz", "peon_de", "peon_es", "peon_fr", "peon_pl", "peon_ru", "peasant", "peasant_cz", "peasant_es", "peasant_fr", "peasant_ru", "ra2_kirov", "ra2_soviet_engineer", "ra_soviet", "rick", "sc_battlecruiser", "sc_firebat", "sc_kerrigan", "sc_medic", "sc_scv", "sc_tank", "sc_terran", "sc_vessel", "sheogorath", "sopranos", "tf2_engineer", "wc2_peasant")
+$FallbackRepo = "PeonPing/og-packs"
+$FallbackRef = "v1.1.0"
+
 Write-Host "=== peon-ping Windows installer ===" -ForegroundColor Cyan
 Write-Host ""
 
@@ -47,9 +59,12 @@ try {
     $registry = $regResponse.Content | ConvertFrom-Json
     Write-Host "  Registry: $($registry.packs.Count) packs available" -ForegroundColor Green
 } catch {
-    Write-Host "  Warning: Could not fetch registry ($($_.Exception.Message))" -ForegroundColor Yellow
-    Write-Host "  Cannot install without registry. Check your internet connection." -ForegroundColor Red
-    exit 1
+    Write-Host "  Warning: Could not fetch registry, using fallback pack list" -ForegroundColor Yellow
+    $registry = [PSCustomObject]@{
+        packs = $FallbackPacks | ForEach-Object {
+            [PSCustomObject]@{ name = $_; source_repo = $FallbackRepo; source_ref = $FallbackRef; source_path = $_ }
+        }
+    }
 }
 
 # --- Decide which packs to download ---
@@ -85,9 +100,26 @@ $failedPacks = 0
 
 foreach ($packInfo in $packsToInstall) {
     $packName = $packInfo.name
+    if (-not (Test-SafePackName $packName)) {
+        Write-Host "  Warning: skipping invalid pack name: $packName" -ForegroundColor Yellow
+        $failedPacks++
+        continue
+    }
+
     $sourceRepo = $packInfo.source_repo
     $sourceRef = $packInfo.source_ref
     $sourcePath = $packInfo.source_path
+
+    # Validate source metadata; fall back to default repo if invalid
+    if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = "" }
+    if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = "" }
+    if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = "" }
+    if (-not $sourceRepo -or -not $sourceRef -or -not $sourcePath) {
+        $sourceRepo = $FallbackRepo
+        $sourceRef = $FallbackRef
+        $sourcePath = $packName
+    }
+
     $packBase = "https://raw.githubusercontent.com/$sourceRepo/$sourceRef/$sourcePath"
 
     $packDir = Join-Path $InstallDir "packs\$packName"
@@ -121,6 +153,10 @@ foreach ($packInfo in $packsToInstall) {
         $downloaded = 0
         $skipped = 0
         foreach ($sfile in $soundFiles) {
+            if (-not (Test-SafeFilename $sfile)) {
+                Write-Host "  Warning: skipped unsafe filename in ${packName}: $sfile" -ForegroundColor Yellow
+                continue
+            }
             $soundPath = Join-Path $soundsDir $sfile
             if (Test-Path $soundPath) {
                 $skipped++
