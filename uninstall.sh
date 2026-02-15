@@ -175,7 +175,34 @@ print('Restored notify.sh hooks for: SessionStart, UserPromptSubmit, Stop, Notif
   fi
 fi
 
-# --- Remove fish completions ---
+# --- Remove shell alias and completions from rc files ---
+for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
+  if [ -f "$rcfile" ] && [ -w "$rcfile" ]; then
+    if grep -qF 'alias peon=' "$rcfile" || grep -qF 'peon-ping/completions.bash' "$rcfile"; then
+      # Remove peon-ping lines (alias, completion, comment)
+      sed -i.bak \
+        -e '/# peon-ping quick controls/d' \
+        -e '/alias peon=/d' \
+        -e '/peon-ping\/completions\.bash/d' \
+        "$rcfile"
+      rm -f "${rcfile}.bak"
+      echo "Cleaned peon-ping lines from $(basename "$rcfile")"
+    fi
+  fi
+done
+
+# --- Remove fish function and completions ---
+FISH_CONFIG="$HOME/.config/fish/config.fish"
+if [ -f "$FISH_CONFIG" ] && [ -w "$FISH_CONFIG" ]; then
+  if grep -qF 'function peon' "$FISH_CONFIG"; then
+    sed -i.bak \
+      -e '/# peon-ping quick controls/d' \
+      -e '/function peon;.*peon\.sh/d' \
+      "$FISH_CONFIG"
+    rm -f "${FISH_CONFIG}.bak"
+    echo "Cleaned peon-ping lines from config.fish"
+  fi
+fi
 FISH_COMPLETIONS="$HOME/.config/fish/completions/peon.fish"
 if [ -f "$FISH_COMPLETIONS" ]; then
   rm "$FISH_COMPLETIONS"
