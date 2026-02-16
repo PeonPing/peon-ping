@@ -791,11 +791,18 @@ peon_hook_async = {
 # SessionStart runs sync so stderr messages (update notice, pause status,
 # relay guidance) appear immediately. All other events run async.
 sync_events = ('SessionStart',)
-events = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest']
+events = ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest', 'PostToolUseFailure', 'PreCompact']
+
+# PostToolUseFailure only triggers on Bash failures — use matcher to limit scope
+bash_only_events = ('PostToolUseFailure',)
+# PreCompact doesn't support matchers — empty matcher is fine
 
 for event in events:
     hook = peon_hook_sync if event in sync_events else peon_hook_async
-    peon_entry = dict(matcher='', hooks=[hook])
+    if event in bash_only_events:
+        peon_entry = dict(matcher='Bash', hooks=[hook])
+    else:
+        peon_entry = dict(matcher='', hooks=[hook])
     event_hooks = hooks.get(event, [])
     # Remove any existing notify.sh or peon.sh entries
     event_hooks = [

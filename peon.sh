@@ -1541,6 +1541,8 @@ elif event == 'UserPromptSubmit':
         state_dirty = True
         if len(ts) >= annoyed_threshold:
             category = 'user.spam'
+    if not category and cat_enabled.get('task.acknowledge', True):
+        category = 'task.acknowledge'
     if silent_window > 0:
         prompt_starts = state.get('prompt_start_times', {})
         prompt_starts[session_id] = time.time()
@@ -1586,6 +1588,20 @@ elif event == 'PermissionRequest':
     notify = '1'
     notify_color = 'red'
     msg = project + '  \u2014  Permission needed'
+elif event == 'PostToolUseFailure':
+    # Bash failures arrive here with error field (e.g. "Exit code 1")
+    tool_name = event_data.get('tool_name', '')
+    error_msg = event_data.get('error', '')
+    if tool_name == 'Bash' and error_msg:
+        category = 'task.error'
+        status = 'error'
+    else:
+        print('PEON_EXIT=true')
+        sys.exit(0)
+elif event == 'PreCompact':
+    # Context window filling up — compaction about to start
+    category = 'resource.limit'
+    status = 'working'
 elif event == 'SessionEnd':
     # Clean up state for this session
     for key in ('session_packs', 'prompt_timestamps', 'session_start_times', 'prompt_start_times'):
