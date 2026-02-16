@@ -1862,6 +1862,58 @@ if category and not paused:
     except Exception:
         pass
 
+# --- Trainer reminder check ---
+trainer_sound = ''
+trainer_msg = ''
+trainer_cfg = cfg.get('trainer', {})
+if trainer_cfg.get('enabled', False) and event != 'SessionStart':
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    trainer_state = state.get('trainer', {})
+    _default_ex = dict(pushups=300, squats=300)
+    if trainer_state.get('date') != today:
+        exercises = trainer_cfg.get('exercises', _default_ex)
+        trainer_state = dict(date=today, reps=dict.fromkeys(exercises, 0), last_reminder_ts=0)
+    exercises = trainer_cfg.get('exercises', _default_ex)
+    reps = trainer_state.get('reps', {})
+    all_done = all(reps.get(ex, 0) >= goal for ex, goal in exercises.items())
+    if not all_done:
+        now_ts = time.time()
+        last_ts = trainer_state.get('last_reminder_ts', 0)
+        interval = trainer_cfg.get('reminder_interval_minutes', 20) * 60
+        min_gap = trainer_cfg.get('reminder_min_gap_minutes', 5) * 60
+        elapsed = now_ts - last_ts
+        if elapsed >= interval and elapsed >= min_gap:
+            trainer_manifest_path = os.path.join(peon_dir, 'trainer', 'manifest.json')
+            try:
+                tm = json.load(open(trainer_manifest_path))
+                import datetime
+                hour = datetime.datetime.now().hour
+                total_reps = sum(reps.get(ex, 0) for ex in exercises)
+                total_goal = sum(exercises.values())
+                pct = total_reps / total_goal if total_goal > 0 else 1.0
+                if hour >= 12 and pct < 0.25:
+                    tcat = 'trainer.slacking'
+                else:
+                    tcat = 'trainer.remind'
+                sounds = tm.get(tcat, [])
+                if sounds:
+                    pick = random.choice(sounds)
+                    sfile = os.path.join(peon_dir, 'trainer', pick['file'])
+                    if os.path.isfile(sfile):
+                        trainer_sound = sfile
+                        parts = []
+                        for ex, goal in exercises.items():
+                            done = reps.get(ex, 0)
+                            parts.append(f'{ex}: {done}/{goal}')
+                        trainer_msg = ' | '.join(parts)
+            except Exception:
+                pass
+            trainer_state['last_reminder_ts'] = int(now_ts)
+            state_dirty = True
+    state['trainer'] = trainer_state
+    state_dirty = True
+
 # --- Write state once ---
 if state_dirty:
     os.makedirs(os.path.dirname(state_file) or '.', exist_ok=True)
@@ -1901,6 +1953,8 @@ mn = cfg.get('mobile_notify', {})
 mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
 print('SOUND_FILE=' + q(sound_file))
+print('TRAINER_SOUND=' + q(trainer_sound))
+print('TRAINER_MSG=' + q(trainer_msg))
 print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 " <<< "$INPUT" 2>/dev/null)"
 
@@ -2011,6 +2065,23 @@ if [ "${PEON_TEST:-0}" = "1" ]; then
   _run_sound_and_notify
 else
   _run_sound_and_notify & disown
+fi
+
+# --- Trainer reminder sound (after main sound, with delay in production) ---
+if [ -n "${TRAINER_SOUND:-}" ] && [ -f "$TRAINER_SOUND" ]; then
+  if [ "${PEON_TEST:-0}" = "1" ]; then
+    play_sound "$TRAINER_SOUND" "$VOLUME"
+  else
+    (
+      sleep 1
+      play_sound "$TRAINER_SOUND" "$VOLUME"
+      if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
+        if ! terminal_is_focused; then
+          send_notification "Peon Trainer" "${TRAINER_MSG:-Time for reps!}" "blue"
+        fi
+      fi
+    ) & disown 2>/dev/null
+  fi
 fi
 
 exit 0

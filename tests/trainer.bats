@@ -10,6 +10,34 @@ setup() {
   for f in encouragement1.wav encouragement2.wav reminder1.wav; do
     touch "$TEST_DIR/packs/peon/sounds/trainer/$f"
   done
+
+  # Create trainer manifest and dummy sound files for reminder tests
+  mkdir -p "$TEST_DIR/trainer/sounds/remind"
+  mkdir -p "$TEST_DIR/trainer/sounds/slacking"
+  mkdir -p "$TEST_DIR/trainer/sounds/log"
+  mkdir -p "$TEST_DIR/trainer/sounds/complete"
+
+  cat > "$TEST_DIR/trainer/manifest.json" <<'JSON'
+{
+  "trainer.remind": [
+    { "file": "sounds/remind/reminder.mp3", "label": "Time for reps!" }
+  ],
+  "trainer.slacking": [
+    { "file": "sounds/slacking/slacking.mp3", "label": "You are slacking!" }
+  ],
+  "trainer.log": [
+    { "file": "sounds/log/logged.mp3", "label": "Logged!" }
+  ],
+  "trainer.complete": [
+    { "file": "sounds/complete/done.mp3", "label": "All done!" }
+  ]
+}
+JSON
+
+  touch "$TEST_DIR/trainer/sounds/remind/reminder.mp3"
+  touch "$TEST_DIR/trainer/sounds/slacking/slacking.mp3"
+  touch "$TEST_DIR/trainer/sounds/log/logged.mp3"
+  touch "$TEST_DIR/trainer/sounds/complete/done.mp3"
 }
 
 teardown() {
@@ -153,4 +181,77 @@ json.dump(s, open(state_path, 'w'), indent=2)
   # Reps should have been reset to 0
   reps=$(python3 -c "import json; s=json.load(open('$TEST_DIR/.state.json')); print(s.get('trainer',{}).get('reps',{}).get('pushups',0))")
   [ "$reps" = "0" ]
+}
+
+# ============================================================
+# trainer reminders during hook events
+# ============================================================
+
+@test "hook event fires trainer reminder when interval elapsed" {
+  bash "$PEON_SH" trainer on
+  python3 -c "
+import json, time
+s = json.load(open('$TEST_DIR/.state.json'))
+s['trainer'] = {'date': '$(date +%Y-%m-%d)', 'reps': {'pushups': 0, 'squats': 0}, 'last_reminder_ts': int(time.time()) - 3600}
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count=$(afplay_call_count)
+  [ "$count" = "2" ]
+}
+
+@test "hook event skips trainer reminder when interval not elapsed" {
+  bash "$PEON_SH" trainer on
+  python3 -c "
+import json, time
+s = json.load(open('$TEST_DIR/.state.json'))
+s['trainer'] = {'date': '$(date +%Y-%m-%d)', 'reps': {'pushups': 0, 'squats': 0}, 'last_reminder_ts': int(time.time())}
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count=$(afplay_call_count)
+  [ "$count" = "1" ]
+}
+
+@test "hook event skips trainer reminder on SessionStart" {
+  bash "$PEON_SH" trainer on
+  python3 -c "
+import json, time
+s = json.load(open('$TEST_DIR/.state.json'))
+s['trainer'] = {'date': '$(date +%Y-%m-%d)', 'reps': {'pushups': 0, 'squats': 0}, 'last_reminder_ts': int(time.time()) - 3600}
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count=$(afplay_call_count)
+  [ "$count" = "1" ]
+}
+
+@test "hook event skips trainer reminder when daily goal complete" {
+  bash "$PEON_SH" trainer on
+  python3 -c "
+import json, time
+s = json.load(open('$TEST_DIR/.state.json'))
+s['trainer'] = {'date': '$(date +%Y-%m-%d)', 'reps': {'pushups': 300, 'squats': 300}, 'last_reminder_ts': int(time.time()) - 3600}
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count=$(afplay_call_count)
+  [ "$count" = "1" ]
+}
+
+@test "trainer disabled skips reminder even when interval elapsed" {
+  python3 -c "
+import json, time
+s = json.load(open('$TEST_DIR/.state.json'))
+s['trainer'] = {'date': '$(date +%Y-%m-%d)', 'reps': {'pushups': 0, 'squats': 0}, 'last_reminder_ts': int(time.time()) - 3600}
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count=$(afplay_call_count)
+  [ "$count" = "1" ]
 }
