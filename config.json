@@ -18,5 +18,14 @@
   "pack_rotation": [],
   "pack_rotation_mode": "random",
   "session_ttl_days": 7,
-  "linux_audio_player": ""
+  "linux_audio_player": "",
+  "trainer": {
+    "enabled": false,
+    "exercises": {
+      "pushups": 300,
+      "squats": 300
+    },
+    "reminder_interval_minutes": 20,
+    "reminder_min_gap_minutes": 5
+  }
 }

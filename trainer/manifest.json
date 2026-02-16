@@ -1,0 +1,14 @@
+{
+  "trainer.remind": [
+    { "file": "sounds/remind/placeholder.wav", "label": "Time for reps!" }
+  ],
+  "trainer.log": [
+    { "file": "sounds/log/placeholder.wav", "label": "Logged." }
+  ],
+  "trainer.complete": [
+    { "file": "sounds/complete/placeholder.wav", "label": "Goal reached!" }
+  ],
+  "trainer.slacking": [
+    { "file": "sounds/slacking/placeholder.wav", "label": "You're falling behind." }
+  ]
+}
