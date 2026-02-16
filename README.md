@@ -169,6 +169,49 @@ Config location depends on install mode:
 - **pack_rotation_mode**: `"random"` (default), `"round-robin"`, or `"agentskill"`. With `random`/`round-robin`, each session picks one pack from `pack_rotation`. With `agentskill`, the `/peon-ping-use <pack>` command assigns a pack per session. Invalid or missing packs fall back to `active_pack` and the stale assignment is removed.
 - **session_ttl_days** (number, default: 7): Expire stale per-session pack assignments older than N days. Keeps `.state.json` from growing unbounded when using `agentskill` mode.
 
+## Peon Trainer
+
+Your peon is also your personal trainer. Built-in Pavel-style daily exercise mode — the same orc who tells you "work work" now tells you to drop and give him twenty.
+
+### Quick start
+
+```bash
+peon trainer on              # enable trainer
+peon trainer goal 200        # set daily goal (default: 300/300)
+# ... code for a while, peon nags you every ~20 min ...
+peon trainer log 25 pushups  # log what you did
+peon trainer log 30 squats
+peon trainer status          # check progress
+```
+
+### How it works
+
+Trainer reminders piggyback on your coding session — every ~20 minutes of active coding, you'll hear the peon yelling at you to do reps. No background daemon needed. Log your reps with `peon trainer log`, and progress resets automatically at midnight.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `peon trainer on` | Enable trainer mode |
+| `peon trainer off` | Disable trainer mode |
+| `peon trainer status` | Show today's progress |
+| `peon trainer log <n> <exercise>` | Log reps (e.g. `log 25 pushups`) |
+| `peon trainer goal <n>` | Set goal for all exercises |
+| `peon trainer goal <exercise> <n>` | Set goal for one exercise |
+
+### Custom voice lines
+
+Drop your own audio files into `~/.claude/hooks/peon-ping/trainer/sounds/`:
+
+```
+trainer/sounds/remind/     # reminder lines ("Something need doing? YES. PUSHUPS.")
+trainer/sounds/log/        # acknowledgment ("Work work! Muscles getting bigger maybe!")
+trainer/sounds/complete/   # celebration ("Zug zug! Human finish all reps!")
+trainer/sounds/slacking/   # disappointment ("Peon very disappointed.")
+```
+
+Update `trainer/manifest.json` to register your sound files.
+
 ## Multi-IDE Support
 
 peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE-specific events to the [CESP standard](https://github.com/PeonPing/openpeon).
