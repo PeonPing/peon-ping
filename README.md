@@ -1,4 +1,7 @@
 # peon-ping
+<div align="center">
+
+**English** | [中文](README_zh.md)
 
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,12 +14,15 @@ AI coding agents don't notify you when they finish or need permission. You tab a
 
 **See it in action** &rarr; [peonping.com](https://peonping.com/)
 
+</div>
+
 ---
 
 - [Install](#install)
 - [What you'll hear](#what-youll-hear)
 - [Quick controls](#quick-controls)
 - [Configuration](#configuration)
+- [Peon Trainer](#peon-trainer)
 - [Multi-IDE support](#multi-ide-support)
 - [Remote development](#remote-development-ssh--devcontainers--codespaces)
 - [Mobile notifications](#mobile-notifications)
