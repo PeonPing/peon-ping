@@ -1780,6 +1780,11 @@ notify_color = ''
 msg = ''
 
 if event == 'SessionStart':
+    source = event_data.get('source', '')
+    if source == 'compact':
+        # Compaction is mid-conversation — greeting makes no sense
+        print('PEON_EXIT=true')
+        sys.exit(0)
     category = 'session.start'
     status = 'ready'
 elif event == 'UserPromptSubmit':

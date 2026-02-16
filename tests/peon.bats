@@ -22,6 +22,12 @@ teardown() {
   [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
 }
 
+@test "SessionStart compact skips greeting" {
+  run_peon '{"hook_event_name":"SessionStart","source":"compact","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
 @test "Notification permission_prompt sets tab title but no sound (PermissionRequest handles sound)" {
   run_peon '{"hook_event_name":"Notification","notification_type":"permission_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
