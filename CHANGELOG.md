@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.1.0-alpha (2026-02-17)
+## v2.1.0 (2026-02-17)
 
 ### Added
 - `peon packs install <pack1,pack2>` and `peon packs install --all` for post-install pack management ([#179](https://github.com/PeonPing/peon-ping/pull/179))
@@ -12,7 +12,7 @@
 - Local installs (`--local`) now use correct `INSTALL_DIR` for skill hook paths instead of hardcoded global path ([#180](https://github.com/PeonPing/peon-ping/pull/180))
 - Cursor IDE hooks registration now handles flat-array `hooks.json` format
 
-## v2.0.0-alpha (2026-02-16)
+## v2.0.0 (2026-02-16)
 
 ### Added
 - **Peon Trainer**: Pavel-style daily exercise mode — 300 pushups and 300 squats per day, tracked through your coding sessions
