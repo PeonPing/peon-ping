@@ -762,6 +762,15 @@ print('peon-ping: desktop notifications off')
   packs)
     case "${2:-}" in
       list)
+        if [ "${3:-}" = "--registry" ]; then
+          PACK_DL="$PEON_DIR/scripts/pack-download.sh"
+          if [ ! -f "$PACK_DL" ]; then
+            echo "Error: pack-download.sh not found. Run 'peon update' to fix." >&2
+            exit 1
+          fi
+          bash "$PACK_DL" --list-registry --dir="$PEON_DIR"
+          exit 0
+        fi
         python3 -c "
 import json, os, glob
 config_path = '$CONFIG'
@@ -947,8 +956,27 @@ if rotation:
     json.dump(cfg, open(config_path, 'w'), indent=2)
 "
         sync_adapter_configs; exit 0 ;;
+      install)
+        INSTALL_ARG="${3:-}"
+        PACK_DL="$PEON_DIR/scripts/pack-download.sh"
+        if [ ! -f "$PACK_DL" ]; then
+          echo "Error: pack-download.sh not found. Run 'peon update' to fix." >&2
+          exit 1
+        fi
+        if [ "$INSTALL_ARG" = "--all" ]; then
+          bash "$PACK_DL" --dir="$PEON_DIR" --all
+        elif [ -n "$INSTALL_ARG" ]; then
+          bash "$PACK_DL" --dir="$PEON_DIR" --packs="$INSTALL_ARG"
+        else
+          echo "Usage: peon packs install <pack1,pack2,...>" >&2
+          echo "       peon packs install --all" >&2
+          echo "" >&2
+          echo "Run 'peon packs list --registry' to see available packs." >&2
+          exit 1
+        fi
+        exit 0 ;;
       *)
-        echo "Usage: peon packs <list|use|next|remove>" >&2; exit 1 ;;
+        echo "Usage: peon packs <list|use|next|install|remove>" >&2; exit 1 ;;
     esac ;;
   mobile)
     case "${2:-}" in
@@ -1300,10 +1328,13 @@ Commands:
   help                 Show this help
 
 Pack management:
-  packs list           List installed sound packs
-  packs use <name>     Switch to a specific pack
-  packs next           Cycle to the next pack
-  packs remove <p1,p2> Remove specific packs
+  packs list              List installed sound packs
+  packs list --registry   List all available packs from registry
+  packs install <p1,p2>   Download and install new packs
+  packs install --all     Download all packs from registry
+  packs use <name>        Switch to a specific pack
+  packs next              Cycle to the next pack
+  packs remove <p1,p2>    Remove specific packs
 
 Mobile notifications:
   mobile ntfy <topic>  Set up ntfy.sh push notifications

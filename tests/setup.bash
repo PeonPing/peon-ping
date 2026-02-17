@@ -145,9 +145,46 @@ fi
 SCRIPT
   chmod +x "$MOCK_BIN/osascript"
 
-  # Mock curl — handles version checks, relay requests, and mobile notifications
+  # Mock curl — handles version checks, relay requests, mobile notifications,
+  # and pack registry/manifest/sound downloads (when mock fixtures exist)
   cat > "$MOCK_BIN/curl" <<'SCRIPT'
 #!/bin/bash
+# Parse -o flag and URL for pack download support
+_curl_output=""
+_curl_url=""
+_curl_prev=""
+for _a in "$@"; do
+  if [ "$_curl_prev" = "-o" ]; then _curl_output="$_a"; fi
+  case "$_a" in http*) _curl_url="$_a" ;; esac
+  _curl_prev="$_a"
+done
+
+# Pack registry/manifest/sound download patterns (activated by mock fixture files)
+if [[ "$_curl_url" == *"registry"*"index.json"* ]] || [[ "$_curl_url" == *"peonping"*"index.json"* ]]; then
+  if [ -f "${CLAUDE_PEON_DIR}/.mock_registry_fail" ]; then
+    exit 22
+  elif [ -f "${CLAUDE_PEON_DIR}/.mock_registry_json" ]; then
+    if [ -n "$_curl_output" ]; then
+      cp "${CLAUDE_PEON_DIR}/.mock_registry_json" "$_curl_output"
+    else
+      cat "${CLAUDE_PEON_DIR}/.mock_registry_json"
+    fi
+    exit 0
+  fi
+fi
+if [[ "$_curl_url" == *"openpeon.json"* ]] && [ -f "${CLAUDE_PEON_DIR}/.mock_manifest_json" ]; then
+  if [ -n "$_curl_output" ]; then
+    cp "${CLAUDE_PEON_DIR}/.mock_manifest_json" "$_curl_output"
+  fi
+  exit 0
+fi
+if [[ "$_curl_url" == *"/sounds/"* ]] && [ -n "$_curl_output" ]; then
+  if [ -f "${CLAUDE_PEON_DIR}/.mock_manifest_json" ]; then
+    printf 'RIFF' > "$_curl_output"
+    exit 0
+  fi
+fi
+
 # Check if this is a relay request (devcontainer/SSH audio/notification/health)
 for arg in "$@"; do
   if [[ "$arg" == *"/play?"* ]] || [[ "$arg" == *"/health"* ]]; then
@@ -215,6 +252,27 @@ teardown_test_env() {
   # Clean up relay mock
   rm -f "$TEST_DIR/.relay_available" 2>/dev/null || true
   rm -rf "$TEST_DIR" 2>/dev/null || true
+}
+
+# Set up mock fixtures for pack-download.sh tests
+setup_pack_download_env() {
+  # Mock registry JSON
+  cat > "$TEST_DIR/.mock_registry_json" <<'JSON'
+{"packs":[{"name":"test_pack_a","display_name":"Test Pack A","source_repo":"PeonPing/og-packs","source_ref":"v1.0.0","source_path":"test_pack_a"},{"name":"test_pack_b","display_name":"Test Pack B","source_repo":"PeonPing/og-packs","source_ref":"v1.0.0","source_path":"test_pack_b"}]}
+JSON
+
+  # Mock manifest (used for any openpeon.json download)
+  cat > "$TEST_DIR/.mock_manifest_json" <<'JSON'
+{"cesp_version":"1.0","name":"mock","display_name":"Mock Pack","categories":{"session.start":{"sounds":[{"file":"sounds/Hello1.wav","label":"Hello"}]}}}
+JSON
+
+  # Locate pack-download.sh (relative to this test file)
+  PACK_DL_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/pack-download.sh"
+
+  # Create scripts dir so peon.sh can find pack-download.sh
+  mkdir -p "$TEST_DIR/scripts"
+  cp "$PACK_DL_SH" "$TEST_DIR/scripts/pack-download.sh"
+  chmod +x "$TEST_DIR/scripts/pack-download.sh"
 }
 
 # Helper: run peon.sh with a JSON event

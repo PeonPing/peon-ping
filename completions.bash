@@ -15,7 +15,11 @@ _peon_completions() {
     case "$subcmd" in
       packs)
         if [ "$cword" -eq 2 ]; then
-          COMPREPLY=( $(compgen -W "list use next remove" -- "$cur") )
+          COMPREPLY=( $(compgen -W "list use next install remove" -- "$cur") )
+        elif [ "$cword" -eq 3 ] && [ "$prev" = "install" ]; then
+          COMPREPLY=( $(compgen -W "--all" -- "$cur") )
+        elif [ "$cword" -eq 3 ] && [ "$prev" = "list" ]; then
+          COMPREPLY=( $(compgen -W "--registry" -- "$cur") )
         elif [ "$cword" -eq 3 ] && { [ "$prev" = "use" ] || [ "$prev" = "remove" ]; }; then
           packs_dir="${CLAUDE_PEON_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping}/packs"
           [ ! -d "$packs_dir" ] && [ -d "$HOME/.openpeon/packs" ] && packs_dir="$HOME/.openpeon/packs"

@@ -70,10 +70,6 @@ fi
 # Default packs (curated English set installed by default)
 DEFAULT_PACKS="peon peasant glados sc_kerrigan sc_battlecruiser ra2_kirov dota2_axe duke_nukem tf2_engineer hd2_helldiver"
 
-# Fallback pack list (used if registry is unreachable)
-FALLBACK_PACKS="acolyte_de acolyte_ru aoe2 aom_greek brewmaster_ru dota2_axe duke_nukem glados hd2_helldiver molag_bal murloc ocarina_of_time peon peon_cz peon_de peon_es peon_fr peon_pl peon_ru peasant peasant_cz peasant_es peasant_fr peasant_ru ra2_kirov ra2_soviet_engineer ra_soviet rick sc_battlecruiser sc_firebat sc_kerrigan sc_medic sc_scv sc_tank sc_terran sc_vessel sheogorath sopranos tf2_engineer wc2_peasant"
-FALLBACK_REPO="PeonPing/og-packs"
-FALLBACK_REF="v1.1.0"
 
 # --- Platform detection ---
 detect_platform() {
@@ -326,6 +322,7 @@ else
   mkdir -p "$INSTALL_DIR/scripts"
   curl -fsSL "$REPO_BASE/scripts/hook-handle-use.sh" -o "$INSTALL_DIR/scripts/hook-handle-use.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/hook-handle-use.ps1" -o "$INSTALL_DIR/scripts/hook-handle-use.ps1" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/scripts/pack-download.sh" -o "$INSTALL_DIR/scripts/pack-download.sh" 2>/dev/null || true
   mkdir -p "$INSTALL_DIR/docs"
   curl -fsSL "$REPO_BASE/docs/peon-icon.png" -o "$INSTALL_DIR/docs/peon-icon.png" 2>/dev/null || true
   if [ "$UPDATING" = false ]; then
@@ -333,312 +330,22 @@ else
   fi
 fi
 
-# --- Fetch pack list from registry ---
-PACKS=""
-ALL_PACKS=""
-REGISTRY_JSON=""
+# --- Download sound packs via shared engine ---
+PACK_DL="$INSTALL_DIR/scripts/pack-download.sh"
+chmod +x "$PACK_DL" 2>/dev/null || true
 
-is_safe_pack_name() {
-  [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]
-}
-
-is_safe_source_repo() {
-  [[ "$1" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]
-}
-
-is_safe_source_ref() {
-  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] && [[ "$1" != *".."* ]] && [[ "$1" != /* ]]
-}
-
-is_safe_source_path() {
-  [[ "$1" =~ ^[A-Za-z0-9._/-]+$ ]] && [[ "$1" != *".."* ]] && [[ "$1" != /* ]]
-}
-
-is_safe_filename() {
-  [[ "$1" =~ ^[A-Za-z0-9._?!-]+$ ]]
-}
-
-# URL-encode characters that break raw GitHub URLs (e.g. ? in filenames)
-urlencode_filename() {
-  local f="$1"
-  f="${f//\?/%3F}"
-  f="${f//\!/%21}"
-  f="${f//\#/%23}"
-  printf '%s' "$f"
-}
-
-# Compute sha256 of a file (portable across macOS and Linux)
-file_sha256() {
-  if command -v shasum &>/dev/null; then
-    shasum -a 256 "$1" 2>/dev/null | cut -d' ' -f1
-  elif command -v sha256sum &>/dev/null; then
-    sha256sum "$1" 2>/dev/null | cut -d' ' -f1
-  else
-    # fallback: use python
-    python3 -c "import hashlib; print(hashlib.sha256(open('$1','rb').read()).hexdigest())" 2>/dev/null
-  fi
-}
-
-# Check if a downloaded sound file matches its stored checksum
-is_cached_valid() {
-  local filepath="$1" checksums_file="$2" filename="$3"
-  [ -s "$filepath" ] || return 1
-  [ -f "$checksums_file" ] || return 1
-  local stored_hash current_hash
-  stored_hash=$(grep -F "$filename " "$checksums_file" 2>/dev/null | head -1 | cut -d' ' -f2)
-  [ -n "$stored_hash" ] || return 1
-  current_hash=$(file_sha256 "$filepath")
-  [ "$stored_hash" = "$current_hash" ]
-}
-
-# Store checksum for a downloaded file
-store_checksum() {
-  local checksums_file="$1" filename="$2" filepath="$3"
-  local hash
-  hash=$(file_sha256 "$filepath")
-  # Remove old entry if present, then append new one
-  grep -vF "$filename " "$checksums_file" > "$checksums_file.tmp" 2>/dev/null || true
-  echo "$filename $hash" >> "$checksums_file.tmp"
-  mv "$checksums_file.tmp" "$checksums_file"
-}
-
-echo "Fetching pack registry..."
-if REGISTRY_JSON=$(curl -fsSL "$REGISTRY_URL" 2>/dev/null); then
-  ALL_PACKS=$(python3 -c "
-import json, sys
-data = json.loads(sys.stdin.read())
-for p in data.get('packs', []):
-    print(p['name'])
-" <<< "$REGISTRY_JSON")
-  TOTAL_AVAILABLE=$(echo "$ALL_PACKS" | wc -l | tr -d ' ')
-  echo "Registry: $TOTAL_AVAILABLE packs available"
-else
-  echo "Warning: Could not fetch registry, using fallback pack list"
-  ALL_PACKS="$FALLBACK_PACKS"
-fi
-
-# Select packs to install
 if [ -n "$CUSTOM_PACKS" ]; then
-  PACKS=$(echo "$CUSTOM_PACKS" | tr ',' ' ')
-  echo "Installing custom packs: $PACKS"
+  bash "$PACK_DL" --dir="$INSTALL_DIR" --packs="$CUSTOM_PACKS"
 elif [ "$INSTALL_ALL" = true ]; then
-  PACKS="$ALL_PACKS"
-  echo "Installing all $(echo "$PACKS" | wc -l | tr -d ' ') packs..."
+  bash "$PACK_DL" --dir="$INSTALL_DIR" --all
 else
-  PACKS="$DEFAULT_PACKS"
-  echo "Installing $(echo "$PACKS" | wc -w | tr -d ' ') default packs (use --all for all $(echo "$ALL_PACKS" | wc -l | tr -d ' '))"
-fi
-
-# --- Download sound packs ---
-PACK_ARRAY=($PACKS)
-TOTAL_PACKS=${#PACK_ARRAY[@]}
-PACK_INDEX=0
-
-IS_TTY=false
-[ -t 1 ] && IS_TTY=true
-
-TOTAL_DOWNLOAD_FILES=0
-TOTAL_DOWNLOAD_BYTES=0
-TOTAL_DOWNLOAD_PACKS=0
-
-draw_progress() {
-  local pidx="$1" ptotal="$2" pname="$3"
-  local cur="$4" total="$5" bytes="$6"
-  local idx_width=${#ptotal}
-  local bar_width=20 filled=0 empty i bar=""
-
-  if [ "$total" -gt 0 ]; then
-    filled=$(( cur * bar_width / total ))
-  fi
-  empty=$(( bar_width - filled ))
-  for (( i=0; i<filled; i++ )); do bar+="#"; done
-  for (( i=0; i<empty; i++ )); do bar+="-"; done
-
-  local size_str
-  if [ "$bytes" -ge 1048576 ]; then
-    size_str="$(( bytes / 1048576 )).$(( (bytes % 1048576) * 10 / 1048576 )) MB"
-  elif [ "$bytes" -ge 1024 ]; then
-    size_str="$(( bytes / 1024 )) KB"
-  else
-    size_str="$bytes B"
-  fi
-
-  printf "\r  [%${idx_width}d/%d] %-20s [%s] %d/%d (%s)%-10s" \
-    "$pidx" "$ptotal" "$pname" "$bar" "$cur" "$total" "$size_str" ""
-}
-
-echo ""
-echo "Downloading packs..."
-for pack in $PACKS; do
-  if ! is_safe_pack_name "$pack"; then
-    echo "  Warning: skipping invalid pack name: $pack" >&2
-    continue
-  fi
-
-  PACK_INDEX=$((PACK_INDEX + 1))
-
-  mkdir -p "$INSTALL_DIR/packs/$pack/sounds"
-
-  # Get source info from registry (or use fallback)
-  SOURCE_REPO=""
-  SOURCE_REF=""
-  SOURCE_PATH=""
-  if [ -n "$REGISTRY_JSON" ]; then
-    PACK_META=$(PACK_NAME="$pack" python3 -c "
-import json, sys
-data = json.loads(sys.stdin.read())
-for p in data.get('packs', []):
-    if p.get('name') == __import__('os').environ.get('PACK_NAME'):
-        print(p.get('source_repo', ''))
-        print(p.get('source_ref', 'main'))
-        print(p.get('source_path', ''))
-        break
-" <<< "$REGISTRY_JSON" 2>/dev/null || true)
-    SOURCE_REPO=$(printf '%s\n' "$PACK_META" | sed -n '1p')
-    SOURCE_REF=$(printf '%s\n' "$PACK_META" | sed -n '2p')
-    SOURCE_PATH=$(printf '%s\n' "$PACK_META" | sed -n '3p')
-  fi
-
-  if [ -n "$SOURCE_REPO" ] && ! is_safe_source_repo "$SOURCE_REPO"; then
-    SOURCE_REPO=""
-  fi
-  if [ -n "$SOURCE_REF" ] && ! is_safe_source_ref "$SOURCE_REF"; then
-    SOURCE_REF=""
-  fi
-  if [ -n "$SOURCE_PATH" ] && ! is_safe_source_path "$SOURCE_PATH"; then
-    SOURCE_PATH=""
-  fi
-
-  if [ -z "$SOURCE_REPO" ] || [ -z "$SOURCE_REF" ] || [ -z "$SOURCE_PATH" ]; then
-    SOURCE_REPO="$FALLBACK_REPO"
-    SOURCE_REF="$FALLBACK_REF"
-    SOURCE_PATH="$pack"
-  fi
-
-  # Construct base URL for this pack's files
-  if [ -n "$SOURCE_PATH" ]; then
-    PACK_BASE="https://raw.githubusercontent.com/$SOURCE_REPO/$SOURCE_REF/$SOURCE_PATH"
-  else
-    PACK_BASE="https://raw.githubusercontent.com/$SOURCE_REPO/$SOURCE_REF"
-  fi
-
-  # Download manifest
-  if ! curl -fsSL "$PACK_BASE/openpeon.json" -o "$INSTALL_DIR/packs/$pack/openpeon.json" 2>/dev/null; then
-    echo "  Warning: failed to download manifest for $pack" >&2
-    continue
-  fi
-
-  # Download sound files
-  manifest="$INSTALL_DIR/packs/$pack/openpeon.json"
-  SOUND_COUNT=$(python3 -c "
-import json, os
-m = json.load(open('$manifest'))
-seen = set()
-for cat in m.get('categories', {}).values():
-    for s in cat.get('sounds', []):
-        seen.add(os.path.basename(s['file']))
-print(len(seen))
-" 2>/dev/null || echo "?")
-
-  CHECKSUMS_FILE="$INSTALL_DIR/packs/$pack/.checksums"
-  touch "$CHECKSUMS_FILE"
-
-  if [ "$IS_TTY" = true ] && [ "$SOUND_COUNT" != "?" ]; then
-    local_file_count=0
-    local_byte_count=0
-
-    draw_progress "$PACK_INDEX" "$TOTAL_PACKS" "$pack" 0 "$SOUND_COUNT" 0
-
-    while read -r sfile; do
-      if ! is_safe_filename "$sfile"; then
-        echo "  Warning: skipped unsafe filename in $pack: $sfile" >&2
-        continue
-      fi
-      if is_cached_valid "$INSTALL_DIR/packs/$pack/sounds/$sfile" "$CHECKSUMS_FILE" "$sfile"; then
-        local_file_count=$((local_file_count + 1))
-        fsize=$(wc -c < "$INSTALL_DIR/packs/$pack/sounds/$sfile" | tr -d ' ')
-        local_byte_count=$((local_byte_count + fsize))
-      elif curl -fsSL "$PACK_BASE/sounds/$(urlencode_filename "$sfile")" \
-           -o "$INSTALL_DIR/packs/$pack/sounds/$sfile" </dev/null 2>/dev/null; then
-        store_checksum "$CHECKSUMS_FILE" "$sfile" "$INSTALL_DIR/packs/$pack/sounds/$sfile"
-        local_file_count=$((local_file_count + 1))
-        fsize=$(wc -c < "$INSTALL_DIR/packs/$pack/sounds/$sfile" | tr -d ' ')
-        local_byte_count=$((local_byte_count + fsize))
-      else
-        echo "  Warning: failed to download $pack/sounds/$sfile" >&2
-      fi
-      draw_progress "$PACK_INDEX" "$TOTAL_PACKS" "$pack" \
-        "$local_file_count" "$SOUND_COUNT" "$local_byte_count"
-    done < <(python3 -c "
-import json, os
-m = json.load(open('$manifest'))
-seen = set()
-for cat in m.get('categories', {}).values():
-    for s in cat.get('sounds', []):
-        f = s['file']
-        basename = os.path.basename(f)
-        if basename not in seen:
-            seen.add(basename)
-            print(basename)
-")
-
-    draw_progress "$PACK_INDEX" "$TOTAL_PACKS" "$pack" \
-      "$local_file_count" "$SOUND_COUNT" "$local_byte_count"
-    printf "\n"
-
-    TOTAL_DOWNLOAD_FILES=$((TOTAL_DOWNLOAD_FILES + local_file_count))
-    TOTAL_DOWNLOAD_BYTES=$((TOTAL_DOWNLOAD_BYTES + local_byte_count))
-    TOTAL_DOWNLOAD_PACKS=$((TOTAL_DOWNLOAD_PACKS + 1))
-  else
-    printf "  [%d/%d] %s " "$PACK_INDEX" "$TOTAL_PACKS" "$pack"
-
-    python3 -c "
-import json, os
-m = json.load(open('$manifest'))
-seen = set()
-for cat in m.get('categories', {}).values():
-    for s in cat.get('sounds', []):
-        f = s['file']
-        basename = os.path.basename(f)
-        if basename not in seen:
-            seen.add(basename)
-            print(basename)
-" | while read -r sfile; do
-      if ! is_safe_filename "$sfile"; then
-        echo "  Warning: skipped unsafe filename in $pack: $sfile" >&2
-        continue
-      fi
-      if is_cached_valid "$INSTALL_DIR/packs/$pack/sounds/$sfile" "$CHECKSUMS_FILE" "$sfile"; then
-        printf "."
-      elif curl -fsSL "$PACK_BASE/sounds/$(urlencode_filename "$sfile")" -o "$INSTALL_DIR/packs/$pack/sounds/$sfile" </dev/null 2>/dev/null; then
-        store_checksum "$CHECKSUMS_FILE" "$sfile" "$INSTALL_DIR/packs/$pack/sounds/$sfile"
-        printf "."
-      else
-        printf "x"
-        echo "  Warning: failed to download $pack/sounds/$sfile" >&2
-      fi
-    done
-
-    printf " %s sounds\n" "$SOUND_COUNT"
-    TOTAL_DOWNLOAD_PACKS=$((TOTAL_DOWNLOAD_PACKS + 1))
-  fi
-done
-
-if [ "$IS_TTY" = true ] && [ "$TOTAL_DOWNLOAD_PACKS" -gt 0 ]; then
-  if [ "$TOTAL_DOWNLOAD_BYTES" -ge 1048576 ]; then
-    SUMMARY_SIZE="$(( TOTAL_DOWNLOAD_BYTES / 1048576 )).$(( (TOTAL_DOWNLOAD_BYTES % 1048576) * 10 / 1048576 )) MB"
-  elif [ "$TOTAL_DOWNLOAD_BYTES" -ge 1024 ]; then
-    SUMMARY_SIZE="$(( TOTAL_DOWNLOAD_BYTES / 1024 )) KB"
-  else
-    SUMMARY_SIZE="$TOTAL_DOWNLOAD_BYTES B"
-  fi
-  echo ""
-  echo "Downloaded $TOTAL_DOWNLOAD_PACKS packs ($TOTAL_DOWNLOAD_FILES files, $SUMMARY_SIZE)"
+  bash "$PACK_DL" --dir="$INSTALL_DIR" --packs="$(echo "$DEFAULT_PACKS" | tr ' ' ',')"
 fi
 
 chmod +x "$INSTALL_DIR/peon.sh"
 chmod +x "$INSTALL_DIR/relay.sh"
 chmod +x "$INSTALL_DIR/scripts/hook-handle-use.sh" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/scripts/pack-download.sh" 2>/dev/null || true
 
 # --- Install skill (slash command) ---
 SKILL_DIR="$BASE_DIR/skills/peon-ping-toggle"
@@ -772,8 +479,18 @@ if [ -d "$HOME/.config/fish" ]; then
 fi
 
 # --- Verify sounds are installed ---
+if [ -n "$CUSTOM_PACKS" ]; then
+  VERIFY_PACKS=$(echo "$CUSTOM_PACKS" | tr ',' ' ')
+elif [ "$INSTALL_ALL" = true ]; then
+  VERIFY_PACKS=""
+  for _d in "$INSTALL_DIR/packs"/*/; do
+    [ -d "$_d" ] && VERIFY_PACKS="$VERIFY_PACKS $(basename "$_d")"
+  done
+else
+  VERIFY_PACKS="$DEFAULT_PACKS"
+fi
 echo ""
-for pack in $PACKS; do
+for pack in $VERIFY_PACKS; do
   sound_dir="$INSTALL_DIR/packs/$pack/sounds"
   sound_count=$({ ls "$sound_dir"/*.wav "$sound_dir"/*.mp3 "$sound_dir"/*.ogg 2>/dev/null || true; } | wc -l | tr -d ' ')
   if [ "$sound_count" -eq 0 ]; then

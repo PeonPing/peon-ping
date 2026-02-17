@@ -22,6 +22,8 @@ setup() {
   cp "$(dirname "$BATS_TEST_FILENAME")/../relay.sh" "$CLONE_DIR/"
   cp "$(dirname "$BATS_TEST_FILENAME")/../uninstall.sh" "$CLONE_DIR/" 2>/dev/null || touch "$CLONE_DIR/uninstall.sh"
   cp -r "$(dirname "$BATS_TEST_FILENAME")/../skills" "$CLONE_DIR/" 2>/dev/null || true
+  mkdir -p "$CLONE_DIR/scripts"
+  cp "$(dirname "$BATS_TEST_FILENAME")/../scripts/"*.sh "$CLONE_DIR/scripts/" 2>/dev/null || true
 
   INSTALL_DIR="$TEST_HOME/.claude/hooks/peon-ping"
 
@@ -290,8 +292,8 @@ print('OK')
 # --- is_safe_filename tests ---
 
 @test "is_safe_filename allows question marks and exclamation marks" {
-  # Source just the function from install.sh
-  eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$CLONE_DIR/install.sh")"
+  # Source just the function from pack-download.sh
+  eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$CLONE_DIR/scripts/pack-download.sh")"
   is_safe_filename "New_construction?.mp3"
   is_safe_filename "Yeah?.mp3"
   is_safe_filename "What!.wav"
@@ -299,7 +301,7 @@ print('OK')
 }
 
 @test "is_safe_filename rejects unsafe characters" {
-  eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$CLONE_DIR/install.sh")"
+  eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$CLONE_DIR/scripts/pack-download.sh")"
   ! is_safe_filename "../etc/passwd"
   ! is_safe_filename "file;rm -rf /"
   ! is_safe_filename 'file$(cmd)'
@@ -308,25 +310,25 @@ print('OK')
 # --- urlencode_filename tests ---
 
 @test "urlencode_filename encodes question marks" {
-  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/install.sh")"
+  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/scripts/pack-download.sh")"
   result=$(urlencode_filename "New_construction?.mp3")
   [ "$result" = "New_construction%3F.mp3" ]
 }
 
 @test "urlencode_filename encodes exclamation marks" {
-  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/install.sh")"
+  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/scripts/pack-download.sh")"
   result=$(urlencode_filename "Wow!.mp3")
   [ "$result" = "Wow%21.mp3" ]
 }
 
 @test "urlencode_filename encodes hash symbols" {
-  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/install.sh")"
+  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/scripts/pack-download.sh")"
   result=$(urlencode_filename "Track#1.mp3")
   [ "$result" = "Track%231.mp3" ]
 }
 
 @test "urlencode_filename leaves normal filenames unchanged" {
-  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/install.sh")"
+  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$CLONE_DIR/scripts/pack-download.sh")"
   result=$(urlencode_filename "Hello.wav")
   [ "$result" = "Hello.wav" ]
 }

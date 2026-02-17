@@ -775,6 +775,68 @@ JSON
 }
 
 # ============================================================
+# packs install
+# ============================================================
+
+@test "packs install with no args shows usage" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs install
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Usage"* ]]
+  [[ "$output" == *"packs install"* ]]
+}
+
+@test "packs install downloads pack via pack-download.sh" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs install test_pack_a
+  [ "$status" -eq 0 ]
+  [ -d "$TEST_DIR/packs/test_pack_a" ]
+  [ -f "$TEST_DIR/packs/test_pack_a/openpeon.json" ]
+}
+
+@test "packs install --all downloads all packs" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs install --all
+  [ "$status" -eq 0 ]
+  [ -d "$TEST_DIR/packs/test_pack_a" ]
+  [ -d "$TEST_DIR/packs/test_pack_b" ]
+}
+
+@test "packs install errors when pack-download.sh missing" {
+  # Don't call setup_pack_download_env — no scripts/ dir
+  run bash "$PEON_SH" packs install test_pack_a
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"pack-download.sh not found"* ]]
+}
+
+@test "packs list --registry shows registry packs" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs list --registry
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"test_pack_a"* ]]
+  [[ "$output" == *"Test Pack A"* ]]
+}
+
+@test "packs list --registry errors when pack-download.sh missing" {
+  # Don't call setup_pack_download_env — no scripts/ dir
+  run bash "$PEON_SH" packs list --registry
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"pack-download.sh not found"* ]]
+}
+
+@test "help shows packs install command" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"packs install"* ]]
+}
+
+@test "help shows packs list --registry" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--registry"* ]]
+}
+
+# ============================================================
 # Pack rotation
 # ============================================================
 

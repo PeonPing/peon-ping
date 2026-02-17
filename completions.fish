@@ -36,7 +36,14 @@ complete -c peon -n __peon_no_subcommand -a help -d "Show help message"
 complete -c peon -n "__peon_using_subcommand packs" -a list -d "List installed sound packs"
 complete -c peon -n "__peon_using_subcommand packs" -a use -d "Switch to a specific pack"
 complete -c peon -n "__peon_using_subcommand packs" -a next -d "Cycle to the next pack"
+complete -c peon -n "__peon_using_subcommand packs" -a install -d "Download and install new packs"
 complete -c peon -n "__peon_using_subcommand packs" -a remove -d "Remove specific packs"
+
+# packs install options
+complete -c peon -n "__peon_packs_subcommand install" -a "--all" -d "Install all packs from registry"
+
+# packs list options
+complete -c peon -n "__peon_packs_subcommand list" -a "--registry" -d "List all available packs from registry"
 
 # Pack name completions for 'packs use' and 'packs remove'
 complete -c peon -n "__peon_packs_subcommand use" -a "(
