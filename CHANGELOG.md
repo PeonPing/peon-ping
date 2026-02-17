@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.1.0-alpha (2026-02-17)
+
+### Added
+- `peon packs install <pack1,pack2>` and `peon packs install --all` for post-install pack management ([#179](https://github.com/PeonPing/peon-ping/pull/179))
+- `peon packs list --registry` to browse all available packs from the registry ([#179](https://github.com/PeonPing/peon-ping/pull/179))
+- Bash and fish shell completions for new packs commands ([#179](https://github.com/PeonPing/peon-ping/pull/179))
+- Shared `scripts/pack-download.sh` engine extracted from installer ([#179](https://github.com/PeonPing/peon-ping/pull/179))
+
+### Fixed
+- Local installs (`--local`) now use correct `INSTALL_DIR` for skill hook paths instead of hardcoded global path ([#180](https://github.com/PeonPing/peon-ping/pull/180))
+- Cursor IDE hooks registration now handles flat-array `hooks.json` format
+
 ## v2.0.0-alpha (2026-02-16)
 
 ### Added
