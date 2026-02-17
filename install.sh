@@ -671,15 +671,24 @@ before_submit_hook = {
     'timeout': 5
 }
 
-# Register beforeSubmitPrompt hook
-event_hooks = hooks.get('beforeSubmitPrompt', [])
-# Remove any existing handle-use entries
-event_hooks = [
-    h for h in event_hooks
-    if 'hook-handle-use.sh' not in h.get('command', '')
-]
-event_hooks.append(before_submit_hook)
-hooks['beforeSubmitPrompt'] = event_hooks
+# Handle both flat-array format [{event, command}] and dict format {event: [{command}]}
+if isinstance(hooks, list):
+    # Flat array format: remove existing handle-use entries for this event
+    hooks = [
+        h for h in hooks
+        if not (h.get('event') == 'beforeSubmitPrompt' and 'hook-handle-use.sh' in h.get('command', ''))
+    ]
+    before_submit_hook['event'] = 'beforeSubmitPrompt'
+    hooks.append(before_submit_hook)
+else:
+    # Dict format
+    event_hooks = hooks.get('beforeSubmitPrompt', [])
+    event_hooks = [
+        h for h in event_hooks
+        if 'hook-handle-use.sh' not in h.get('command', '')
+    ]
+    event_hooks.append(before_submit_hook)
+    hooks['beforeSubmitPrompt'] = event_hooks
 
 data['hooks'] = hooks
 
