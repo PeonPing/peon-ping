@@ -8,10 +8,12 @@ LOCAL_MODE=false
 INIT_LOCAL_CONFIG=false
 INSTALL_ALL=false
 CUSTOM_PACKS=""
+OPENCLAW_MODE=false
 for arg in "$@"; do
   case "$arg" in
     --global) LOCAL_MODE=false ;;
     --local) LOCAL_MODE=true ;;
+    --openclaw) OPENCLAW_MODE=true ;;
     --init-local-config) INIT_LOCAL_CONFIG=true ;;
     --all) INSTALL_ALL=true ;;
     --packs=*) CUSTOM_PACKS="${arg#--packs=}" ;;
@@ -22,6 +24,7 @@ Usage: install.sh [OPTIONS]
 Options:
   --global             Install globally (default)
   --local              Install in current project (.claude)
+  --openclaw           Install as OpenClaw skill (~/.openclaw/skills)
   --init-local-config  Create local config only, then exit
   --all                Install all packs
   --packs=<a,b,c>      Install specific packs
@@ -33,13 +36,29 @@ done
 
 GLOBAL_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 LOCAL_BASE="$PWD/.claude"
-if [ "$LOCAL_MODE" = true ]; then
+OPENCLAW_BASE="$HOME/.openclaw"
+
+# Auto-detect OpenClaw if present and Claude Code is not
+if [ "$OPENCLAW_MODE" = false ] && [ "$LOCAL_MODE" = false ]; then
+  if [ -d "$OPENCLAW_BASE" ] && [ ! -d "$GLOBAL_BASE" ]; then
+    OPENCLAW_MODE=true
+    echo "Auto-detected OpenClaw installation (no Claude Code found)."
+  fi
+fi
+
+if [ "$OPENCLAW_MODE" = true ]; then
+  BASE_DIR="$OPENCLAW_BASE"
+  INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
+  SETTINGS=""  # OpenClaw doesn't use settings.json for hooks
+elif [ "$LOCAL_MODE" = true ]; then
   BASE_DIR="$LOCAL_BASE"
 else
   BASE_DIR="$GLOBAL_BASE"
 fi
-INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
-SETTINGS="$BASE_DIR/settings.json"
+if [ "$OPENCLAW_MODE" = false ]; then
+  INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
+  SETTINGS="$BASE_DIR/settings.json"
+fi
 REPO_BASE="https://raw.githubusercontent.com/PeonPing/peon-ping/main"
 REGISTRY_URL="https://peonping.github.io/registry/index.json"
 
@@ -504,6 +523,86 @@ if [ "$LOCAL_MODE" = false ] && [ "$UPDATING" = false ]; then
     echo ""
     echo "Backed up notify.sh → notify.sh.backup"
   fi
+fi
+
+# --- OpenClaw skill installation ---
+if [ "$OPENCLAW_MODE" = true ]; then
+  echo ""
+  echo "Installing OpenClaw skill..."
+
+  OC_SKILL_DIR="$OPENCLAW_BASE/skills/peon-ping"
+  mkdir -p "$OC_SKILL_DIR"
+
+  cat > "$OC_SKILL_DIR/SKILL.md" <<'OCSKILL'
+# peon-ping — Sound Notifications for OpenClaw
+
+Play audio notifications when your OpenClaw agent completes tasks, encounters errors, or needs input.
+
+## Usage
+
+The adapter translates OpenClaw events into peon-ping sounds:
+
+```bash
+# Play a sound for an event
+bash ~/.openclaw/hooks/peon-ping/adapters/openclaw.sh task.complete
+bash ~/.openclaw/hooks/peon-ping/adapters/openclaw.sh task.error
+bash ~/.openclaw/hooks/peon-ping/adapters/openclaw.sh input.required
+bash ~/.openclaw/hooks/peon-ping/adapters/openclaw.sh session.start
+```
+
+## Controls
+
+```bash
+# Toggle sounds on/off
+peon toggle
+
+# Check status
+peon status
+
+# Switch sound pack
+peon use <pack_name>
+
+# List available packs
+peon list
+```
+
+## OpenClaw Integration
+
+Add to your agent's workflow by calling the adapter after key events:
+- Sub-agent completion → `task.complete`
+- Build/deploy errors → `task.error`
+- Permission needed → `input.required`
+- Session start → `session.start`
+
+## Config
+
+Edit `~/.openclaw/hooks/peon-ping/config.json` to change volume, active pack, or toggle categories.
+OCSKILL
+
+  echo "OpenClaw skill installed at $OC_SKILL_DIR/SKILL.md"
+
+  # Copy the OpenClaw adapter
+  if [ -f "$INSTALL_DIR/adapters/openclaw.sh" ]; then
+    chmod +x "$INSTALL_DIR/adapters/openclaw.sh"
+    echo "OpenClaw adapter ready at $INSTALL_DIR/adapters/openclaw.sh"
+  fi
+
+  echo ""
+  echo "=== OpenClaw Installation complete! ==="
+  echo ""
+  echo "Config: $INSTALL_DIR/config.json"
+  echo "Skill:  $OC_SKILL_DIR/SKILL.md"
+  echo ""
+  echo "Quick controls:"
+  echo "  peon toggle        — toggle sounds"
+  echo "  peon status        — check if sounds are paused"
+  echo "  peon use <pack>    — switch sound pack"
+  echo ""
+  echo "Usage in your agent:"
+  echo "  bash $INSTALL_DIR/adapters/openclaw.sh task.complete"
+  echo ""
+  echo "Ready to work!"
+  exit 0
 fi
 
 # --- Update settings.json ---
