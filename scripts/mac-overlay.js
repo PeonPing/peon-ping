@@ -10,7 +10,7 @@
 ObjC.import('Cocoa');
 
 function run(argv) {
-  var message  = argv[0] || 'peon-ping';
+  var message  = argv[0] || 'peon-nsx';
   var color    = argv[1] || 'red';
   var iconPath = argv[2] || '';
   var slot     = parseInt(argv[3], 10) || 0;
@@ -22,16 +22,21 @@ function run(argv) {
   var subtitle    = argv[8] || '';
   var position    = argv[9] || 'top-center';
 
-  // Color map
-  var r = 180/255, g = 0, b = 0;
-  switch (color) {
-    case 'blue':   r = 30/255;  g = 80/255;  b = 180/255; break;
-    case 'yellow': r = 200/255; g = 160/255; b = 0;       break;
-    case 'red':    r = 180/255; g = 0;       b = 0;       break;
-  }
+  // NSX Design System — backgroundBrand2 (#0B1429 deep navy) as base
+  var bgColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(11/255, 20/255, 41/255, 1.0);
 
-  var bgColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(r, g, b, 1.0);
+  // Accent stripe color by notification type (NSX Design System tokens)
+  var accentR, accentG, accentB;
+  switch (color) {
+    case 'blue':   accentR = 37/255;  accentG = 128/255; accentB = 255/255; break; // brandPrimary1   #2580FF
+    case 'yellow': accentR = 224/255; accentG = 117/255; accentB = 45/255;  break; // supportAlert2   #E0752D
+    case 'green':  accentR = 51/255;  accentG = 184/255; accentB = 120/255; break; // supportSuccess2 #33B878
+    default:       accentR = 224/255; accentG = 63/255;  accentB = 68/255;  break; // supportError2   #E03F44
+  }
+  var accentColor = $.NSColor.colorWithSRGBRedGreenBlueAlpha(accentR, accentG, accentB, 1.0);
+
   var winWidth = 500, winHeight = 80;
+  var stripeWidth = 4;
 
   $.NSApplication.sharedApplication;
   $.NSApp.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
@@ -159,23 +164,32 @@ function run(argv) {
     );
 
     win.contentView.wantsLayer = true;
-    win.contentView.layer.cornerRadius = 12;
+    win.contentView.layer.cornerRadius = 8;
     win.contentView.layer.masksToBounds = true;
 
     var contentView = win.contentView;
-    var textX = 10, textWidth = winWidth - 30;
+
+    // Left accent stripe — NSX brand color for notification type
+    var stripe = $.NSBox.alloc.initWithFrame($.NSMakeRect(0, 0, stripeWidth, winHeight));
+    stripe.setBoxType($.NSBoxCustom);
+    stripe.setFillColor(accentColor);
+    stripe.setBorderWidth(0);
+    stripe.setTitlePosition($.NSNoTitle);
+    contentView.addSubview(stripe);
+
+    var textX = stripeWidth + 10, textWidth = winWidth - stripeWidth - 30;
 
     if (iconPath !== '' && $.NSFileManager.defaultManager.fileExistsAtPath(iconPath)) {
       var iconImage = $.NSImage.alloc.initWithContentsOfFile(iconPath);
       if (iconImage && !iconImage.isNil()) {
         var iconSize = 60;
         var iconView = $.NSImageView.alloc.initWithFrame(
-          $.NSMakeRect(10, (winHeight - iconSize) / 2, iconSize, iconSize)
+          $.NSMakeRect(textX, (winHeight - iconSize) / 2, iconSize, iconSize)
         );
         iconView.setImage(iconImage);
         iconView.setImageScaling($.NSImageScaleProportionallyUpOrDown);
         contentView.addSubview(iconView);
-        textX = 10 + iconSize + 5;
+        textX = textX + iconSize + 5;
         textWidth = winWidth - textX - 20;
       }
     }

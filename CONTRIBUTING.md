@@ -2,7 +2,7 @@
 
 ## Add a new sound pack
 
-Sound packs are now hosted in their own GitHub repos and registered in the [OpenPeon registry](https://github.com/PeonPing/registry).
+Sound packs are now hosted in their own GitHub repos and registered in the [OpenPeon registry](https://github.com/NSXBet/registry).
 
 ### 1. Create your pack
 

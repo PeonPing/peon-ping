@@ -891,7 +891,7 @@ const OutroCard: React.FC = () => {
             opacity: ctaEnter,
           }}
         >
-          github.com/PeonPing/peon-ping
+          github.com/NSXBet/peon-nsx
         </div>
 
         {/* Social */}

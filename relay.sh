@@ -516,7 +516,7 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
         else:
             body = {}
 
-        title = str(body.get("title", "peon-ping"))[:256]
+        title = str(body.get("title", "peon-nsx"))[:256]
         message = str(body.get("message", ""))[:512]
         color = str(body.get("color", "red"))
 

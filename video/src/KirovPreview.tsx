@@ -125,7 +125,7 @@ const TitleCard: React.FC = () => {
 
       <div style={{ position: "absolute", top: 50, display: "flex", alignItems: "center", gap: 12, opacity: logoSpring, transform: `translateY(${interpolate(logoSpring, [0, 1], [10, 0])}px)` }}>
         <Img src={staticFile("peon-portrait.gif")} style={{ width: 48, height: 48, borderRadius: 6, border: `2px solid ${WC3_GOLD}`, boxShadow: "0 0 12px rgba(255,171,1,0.25)" }} />
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, color: WC3_GOLD, letterSpacing: 0.5, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>github.com/PeonPing/peon-ping</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 20, color: WC3_GOLD, letterSpacing: 0.5, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>github.com/NSXBet/peon-nsx</span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", opacity: titleSpring, transform: `translateY(${interpolate(titleSpring, [0, 1], [20, 0])}px)` }}>
@@ -165,7 +165,7 @@ const OutroCard: React.FC = () => {
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, fontWeight: 700, color: WC3_GOLD, letterSpacing: 1, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>peon-ping</span>
         </div>
         <div style={{ fontFamily: "Georgia, serif", fontSize: 48, fontWeight: 600, color: "#fff", textShadow: "2px 2px 0 rgba(0,0,0,0.8)", marginBottom: 24 }}>Stop babysitting your terminal</div>
-        <div style={{ fontFamily: "monospace", fontSize: 24, color: WC3_GOLD, backgroundColor: "rgba(255,171,1,0.06)", padding: "14px 32px", borderRadius: 8, border: `1px solid ${WC3_GOLD_DIM}`, boxShadow: "0 0 20px rgba(255,171,1,0.08)" }}>github.com/PeonPing/peon-ping</div>
+        <div style={{ fontFamily: "monospace", fontSize: 24, color: WC3_GOLD, backgroundColor: "rgba(255,171,1,0.06)", padding: "14px 32px", borderRadius: 8, border: `1px solid ${WC3_GOLD_DIM}`, boxShadow: "0 0 20px rgba(255,171,1,0.08)" }}>github.com/NSXBet/peon-nsx</div>
         <div style={{ fontFamily: "monospace", fontSize: 18, color: "rgba(255,255,255,0.4)", marginTop: 20 }}>60+ sound packs available</div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 700, color: "rgba(255,255,255,0.5)" }}>𝕏</span>

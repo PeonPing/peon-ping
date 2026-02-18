@@ -39,7 +39,7 @@ interface Manifest {
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const REGISTRY_URL = "https://peonping.github.io/registry/index.json";
+const REGISTRY_URL = "https://nsxbet.github.io/registry/index.json";
 const DEFAULT_PACKS = new Set([
   "peon",
   "peasant",
@@ -551,7 +551,7 @@ export default function LandingPage() {
 
   /* ---- Pack count fetch ---- */
   useEffect(() => {
-    fetch("https://peonping.github.io/registry/index.json")
+    fetch("https://nsxbet.github.io/registry/index.json")
       .then((r) => r.json())
       .then((data) => {
         const count = Array.isArray(data)
@@ -617,7 +617,7 @@ export default function LandingPage() {
   /* ---- Picker: compute install command ---- */
   const pickerCommand = (() => {
     if (installMode === "brew") {
-      const brew = "brew install PeonPing/tap/peon-ping && peon-ping-setup";
+      const brew = "brew install NSXBet/tap/peon-nsx && peon-nsx-setup";
       if (selectedPacks.size === 0 || setsEqual(selectedPacks, DEFAULT_PACKS)) {
         return brew;
       } else if (selectedPacks.size === registryPacks.length) {
@@ -626,7 +626,7 @@ export default function LandingPage() {
         return brew + " --packs=" + Array.from(selectedPacks).sort().join(",");
       }
     } else {
-      const base = "curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash";
+      const base = "curl -fsSL https://raw.githubusercontent.com/NSXBet/peon-nsx/main/install.sh | bash";
       if (selectedPacks.size === 0 || setsEqual(selectedPacks, DEFAULT_PACKS)) {
         return base;
       } else if (selectedPacks.size === registryPacks.length) {
@@ -797,7 +797,7 @@ export default function LandingPage() {
             <img src="/images/peon-portrait.gif" alt="Peon mascot" className="peon-avatar" />
           </div>
           <p className="hero-label" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
-            <a href="https://github.com/PeonPing/peon-ping" style={{ color: "var(--wc3-gold)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <a href="https://github.com/NSXBet/peon-nsx" style={{ color: "var(--wc3-gold)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
               </svg>
@@ -827,7 +827,7 @@ export default function LandingPage() {
           <p className="hero-sub">
             Game character voice lines the instant your AI agent finishes or needs permission. Or let the agent choose its own sound via MCP. The idea that inspired Microsoft to add native sound hooks to VS Code for 50M+ users. Works with <strong>Claude Code</strong>, <strong>Codex</strong>, <strong>Cursor</strong>, <strong>OpenCode</strong>, <strong>Kiro</strong>, <strong>Windsurf</strong>, <strong>Antigravity</strong>, and more. Never lose flow to a silent terminal again.
           </p>
-          <CopyBlock command="brew install PeonPing/tap/peon-ping" />
+          <CopyBlock command="brew install NSXBet/tap/peon-nsx" />
           <p style={{ textAlign: "center", marginTop: "0.75rem", color: "var(--wc3-text-dim)", fontSize: "0.85rem" }}>
             or <code style={{ color: "var(--wc3-gold)", fontSize: "0.85rem" }}>curl -fsSL peonping.com/install | bash</code>
           </p>
@@ -1351,7 +1351,7 @@ export default function LandingPage() {
           <p className="section-desc" style={{ margin: "0 auto 32px" }}>
             One command. Works with Claude Code, Codex, Cursor, OpenCode, Kiro, and Antigravity on macOS, Linux, and WSL2.
           </p>
-          <CopyBlock command="brew install PeonPing/tap/peon-ping" />
+          <CopyBlock command="brew install NSXBet/tap/peon-nsx" />
           <p style={{ textAlign: "center", marginTop: "0.75rem", color: "var(--wc3-text-dim)", fontSize: "0.85rem" }}>
             or <code style={{ color: "var(--wc3-gold)", fontSize: "0.85rem" }}>curl -fsSL peonping.com/install | bash</code>
           </p>
@@ -1362,10 +1362,10 @@ export default function LandingPage() {
       <footer>
         <div className="container">
           <p>
-            MIT License &middot; <a href="https://github.com/PeonPing/peon-ping">GitHub</a> &middot; <a href="https://x.com/peonping">@peonping</a> &middot; <a href="https://discord.gg/guEDn2Umen" target="_blank" rel="noopener noreferrer">Discord</a>
+            MIT License &middot; <a href="https://github.com/NSXBet/peon-nsx">GitHub</a> &middot; <a href="https://x.com/peonping">@peonping</a> &middot; <a href="https://discord.gg/guEDn2Umen" target="_blank" rel="noopener noreferrer">Discord</a>
           </p>
           <p>
-            Sound files are property of their respective publishers. <a href="https://github.com/PeonPing/peon-ping/pulls">Contribute a pack</a>
+            Sound files are property of their respective publishers. <a href="https://github.com/NSXBet/peon-nsx/pulls">Contribute a pack</a>
           </p>
           <p style={{ marginTop: 16, fontSize: "0.68rem", color: "var(--wc3-text-dim)", opacity: 0.5 }}>
             support the project + have fun:{" "}

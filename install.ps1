@@ -1,7 +1,7 @@
 # peon-ping Windows Installer
 # Native Windows port - plays Warcraft III Peon sounds when Claude Code needs attention
-# Usage: powershell -File install.ps1
-# Originally made by https://github.com/SpamsRevenge in https://github.com/PeonPing/peon-ping/issues/94
+# Usage: powershell -ExecutionPolicy Bypass -File install.ps1
+# Originally made by https://github.com/SpamsRevenge in https://github.com/NSXBet/peon-nsx/issues/94
 
 param(
     [Parameter()]
