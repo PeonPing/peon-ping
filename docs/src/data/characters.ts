@@ -78,6 +78,14 @@ export const characters: Record<string, Character> = {
     color: "#800080",
     avatar: "/characters/kerrigan.png",
   },
+  speaki: {
+    id: "speaki",
+    name: "Petite Speaki",
+    faction: "Legendary Pet",
+    game: "Trickcal Chibi Go",
+    color: "#FFB6C1",
+    avatar: "/characters/speaki.jpg",
+  },
 };
 
 export const postComments: Record<string, PostComment[]> = {
@@ -121,6 +129,11 @@ export const postComments: Record<string, PostComment[]> = {
       characterId: "marine",
       text: "Heh, you had me at 'stop poking me.' That spam detection? Story of my life, man. Every newbie player clicking me 50 times. At least NOW there's a proper event category for it. About damn time someone standardized that.",
       timestamp: "8 minutes ago",
+    },
+    {
+      characterId: "speaki",
+      text: "Cuayo - Speaki like mopping your codebase",
+      timestamp: "3 minutes ago",
     },
   ],
 };

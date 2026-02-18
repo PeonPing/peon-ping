@@ -1,0 +1,55 @@
+{
+  "cesp_version": "1.0",
+  "name": "speaki",
+  "display_name": "Petite Speaki",
+  "version": "1.0.0",
+  "author": {
+    "name": "cjna",
+    "github": "cjna"
+  },
+  "license": "CC-BY-NC-4.0",
+  "language": "ja",
+  "categories": {
+    "session.start": {
+      "sounds": [
+        { "file": "sounds/session_start/speaki_hello.mp3", "label": "Speaki says hello!" },
+        { "file": "sounds/session_start/speaki_greeting.mp3", "label": "Speaki greets you warmly" },
+        { "file": "sounds/session_start/speaki_welcome.mp3", "label": "Welcome back! Speaki is here" }
+      ]
+    },
+    "task.acknowledge": {
+      "sounds": [
+        { "file": "sounds/task_acknowledge/hai.mp3", "label": "Hai! Got it!" },
+        { "file": "sounds/task_acknowledge/understood.mp3", "label": "Understood!" }
+      ]
+    },
+    "task.complete": {
+      "sounds": [
+        { "file": "sounds/task_complete/done.mp3", "label": "Done!" },
+        { "file": "sounds/task_complete/finished.mp3", "label": "Task complete!" }
+      ]
+    },
+    "task.error": {
+      "sounds": [
+        { "file": "sounds/task_error/error.mp3", "label": "Something went wrong..." },
+        { "file": "sounds/task_error/oops.mp3", "label": "Oops! An error!" }
+      ]
+    },
+    "input.required": {
+      "sounds": [
+        { "file": "sounds/input_required/attention.mp3", "label": "Hey! Need your attention!" }
+      ]
+    },
+    "resource.limit": {
+      "sounds": [
+        { "file": "sounds/resource_limit/warning.mp3", "label": "Warning! Running low!" }
+      ]
+    },
+    "user.spam": {
+      "sounds": [
+        { "file": "sounds/user_spam/annoyed.mp3", "label": "Speaki is getting annoyed..." },
+        { "file": "sounds/user_spam/stop_it.mp3", "label": "Stop spamming! Speaki is upset!" }
+      ]
+    }
+  }
+}
