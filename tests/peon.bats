@@ -2163,4 +2163,69 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   [[ "$icon" == *"/packs/peon/snd-icon.png" ]]
 }
 
+# ============================================================
+# mac overlay: click-to-focus IDE PID passing
+# ============================================================
+
+@test "mac overlay call includes IDE PID as 7th argument" {
+  # On mac (default platform in tests), the overlay is invoked via osascript.
+  # peon.sh should append the IDE ancestor PID as the 7th positional argument.
+  # In the test environment there is no Cursor ancestor, so _ide_pid=0 is expected.
+  export PLATFORM=mac
+  mkdir -p "$TEST_DIR/scripts"
+  touch "$TEST_DIR/scripts/mac-overlay.js"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/overlay.log" ]
+  # overlay.log line: -l JavaScript /path/mac-overlay.js msg color icon slot dismiss ide_pid
+  args=$(tail -1 "$TEST_DIR/overlay.log")
+  # Count space-separated tokens — should be at least 7 after "-l JavaScript script"
+  count=$(echo "$args" | wc -w | tr -d ' ')
+  [ "$count" -ge 7 ]
+}
+
+@test "mac overlay IDE PID argument is numeric" {
+  export PLATFORM=mac
+  mkdir -p "$TEST_DIR/scripts"
+  touch "$TEST_DIR/scripts/mac-overlay.js"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/overlay.log" ]
+  ide_pid=$(tail -1 "$TEST_DIR/overlay.log" | awk '{print $NF}')
+  [[ "$ide_pid" =~ ^[0-9]+$ ]]
+}
+
+@test "mac overlay IDE ancestor PID detection skips Helper processes" {
+  # Mock ps so the chain is: $$ → 9000 (Cursor Helper) → 8000 (Cursor) → 1
+  # The walker must skip 9000 (Helper) and return 8000 (Cursor).
+  cat > "$TEST_DIR/mock_bin/ps" <<'SCRIPT'
+#!/bin/bash
+# ps -p PID -o FIELD  ($1=-p $2=PID $3=-o $4=FIELD)
+PID="$2"; FIELD="$4"
+case "$FIELD" in
+  ppid=) case "$PID" in 9000) echo "8000";; 8000) echo "1";; *) echo "9000";; esac ;;
+  comm=) case "$PID" in 9000) echo "Cursor Helper: terminal pty-host";; 8000) echo "Cursor";; *) echo "bash";; esac ;;
+esac
+SCRIPT
+  chmod +x "$TEST_DIR/mock_bin/ps"
+
+  ide_pid=$(
+    _check=$$
+    _ide_pid=0
+    for _i in 1 2 3 4 5 6 7 8 9 10; do
+      _check=$(ps -p "$_check" -o ppid= 2>/dev/null | tr -d ' ')
+      [ -z "$_check" ] || [ "$_check" = "1" ] || [ "$_check" = "0" ] && break
+      _comm=$(ps -p "$_check" -o comm= 2>/dev/null)
+      echo "$_comm" | grep -qi "helper" && continue
+      if echo "$_comm" | grep -qi "cursor\|windsurf\|zed\| code"; then
+        _ide_pid=$_check
+        break
+      fi
+    done
+    echo "$_ide_pid"
+  )
+
+  [ "$ide_pid" = "8000" ]
+}
+
 

@@ -288,8 +288,9 @@ send_notification() {
           for _i in 1 2 3 4 5 6 7 8 9 10; do
             _check=$(ps -p "$_check" -o ppid= 2>/dev/null | tr -d ' ')
             [ -z "$_check" ] || [ "$_check" = "1" ] || [ "$_check" = "0" ] && break
-            _comm=$(ps -p "$_check" -o comm= 2>/dev/null | tr '[:upper:]' '[:lower:]')
-            case "$_comm" in *cursor*|*"code"*|*windsurf*|*zed*) _ide_pid=$_check; break;; esac
+            _comm=$(ps -p "$_check" -o comm= 2>/dev/null)
+            case "$_comm" in *Helper*|*helper*) continue;; esac  # skip Electron helper procs
+            case "$_comm" in *Cursor*|*cursor*|*Code*|*code*|*Windsurf*|*windsurf*|*Zed*|*zed*) _ide_pid=$_check; break;; esac
           done
           osascript -l JavaScript "$overlay_script" "$msg" "$color" "$icon_arg" "$slot" "4" "$_ide_pid" >/dev/null 2>&1 || true
           rm -rf "$slot_dir/slot-$slot"
