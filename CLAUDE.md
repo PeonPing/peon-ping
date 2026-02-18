@@ -130,9 +130,11 @@ See [RELEASING.md](RELEASING.md) for full details.
 
 ## Skills
 
-Two Claude Code skills live in `skills/`:
+Four Claude Code skills live in `skills/`:
 - `/peon-ping-toggle` — Mute/unmute sounds
 - `/peon-ping-config` — Modify any peon-ping setting (volume, packs, categories, etc.)
+- `/peon-ping-use <pack>` — Assign a specific pack to the current agent session (agentskill mode)
+- `/peon-ping-log <n> <exercise>` — Log exercise reps to the Peon Trainer (e.g. `/peon-ping-log 25 pushups`)
 
 ## Documentation rules
 
