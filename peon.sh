@@ -851,6 +851,10 @@ print('NOTIF_STYLE=' + q(ns))
         if [ "${3:-}" = "--registry" ]; then
           PACK_DL="$PEON_DIR/scripts/pack-download.sh"
           if [ ! -f "$PACK_DL" ]; then
+            # Homebrew/adapter installs: scripts live alongside peon.sh, not in PEON_DIR
+            PACK_DL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/pack-download.sh"
+          fi
+          if [ ! -f "$PACK_DL" ]; then
             echo "Error: pack-download.sh not found. Run 'peon update' to fix." >&2
             exit 1
           fi
