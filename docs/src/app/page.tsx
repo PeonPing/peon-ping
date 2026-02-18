@@ -1250,6 +1250,13 @@ export default function LandingPage() {
                 <p>300 pushups &amp; squats daily. Session-start reminders, mid-conversation logging, periodic nags. <a href="#trainer">See how it works</a>.</p>
               </div>
             </div>
+            <div className="feature-card">
+              <div className="feature-icon">{"\uD83D\uDD0C"}</div>
+              <div className="feature-text">
+                <h3>MCP server</h3>
+                <p>Let the AI agent choose the sound. Call <code>play_sound</code> directly from Claude Desktop, Cursor, or any MCP client.</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

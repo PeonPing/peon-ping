@@ -23,6 +23,7 @@ AI coding agents don't notify you when they finish or need permission. You tab a
 - [Quick controls](#quick-controls)
 - [Configuration](#configuration)
 - [Peon Trainer](#peon-trainer)
+- [MCP server](#mcp-server)
 - [Multi-IDE support](#multi-ide-support)
 - [Remote development](#remote-development-ssh--devcontainers--codespaces)
 - [Mobile notifications](#mobile-notifications)
@@ -236,6 +237,39 @@ trainer/sounds/slacking/       # disappointment ("Peon very disappointed.")
 ```
 
 Update `trainer/manifest.json` to register your sound files.
+
+## MCP server
+
+peon-ping includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server so any MCP-compatible AI agent can play sounds directly via tool calls — no hooks required.
+
+The key difference: **the agent chooses the sound**. Instead of automatically playing a fixed sound on every event, the agent calls `play_sound` with exactly what it wants — `duke_nukem/SonOfABitch` when a build fails, `sc_kerrigan/IReadYou` when reading files.
+
+### Setup
+
+Add to your MCP client config (Claude Desktop, Cursor, etc.):
+
+```json
+{
+  "mcpServers": {
+    "peon-ping": {
+      "command": "node",
+      "args": ["/path/to/peon-ping/mcp/peon-mcp.js"]
+    }
+  }
+}
+```
+
+If installed via Homebrew: `$(brew --prefix peon-ping)/libexec/mcp/peon-mcp.js`. See [`mcp/README.md`](mcp/README.md) for full setup instructions.
+
+### What the agent can do
+
+| Feature | Description |
+|---|---|
+| **`play_sound`** | Play one or more sounds by key (e.g. `duke_nukem/SonOfABitch`, `peon/PeonReady1`) |
+| **`peon-ping://catalog`** | Full pack catalog as an MCP Resource — client prefetches once, no repeated tool calls |
+| **`peon-ping://pack/{name}`** | Individual pack details and available sound keys |
+
+Requires Node.js 18+. Contributed by [@tag-assistant](https://github.com/tag-assistant).
 
 ## Multi-IDE Support
 
