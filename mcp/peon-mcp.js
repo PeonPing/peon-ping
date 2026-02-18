@@ -92,7 +92,11 @@ function findLinuxPlayer() {
 
 function getPlayCommand(filePath) {
   const plat = detectPlatform();
-  if (plat === "mac") return ["afplay", ["-v", String(volume), filePath]];
+  if (plat === "mac") {
+    const peonPlay = join(home, ".claude", "hooks", "peon-ping", "scripts", "peon-play");
+    const cmd = existsSync(peonPlay) ? peonPlay : "afplay";
+    return [cmd, ["-v", String(volume), filePath]];
+  }
   if (plat === "wsl") return ["powershell.exe", ["-NoProfile", "-Command", `(New-Object Media.SoundPlayer '${filePath.replace(/\//g, "\\")}').PlaySync()`]];
   if (plat === "linux") {
     const player = findLinuxPlayer();

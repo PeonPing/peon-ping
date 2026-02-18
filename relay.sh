@@ -303,8 +303,10 @@ def play_sound_on_host(path, volume):
     vol = str(max(0.0, min(1.0, float(volume))))
 
     if HOST_PLATFORM == "mac":
+        peon_play = os.path.join(PEON_DIR, "scripts", "peon-play")
+        cmd = [peon_play, "-v", vol, path] if os.path.isfile(peon_play) and os.access(peon_play, os.X_OK) else ["afplay", "-v", vol, path]
         subprocess.Popen(
-            ["afplay", "-v", vol, path],
+            cmd,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     elif HOST_PLATFORM == "linux":

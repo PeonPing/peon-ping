@@ -173,10 +173,12 @@ play_sound() {
   kill_previous_sound
   case "$PLATFORM" in
     mac)
+      local player="afplay"
+      [ -x "$PEON_DIR/scripts/peon-play" ] && player="$PEON_DIR/scripts/peon-play"
       if [ "${PEON_TEST:-0}" = "1" ]; then
-        afplay -v "$vol" "$file" >/dev/null 2>&1
+        "$player" -v "$vol" "$file" >/dev/null 2>&1
       else
-        nohup afplay -v "$vol" "$file" >/dev/null 2>&1 &
+        nohup "$player" -v "$vol" "$file" >/dev/null 2>&1 &
         save_sound_pid $!
       fi
       ;;

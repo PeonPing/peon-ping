@@ -442,7 +442,9 @@ function playSound(
   const platform = os.platform()
 
   if (platform === "darwin") {
-    const proc = Bun.spawn(["afplay", "-v", String(volume), filePath], {
+    const peonPlay = path.join(os.homedir(), ".claude", "hooks", "peon-ping", "scripts", "peon-play")
+    const cmd = fs.existsSync(peonPlay) ? peonPlay : "afplay"
+    const proc = Bun.spawn([cmd, "-v", String(volume), filePath], {
       stdout: "ignore",
       stderr: "ignore",
     })

@@ -124,6 +124,9 @@ echo "$@" >> "${CLAUDE_PEON_DIR}/afplay.log"
 SCRIPT
   chmod +x "$MOCK_BIN/afplay"
 
+  # Mock peon-play — same log format as afplay mock
+  cp "$MOCK_BIN/afplay" "$MOCK_BIN/peon-play"
+
   # Mock Linux audio backends — log calls instead of playing sound
   for player in pw-play paplay ffplay mpv play aplay; do
     cat > "$MOCK_BIN/$player" <<'SCRIPT'

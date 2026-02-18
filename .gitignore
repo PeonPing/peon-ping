@@ -16,3 +16,4 @@ homebrew-tap/
 PLAN-*.md
 checksums.txt
 video/promoted-packs.json
+scripts/peon-play
