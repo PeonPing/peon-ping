@@ -82,7 +82,8 @@ function getPlayCommand(filePath) {
     const player = findLinuxPlayer();
     if (!player) return null;
     const v = volume;
-    if (player === "pw-play" || player === "paplay") return [player, ["--volume", String(Math.round(v * 65536)), filePath]];
+    if (player === "pw-play") return [player, ["--volume", String(v), filePath]];
+    if (player === "paplay") return [player, ["--volume", String(Math.round(v * 65536)), filePath]];
     if (player === "ffplay") return [player, ["-nodisp", "-autoexit", "-volume", String(Math.round(v * 100)), filePath]];
     if (player === "mpv") return [player, ["--no-video", `--volume=${Math.round(v * 100)}`, filePath]];
     return [player, [filePath]];
