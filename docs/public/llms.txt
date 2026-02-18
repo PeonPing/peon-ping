@@ -2,7 +2,7 @@
 
 > Game character voice lines + visual overlay notifications when your AI coding agent needs attention.
 
-peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 75+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, Cursor, OpenCode, Codex, Kiro, Windsurf, and any MCP-compatible AI agent.
+peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 75+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, GitHub Copilot, Cursor, OpenCode, Codex, Kiro, Windsurf, and any MCP-compatible AI agent.
 
 ## Links
 
@@ -62,6 +62,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 ## IDEs Supported (hook-based)
 
 - Claude Code (built-in)
+- GitHub Copilot (adapter)
 - OpenAI Codex
 - Cursor
 - OpenCode
