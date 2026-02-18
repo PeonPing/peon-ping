@@ -577,7 +577,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-pi
 
 ## How it works
 
-`peon.sh` is a Claude Code hook registered for `SessionStart`, `SessionEnd`, `SubagentStart`, `UserPromptSubmit`, `Stop`, `Notification`, `PermissionRequest`, `PostToolUseFailure`, and `PreCompact` events. On each event:
+`peon.sh` is a Claude Code hook registered for `SessionStart`, `SessionEnd`, `SubagentStart`, `Stop`, `Notification`, `PermissionRequest`, `PostToolUseFailure`, and `PreCompact` events. On each event:
 
 1. **Event mapping** — an embedded Python block maps the hook event to a [CESP](https://github.com/PeonPing/openpeon) sound category (`session.start`, `task.complete`, `input.required`, etc.)
 2. **Sound selection** — picks a random voice line from the active pack's manifest, avoiding repeats

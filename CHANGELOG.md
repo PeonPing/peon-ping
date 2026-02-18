@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.2.3 (2026-02-18)
+
+### Changed
+- `UserPromptSubmit` removed from default registered hooks — peon no longer fires on every user message. The `/peon-ping-use` skill hook remains registered under `UserPromptSubmit`. Re-add manually to `~/.claude/settings.json` if you want the annoyed easter egg or `task.acknowledge`.
+- `task.acknowledge` default changed to `false` in `config.json` template (was `true`, which caused a sound on every message even without the hook firing explicitly)
+
+This also mitigates the Windows console raw mode issue (#205) where spawning `powershell.exe` on every `UserPromptSubmit` corrupted Claude Code's keyboard input.
+
 ## v2.2.2 (2026-02-18)
 
 ### Fixed

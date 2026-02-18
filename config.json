@@ -5,7 +5,7 @@
   "desktop_notifications": true,
   "categories": {
     "session.start": true,
-    "task.acknowledge": true,
+    "task.acknowledge": false,
     "task.complete": true,
     "task.error": true,
     "input.required": true,

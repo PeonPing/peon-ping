@@ -263,7 +263,7 @@ if (Test-Path $hookHandleUsePs1Source) {
 # --- Install the main hook script (PowerShell) ---
 $hookScript = @'
 # peon-ping hook for Claude Code (Windows native)
-# Called by Claude Code hooks on SessionStart, Stop, Notification, PermissionRequest, UserPromptSubmit
+# Called by Claude Code hooks on SessionStart, Stop, Notification, PermissionRequest, PostToolUseFailure, PreCompact
 
 param(
     [string]$Command = "",
@@ -746,7 +746,7 @@ $peonEntry = [PSCustomObject]@{
     hooks = @($peonHook)
 }
 
-$events = @("SessionStart", "SessionEnd", "SubagentStart", "UserPromptSubmit", "Stop", "Notification", "PermissionRequest", "PostToolUseFailure", "PreCompact")
+$events = @("SessionStart", "SessionEnd", "SubagentStart", "Stop", "Notification", "PermissionRequest", "PostToolUseFailure", "PreCompact")
 
 foreach ($evt in $events) {
     $eventHooks = @()
