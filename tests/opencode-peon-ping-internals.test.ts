@@ -121,6 +121,19 @@ describe("loadConfig", () => {
     expect(config.categories["user.spam"]).toBe(false)
     expect(config.categories["session.start"]).toBe(true)
   })
+
+  it("use_sound_effects_device defaults to true", () => {
+    vi.mocked(fs.readFileSync).mockImplementation(() => { throw new Error("ENOENT") })
+    expect(loadConfig().use_sound_effects_device).toBe(true)
+  })
+
+  it("use_sound_effects_device can be set to false", () => {
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ use_sound_effects_device: false }),
+    )
+    const config = loadConfig()
+    expect(config.use_sound_effects_device).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------

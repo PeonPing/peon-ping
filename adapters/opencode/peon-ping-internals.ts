@@ -74,6 +74,7 @@ export interface PeonConfig {
   active_pack: string
   volume: number
   enabled: boolean
+  use_sound_effects_device: boolean
   categories: Partial<Record<CESPCategory, boolean>>
   spam_threshold: number
   spam_window_seconds: number
@@ -141,6 +142,7 @@ export const DEFAULT_CONFIG: PeonConfig = {
   active_pack: "peon",
   volume: 0.5,
   enabled: true,
+  use_sound_effects_device: true,
   categories: {
     "session.start": true,
     "session.end": true,

@@ -398,6 +398,65 @@ JSON
 }
 
 # ============================================================
+# Sound Effects device routing (macOS peon-play)
+# ============================================================
+
+@test "peon-play is used when use_sound_effects_device is true" {
+  install_peon_play_mock
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  peon_play_was_called
+  ! afplay_was_called
+}
+
+@test "afplay is used when use_sound_effects_device is false" {
+  install_peon_play_mock
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": false, "categories": {} }
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  ! peon_play_was_called
+}
+
+@test "use_sound_effects_device defaults to true when not in config" {
+  install_peon_play_mock
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  peon_play_was_called
+  ! afplay_was_called
+}
+
+@test "afplay is used when peon-play is not installed" {
+  # Do NOT call install_peon_play_mock — peon-play binary absent
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  ! peon_play_was_called
+}
+
+@test "volume is passed to peon-play" {
+  install_peon_play_mock
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.7, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  peon_play_was_called
+  log_line=$(tail -1 "$TEST_DIR/peon-play.log")
+  [[ "$log_line" == *"-v 0.7"* ]]
+}
+
+# ============================================================
 # Pause / mute feature
 # ============================================================
 

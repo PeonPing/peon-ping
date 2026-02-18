@@ -312,6 +312,21 @@ afplay_call_count() {
   fi
 }
 
+# Helper: install peon-play mock at $PEON_DIR/scripts/peon-play (where peon.sh looks)
+install_peon_play_mock() {
+  mkdir -p "$TEST_DIR/scripts"
+  cat > "$TEST_DIR/scripts/peon-play" <<'SCRIPT'
+#!/bin/bash
+echo "$@" >> "${CLAUDE_PEON_DIR}/peon-play.log"
+SCRIPT
+  chmod +x "$TEST_DIR/scripts/peon-play"
+}
+
+# Helper: check if peon-play was called (via $PEON_DIR/scripts/peon-play)
+peon_play_was_called() {
+  [ -f "$TEST_DIR/peon-play.log" ] && [ -s "$TEST_DIR/peon-play.log" ]
+}
+
 # Helper: check if a Linux audio player was called
 linux_audio_was_called() {
   [ -f "$TEST_DIR/linux_audio.log" ] && [ -s "$TEST_DIR/linux_audio.log" ]

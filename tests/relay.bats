@@ -253,3 +253,36 @@ start_relay() {
   [ "$status" -eq 0 ]
   [ "$output" = "OK" ]
 }
+
+# ── Sound Effects device config ──────────────────────────────────────────────
+
+@test "relay uses peon-play when use_sound_effects_device is true" {
+  install_peon_play_mock
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+JSON
+  start_relay
+  run "$REAL_CURL" -sf "http://127.0.0.1:$RELAY_PORT/play?file=packs/peon/sounds/Hello1.wav" \
+    -H "X-Volume: 0.5"
+  [ "$status" -eq 0 ]
+  [ "$output" = "OK" ]
+  # peon-play should have been called (logs to peon-play.log)
+  sleep 0.2
+  [ -f "$TEST_DIR/peon-play.log" ]
+}
+
+@test "relay uses afplay when use_sound_effects_device is false" {
+  install_peon_play_mock
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": false, "categories": {} }
+JSON
+  start_relay
+  run "$REAL_CURL" -sf "http://127.0.0.1:$RELAY_PORT/play?file=packs/peon/sounds/Hello1.wav" \
+    -H "X-Volume: 0.5"
+  [ "$status" -eq 0 ]
+  [ "$output" = "OK" ]
+  # afplay should have been called, not peon-play
+  sleep 0.2
+  [ -f "$TEST_DIR/afplay.log" ]
+  [ ! -f "$TEST_DIR/peon-play.log" ]
+}

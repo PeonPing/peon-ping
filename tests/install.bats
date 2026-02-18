@@ -151,6 +151,25 @@ print('OK')
   [ "$volume" = "0.9" ]
 }
 
+@test "update backfills new config keys from template" {
+  # First install
+  bash "$CLONE_DIR/install.sh"
+
+  # Simulate an old config missing newer keys
+  echo '{"volume": 0.8, "active_pack": "peon", "enabled": true}' > "$INSTALL_DIR/config.json"
+
+  # Re-run (update)
+  bash "$CLONE_DIR/install.sh"
+
+  # User value should be preserved
+  volume=$(/usr/bin/python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('volume'))")
+  [ "$volume" = "0.8" ]
+
+  # New key from template should be backfilled
+  use_sfx=$(/usr/bin/python3 -c "import json; print(json.load(open('$INSTALL_DIR/config.json')).get('use_sound_effects_device'))")
+  [ "$use_sfx" = "True" ]
+}
+
 @test "peon.sh is executable after install" {
   bash "$CLONE_DIR/install.sh"
   [ -x "$INSTALL_DIR/peon.sh" ]
