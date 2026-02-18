@@ -303,8 +303,13 @@ def play_sound_on_host(path, volume):
     vol = str(max(0.0, min(1.0, float(volume))))
 
     if HOST_PLATFORM == "mac":
+        config = load_config()
+        use_sfx = config.get("use_sound_effects_device", True)
         peon_play = os.path.join(PEON_DIR, "scripts", "peon-play")
-        cmd = [peon_play, "-v", vol, path] if os.path.isfile(peon_play) and os.access(peon_play, os.X_OK) else ["afplay", "-v", vol, path]
+        if use_sfx and os.path.isfile(peon_play) and os.access(peon_play, os.X_OK):
+            cmd = [peon_play, "-v", vol, path]
+        else:
+            cmd = ["afplay", "-v", vol, path]
         subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

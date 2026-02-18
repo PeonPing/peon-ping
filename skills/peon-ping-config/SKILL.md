@@ -26,6 +26,7 @@ The config file is at `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/confi
 - **silent_window_seconds** (number): Suppress task.complete sounds for tasks shorter than this many seconds
 - **session_ttl_days** (number, default: 7): Expire stale per-session pack assignments older than N days (when using agentskill mode)
 - **desktop_notifications** (boolean): Toggle notification popups independently from sounds (default: `true`)
+- **use_sound_effects_device** (boolean): Route audio through macOS Sound Effects device (`true`) or default output via afplay (`false`). Only affects macOS. Default: `true`
 
 ## How to update
 

@@ -18,6 +18,7 @@
   "pack_rotation": [],
   "pack_rotation_mode": "random",
   "session_ttl_days": 7,
+  "use_sound_effects_device": true,
   "linux_audio_player": "",
   "trainer": {
     "enabled": false,

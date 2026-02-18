@@ -91,6 +91,7 @@ interface PeonConfig {
   active_pack: string
   volume: number
   enabled: boolean
+  use_sound_effects_device: boolean
   categories: Partial<Record<CESPCategory, boolean>>
   spam_threshold: number
   spam_window_seconds: number
@@ -155,6 +156,7 @@ const DEFAULT_CONFIG: PeonConfig = {
   active_pack: "peon",
   volume: 0.5,
   enabled: true,
+  use_sound_effects_device: true,
   categories: {
     "session.start": true,
     "session.end": true,
@@ -442,8 +444,10 @@ function playSound(
   const platform = os.platform()
 
   if (platform === "darwin") {
+    const cfg = loadConfig()
+    const useSfx = cfg.use_sound_effects_device !== false
     const peonPlay = path.join(os.homedir(), ".claude", "hooks", "peon-ping", "scripts", "peon-play")
-    const cmd = fs.existsSync(peonPlay) ? peonPlay : "afplay"
+    const cmd = (useSfx && fs.existsSync(peonPlay)) ? peonPlay : "afplay"
     const proc = Bun.spawn([cmd, "-v", String(volume), filePath], {
       stdout: "ignore",
       stderr: "ignore",

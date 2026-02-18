@@ -331,6 +331,46 @@ else
   fi
 fi
 
+# --- Backfill new config keys on update ---
+# Merge any new keys from the default config template into the user's
+# existing config without overwriting their values.
+if [ "$UPDATING" = true ] && [ -f "$INSTALL_DIR/config.json" ]; then
+  # Determine the source of default config
+  if [ -n "$SCRIPT_DIR" ]; then
+    DEFAULT_CFG="$SCRIPT_DIR/config.json"
+  else
+    DEFAULT_CFG=$(mktemp)
+    curl -fsSL "$REPO_BASE/config.json" -o "$DEFAULT_CFG" 2>/dev/null || true
+  fi
+  if [ -f "$DEFAULT_CFG" ]; then
+    python3 -c "
+import json, sys
+
+try:
+    with open('$DEFAULT_CFG') as f:
+        defaults = json.load(f)
+    with open('$INSTALL_DIR/config.json') as f:
+        user_cfg = json.load(f)
+except Exception:
+    sys.exit(0)
+
+changed = False
+for key, value in defaults.items():
+    if key not in user_cfg:
+        user_cfg[key] = value
+        changed = True
+
+if changed:
+    with open('$INSTALL_DIR/config.json', 'w') as f:
+        json.dump(user_cfg, f, indent=2)
+        f.write('\n')
+    print('Config updated with new defaults')
+" 2>/dev/null || true
+    # Clean up temp file if we downloaded one
+    [ -z "$SCRIPT_DIR" ] && rm -f "$DEFAULT_CFG"
+  fi
+fi
+
 # --- Download sound packs via shared engine ---
 PACK_DL="$INSTALL_DIR/scripts/pack-download.sh"
 chmod +x "$PACK_DL" 2>/dev/null || true
@@ -786,7 +826,15 @@ except Exception:
   TEST_SOUND=$({ ls "$PACK_DIR/sounds/"*.wav "$PACK_DIR/sounds/"*.mp3 "$PACK_DIR/sounds/"*.ogg 2>/dev/null || true; } | head -1)
   if [ -n "$TEST_SOUND" ]; then
     if [ "$PLATFORM" = "mac" ]; then
-      if [ -x "$INSTALL_DIR/scripts/peon-play" ]; then
+      USE_SFX=$(python3 -c "
+import json
+try:
+    c = json.load(open('$INSTALL_DIR/config.json'))
+    print(str(c.get('use_sound_effects_device', True)).lower())
+except Exception:
+    print('true')
+" 2>/dev/null)
+      if [ -x "$INSTALL_DIR/scripts/peon-play" ] && [ "$USE_SFX" != "false" ]; then
         "$INSTALL_DIR/scripts/peon-play" -v 0.3 "$TEST_SOUND"
       else
         afplay -v 0.3 "$TEST_SOUND"

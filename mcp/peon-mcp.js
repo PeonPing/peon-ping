@@ -12,22 +12,22 @@ import { platform as osPlatform } from "os";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const home = process.env.HOME || process.env.USERPROFILE || "";
 
-function readConfigVolume() {
-  if (process.env.PEON_VOLUME) return parseFloat(process.env.PEON_VOLUME) || 0.5;
+function readConfig() {
   const candidates = [
     join(home, ".claude", "hooks", "peon-ping", "config.json"),
     join(home, ".openpeon", "config.json"),
   ];
   for (const p of candidates) {
     try {
-      const cfg = JSON.parse(readFileSync(p, "utf-8"));
-      if (typeof cfg.volume === "number") return cfg.volume;
+      return JSON.parse(readFileSync(p, "utf-8"));
     } catch {}
   }
-  return 0.5;
+  return {};
 }
 
-const volume = readConfigVolume();
+const cfg = readConfig();
+const volume = process.env.PEON_VOLUME ? (parseFloat(process.env.PEON_VOLUME) || 0.5) : (typeof cfg.volume === "number" ? cfg.volume : 0.5);
+const useSoundEffectsDevice = cfg.use_sound_effects_device !== false;
 
 let version = "2.1.0";
 try { version = readFileSync(join(__dirname, "..", "VERSION"), "utf-8").trim(); } catch {}
@@ -94,7 +94,7 @@ function getPlayCommand(filePath) {
   const plat = detectPlatform();
   if (plat === "mac") {
     const peonPlay = join(home, ".claude", "hooks", "peon-ping", "scripts", "peon-play");
-    const cmd = existsSync(peonPlay) ? peonPlay : "afplay";
+    const cmd = (useSoundEffectsDevice && existsSync(peonPlay)) ? peonPlay : "afplay";
     return [cmd, ["-v", String(volume), filePath]];
   }
   if (plat === "wsl") return ["powershell.exe", ["-NoProfile", "-Command", `(New-Object Media.SoundPlayer '${filePath.replace(/\//g, "\\")}').PlaySync()`]];
