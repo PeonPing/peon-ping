@@ -5,6 +5,7 @@ setup_test_env() {
   TEST_DIR="$(mktemp -d)"
   export TEST_DIR
   export CLAUDE_PEON_DIR="$TEST_DIR"
+  export PEON_TEST=1
 
   # Create directory structure
   mkdir -p "$TEST_DIR/packs/peon/sounds"
