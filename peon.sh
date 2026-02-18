@@ -45,6 +45,26 @@ fi
 CONFIG="$PEON_DIR/config.json"
 STATE="$PEON_DIR/.state.json"
 
+# --- Shared resolver for pack-download.sh (local + Homebrew/adapter installs) ---
+resolve_pack_download() {
+  local pack_dl
+
+  pack_dl="$PEON_DIR/scripts/pack-download.sh"
+  if [ -f "$pack_dl" ]; then
+    printf '%s\n' "$pack_dl"
+    return 0
+  fi
+
+  pack_dl="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/pack-download.sh"
+  if [ -f "$pack_dl" ]; then
+    printf '%s\n' "$pack_dl"
+    return 0
+  fi
+
+  echo "Error: pack-download.sh not found. Run 'peon update' to fix." >&2
+  return 1
+}
+
 # --- Linux audio backend detection ---
 detect_linux_player() {
   local override="${1:-}"
@@ -849,15 +869,7 @@ print('NOTIF_STYLE=' + q(ns))
     case "${2:-}" in
       list)
         if [ "${3:-}" = "--registry" ]; then
-          PACK_DL="$PEON_DIR/scripts/pack-download.sh"
-          if [ ! -f "$PACK_DL" ]; then
-            # Homebrew/adapter installs: scripts live alongside peon.sh, not in PEON_DIR
-            PACK_DL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/pack-download.sh"
-          fi
-          if [ ! -f "$PACK_DL" ]; then
-            echo "Error: pack-download.sh not found. Run 'peon update' to fix." >&2
-            exit 1
-          fi
+          PACK_DL="$(resolve_pack_download)" || exit 1
           bash "$PACK_DL" --list-registry --dir="$PEON_DIR"
           exit 0
         fi
@@ -905,11 +917,7 @@ for d in sorted(os.listdir(packs_dir)):
 
         # If pack missing (or --install always fetches), download it
         if [ "$USE_INSTALL" -eq 1 ]; then
-          PACK_DL="$PEON_DIR/scripts/pack-download.sh"
-          if [ ! -f "$PACK_DL" ]; then
-            echo "Error: pack-download.sh not found. Run 'peon update' to fix." >&2
-            exit 1
-          fi
+          PACK_DL="$(resolve_pack_download)" || exit 1
           bash "$PACK_DL" --dir="$PEON_DIR" --packs="$PACK_ARG" || exit 1
         fi
 
@@ -1105,11 +1113,7 @@ if rotation:
         sync_adapter_configs; exit 0 ;;
       install)
         INSTALL_ARG="${3:-}"
-        PACK_DL="$PEON_DIR/scripts/pack-download.sh"
-        if [ ! -f "$PACK_DL" ]; then
-          echo "Error: pack-download.sh not found. Run 'peon update' to fix." >&2
-          exit 1
-        fi
+        PACK_DL="$(resolve_pack_download)" || exit 1
         if [ "$INSTALL_ARG" = "--all" ]; then
           bash "$PACK_DL" --dir="$PEON_DIR" --all
         elif [ -n "$INSTALL_ARG" ]; then
