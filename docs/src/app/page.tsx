@@ -1314,6 +1314,28 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ============ DESKTOP PET ============ */}
+      <section id="pet">
+        <div className="container" style={{ textAlign: "center" }}>
+          <p className="section-label">Desktop pet</p>
+          <h2 className="section-title">Watch your Peon work</h2>
+          <p className="section-desc">
+            An animated orc sits in the corner of your screen and reacts to every Claude Code event — sleeping, waking up, typing, celebrating, and more. Session dots show all active Claude Code windows at a glance.
+          </p>
+          <video
+            src="/demo-avatar.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ maxWidth: 420, width: "100%", borderRadius: 8, margin: "0 auto", display: "block" }}
+          />
+          <p style={{ marginTop: "1rem", color: "var(--wc3-text-dim)", fontSize: "0.9rem" }}>
+            <a href="https://github.com/PeonPing/peon-pet" style={{ color: "var(--wc3-gold)" }}>peon-pet</a> — macOS, Electron + Three.js, open source
+          </p>
+        </div>
+      </section>
+
       {/* ============ INSTALL CTA ============ */}
       <section id="install">
         <div className="container" style={{ textAlign: "center" }}>
