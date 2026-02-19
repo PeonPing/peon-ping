@@ -118,6 +118,13 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   [[ "$(overlay_log)" == *"dev.warp.Warp-Stable"* ]]
 }
 
+@test "macOS overlay passes bundle ID for Zed click-to-focus" {
+  TERM_PROGRAM=zed run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"dev.zed.Zed"* ]]
+}
+
 @test "macOS overlay passes empty bundle ID for unknown terminal" {
   # Unknown terminal — bundle ID should be empty (no -activate)
   TERM_PROGRAM=unknown_terminal run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -320,6 +327,17 @@ JSON
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   [[ "$(terminal_notifier_log)" == *"-activate"* ]]
   [[ "$(terminal_notifier_log)" == *"dev.warp.Warp-Stable"* ]]
+}
+
+@test "standard: terminal-notifier includes -activate for Zed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
+JSON
+  TERM_PROGRAM=zed run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  [[ "$(terminal_notifier_log)" == *"-activate"* ]]
+  [[ "$(terminal_notifier_log)" == *"dev.zed.Zed"* ]]
 }
 
 @test "standard: terminal-notifier no -activate for unknown terminal" {

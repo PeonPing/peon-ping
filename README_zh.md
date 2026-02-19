@@ -177,7 +177,7 @@ peon-ping 在 Claude Code 中安装两个斜杠命令：
 - **volume**：0.0–1.0（适合办公室使用的音量）
 - **desktop_notifications**：`true`/`false` — 独立于声音控制桌面通知弹窗（默认：`true`）
 - **notification_style**：`"overlay"` 或 `"standard"` — 控制桌面通知显示方式（默认：`"overlay"`）
-  - **overlay**：大型醒目横幅 — macOS 上使用 JXA Cocoa 覆盖，WSL 上使用 Windows Forms 弹窗。点击覆盖层可聚焦终端（支持 Ghostty、Warp、iTerm2、Terminal.app）
+  - **overlay**：大型醒目横幅 — macOS 上使用 JXA Cocoa 覆盖，WSL 上使用 Windows Forms 弹窗。点击覆盖层可聚焦终端（支持 Ghostty、Warp、iTerm2、Zed、Terminal.app）
   - **standard**：系统通知 — macOS 上使用 [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript`，WSL 上使用 Windows toast。安装 `terminal-notifier`（`brew install terminal-notifier`）后，点击通知可自动聚焦终端
   - **wsl_toast**：`true`/`false` — 在 WSL 上使用原生 Windows toast 通知代替 Windows Forms 弹窗。Toast 不会抢占焦点并出现在操作中心。（默认：`true`）
 - **categories**：单独开关 CESP 声音分类（例如 `"session.start": false` 禁用问候声音）

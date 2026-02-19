@@ -273,6 +273,7 @@ _mac_terminal_bundle_id() {
     iTerm.app)      echo "com.googlecode.iterm2" ;;
     WarpTerminal)   echo "dev.warp.Warp-Stable" ;;
     Apple_Terminal) echo "com.apple.Terminal" ;;
+    zed)            echo "dev.zed.Zed" ;;
     *)              echo "" ;;
   esac
 }
