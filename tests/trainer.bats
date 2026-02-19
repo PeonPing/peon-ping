@@ -169,6 +169,31 @@ json.dump(s, open(state_path, 'w'), indent=2)
 }
 
 # ============================================================
+# trainer goal adds new exercise type
+# ============================================================
+
+@test "trainer goal adds new exercise type" {
+  bash "$PEON_SH" trainer on
+  run bash "$PEON_SH" trainer goal pullups 10
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"new exercise added"* ]]
+
+  pullups_goal=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(c.get('trainer',{}).get('exercises',{}).get('pullups','missing'))")
+  [ "$pullups_goal" = "10" ]
+}
+
+# ============================================================
+# trainer log suggests goal for unknown exercise
+# ============================================================
+
+@test "trainer log suggests goal for unknown exercise" {
+  bash "$PEON_SH" trainer on
+  run bash "$PEON_SH" trainer log 5 pullups
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"peon trainer goal pullups"* ]]
+}
+
+# ============================================================
 # trainer status resets reps on new day
 # ============================================================
 
