@@ -135,8 +135,23 @@ function run(argv) {
     label.cell.setWraps(false);
     contentView.addSubview(label);
 
-    // Transparent click-capture button (added last so it sits on top)
+    // "click to focus" hint at bottom-right when click action is available
     if (clickHandler) {
+      var hintFont = $.NSFont.systemFontOfSize(10);
+      var hintLabel = $.NSTextField.alloc.initWithFrame(
+        $.NSMakeRect(winWidth - 108, 7, 100, 14)
+      );
+      hintLabel.setStringValue($('click to focus'));
+      hintLabel.setBezeled(false);
+      hintLabel.setDrawsBackground(false);
+      hintLabel.setEditable(false);
+      hintLabel.setSelectable(false);
+      hintLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.6));
+      hintLabel.setAlignment($.NSTextAlignmentRight);
+      hintLabel.setFont(hintFont);
+      contentView.addSubview(hintLabel);
+
+      // Transparent click-capture button (added last so it sits on top)
       var btn = $.NSButton.alloc.initWithFrame($.NSMakeRect(0, 0, winWidth, winHeight));
       btn.setTitle($(''));
       btn.setBordered(false);
