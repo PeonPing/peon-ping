@@ -253,6 +253,9 @@ SCRIPT
 
   # Locate peon.sh (relative to this test file)
   PEON_SH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/peon.sh"
+  # Change to TEST_DIR so PWD-based local config lookup does not pick up
+  # a real installation config (e.g. with pack_rotation) from outside the test env
+  cd "$TEST_DIR"
 }
 
 teardown_test_env() {
