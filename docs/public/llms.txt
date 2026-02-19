@@ -87,7 +87,7 @@ Full list: https://openpeon.com/packs
 - Volume control (0.0–1.0)
 - No-repeat logic per category
 - Category toggles (enable/disable individual events)
-- Desktop notifications (overlay or standard)
+- Desktop notifications (overlay or standard, with click-to-focus terminal on macOS)
 - Terminal tab title updates (● project: done)
 - Mobile push notifications (ntfy.sh, Pushover, Telegram)
 - Remote development support (SSH, devcontainers, Codespaces)

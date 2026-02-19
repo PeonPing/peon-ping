@@ -137,6 +137,13 @@ SCRIPT
     chmod +x "$MOCK_BIN/$player"
   done
 
+  # Mock terminal-notifier — log calls instead of sending real notifications
+  cat > "$MOCK_BIN/terminal-notifier" <<'SCRIPT'
+#!/bin/bash
+echo "$@" >> "${CLAUDE_PEON_DIR}/terminal_notifier.log"
+SCRIPT
+  chmod +x "$MOCK_BIN/terminal-notifier"
+
   # Mock osascript — log calls instead of running AppleScript/JXA
   cat > "$MOCK_BIN/osascript" <<'SCRIPT'
 #!/bin/bash
