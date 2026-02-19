@@ -263,6 +263,40 @@ play_sound() {
   esac
 }
 
+# --- Terminal bundle ID detection (macOS click-to-focus) ---
+# Returns the macOS bundle identifier for the current terminal emulator,
+# or empty string if unknown. Used with terminal-notifier -activate and
+# mac-overlay.js click handler to focus the right terminal on notification click.
+_mac_terminal_bundle_id() {
+  case "${TERM_PROGRAM:-}" in
+    ghostty)        echo "com.mitchellh.ghostty" ;;
+    iTerm.app)      echo "com.googlecode.iterm2" ;;
+    WarpTerminal)   echo "dev.warp.Warp-Stable" ;;
+    Apple_Terminal) echo "com.apple.Terminal" ;;
+    *)              echo "" ;;
+  esac
+}
+
+# --- IDE ancestor PID detection (macOS click-to-focus for GUI IDEs) ---
+# Walks up the process tree from the current PID looking for a known IDE.
+# Returns the IDE PID, or 0 if none found. Skips "Helper" child processes.
+_mac_ide_pid() {
+  local _check=$$
+  local _ide_pid=0
+  local _i _comm
+  for _i in 1 2 3 4 5 6 7 8 9 10; do
+    _check=$(ps -p "$_check" -o ppid= 2>/dev/null | tr -d ' ')
+    [ -z "$_check" ] || [ "$_check" = "1" ] || [ "$_check" = "0" ] && break
+    _comm=$(ps -p "$_check" -o comm= 2>/dev/null)
+    echo "$_comm" | grep -qi "helper" && continue
+    if echo "$_comm" | grep -qi "cursor\|windsurf\|zed\| code"; then
+      _ide_pid=$_check
+      break
+    fi
+  done
+  echo "$_ide_pid"
+}
+
 # --- Platform-aware notification ---
 # Args: msg, title, color (red/blue/yellow)
 send_notification() {
@@ -278,6 +312,9 @@ send_notification() {
       local overlay_script=""
       [ "${NOTIF_STYLE:-overlay}" = "overlay" ] && \
         overlay_script="$(find_bundled_script "mac-overlay.js")" 2>/dev/null || true
+      local bundle_id ide_pid
+      bundle_id="$(_mac_terminal_bundle_id)"
+      ide_pid="$(_mac_ide_pid)"
       if [ -n "$overlay_script" ]; then
         # JXA Cocoa overlay — large, visible banner on all screens
         local icon_arg=""
@@ -292,7 +329,8 @@ send_notification() {
             find "$slot_dir" -maxdepth 1 -name 'slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null
             slot=0; mkdir -p "$slot_dir/slot-0"
           fi
-          osascript -l JavaScript "$overlay_script" "$msg" "$color" "$icon_arg" "$slot" "4" >/dev/null 2>&1 || true
+          # argv[5]=bundle_id (terminal click-to-focus), argv[6]=ide_pid (IDE click-to-focus)
+          osascript -l JavaScript "$overlay_script" "$msg" "$color" "$icon_arg" "$slot" "4" "$bundle_id" "$ide_pid" >/dev/null 2>&1 || true
           rm -rf "$slot_dir/slot-$slot"
         )
         if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi
@@ -308,19 +346,27 @@ send_notification() {
             printf '\e]99;i=peon:d=0;%s\e\\' "$title: $msg" > /dev/tty 2>/dev/null || true
             ;;
           *)
-            if command -v terminal-notifier &>/dev/null && [ -f "$icon_path" ]; then
-              # terminal-notifier supports custom icon (brew install terminal-notifier)
+            if command -v terminal-notifier &>/dev/null; then
+              # terminal-notifier: custom icon + click-to-focus via -activate
+              local tn_icon_flag=""
+              [ -f "$icon_path" ] && tn_icon_flag="-appIcon $icon_path"
+              local tn_activate_flag=""
+              [ -n "$bundle_id" ] && tn_activate_flag="-activate $bundle_id"
               if [ "$use_bg" = true ]; then
+                # shellcheck disable=SC2086
                 nohup terminal-notifier \
                   -title "$title" \
                   -message "$msg" \
-                  -appIcon "$icon_path" \
+                  $tn_icon_flag \
+                  $tn_activate_flag \
                   -group "peon-ping" >/dev/null 2>&1 &
               else
+                # shellcheck disable=SC2086
                 terminal-notifier \
                   -title "$title" \
                   -message "$msg" \
-                  -appIcon "$icon_path" \
+                  $tn_icon_flag \
+                  $tn_activate_flag \
                   -group "peon-ping" >/dev/null 2>&1
               fi
             else

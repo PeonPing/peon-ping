@@ -1,15 +1,10 @@
 #!/usr/bin/env osascript -l JavaScript
 // mac-overlay.js — JXA Cocoa overlay notification for macOS
-// Usage: osascript -l JavaScript mac-overlay.js <message> <color> <icon_path> <slot> <dismiss_seconds>
+// Usage: osascript -l JavaScript mac-overlay.js <message> <color> <icon_path> <slot> <dismiss_seconds> [bundle_id]
 //
 // Creates a borderless, always-on-top overlay on every screen.
 // Dismisses automatically after <dismiss_seconds> seconds.
-//
-// TODO: click-to-focus — attempted but reliable multi-window targeting
-// without Accessibility permission proved difficult. Options to revisit:
-//   - Accessibility permission + AXRaise on specific window
-//   - Cursor deep link / URL scheme if Cursor exposes one
-//   - Track frontmost window ID via CGWindowListCopyWindowInfo at hook fire time
+// If bundle_id is provided, clicking the overlay activates that app (click-to-focus).
 
 ObjC.import('Cocoa');
 
@@ -19,6 +14,8 @@ function run(argv) {
   var iconPath = argv[2] || '';
   var slot     = parseInt(argv[3], 10) || 0;
   var dismiss  = parseFloat(argv[4]) || 4;
+  var bundleId = argv[5] || '';
+  // argv[6] = ide_pid (reserved for future GUI IDE click-to-focus via NSRunningApplication(pid:))
 
   // Color map
   var r = 180/255, g = 0, b = 0;
@@ -33,6 +30,35 @@ function run(argv) {
 
   $.NSApplication.sharedApplication;
   $.NSApp.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
+
+  // Register a click handler if we have a target bundle ID
+  var clickHandler = null;
+  if (bundleId) {
+    ObjC.registerSubclass({
+      name: 'PeonClickHandler',
+      superclass: 'NSObject',
+      methods: {
+        'handleClick': {
+          types: ['void', []],
+          implementation: function() {
+            var ws = $.NSWorkspace.sharedWorkspace;
+            var apps = ws.runningApplications;
+            var count = apps.count;
+            for (var i = 0; i < count; i++) {
+              var app = apps.objectAtIndex(i);
+              var bid = app.bundleIdentifier;
+              if (!bid.isNil() && bid.js === bundleId) {
+                app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
+                break;
+              }
+            }
+            $.NSApp.terminate(null);
+          }
+        }
+      }
+    });
+    clickHandler = $.PeonClickHandler.alloc.init;
+  }
 
   var screens = $.NSScreen.screens;
   var screenCount = screens.count;
@@ -57,7 +83,11 @@ function run(argv) {
     win.setBackgroundColor(bgColor);
     win.setAlphaValue(0.95);
     win.setLevel($.NSStatusWindowLevel);
-    win.setIgnoresMouseEvents(true);
+
+    // Only ignore mouse events when there's no click handler
+    if (!clickHandler) {
+      win.setIgnoresMouseEvents(true);
+    }
 
     win.setCollectionBehavior(
       $.NSWindowCollectionBehaviorCanJoinAllSpaces |
@@ -104,6 +134,17 @@ function run(argv) {
     label.setLineBreakMode($.NSLineBreakByTruncatingTail);
     label.cell.setWraps(false);
     contentView.addSubview(label);
+
+    // Transparent click-capture button (added last so it sits on top)
+    if (clickHandler) {
+      var btn = $.NSButton.alloc.initWithFrame($.NSMakeRect(0, 0, winWidth, winHeight));
+      btn.setTitle($(''));
+      btn.setBordered(false);
+      btn.setTransparent(true);
+      btn.setTarget(clickHandler);
+      btn.setAction('handleClick');
+      contentView.addSubview(btn);
+    }
 
     win.orderFrontRegardless;
     windows.push(win);
