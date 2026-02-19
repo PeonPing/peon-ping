@@ -1732,7 +1732,9 @@ exercises = trainer_cfg.get('exercises', {'pushups': 300, 'squats': 300})
 
 if exercise not in exercises:
     print('peon-ping: unknown exercise \"' + exercise + '\"', file=sys.stderr)
-    print('Valid exercises: ' + ', '.join(exercises.keys()), file=sys.stderr)
+    if exercises:
+        print('Known exercises: ' + ', '.join(exercises.keys()), file=sys.stderr)
+    print('Add it first: peon trainer goal ' + exercise + ' <daily-goal>', file=sys.stderr)
     sys.exit(1)
 
 goal = exercises[exercise]
@@ -1798,11 +1800,12 @@ if arg2:
     except ValueError:
         print('peon-ping: goal must be a number', file=sys.stderr)
         sys.exit(1)
-    if exercise not in exercises:
-        print('peon-ping: unknown exercise \"' + exercise + '\"', file=sys.stderr)
-        sys.exit(1)
+    is_new = exercise not in exercises
     exercises[exercise] = num
-    print(f'peon-ping: {exercise} goal set to {num}')
+    if is_new:
+        print(f'peon-ping: new exercise added — {exercise} goal set to {num}')
+    else:
+        print(f'peon-ping: {exercise} goal set to {num}')
 else:
     # goal <number>
     try:
