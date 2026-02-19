@@ -344,6 +344,7 @@ else
   curl -fsSL "$REPO_BASE/scripts/hook-handle-use.ps1" -o "$INSTALL_DIR/scripts/hook-handle-use.ps1" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/pack-download.sh" -o "$INSTALL_DIR/scripts/pack-download.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/mac-overlay.js" -o "$INSTALL_DIR/scripts/mac-overlay.js" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/scripts/notify.sh" -o "$INSTALL_DIR/scripts/notify.sh" 2>/dev/null || true
   mkdir -p "$INSTALL_DIR/docs"
   curl -fsSL "$REPO_BASE/docs/peon-icon.png" -o "$INSTALL_DIR/docs/peon-icon.png" 2>/dev/null || true
   if [ "$UPDATING" = false ]; then
@@ -407,6 +408,7 @@ chmod +x "$INSTALL_DIR/peon.sh"
 chmod +x "$INSTALL_DIR/relay.sh"
 chmod +x "$INSTALL_DIR/scripts/hook-handle-use.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/scripts/pack-download.sh" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/scripts/notify.sh" 2>/dev/null || true
 
 # --- Build peon-play (macOS Sound Effects device support) ---
 if [ "$PLATFORM" = "mac" ] && command -v swiftc &>/dev/null; then

@@ -373,9 +373,30 @@ def play_sound_on_host(path, volume):
 
 
 def send_notification_on_host(title, message, color="red"):
-    """Send a desktop notification using the host's native notification system."""
+    """Send a desktop notification using the host's native notification system.
+
+    Delegates to scripts/notify.sh which handles overlay/standard styles, icons,
+    click-to-focus, WSL toast/forms, and Linux notify-send.
+    Falls back to inline osascript/notify-send if notify.sh is missing.
+    """
+    notify_script = os.path.join(PEON_DIR, "scripts", "notify.sh")
+    if os.path.isfile(notify_script):
+        config = load_config()
+        notif_style = config.get("notification_style", "overlay")
+        icon_path = os.path.join(PEON_DIR, "docs", "peon-icon.png")
+        env = os.environ.copy()
+        env["PEON_PLATFORM"] = HOST_PLATFORM
+        env["PEON_NOTIF_STYLE"] = notif_style
+        env["PEON_DIR"] = PEON_DIR
+        env["PEON_SYNC"] = "0"
+        subprocess.Popen(
+            ["bash", notify_script, message, title, color, icon_path],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env=env,
+        )
+        return
+    # Fallback: inline notification if notify.sh not found
     if HOST_PLATFORM == "mac":
-        # Pass title/message as arguments to avoid AppleScript injection
         subprocess.Popen(
             ["osascript", "-e",
              'on run argv\n'

@@ -254,6 +254,14 @@ SCRIPT
 
   export PATH="$MOCK_BIN:$PATH"
 
+  # Copy notify.sh into test dir so send_notification() can find it
+  _src_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  mkdir -p "$TEST_DIR/scripts"
+  if [ -f "$_src_dir/scripts/notify.sh" ]; then
+    cp "$_src_dir/scripts/notify.sh" "$TEST_DIR/scripts/notify.sh"
+    chmod +x "$TEST_DIR/scripts/notify.sh"
+  fi
+
   # Mock relay as available for devcontainer/SSH tests
   # (Tests running in devcontainer need this to prevent "relay not reachable" errors)
   touch "$TEST_DIR/.relay_available"

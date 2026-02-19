@@ -286,3 +286,40 @@ JSON
   [ -f "$TEST_DIR/afplay.log" ]
   [ ! -f "$TEST_DIR/peon-play.log" ]
 }
+
+# ── Notification via notify.sh ───────────────────────────────────────────────
+
+@test "relay /notify uses overlay when notification_style=overlay" {
+  # Copy overlay script so notify.sh can find it
+  _src_dir="$(cd "$(dirname "$PEON_SH")" && pwd)"
+  cp "$_src_dir/scripts/mac-overlay.js" "$TEST_DIR/scripts/mac-overlay.js"
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "overlay", "categories": {} }
+JSON
+  start_relay
+  run "$REAL_CURL" -sf -X POST "http://127.0.0.1:$RELAY_PORT/notify" \
+    -H "Content-Type: application/json" \
+    -d '{"title":"peon-ping","message":"Test overlay","color":"blue"}'
+  [ "$status" -eq 0 ]
+  [ "$output" = "OK" ]
+  # notify.sh should call osascript with JXA overlay
+  sleep 0.3
+  [ -f "$TEST_DIR/overlay.log" ]
+  [[ "$(cat "$TEST_DIR/overlay.log")" == *"mac-overlay.js"* ]]
+}
+
+@test "relay /notify uses standard when notification_style=standard" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": {} }
+JSON
+  start_relay
+  run "$REAL_CURL" -sf -X POST "http://127.0.0.1:$RELAY_PORT/notify" \
+    -H "Content-Type: application/json" \
+    -d '{"title":"peon-ping","message":"Test standard","color":"red"}'
+  [ "$status" -eq 0 ]
+  [ "$output" = "OK" ]
+  # notify.sh should use terminal-notifier (mocked) instead of overlay
+  sleep 0.3
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  ! [ -f "$TEST_DIR/overlay.log" ]
+}

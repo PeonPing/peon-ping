@@ -246,6 +246,10 @@ if (Test-Path $hookHandleUsePs1Source) {
     # Local install: copy from repo
     Copy-Item -Path $hookHandleUsePs1Source -Destination $hookHandleUsePs1Target -Force
     Copy-Item -Path $hookHandleUseShSource -Destination $hookHandleUseShTarget -Force
+    $notifyShSource = Join-Path $ScriptDir "scripts\notify.sh"
+    if (Test-Path $notifyShSource) {
+        Copy-Item -Path $notifyShSource -Destination (Join-Path $scriptsDir "notify.sh") -Force
+    }
 } else {
     # One-liner install: download from GitHub
     try {
@@ -257,6 +261,11 @@ if (Test-Path $hookHandleUsePs1Source) {
         Invoke-WebRequest -Uri "$RepoBase/scripts/hook-handle-use.sh" -OutFile $hookHandleUseShTarget -UseBasicParsing -ErrorAction Stop
     } catch {
         Write-Host "  Warning: Could not download hook-handle-use.sh" -ForegroundColor Yellow
+    }
+    try {
+        Invoke-WebRequest -Uri "$RepoBase/scripts/notify.sh" -OutFile (Join-Path $scriptsDir "notify.sh") -UseBasicParsing -ErrorAction Stop
+    } catch {
+        Write-Host "  Warning: Could not download notify.sh" -ForegroundColor Yellow
     }
 }
 
