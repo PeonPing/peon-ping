@@ -427,38 +427,58 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/ki
 2. 在 `~/.gemini/settings.json` 中添加以下钩子：
 
    ```json
-   {
-     "hooks": {
-       "SessionStart": [
-         {
-           "matcher": "startup",
-           "type": "command",
-           "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh SessionStart"
-         }
-       ],
-       "AfterAgent": [
-         {
-           "matcher": "*",
-           "type": "command",
-           "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh AfterAgent"
-         }
-       ],
-       "AfterTool": [
-         {
-           "matcher": "*",
-           "type": "command",
-           "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh AfterTool"
-         }
-       ],
-       "Notification": [
-         {
-           "matcher": "*",
-           "type": "command",
-           "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh Notification"
-         }
-       ]
-     }
-   }
+    {
+      "hooks": {
+        "SessionStart": [
+          {
+            "matcher": "startup",
+            "hooks": [
+              {
+                "name": "peon-start",
+                "type": "command",
+                "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh SessionStart"
+              }
+            ]
+          }
+        ],
+        "AfterAgent": [
+          {
+            "matcher": "*",
+            "hooks": [
+              {
+                "name": "peon-after-agent",
+                "type": "command",
+                "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh AfterAgent"
+              }
+            ]
+          }
+        ],
+        "AfterTool": [
+          {
+            "matcher": "*",
+            "hooks": [
+              {
+                "name": "peon-after-tool",
+                "type": "command",
+                "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh AfterTool"
+              }
+            ]
+          }
+        ],
+        "Notification": [
+          {
+            "matcher": "*",
+            "hooks": [
+              {
+                "name": "peon-notification",
+                "type": "command",
+                "command": "bash ~/.claude/hooks/peon-ping/adapters/gemini.sh Notification"
+              }
+            ]
+          }
+        ]
+      }
+    }
    ```
 
 **事件映射：**
