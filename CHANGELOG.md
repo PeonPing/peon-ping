@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.6.0 (2026-02-19)
+
+### Added
+- `suppress_subagent_complete` config option (default: `false`) — when enabled, suppresses `task.complete` sounds and notifications for sub-agent sessions spawned via Claude Code's Task tool, so only the parent session's completion sound fires
+
 ## v2.5.0 (2026-02-18)
 
 ### Added
