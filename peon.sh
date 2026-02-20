@@ -1107,8 +1107,123 @@ if rotation:
           exit 1
         fi
         exit 0 ;;
+      rotation)
+        ROT_SUB="${3:-}"
+        ROT_ARG="${4:-}"
+        case "$ROT_SUB" in
+          add)
+            if [ -z "$ROT_ARG" ]; then
+              echo "Usage: peon packs rotation add <pack1,pack2,...>" >&2; exit 1
+            fi
+            ROT_ARG="$ROT_ARG" python3 -c "
+import json, os, sys
+
+config_path = '$GLOBAL_CONFIG'
+peon_dir = '$PEON_DIR'
+packs_dir = os.path.join(peon_dir, 'packs')
+add_arg = os.environ.get('ROT_ARG', '')
+
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+
+installed = sorted([
+    d for d in os.listdir(packs_dir)
+    if os.path.isdir(os.path.join(packs_dir, d)) and (
+        os.path.exists(os.path.join(packs_dir, d, 'openpeon.json')) or
+        os.path.exists(os.path.join(packs_dir, d, 'manifest.json'))
+    )
+])
+
+requested = [p.strip() for p in add_arg.split(',') if p.strip()]
+rotation = cfg.get('pack_rotation', [])
+added = []
+errors = []
+for p in requested:
+    if p not in installed:
+        errors.append(f'Pack \"{p}\" not found.')
+    elif p in rotation:
+        errors.append(f'Pack \"{p}\" already in rotation.')
+    else:
+        rotation.append(p)
+        added.append(p)
+
+if errors:
+    for e in errors:
+        print(e, file=sys.stderr)
+    if not added:
+        sys.exit(1)
+
+cfg['pack_rotation'] = rotation
+json.dump(cfg, open(config_path, 'w'), indent=2)
+for p in added:
+    print(f'Added {p} to rotation')
+print('Rotation: ' + ', '.join(rotation))
+" || exit 1
+            sync_adapter_configs; exit 0 ;;
+          remove)
+            if [ -z "$ROT_ARG" ]; then
+              echo "Usage: peon packs rotation remove <pack1,pack2,...>" >&2; exit 1
+            fi
+            ROT_ARG="$ROT_ARG" python3 -c "
+import json, os, sys
+
+config_path = '$GLOBAL_CONFIG'
+remove_arg = os.environ.get('ROT_ARG', '')
+
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+
+rotation = cfg.get('pack_rotation', [])
+requested = [p.strip() for p in remove_arg.split(',') if p.strip()]
+removed = []
+errors = []
+for p in requested:
+    if p not in rotation:
+        errors.append(f'Pack \"{p}\" not in rotation.')
+    else:
+        rotation.remove(p)
+        removed.append(p)
+
+if errors:
+    for e in errors:
+        print(e, file=sys.stderr)
+    if not removed:
+        sys.exit(1)
+
+cfg['pack_rotation'] = rotation
+json.dump(cfg, open(config_path, 'w'), indent=2)
+for p in removed:
+    print(f'Removed {p} from rotation')
+print('Rotation: ' + ', '.join(rotation))
+" || exit 1
+            sync_adapter_configs; exit 0 ;;
+          list|"")
+            python3 -c "
+import json
+config_path = '$GLOBAL_CONFIG'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+rotation = cfg.get('pack_rotation', [])
+mode = cfg.get('pack_rotation_mode', 'random')
+print(f'Rotation mode: {mode}')
+if rotation:
+    for p in rotation:
+        print(f'  {p}')
+else:
+    print('  (empty)')
+"
+            exit 0 ;;
+          *)
+            echo "Usage: peon packs rotation <list|add|remove>" >&2; exit 1 ;;
+        esac ;;
       *)
-        echo "Usage: peon packs <list|use|next|install|remove>" >&2; exit 1 ;;
+        echo "Usage: peon packs <list|use|next|install|remove|rotation>" >&2; exit 1 ;;
     esac ;;
   mobile)
     case "${2:-}" in
@@ -1496,6 +1611,9 @@ Pack management:
   packs next              Cycle to the next pack
   packs remove <p1,p2>    Remove specific packs
   packs remove --all      Remove all packs except the active one
+  packs rotation list     Show current rotation list and mode
+  packs rotation add <p>  Add pack(s) to rotation (comma-separated)
+  packs rotation remove <p> Remove pack(s) from rotation
 
 Mobile notifications:
   mobile ntfy <topic>      Set up ntfy.sh push notifications

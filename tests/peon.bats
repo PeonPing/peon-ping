@@ -1125,6 +1125,151 @@ print(','.join(rotation))
 }
 
 # ============================================================
+# Packs rotation CLI (peon packs rotation add/remove/list)
+# ============================================================
+
+@test "packs rotation list shows mode and packs" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon", "sc_kerrigan"],
+  "pack_rotation_mode": "round-robin"
+}
+JSON
+  run bash "$PEON_SH" packs rotation list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"round-robin"* ]]
+  [[ "$output" == *"peon"* ]]
+  [[ "$output" == *"sc_kerrigan"* ]]
+}
+
+@test "packs rotation list shows empty when no packs" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": []
+}
+JSON
+  run bash "$PEON_SH" packs rotation list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"(empty)"* ]]
+}
+
+@test "packs rotation add adds installed pack" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon"]
+}
+JSON
+  run bash "$PEON_SH" packs rotation add sc_kerrigan
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Added sc_kerrigan"* ]]
+  rotation=$(/usr/bin/python3 -c "import json; print(','.join(json.load(open('$TEST_DIR/config.json')).get('pack_rotation', [])))")
+  [[ "$rotation" == *"sc_kerrigan"* ]]
+  [[ "$rotation" == *"peon"* ]]
+}
+
+@test "packs rotation add rejects nonexistent pack" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon"]
+}
+JSON
+  run bash "$PEON_SH" packs rotation add nonexistent_pack
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not found"* ]]
+}
+
+@test "packs rotation add rejects duplicate pack" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon"]
+}
+JSON
+  run bash "$PEON_SH" packs rotation add peon
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"already in rotation"* ]]
+}
+
+@test "packs rotation add multiple packs comma-separated" {
+  mkdir -p "$TEST_DIR/packs/glados/sounds"
+  cat > "$TEST_DIR/packs/glados/openpeon.json" <<'JSON'
+{
+  "name": "glados", "display_name": "GLaDOS",
+  "categories": { "session.start": { "sounds": [{ "file": "Hello.wav", "label": "Hello" }] } }
+}
+JSON
+  touch "$TEST_DIR/packs/glados/sounds/Hello.wav"
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": []
+}
+JSON
+  run bash "$PEON_SH" packs rotation add sc_kerrigan,glados
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Added sc_kerrigan"* ]]
+  [[ "$output" == *"Added glados"* ]]
+}
+
+@test "packs rotation remove removes pack from rotation" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon", "sc_kerrigan"]
+}
+JSON
+  run bash "$PEON_SH" packs rotation remove sc_kerrigan
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Removed sc_kerrigan"* ]]
+  rotation=$(/usr/bin/python3 -c "import json; print(','.join(json.load(open('$TEST_DIR/config.json')).get('pack_rotation', [])))")
+  [[ "$rotation" == "peon" ]]
+}
+
+@test "packs rotation remove rejects pack not in rotation" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon"]
+}
+JSON
+  run bash "$PEON_SH" packs rotation remove sc_kerrigan
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not in rotation"* ]]
+}
+
+@test "packs rotation no args shows usage" {
+  run bash "$PEON_SH" packs rotation invalid_sub
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Usage"* ]]
+}
+
+@test "packs rotation add no args shows usage" {
+  run bash "$PEON_SH" packs rotation add
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Usage"* ]]
+}
+
+@test "help shows packs rotation commands" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"packs rotation list"* ]]
+  [[ "$output" == *"packs rotation add"* ]]
+  [[ "$output" == *"packs rotation remove"* ]]
+}
+
+# ============================================================
 # Pack rotation
 # ============================================================
 

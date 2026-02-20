@@ -40,6 +40,12 @@ complete -c peon -n "__peon_using_subcommand packs" -a use -d "Switch to a speci
 complete -c peon -n "__peon_using_subcommand packs" -a next -d "Cycle to the next pack"
 complete -c peon -n "__peon_using_subcommand packs" -a install -d "Download and install new packs"
 complete -c peon -n "__peon_using_subcommand packs" -a remove -d "Remove specific packs"
+complete -c peon -n "__peon_using_subcommand packs" -a rotation -d "Manage pack rotation list"
+
+# packs rotation subcommands
+complete -c peon -n "__peon_packs_subcommand rotation" -a list -d "Show current rotation list and mode"
+complete -c peon -n "__peon_packs_subcommand rotation" -a add -d "Add pack(s) to rotation"
+complete -c peon -n "__peon_packs_subcommand rotation" -a remove -d "Remove pack(s) from rotation"
 
 # packs install options
 complete -c peon -n "__peon_packs_subcommand install" -a "--all" -d "Install all packs from registry"

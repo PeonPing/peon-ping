@@ -15,7 +15,17 @@ _peon_completions() {
     case "$subcmd" in
       packs)
         if [ "$cword" -eq 2 ]; then
-          COMPREPLY=( $(compgen -W "list use next install remove" -- "$cur") )
+          COMPREPLY=( $(compgen -W "list use next install remove rotation" -- "$cur") )
+        elif [ "$cword" -eq 3 ] && [ "$prev" = "rotation" ]; then
+          COMPREPLY=( $(compgen -W "list add remove" -- "$cur") )
+        elif [ "$cword" -eq 4 ] && [ "${words[2]}" = "rotation" ] && { [ "$prev" = "add" ] || [ "$prev" = "remove" ]; }; then
+          packs_dir="${CLAUDE_PEON_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping}/packs"
+          [ ! -d "$packs_dir" ] && [ -d "$HOME/.openpeon/packs" ] && packs_dir="$HOME/.openpeon/packs"
+          if [ -d "$packs_dir" ]; then
+            local names
+            names=$(find "$packs_dir" -maxdepth 2 \( -name manifest.json -o -name openpeon.json \) -exec dirname {} \; 2>/dev/null | xargs -I{} basename {} | sort)
+            COMPREPLY=( $(compgen -W "$names" -- "$cur") )
+          fi
         elif [ "$cword" -eq 3 ] && [ "$prev" = "install" ]; then
           COMPREPLY=( $(compgen -W "--all" -- "$cur") )
         elif [ "$cword" -eq 3 ] && [ "$prev" = "list" ]; then
