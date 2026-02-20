@@ -94,29 +94,38 @@ if (Test-Path $CursorHooksFile) {
         
         if ($cursorData.hooks) {
             $hooksObj = $cursorData.hooks
-            $eventNames = $hooksObj.PSObject.Properties.Name
+            $hooksIsArray = $hooksObj -is [Array]
             
-            foreach ($event in $eventNames) {
-                $entries = @($hooksObj.$event)
-                $originalCount = $entries.Count
-                
-                # Filter out entries that contain hook-handle-use
-                $filtered = @($entries | Where-Object {
+            if ($hooksIsArray) {
+                # Flat array format [{event, command}]
+                $originalCount = $hooksObj.Count
+                $filtered = @($hooksObj | Where-Object {
                     -not ($_.command -and $_.command -match "hook-handle-use")
                 })
-                
                 if ($filtered.Count -lt $originalCount) {
-                    $eventsChanged += $event
+                    $eventsChanged += "beforeSubmitPrompt"
                 }
-                
-                if ($filtered.Count -gt 0) {
-                    $hooksObj.$event = $filtered
-                } else {
-                    $hooksObj.PSObject.Properties.Remove($event)
+                $cursorData.hooks = $filtered
+            } else {
+                # Dict format {event: [{command}]}
+                $eventNames = $hooksObj.PSObject.Properties.Name
+                foreach ($event in $eventNames) {
+                    $entries = @($hooksObj.$event)
+                    $originalCount = $entries.Count
+                    $filtered = @($entries | Where-Object {
+                        -not ($_.command -and $_.command -match "hook-handle-use")
+                    })
+                    if ($filtered.Count -lt $originalCount) {
+                        $eventsChanged += $event
+                    }
+                    if ($filtered.Count -gt 0) {
+                        $hooksObj.$event = $filtered
+                    } else {
+                        $hooksObj.PSObject.Properties.Remove($event)
+                    }
                 }
+                $cursorData.hooks = $hooksObj
             }
-            
-            $cursorData.hooks = $hooksObj
             $cursorData | ConvertTo-Json -Depth 10 | Set-Content $CursorHooksFile -Encoding UTF8
             
             if ($eventsChanged.Count -gt 0) {

@@ -34,8 +34,11 @@ if ($args.Count -ge 1 -and $args[0]) {
 }
 
 if (-not $cliMode) {
-    # Hook mode: read JSON from stdin ($Input is reserved, use $stdinJson)
-    $stdinJson = [Console]::In.ReadToEnd()
+    # Hook mode: read JSON from stdin (StreamReader with UTF-8 auto-strips BOM on Windows)
+    $stream = [Console]::OpenStandardInput()
+    $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+    $stdinJson = $reader.ReadToEnd()
+    $reader.Close()
     Write-Log "invoked stdin_len=$($stdinJson.Length)"
 
     try {

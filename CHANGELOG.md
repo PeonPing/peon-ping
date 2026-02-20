@@ -2,6 +2,11 @@
 
 ## v2.8.0 (2026-02-20)
 
+### Fixed
+- **Cursor on Windows**: peon.ps1 now maps Cursor's camelCase event names (`sessionStart`, `stop`, etc.) to PascalCase, fixing no-sounds-on-new-chat when using Third-party skills
+- **Cursor on Windows**: `install.ps1` and `uninstall.ps1` now handle Cursor's flat-array `hooks.json` format (matching `install.sh` fix from v2.7.x)
+- peon.ps1 pack rotation: accept `session_override` alias in addition to `agentskill`
+
 ### Added
 - Click-to-focus for IDE embedded terminals (Cursor, VS Code, Windsurf, Zed) — when `TERM_PROGRAM` doesn't map to a standalone terminal, falls back to deriving the IDE's bundle ID from its PID via `lsappinfo` (macOS built-in)
 - PID-based `NSRunningApplication` activation in `mac-overlay.js` as belt-and-suspenders fallback when bundle ID lookup fails

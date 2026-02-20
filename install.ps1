@@ -401,11 +401,14 @@ try {
 
 if (-not $config.enabled) { exit 0 }
 
-# Read hook input from stdin
+# Read hook input from stdin (StreamReader with UTF-8 auto-strips BOM on Windows)
 $hookInput = ""
 try {
     if (-not [Console]::IsInputRedirected) { exit 0 }
-    $hookInput = [Console]::In.ReadToEnd()
+    $stream = [Console]::OpenStandardInput()
+    $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+    $hookInput = $reader.ReadToEnd()
+    $reader.Close()
 } catch {
     exit 0
 }
@@ -418,8 +421,23 @@ try {
     exit 0
 }
 
-$hookEvent = $event.hook_event_name
-if (-not $hookEvent) { exit 0 }
+$rawEvent = $event.hook_event_name
+if (-not $rawEvent) { exit 0 }
+
+# Cursor IDE sends camelCase via Third-party skills; Claude Code sends PascalCase.
+# Map to PascalCase so the switch below matches.
+$cursorMap = @{
+    "sessionStart" = "SessionStart"
+    "sessionEnd" = "SessionEnd"
+    "beforeSubmitPrompt" = "UserPromptSubmit"
+    "stop" = "Stop"
+    "preToolUse" = "UserPromptSubmit"
+    "postToolUse" = "Stop"
+    "subagentStop" = "Stop"
+    "subagentStart" = "SubagentStart"
+    "preCompact" = "PreCompact"
+}
+$hookEvent = if ($cursorMap.ContainsKey($rawEvent)) { $cursorMap[$rawEvent] } else { $rawEvent }
 
 # Extract session ID (Claude Code: session_id, Cursor: conversation_id)
 $sessionId = if ($event.session_id) { $event.session_id } elseif ($event.conversation_id) { $event.conversation_id } else { "default" }
@@ -564,7 +582,7 @@ if (-not $activePack) { $activePack = "peon" }
 $rotationMode = $config.pack_rotation_mode
 if (-not $rotationMode) { $rotationMode = "random" }
 
-if ($rotationMode -eq "agentskill") {
+if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
     # Explicit per-session assignments (from skill)
     $sessionPacks = $state.session_packs
     if (-not $sessionPacks) { $sessionPacks = @{} }
@@ -880,19 +898,29 @@ if (Test-Path $CursorDir) {
         timeout = 5
     }
     
-    $cursorEventHooks = @()
-    if ($cursorData.hooks.PSObject.Properties.Name -contains "beforeSubmitPrompt") {
-        # Remove existing handle-use entries, keep others
-        $cursorEventHooks = @($cursorData.hooks.beforeSubmitPrompt | Where-Object {
-            -not ($_.command -and $_.command -match "hook-handle-use")
+    # Handle both flat-array format [{event, command}] and dict format {event: [{command}]}
+    $hooksIsArray = $cursorData.hooks -is [Array]
+    if ($hooksIsArray) {
+        # Flat array format: remove existing peon-ping beforeSubmitPrompt entries, append new one
+        $cursorData.hooks = @($cursorData.hooks | Where-Object {
+            -not ($_.event -eq "beforeSubmitPrompt" -and $_.command -match "hook-handle-use")
         })
-    }
-    $cursorEventHooks += $cursorBeforeSubmitHook
-    
-    if ($cursorData.hooks.PSObject.Properties.Name -contains "beforeSubmitPrompt") {
-        $cursorData.hooks.beforeSubmitPrompt = $cursorEventHooks
+        $cursorBeforeSubmitHook | Add-Member -NotePropertyName "event" -NotePropertyValue "beforeSubmitPrompt" -Force
+        $cursorData.hooks += $cursorBeforeSubmitHook
     } else {
-        $cursorData.hooks | Add-Member -NotePropertyName "beforeSubmitPrompt" -NotePropertyValue $cursorEventHooks
+        # Dict format
+        $cursorEventHooks = @()
+        if ($cursorData.hooks.PSObject.Properties.Name -contains "beforeSubmitPrompt") {
+            $cursorEventHooks = @($cursorData.hooks.beforeSubmitPrompt | Where-Object {
+                -not ($_.command -and $_.command -match "hook-handle-use")
+            })
+        }
+        $cursorEventHooks += $cursorBeforeSubmitHook
+        if ($cursorData.hooks.PSObject.Properties.Name -contains "beforeSubmitPrompt") {
+            $cursorData.hooks.beforeSubmitPrompt = $cursorEventHooks
+        } else {
+            $cursorData.hooks | Add-Member -NotePropertyName "beforeSubmitPrompt" -NotePropertyValue $cursorEventHooks
+        }
     }
     
     # Ensure directory exists
