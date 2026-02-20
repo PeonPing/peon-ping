@@ -1,7 +1,7 @@
 # peon-ping
 <div align="center">
 
-[English](README.md) | **中文**
+[English](README.md) | [한국어](README_ko.md) | **中文**
 
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
