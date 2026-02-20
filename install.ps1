@@ -361,7 +361,7 @@ if ($Command) {
         }
         "^--volume$" {
             if ($Arg1) {
-                $vol = [math]::Max(0, [math]::Min(1, [double]$Arg1))
+                $vol = [math]::Round([math]::Max(0.0, [math]::Min(1.0, [double]::Parse($Arg1.Trim(), [System.Globalization.CultureInfo]::InvariantCulture))), 2)
                 $raw = Get-Content $ConfigPath -Raw
                 $raw = $raw -replace '"volume"\s*:\s*[\d.]+', "`"volume`": $vol"
                 Set-Content $ConfigPath -Value $raw -Encoding UTF8
