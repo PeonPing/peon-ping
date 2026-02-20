@@ -143,7 +143,7 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   echo "com.todesktop.230313mzl4w4u92" > "$TEST_DIR/.mock_ide_bundle_id"
   # Call lsappinfo directly (mocked) to verify the mock works
   # CLAUDE_PEON_DIR must be set for the mock to find the fixture file
-  result=$(CLAUDE_PEON_DIR="$TEST_DIR" "$MOCK_BIN/lsappinfo" info -only bundleid -app pid=12345 2>/dev/null | sed -n 's/.*="\([^"]*\)".*/\1/p')
+  result=$(CLAUDE_PEON_DIR="$TEST_DIR" "$MOCK_BIN/lsappinfo" info -only bundleid -app pid:12345 2>/dev/null | sed -n 's/.*="\([^"]*\)".*/\1/p')
   [ "$result" = "com.todesktop.230313mzl4w4u92" ]
 }
 

@@ -147,11 +147,12 @@ SCRIPT
   # Mock lsappinfo — returns a bundle ID for a given PID (IDE click-to-focus)
   cat > "$MOCK_BIN/lsappinfo" <<'SCRIPT'
 #!/bin/bash
-# Parse -app pid=<PID> to extract the requested PID
+# Parse -app pid:<PID> or pid=<PID> to extract the requested PID
 for arg in "$@"; do
   case "$arg" in
-    pid=*)
-      _pid="${arg#pid=}"
+    pid:*|pid=*)
+      _pid="${arg#pid:}"
+      _pid="${_pid#pid=}"
       # Return mock bundle IDs for known test PIDs
       if [ -f "${CLAUDE_PEON_DIR}/.mock_ide_bundle_id" ]; then
         bid=$(cat "${CLAUDE_PEON_DIR}/.mock_ide_bundle_id")

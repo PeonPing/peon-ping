@@ -304,7 +304,7 @@ _mac_ide_pid() {
 _mac_bundle_id_from_pid() {
   local pid="$1"
   [ -z "$pid" ] || [ "$pid" = "0" ] && return
-  lsappinfo info -only bundleid -app pid="$pid" 2>/dev/null \
+  lsappinfo info -only bundleid -app pid:"$pid" 2>/dev/null \
     | sed -n 's/.*="\([^"]*\)".*/\1/p'
 }
 
