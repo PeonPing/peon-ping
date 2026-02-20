@@ -86,8 +86,8 @@ case "$PEON_PLATFORM" in
           find "$slot_dir" -maxdepth 1 -name 'slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null
           slot=0; mkdir -p "$slot_dir/slot-0"
         fi
-        # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=project (for window matching)
-        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "4" "$bundle_id" "$ide_pid" "${PEON_PROJECT:-}" >/dev/null 2>&1 || true
+        # argv[5]=bundle_id (terminal click-to-focus), argv[6]=ide_pid (IDE click-to-focus)
+        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "4" "$bundle_id" "$ide_pid" >/dev/null 2>&1 || true
         rm -rf "$slot_dir/slot-$slot"
       )
       if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi

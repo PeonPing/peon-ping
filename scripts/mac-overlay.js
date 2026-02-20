@@ -5,7 +5,6 @@
 // Creates a borderless, always-on-top overlay on every screen.
 // Dismisses automatically after <dismiss_seconds> seconds.
 // If bundle_id is provided, clicking the overlay activates that app (click-to-focus).
-// If project is provided, raises the window whose title contains the project name.
 
 ObjC.import('Cocoa');
 
@@ -17,7 +16,6 @@ function run(argv) {
   var dismiss  = parseFloat(argv[4]) || 4;
   var bundleId = argv[5] || '';
   var idePid   = parseInt(argv[6], 10) || 0;
-  var project  = argv[7] || '';
 
   // Color map
   var r = 180/255, g = 0, b = 0;
@@ -43,57 +41,24 @@ function run(argv) {
         'handleClick': {
           types: ['void', []],
           implementation: function() {
-            // Raise the correct window and activate the app via System Events.
-            // Doing it all in one AppleScript call is more reliable than splitting
-            // between NSRunningApplication.activate (async) and a separate AXRaise.
-            var didRaise = false;
-            if (project && bundleId) {
-              try {
-                var ws = $.NSWorkspace.sharedWorkspace;
-                var apps = ws.runningApplications;
-                var appName = '';
-                for (var i = 0; i < apps.count; i++) {
-                  var a = apps.objectAtIndex(i);
-                  var bid = a.bundleIdentifier;
-                  if (!bid.isNil() && bid.js === bundleId) {
-                    appName = a.localizedName.js;
-                    break;
-                  }
-                }
-                if (appName) {
-                  var script = 'tell application "System Events"\n';
-                  script += '  tell process "' + appName + '"\n';
-                  script += '    set frontmost to true\n';
-                  script += '    set wlist to every window\n';
-                  script += '    repeat with w in wlist\n';
-                  script += '      if title of w contains "' + project + '" then\n';
-                  script += '        perform action "AXRaise" of w\n';
-                  script += '        return\n';
-                  script += '      end if\n';
-                  script += '    end repeat\n';
-                  script += '  end tell\n';
-                  script += 'end tell';
-                  var osa = $.NSAppleScript.alloc.initWithSource($(script));
-                  osa.executeAndReturnError(null);
-                  didRaise = true;
-                }
-              } catch(e) {}
-            }
-            // Fallback: activate by bundle ID without window matching
-            if (!didRaise && bundleId) {
-              var ws2 = $.NSWorkspace.sharedWorkspace;
-              var apps2 = ws2.runningApplications;
-              for (var j = 0; j < apps2.count; j++) {
-                var app2 = apps2.objectAtIndex(j);
-                var bid2 = app2.bundleIdentifier;
-                if (!bid2.isNil() && bid2.js === bundleId) {
-                  app2.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
+            var activated = false;
+            // Primary: activate by bundle ID
+            if (bundleId) {
+              var ws = $.NSWorkspace.sharedWorkspace;
+              var apps = ws.runningApplications;
+              var count = apps.count;
+              for (var i = 0; i < count; i++) {
+                var app = apps.objectAtIndex(i);
+                var bid = app.bundleIdentifier;
+                if (!bid.isNil() && bid.js === bundleId) {
+                  app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
+                  activated = true;
                   break;
                 }
               }
             }
-            // Last resort: activate by IDE PID
-            if (!didRaise && !bundleId && idePid > 0) {
+            // Fallback: activate by IDE PID (for embedded terminals)
+            if (!activated && idePid > 0) {
               var ideApp = $.NSRunningApplication.runningApplicationWithProcessIdentifier(idePid);
               if (ideApp && !ideApp.isNil()) {
                 ideApp.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);

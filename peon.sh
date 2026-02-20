@@ -340,7 +340,6 @@ send_notification() {
       export PEON_DIR
       export PEON_SYNC="0"
       [ "${PEON_TEST:-0}" = "1" ] && export PEON_SYNC="1"
-      export PEON_PROJECT="${PROJECT:-}"
       if [ "$PLATFORM" = "mac" ]; then
         export PEON_BUNDLE_ID="$(_mac_terminal_bundle_id)"
         export PEON_IDE_PID="$(_mac_ide_pid)"
