@@ -30,7 +30,7 @@ detect_platform() {
 PLATFORM=${PLATFORM:-$(detect_platform)}
 
 PEON_DIR="${CLAUDE_PEON_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-# Homebrew/adapter installs: script lives in Cellar but packs/config are elsewhere
+# Homebrew/Nix/adapter installs: script lives in read-only store but packs/config are elsewhere
 if [ ! -d "$PEON_DIR/packs" ]; then
   # Check CESP shared path (used by peon-ping-setup and standalone adapters)
   if [ -d "$HOME/.openpeon/packs" ]; then
@@ -38,7 +38,12 @@ if [ ! -d "$PEON_DIR/packs" ]; then
   else
     # Fall back to Claude Code hooks dir
     _hooks_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
-    [ -d "$_hooks_dir/packs" ] && PEON_DIR="$_hooks_dir"
+    if [ -d "$_hooks_dir/packs" ]; then
+      PEON_DIR="$_hooks_dir"
+    else
+      # Neither exists — use ~/.openpeon as default user data dir (Nix, fresh install)
+      PEON_DIR="$HOME/.openpeon"
+    fi
     unset _hooks_dir
   fi
 fi
@@ -931,7 +936,19 @@ except Exception:
     cfg = {}
 cfg['default_pack'] = pack_arg
 cfg.pop('active_pack', None)
-json.dump(cfg, open(config_path, 'w'), indent=2)
+try:
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+except PermissionError:
+    # Config is likely managed by Nix (symlink to store)
+    if os.path.islink(config_path):
+        print(f'Error: Cannot write to {config_path} — it is managed by Nix/Home Manager.', file=sys.stderr)
+        print('To switch packs, update your Nix configuration:', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('  programs.peon-ping.settings.default_pack = "' + pack_arg + '";', file=sys.stderr)
+        print('', file=sys.stderr)
+        print('Then rebuild: darwin-rebuild switch --flake ~/.config/nixcfg', file=sys.stderr)
+        sys.exit(1)
+    raise
 display = pack_arg
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(packs_dir, pack_arg, mname)

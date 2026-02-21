@@ -89,6 +89,63 @@ cd peon-ping
 ./install.sh
 ```
 
+### Option 5: Nix (macOS, Linux)
+
+Run directly from source without installing:
+
+```bash
+nix run github:PeonPing/peon-ping -- status
+nix run github:PeonPing/peon-ping -- packs install peon
+```
+
+Or install to your profile:
+
+```bash
+nix profile install github:PeonPing/peon-ping
+```
+
+Development shell (bats, shellcheck, nodejs):
+
+```bash
+nix develop  # or use direnv
+```
+
+#### Home Manager module (declarative configuration)
+
+For reproducible setups, use the Home Manager module:
+
+```nix
+# In your home.nix or flake.nix
+{ inputs, ... }: {
+  imports = [ inputs.peon-ping.homeManagerModules.default ];
+
+  programs.peon-ping = {
+    enable = true;
+    package = inputs.peon-ping.packages.${pkgs.system}.default;
+    
+    settings = {
+      default_pack = "glados";
+      volume = 0.7;
+      enabled = true;
+      desktop_notifications = true;
+      categories = {
+        "session.start" = true;
+        "task.complete" = true;
+        "task.error" = true;
+        "input.required" = true;
+        "resource.limit" = true;
+        "user.spam" = true;
+      };
+    };
+    
+    installPacks = [ "peon" "glados" "sc_kerrigan" ];
+    enableZshIntegration = true;
+  };
+}
+```
+
+This creates `~/.openpeon/config.json` and installs specified packs automatically.
+
 ## What you'll hear
 
 | Event | CESP Category | Examples |

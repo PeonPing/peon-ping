@@ -17,3 +17,9 @@ PLAN-*.md
 checksums.txt
 video/promoted-packs.json
 scripts/peon-play
+
+# Nix
+result
+result-*
+.direnv
+.envrc.local
