@@ -66,9 +66,14 @@ _peon_completions() {
   return 0
 }
 
-# zsh compatibility: enable bashcompinit first
-if [ -n "$ZSH_VERSION" ]; then
-  autoload -Uz bashcompinit 2>/dev/null && bashcompinit
-fi
-
-complete -F _peon_completions peon
+# Only register completions in interactive shells (complete is unavailable in
+# non-interactive contexts like Nix hook environments, CI runners, etc.)
+case "$-" in
+  *i*)
+    # zsh compatibility: enable bashcompinit first
+    if [ -n "$ZSH_VERSION" ]; then
+      autoload -Uz bashcompinit 2>/dev/null && bashcompinit
+    fi
+    complete -F _peon_completions peon
+    ;;
+esac
