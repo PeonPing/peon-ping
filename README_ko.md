@@ -646,7 +646,7 @@ peon mobile test          # 테스트 알림 보내기
 
 ## 사운드 팩
 
-워크래프트, 스타크래프트, 레드 얼럿, 포탈, 젤다, Dota 2, 헬다이버즈 2, 엘더 스크롤 등 75개 이상의 팩이 있습니다. 기본 설치에는 5개의 엄선된 팩이 포함됩니다:
+워크래프트, 스타크래프트, 레드 얼럿, 포탈, 젤다, Dota 2, 헬다이버즈 2, 엘더 스크롤 등 90개 이상의 팩이 있습니다. 기본 설치에는 5개의 엄선된 팩이 포함됩니다:
 
 | 팩 | 캐릭터 | 사운드 |
 |---|---|---|
@@ -716,7 +716,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-pi
 
 - [@peonping on X](https://x.com/peonping) — 업데이트 및 공지
 - [peonping.com](https://peonping.com/) — 랜딩 페이지
-- [openpeon.com](https://openpeon.com/) — CESP 표준, 팩 브라우저, 팩 만들기 가이드
+- [openpeon.com](https://openpeon.com/) — CESP 표준, 팩 브라우저, [통합 가이드](https://openpeon.com/integrate), 팩 만들기 가이드
 - [OpenPeon 레지스트리](https://github.com/PeonPing/registry) — 사운드 팩 레지스트리 (GitHub Pages)
 - [og-packs](https://github.com/PeonPing/og-packs) — 공식 사운드 팩
 - [peon-pet](https://github.com/PeonPing/peon-pet) — macOS 데스크톱 펫 (오크 스프라이트, 훅 이벤트에 반응)

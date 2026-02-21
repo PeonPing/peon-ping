@@ -737,7 +737,7 @@ Sound packs are downloaded from the [OpenPeon registry](https://github.com/PeonP
 
 - [@peonping on X](https://x.com/peonping) — updates and announcements
 - [peonping.com](https://peonping.com/) — landing page
-- [openpeon.com](https://openpeon.com/) — CESP spec, pack browser, creation guide
+- [openpeon.com](https://openpeon.com/) — CESP spec, pack browser, [integration guide](https://openpeon.com/integrate), creation guide
 - [OpenPeon registry](https://github.com/PeonPing/registry) — pack registry (GitHub Pages)
 - [og-packs](https://github.com/PeonPing/og-packs) — official sound packs
 - [peon-pet](https://github.com/PeonPing/peon-pet) — macOS desktop pet (orc sprite, reacts to hook events)

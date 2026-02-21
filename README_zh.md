@@ -654,7 +654,7 @@ peon mobile test          # 发送测试通知
 
 ## 语音包
 
-75 多个语音包，涵盖魔兽争霸、星际争霸、红色警戒、传送门、塞尔达、Dota 2、绝地潜兵2、上古卷轴等。默认安装包含 5 个精选语音包：
+90 多个语音包，涵盖魔兽争霸、星际争霸、红色警戒、传送门、塞尔达、Dota 2、绝地潜兵2、上古卷轴等。默认安装包含 5 个精选语音包：
 
 | 语音包 | 角色 | 声音 |
 |---|---|---|
@@ -723,7 +723,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-pi
 
 - [@peonping on X](https://x.com/peonping) — 更新和公告
 - [peonping.com](https://peonping.com/) — 主页
-- [openpeon.com](https://openpeon.com/) — CESP 规范、语音包浏览器、创建指南
+- [openpeon.com](https://openpeon.com/) — CESP 规范、语音包浏览器、[集成指南](https://openpeon.com/integrate)、创建指南
 - [OpenPeon 注册表](https://github.com/PeonPing/registry) — 语音包注册表（GitHub Pages）
 - [og-packs](https://github.com/PeonPing/og-packs) — 官方语音包
 - [peon-pet](https://github.com/PeonPing/peon-pet) — macOS 桌面宠物（兽人精灵，响应钩子事件）

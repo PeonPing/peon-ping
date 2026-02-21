@@ -2,7 +2,7 @@
 
 > Game character voice lines + visual overlay notifications when your AI coding agent needs attention.
 
-peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 75+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, GitHub Copilot, Cursor, OpenCode, Codex, Kiro, Windsurf, and any MCP-compatible AI agent.
+peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 90+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, GitHub Copilot, Cursor, OpenCode, Codex, Kiro, Windsurf, and any MCP-compatible AI agent.
 
 ## Links
 
@@ -10,6 +10,7 @@ peon-ping plays voice lines and shows bold on-screen overlay banners from Warcra
 - GitHub: https://github.com/PeonPing/peon-ping
 - Pack Browser: https://openpeon.com/packs
 - CESP Spec: https://openpeon.com/spec
+- Integration Guide: https://openpeon.com/integrate
 - Registry: https://github.com/PeonPing/registry
 - Desktop Pet: https://github.com/PeonPing/peon-pet
 - X: https://x.com/peonping
@@ -74,7 +75,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - Google Antigravity
 - OpenClaw (via adapters/openclaw.sh — call with any CESP category or Claude Code event name)
 
-## Sound Packs (75+ available)
+## Sound Packs (90+ available)
 
 Packs use the OpenPeon (CESP v1.0) standard. Each pack maps event categories to audio files.
 
