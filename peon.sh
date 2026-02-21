@@ -1558,6 +1558,7 @@ try:
 except Exception:
     cfg = {}
 volume = cfg.get('volume', 0.5)
+use_sound_effects_device = cfg.get('use_sound_effects_device', True)
 active_pack = cfg.get('default_pack', cfg.get('active_pack', 'peon'))
 
 # Load manifest
@@ -1587,6 +1588,7 @@ if not cat_data or not cat_data.get('sounds'):
 display_name = manifest.get('display_name', active_pack)
 print('PACK_DISPLAY=' + repr(display_name))
 print('VOLUME=' + str(volume))
+print('USE_SOUND_EFFECTS_DEVICE=' + str(use_sound_effects_device).lower())
 
 sounds = cat_data['sounds']
 for i, s in enumerate(sounds):
@@ -1612,6 +1614,8 @@ for i, s in enumerate(sounds):
     # Parse output
     PREVIEW_VOL=$(echo "$PREVIEW_OUTPUT" | grep '^VOLUME=' | head -1 | cut -d= -f2)
     PREVIEW_VOL="${PREVIEW_VOL:-0.5}"
+    USE_SOUND_EFFECTS_DEVICE=$(echo "$PREVIEW_OUTPUT" | grep '^USE_SOUND_EFFECTS_DEVICE=' | head -1 | cut -d= -f2)
+    USE_SOUND_EFFECTS_DEVICE="${USE_SOUND_EFFECTS_DEVICE:-true}"
     PACK_DISPLAY=$(echo "$PREVIEW_OUTPUT" | grep '^PACK_DISPLAY=' | head -1 | sed "s/^PACK_DISPLAY=//;s/^'//;s/'$//")
 
     echo "peon-ping: previewing [$PREVIEW_CAT] from $PACK_DISPLAY"
