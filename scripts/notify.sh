@@ -38,11 +38,15 @@ if [ -z "${PEON_PLATFORM:-}" ]; then
 fi
 
 # --- Resolve notification style ---
+# MSYS2: convert path for Windows Python
+_PEON_DIR_PY="$PEON_DIR"
+[ "$PEON_PLATFORM" = "msys2" ] && _PEON_DIR_PY="$(cygpath -m "$PEON_DIR")"
+
 if [ -z "${PEON_NOTIF_STYLE:-}" ]; then
   PEON_NOTIF_STYLE=$(python3 -c "
 import json, sys
 try:
-    with open('${PEON_DIR}/config.json') as f:
+    with open('${_PEON_DIR_PY}/config.json') as f:
         print(json.load(f).get('notification_style', 'overlay'))
 except Exception:
     print('overlay')
