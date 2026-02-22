@@ -60,8 +60,34 @@ fi
 use_bg=true
 [ "${PEON_SYNC:-0}" = "1" ] && use_bg=false
 
+# --- Resolve overlay theme ---
+_resolve_overlay_theme() {
+  local theme
+  theme=$(python3 -c "
+import json, sys
+try:
+    with open('${PEON_DIR}/config.json') as f:
+        print(json.load(f).get('overlay_theme', ''))
+except Exception:
+    print('')
+" 2>/dev/null || echo "")
+  case "$theme" in
+    jarvis|glass|sakura) echo "$theme" ;;
+    *) echo "" ;;
+  esac
+}
+
 # --- Resolve overlay script path ---
 _find_overlay() {
+  local theme
+  theme="$(_resolve_overlay_theme)"
+  if [ -n "$theme" ]; then
+    local p="$PEON_DIR/scripts/mac-overlay-${theme}.js"
+    [ -f "$p" ] && { echo "$p"; return 0; }
+    p="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mac-overlay-${theme}.js"
+    [ -f "$p" ] && { echo "$p"; return 0; }
+  fi
+  # Fallback to default overlay
   local p="$PEON_DIR/scripts/mac-overlay.js"
   [ -f "$p" ] && { echo "$p"; return 0; }
   p="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mac-overlay.js"
@@ -91,8 +117,9 @@ case "$PEON_PLATFORM" in
           find "$slot_dir" -maxdepth 1 -name 'slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null
           slot=0; mkdir -p "$slot_dir/slot-0"
         fi
-        # argv[5]=bundle_id (terminal click-to-focus), argv[6]=ide_pid (IDE click-to-focus)
-        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "4" "$bundle_id" "$ide_pid" >/dev/null 2>&1 || true
+        local session_tty="${PEON_SESSION_TTY:-}"
+        # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty (iTerm2 tab focus)
+        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "4" "$bundle_id" "$ide_pid" "$session_tty" >/dev/null 2>&1 || true
         rm -rf "$slot_dir/slot-$slot"
       )
       if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi

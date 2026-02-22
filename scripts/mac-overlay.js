@@ -14,8 +14,9 @@ function run(argv) {
   var iconPath = argv[2] || '';
   var slot     = parseInt(argv[3], 10) || 0;
   var dismiss  = parseFloat(argv[4]) || 4;
-  var bundleId = argv[5] || '';
-  var idePid   = parseInt(argv[6], 10) || 0;
+  var bundleId   = argv[5] || '';
+  var idePid     = parseInt(argv[6], 10) || 0;
+  var sessionTty = argv[7] || '';
 
   // Color map
   var r = 180/255, g = 0, b = 0;
@@ -41,6 +42,25 @@ function run(argv) {
         'handleClick': {
           types: ['void', []],
           implementation: function() {
+            // iTerm2: raise the specific window containing our session
+            if (sessionTty && bundleId === 'com.googlecode.iterm2') {
+              var task = $.NSTask.alloc.init;
+              task.setLaunchPath($('/usr/bin/osascript'));
+              task.setArguments($(['-l', 'JavaScript', '-e',
+                'var iTerm=Application("iTerm2");var ws=iTerm.windows();var f=0;' +
+                'for(var w=0;w<ws.length&&!f;w++){var ts=ws[w].tabs();' +
+                'for(var t=0;t<ts.length&&!f;t++){var ss=ts[t].sessions();' +
+                'for(var s=0;s<ss.length&&!f;s++){try{if(ss[s].tty()==="' + sessionTty + '")' +
+                '{ts[t].select();ss[s].select();var wn=ws[w].name();' +
+                'var se=Application("System Events");var sw=se.processes["iTerm2"].windows();' +
+                'for(var i=0;i<sw.length;i++){try{if(sw[i].name()===wn){sw[i].actions["AXRaise"].perform();break}}catch(e2){}}' +
+                'ws[w].index=1;iTerm.activate();f=1}}catch(e){}}}}'
+              ]));
+              task.launch;
+              task.waitUntilExit;
+              $.NSApp.terminate(null);
+              return;
+            }
             var activated = false;
             // Primary: activate by bundle ID
             if (bundleId) {

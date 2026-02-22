@@ -393,6 +393,23 @@ send_notification() {
         if [ -z "$PEON_BUNDLE_ID" ] && [ "${PEON_IDE_PID:-0}" != "0" ]; then
           PEON_BUNDLE_ID="$(_mac_bundle_id_from_pid "$PEON_IDE_PID")"
         fi
+        # Find session TTY for iTerm2 tab/window focus
+        local session_tty=""
+        if [ -n "${TMUX:-}" ]; then
+          session_tty=$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)
+        else
+          local walk_pid="$PPID"
+          while [ "$walk_pid" -gt 1 ] 2>/dev/null; do
+            local walk_tty
+            walk_tty=$(ps -p "$walk_pid" -o tty= 2>/dev/null | sed 's/^ *//' || true)
+            if [ -n "$walk_tty" ] && [ "$walk_tty" != "??" ]; then
+              session_tty="/dev/$walk_tty"
+              break
+            fi
+            walk_pid=$(ps -p "$walk_pid" -o ppid= 2>/dev/null | sed 's/^ *//' || true)
+          done
+        fi
+        export PEON_SESSION_TTY="$session_tty"
       fi
       bash "$notify_script" "$msg" "$title" "$color" "$icon_path"
       ;;
@@ -426,7 +443,20 @@ terminal_is_focused() {
       local frontmost
       frontmost=$(osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>/dev/null)
       case "$frontmost" in
-        Terminal|iTerm2|Warp|Alacritty|kitty|WezTerm|Ghostty) return 0 ;;
+        iTerm2)
+          # iTerm2 is frontmost, but check if OUR tab/pane is active
+          local my_tty="${PEON_SESSION_TTY:-}"
+          if [ -z "$my_tty" ]; then
+            return 0  # No TTY info, assume focused
+          fi
+          local active_tty
+          active_tty=$(osascript -e 'tell application "iTerm2" to tty of current session of current tab of current window' 2>/dev/null || true)
+          if [ "$active_tty" = "$my_tty" ]; then
+            return 0  # Our session is active
+          fi
+          return 1  # Different tab/pane is active — notify
+          ;;
+        Terminal|Warp|Alacritty|kitty|WezTerm|Ghostty) return 0 ;;
         *) return 1 ;;
       esac
       ;;

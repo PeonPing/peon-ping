@@ -3,6 +3,7 @@
   "volume": 0.5,
   "enabled": true,
   "desktop_notifications": true,
+  "overlay_theme": "jarvis",
   "categories": {
     "session.start": true,
     "task.acknowledge": false,
