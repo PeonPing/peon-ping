@@ -243,8 +243,12 @@ Config location depends on install mode:
 - **volume**: 0.0–1.0 (quiet enough for the office)
 - **desktop_notifications**: `true`/`false` — toggle desktop notification popups independently from sounds (default: `true`)
 - **notification_style**: `"overlay"` or `"standard"` — controls how desktop notifications appear (default: `"overlay"`)
-  - **overlay**: large, visible banners — JXA Cocoa overlay on macOS, Windows Forms popup on WSL. Clicking the overlay focuses your terminal (supports Ghostty, Warp, iTerm2, Zed, Terminal.app)
+  - **overlay**: large, visible banners — JXA Cocoa overlay on macOS, Windows Forms popup on WSL. Clicking the overlay focuses your terminal (supports Ghostty, Warp, iTerm2, Zed, Terminal.app). On iTerm2, clicking focuses the correct tab/pane/window — not just the app.
   - **standard**: system notifications — [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript` on macOS, Windows toast on WSL. When `terminal-notifier` is installed (`brew install terminal-notifier`), clicking a standard notification focuses your terminal automatically (supports Ghostty, Warp, iTerm2, Zed, Terminal.app)
+- **overlay_theme**: `"jarvis"`, `"glass"`, `"sakura"`, or omit for the default overlay — macOS only (default: none)
+  - **jarvis**: circular HUD with rotating arcs, graduation ticks, and progress ring
+  - **glass**: glassmorphism panel with accent color bar, progress line, and timestamp
+  - **sakura**: zen garden with bonsai tree and animated cherry blossom petals
 - **categories**: Toggle individual CESP sound categories on/off (e.g. `"session.start": false` to disable greeting sounds)
 - **annoyed_threshold / annoyed_window_seconds**: How many prompts in N seconds triggers the `user.spam` easter egg
 - **silent_window_seconds**: Suppress `task.complete` sounds and notifications for tasks shorter than N seconds. (e.g. `10` to only hear sounds for tasks that take longer than 10 seconds)
