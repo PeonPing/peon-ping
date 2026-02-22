@@ -108,8 +108,16 @@ emit_event() {
   local guid="$2"
   local session_id="antigravity-${guid:0:8}"
 
-  echo "{\"hook_event_name\":\"$event\",\"notification_type\":\"\",\"cwd\":\"$PWD\",\"session_id\":\"$session_id\",\"permission_mode\":\"\"}" \
-    | bash "$PEON_DIR/peon.sh" 2>/dev/null || true
+  _PE="$event" _PC="$PWD" _PS="$session_id" python3 -c "
+import json, os
+print(json.dumps({
+    'hook_event_name': os.environ['_PE'],
+    'notification_type': '',
+    'cwd': os.environ['_PC'],
+    'session_id': os.environ['_PS'],
+    'permission_mode': '',
+}))
+" | bash "$PEON_DIR/peon.sh" 2>/dev/null || true
 }
 
 # --- Handle a conversation file change ---
