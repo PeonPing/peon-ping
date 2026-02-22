@@ -10,6 +10,12 @@
     let
       # Home Manager module (system-agnostic)
       homeManagerModules.default = import ./nix/hm-module.nix;
+      
+      # NixOS module
+      nixosModules.default = import ./nix/nixos-module.nix;
+      
+      # nix-darwin module
+      darwinModules.default = import ./nix/darwin-module.nix;
     in
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -122,5 +128,7 @@
           '';
         };
       }
-    ) // { inherit homeManagerModules; };
+    ) // { 
+      inherit homeManagerModules nixosModules darwinModules;
+    };
 }

@@ -84,10 +84,12 @@ in
     # Create the config file at the legacy location peon-ping expects
     home.file.".openpeon/config.json".source = jsonFormat.generate "peon-ping-config" cfg.settings;
 
-    # Install sound packs via activation script
-    home.activation.peonPacksInstall = lib.hm.dag.entryAfter [ "writeBoundary" ] (mkIf (cfg.installPacks != [ ]) ''
-      $DRY_RUN_CMD ${cfg.package}/bin/peon packs install ${lib.concatStringsSep "," cfg.installPacks}
-    '');
+    # Install sound packs via activation script (only if packs specified)
+    home.activation.peonPacksInstall = lib.mkIf (cfg.installPacks != [ ]) (
+      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        $DRY_RUN_CMD ${cfg.package}/bin/peon packs install ${lib.concatStringsSep "," cfg.installPacks}
+      ''
+    );
 
     # Shell completions
     programs.zsh.initExtra = mkIf cfg.enableZshIntegration ''

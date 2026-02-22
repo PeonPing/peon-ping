@@ -30,6 +30,8 @@ detect_platform() {
 PLATFORM=${PLATFORM:-$(detect_platform)}
 
 PEON_DIR="${CLAUDE_PEON_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+# Save original install directory for finding bundled scripts (Nix, Homebrew)
+_INSTALL_DIR="$PEON_DIR"
 # Homebrew/Nix/adapter installs: script lives in read-only store but packs/config are elsewhere
 if [ ! -d "$PEON_DIR/packs" ]; then
   # Check CESP shared path (used by peon-ping-setup and standalone adapters)
@@ -946,9 +948,11 @@ except PermissionError:
         print('', file=sys.stderr)
         print('  programs.peon-ping.settings.default_pack = "' + pack_arg + '";', file=sys.stderr)
         print('', file=sys.stderr)
-        print('Then rebuild: darwin-rebuild switch --flake ~/.config/nixcfg', file=sys.stderr)
+        print('Then rebuild your Nix configuration (e.g. darwin-rebuild switch --flake <path-to-your-flake>)', file=sys.stderr)
         sys.exit(1)
-    raise
+    else:
+        print(f'Error: Cannot write to {config_path} — permission denied.', file=sys.stderr)
+        sys.exit(1)
 display = pack_arg
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(packs_dir, pack_arg, mname)
@@ -1494,9 +1498,14 @@ print('service=' + mn.get('service', ''))
         exit 1 ;;
     esac ;;
   relay)
-    RELAY_SCRIPT="$PEON_DIR/relay.sh"
-    if [ ! -f "$RELAY_SCRIPT" ]; then
-      echo "Error: relay.sh not found at $PEON_DIR" >&2
+    # Find relay.sh - use original install dir (Nix, Homebrew), then PEON_DIR (legacy)
+    RELAY_SCRIPT=""
+    # _INSTALL_DIR is set at startup and preserved even when PEON_DIR changes to ~/.openpeon
+    [ -f "${_INSTALL_DIR}/relay.sh" ] && RELAY_SCRIPT="${_INSTALL_DIR}/relay.sh"
+    # Fallback: PEON_DIR (legacy install where relay.sh is in user dir)
+    [ -z "$RELAY_SCRIPT" ] && [ -f "$PEON_DIR/relay.sh" ] && RELAY_SCRIPT="$PEON_DIR/relay.sh"
+    if [ -z "$RELAY_SCRIPT" ] || [ ! -f "$RELAY_SCRIPT" ]; then
+      echo "Error: relay.sh not found" >&2
       echo "Re-run the installer to get the relay script." >&2
       exit 1
     fi
