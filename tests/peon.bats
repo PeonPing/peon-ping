@@ -750,8 +750,9 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   export CLAUDE_PEON_DIR="$TEST_DIR"
 }
 
-@test "CESP shared path takes priority over Claude hooks dir" {
-  # Both paths exist — CESP should win
+@test "Claude hooks dir takes priority over CESP shared path (fixes #250)" {
+  # Both paths exist — Claude hooks dir should win so CLI writes config
+  # to the same location the hook reads from.
   FAKE_HOME="$(mktemp -d)"
   CESP_DIR="$FAKE_HOME/.openpeon"
   HOOKS_DIR="$FAKE_HOME/.claude/hooks/peon-ping"
@@ -767,10 +768,9 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   unset CLAUDE_PEON_DIR
   run env HOME="$FAKE_HOME" bash "$PEON_SH" packs list
   [ "$status" -eq 0 ]
-  # Should find peon (from CESP), not sc_kerrigan (from hooks)
-  [[ "$output" == *"peon"* ]]
-  [[ "$output" == *"Orc Peon"* ]]
-  [[ "$output" != *"sc_kerrigan"* ]]
+  # Should find sc_kerrigan (from hooks dir), not peon (from CESP)
+  [[ "$output" == *"sc_kerrigan"* ]]
+  [[ "$output" != *"Orc Peon"* ]]
 
   rm -rf "$FAKE_HOME"
   export CLAUDE_PEON_DIR="$TEST_DIR"

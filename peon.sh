@@ -33,22 +33,21 @@ PLATFORM=${PLATFORM:-$(detect_platform)}
 PEON_DIR="${CLAUDE_PEON_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 # Save original install directory for finding bundled scripts (Nix, Homebrew)
 _INSTALL_DIR="$PEON_DIR"
-# Homebrew/Nix/adapter installs: script lives in read-only store but packs/config are elsewhere
+# Homebrew/Nix/adapter installs: script lives in read-only store but packs/config are elsewhere.
+# Priority: Claude hooks dir first (matches where the hook actually runs from),
+# then CESP shared path as fallback (fixes #250: CLI must write config to the
+# same location the hook reads from).
 if [ ! -d "$PEON_DIR/packs" ]; then
-  # Check CESP shared path (used by peon-ping-setup and standalone adapters)
-  if [ -d "$HOME/.openpeon/packs" ]; then
+  _hooks_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
+  if [ -d "$_hooks_dir/packs" ]; then
+    PEON_DIR="$_hooks_dir"
+  elif [ -d "$HOME/.openpeon/packs" ]; then
     PEON_DIR="$HOME/.openpeon"
   else
-    # Fall back to Claude Code hooks dir
-    _hooks_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
-    if [ -d "$_hooks_dir/packs" ]; then
-      PEON_DIR="$_hooks_dir"
-    else
-      # Neither exists — use ~/.openpeon as default user data dir (Nix, fresh install)
-      PEON_DIR="$HOME/.openpeon"
-    fi
-    unset _hooks_dir
+    # Neither exists — use ~/.openpeon as default user data dir (Nix, fresh install)
+    PEON_DIR="$HOME/.openpeon"
   fi
+  unset _hooks_dir
 fi
 # Local project config overrides global config
 _local_config="${PWD}/.claude/hooks/peon-ping/config.json"
