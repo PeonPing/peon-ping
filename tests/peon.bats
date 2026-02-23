@@ -3166,3 +3166,47 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+# ============================================================
+# Suppress sound when tab focused
+# ============================================================
+
+@test "suppress_sound_when_tab_focused: skips sound when terminal is focused" {
+  # Enable the feature
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  # Mock terminal as focused (Terminal.app — a recognized terminal)
+  echo "Terminal" > "$TEST_DIR/.mock_terminal_focused"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "suppress_sound_when_tab_focused: plays sound when terminal is not focused" {
+  # Enable the feature
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  # Default mock: osascript returns "Safari" (not a terminal) — not focused
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "suppress_sound_when_tab_focused disabled: plays sound even when terminal is focused" {
+  # Feature defaults to false — mock terminal as focused
+  echo "Terminal" > "$TEST_DIR/.mock_terminal_focused"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+

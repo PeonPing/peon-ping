@@ -24,6 +24,7 @@
   "use_sound_effects_device": true,
   "linux_audio_player": "",
   "headphones_only": false,
+  "suppress_sound_when_tab_focused": false,
   "trainer": {
     "enabled": false,
     "exercises": {

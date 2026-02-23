@@ -2175,6 +2175,7 @@ annoyed_window = float(cfg.get('annoyed_window_seconds', 10))
 silent_window = float(cfg.get('silent_window_seconds', 0))
 suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).lower() == 'true'
 headphones_only = str(cfg.get('headphones_only', False)).lower() == 'true'
+suppress_sound_when_tab_focused = str(cfg.get('suppress_sound_when_tab_focused', False)).lower() == 'true'
 
 cats = cfg.get('categories', {})
 cat_enabled = {}
@@ -2710,6 +2711,7 @@ mn = cfg.get('mobile_notify', {})
 mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
 print('HEADPHONES_ONLY=' + ('true' if headphones_only else 'false'))
+print('SUPPRESS_SOUND_WHEN_TAB_FOCUSED=' + ('true' if suppress_sound_when_tab_focused else 'false'))
 print('SOUND_FILE=' + q(sound_file))
 print('ICON_PATH=' + q(icon_path))
 print('TRAINER_SOUND=' + q(trainer_sound))
@@ -2723,6 +2725,11 @@ print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 HEADPHONES_DETECTED=true
 if [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
   detect_headphones || HEADPHONES_DETECTED=false
+fi
+
+# Resolve session tty early so _run_sound_and_notify can check tab focus
+if [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
+  _resolve_session_tty
 fi
 
 # --- Check for updates (SessionStart only, once per day, non-blocking) ---
@@ -2816,21 +2823,27 @@ if [ -n "$TAB_COLOR_RGB" ] && [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]]; then
 fi
 
 _run_sound_and_notify() {
+  local _focused=""  # lazy: empty = not yet checked
+
   # --- Play sound ---
   if [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ]; then
+    local _skip_sound=false
     # Check headphones_only: skip sound if enabled but no headphones detected
     if [ "${HEADPHONES_ONLY:-false}" = "true" ] && [ "${HEADPHONES_DETECTED:-true}" = "false" ]; then
-      : # Skip sound - headphones required but not detected
-    else
-      play_sound "$SOUND_FILE" "$VOLUME"
+      _skip_sound=true
     fi
+    # Check suppress_sound_when_tab_focused: skip sound if tab is focused
+    if [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
+      [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
+      [ "$_focused" = "true" ] && _skip_sound=true
+    fi
+    [ "$_skip_sound" = "false" ] && play_sound "$SOUND_FILE" "$VOLUME"
   fi
 
   # --- Smart notification: only when terminal is NOT frontmost ---
   if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
-    if ! terminal_is_focused; then
-      send_notification "$MSG" "$TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
-    fi
+    [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
+    [ "$_focused" != "true" ] && send_notification "$MSG" "$TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
   fi
 
   # --- Mobile push notification (always sends when configured, regardless of focus) ---
@@ -2867,11 +2880,16 @@ if [ -n "${TRAINER_SOUND:-}" ] && [ -f "$TRAINER_SOUND" ]; then
       fi
       # Brief pause after main sound ends for natural spacing
       sleep 0.5
-      play_sound "$TRAINER_SOUND" "$VOLUME"
+      local _trainer_focused=""
+      if [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
+        terminal_is_focused && _trainer_focused=true || _trainer_focused=false
+        [ "$_trainer_focused" != "true" ] && play_sound "$TRAINER_SOUND" "$VOLUME"
+      else
+        play_sound "$TRAINER_SOUND" "$VOLUME"
+      fi
       if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
-        if ! terminal_is_focused; then
-          send_notification "Peon Trainer" "${TRAINER_MSG:-Time for reps!}" "blue"
-        fi
+        [ -z "$_trainer_focused" ] && { terminal_is_focused && _trainer_focused=true || _trainer_focused=false; }
+        [ "$_trainer_focused" != "true" ] && send_notification "Peon Trainer" "${TRAINER_MSG:-Time for reps!}" "blue"
       fi
     ) & disown 2>/dev/null
   fi

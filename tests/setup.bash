@@ -232,9 +232,18 @@ SCRIPT
   # Mock osascript — log calls instead of running AppleScript/JXA
   cat > "$MOCK_BIN/osascript" <<'SCRIPT'
 #!/bin/bash
-# For the frontmost app check, return "Safari" (not a terminal) so notifications fire
+# For the frontmost app check, return terminal name or "Safari" based on fixture
 if [[ "$*" == *"frontmost"* ]]; then
-  echo "Safari"
+  if [ -f "${CLAUDE_PEON_DIR}/.mock_terminal_focused" ]; then
+    cat "${CLAUDE_PEON_DIR}/.mock_terminal_focused"
+  else
+    echo "Safari"
+  fi
+elif [[ "$*" == *"iTerm2"* ]] && [[ "$*" == *"tty"* ]]; then
+  # iTerm2 tty query — return mock tty if fixture exists
+  if [ -f "${CLAUDE_PEON_DIR}/.mock_iterm_active_ttys" ]; then
+    cat "${CLAUDE_PEON_DIR}/.mock_iterm_active_ttys"
+  fi
 elif [[ "$1" == "-l" ]] && [[ "$2" == "JavaScript" ]]; then
   # JXA overlay call — log to overlay.log with full arguments
   echo "$@" >> "${CLAUDE_PEON_DIR}/overlay.log"
