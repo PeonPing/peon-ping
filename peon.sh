@@ -408,6 +408,32 @@ _mac_bundle_id_from_pid() {
     | sed -n 's/.*="\([^"]*\)".*/\1/p'
 }
 
+# --- Resolve session TTY (for iTerm2 tab-level focus detection) ---
+# Walks the process tree to find an ancestor with a real tty, then exports
+# PEON_SESSION_TTY. No-ops if already resolved.
+_resolve_session_tty() {
+  [ -n "${PEON_SESSION_TTY:-}" ] && return 0
+  if [ -n "${TMUX:-}" ]; then
+    PEON_SESSION_TTY=$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)
+  else
+    # Walk the full process tree; keep the LAST (highest ancestor) tty found.
+    # Claude Code spawns hooks from worker processes that may have their own
+    # ptys, so the first tty in the tree is often a worker pty, not the
+    # terminal tty. The highest ancestor with a tty is the terminal session.
+    local walk_pid="$PPID" last_tty=""
+    while [ "$walk_pid" -gt 1 ] 2>/dev/null; do
+      local walk_tty
+      walk_tty=$(ps -p "$walk_pid" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+      if [ -n "$walk_tty" ] && [ "$walk_tty" != "??" ]; then
+        last_tty="/dev/$walk_tty"
+      fi
+      walk_pid=$(ps -p "$walk_pid" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+    done
+    PEON_SESSION_TTY="$last_tty"
+  fi
+  export PEON_SESSION_TTY
+}
+
 # --- Platform-aware notification ---
 # Args: msg, title, color (red/blue/yellow)
 send_notification() {
@@ -439,23 +465,8 @@ send_notification() {
         if [ -z "$PEON_BUNDLE_ID" ] && [ "${PEON_IDE_PID:-0}" != "0" ]; then
           PEON_BUNDLE_ID="$(_mac_bundle_id_from_pid "$PEON_IDE_PID")"
         fi
-        # Find session TTY for iTerm2 tab/window focus
-        local session_tty=""
-        if [ -n "${TMUX:-}" ]; then
-          session_tty=$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)
-        else
-          local walk_pid="$PPID"
-          while [ "$walk_pid" -gt 1 ] 2>/dev/null; do
-            local walk_tty
-            walk_tty=$(ps -p "$walk_pid" -o tty= 2>/dev/null | sed 's/^ *//' || true)
-            if [ -n "$walk_tty" ] && [ "$walk_tty" != "??" ]; then
-              session_tty="/dev/$walk_tty"
-              break
-            fi
-            walk_pid=$(ps -p "$walk_pid" -o ppid= 2>/dev/null | sed 's/^ *//' || true)
-          done
-        fi
-        export PEON_SESSION_TTY="$session_tty"
+        # Resolve session TTY for iTerm2 tab/window focus
+        _resolve_session_tty
       fi
       export PEON_MSG_SUBTITLE="${MSG_SUBTITLE:-}"
       bash "$notify_script" "$msg" "$title" "$color" "$icon_path"
@@ -491,17 +502,30 @@ terminal_is_focused() {
       frontmost=$(osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>/dev/null)
       case "$frontmost" in
         iTerm2)
-          # iTerm2 is frontmost, but check if OUR tab/pane is active
+          # iTerm2 is frontmost, but check if OUR tab/pane is active.
+          # Scan ALL windows (not just "current window") because users may
+          # have multiple iTerm2 windows; try/catch handles special windows
+          # (hotkey windows, etc.) that have no tabs.
           local my_tty="${PEON_SESSION_TTY:-}"
           if [ -z "$my_tty" ]; then
             return 0  # No TTY info, assume focused
           fi
-          local active_tty
-          active_tty=$(osascript -e 'tell application "iTerm2" to tty of current session of current tab of current window' 2>/dev/null || true)
-          if [ "$active_tty" = "$my_tty" ]; then
-            return 0  # Our session is active
-          fi
-          return 1  # Different tab/pane is active — notify
+          local active_ttys
+          active_ttys=$(osascript -e 'tell application "iTerm2"
+            set ttys to {}
+            repeat with w in windows
+              try
+                set end of ttys to tty of current session of current tab of w
+              end try
+            end repeat
+            return ttys
+          end tell' 2>/dev/null || true)
+          local IFS=','
+          for _t in $active_ttys; do
+            _t="${_t## }"  # trim leading space from AppleScript list format
+            [ "$_t" = "$my_tty" ] && return 0
+          done
+          return 1  # Different tab/pane is active in all windows — notify
           ;;
         Terminal|Warp|Alacritty|kitty|WezTerm|Ghostty) return 0 ;;
         *) return 1 ;;
