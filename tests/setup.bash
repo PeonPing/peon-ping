@@ -144,6 +144,69 @@ echo "$@" >> "${CLAUDE_PEON_DIR}/terminal_notifier.log"
 SCRIPT
   chmod +x "$MOCK_BIN/terminal-notifier"
 
+  # Mock system_profiler — returns audio device info for headphone detection
+  cat > "$MOCK_BIN/system_profiler" <<'SCRIPT'
+#!/bin/bash
+# Check for mock fixture files
+if [ -f "${CLAUDE_PEON_DIR}/.mock_headphones_connected" ]; then
+  cat <<'EOF'
+Audio:
+
+    Devices:
+
+        External Headphones:
+
+          Default Output Device: Yes
+          Input Channels: 0
+          Manufacturer: Apple Inc.
+          Output Channels: 2
+          Transport: USB
+
+        MacBook Pro Speakers:
+
+          Default Output Device: No
+          Input Channels: 0
+          Manufacturer: Apple Inc.
+          Output Channels: 2
+          Transport: Built-in
+
+EOF
+elif [ -f "${CLAUDE_PEON_DIR}/.mock_speakers_only" ]; then
+  cat <<'EOF'
+Audio:
+
+    Devices:
+
+        MacBook Pro Speakers:
+
+          Default Output Device: Yes
+          Default System Output Device: Yes
+          Input Channels: 0
+          Manufacturer: Apple Inc.
+          Output Channels: 2
+          Transport: Built-in
+
+EOF
+else
+  # Default: headphones connected (same as .mock_headphones_connected)
+  cat <<'EOF'
+Audio:
+
+    Devices:
+
+        External Headphones:
+
+          Default Output Device: Yes
+          Input Channels: 0
+          Manufacturer: Apple Inc.
+          Output Channels: 2
+          Transport: USB
+
+EOF
+fi
+SCRIPT
+  chmod +x "$MOCK_BIN/system_profiler"
+
   # Mock lsappinfo — returns a bundle ID for a given PID (IDE click-to-focus)
   cat > "$MOCK_BIN/lsappinfo" <<'SCRIPT'
 #!/bin/bash

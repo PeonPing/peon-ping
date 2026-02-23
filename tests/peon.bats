@@ -3121,3 +3121,48 @@ JSON
   rm -rf "$(dirname "$LOCAL_PACK")"
 }
 
+# ============================================================
+# Headphones-only mode
+# ============================================================
+
+@test "headphones_only: plays sound when headphones connected" {
+  # Enable headphones_only in config
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['headphones_only'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  # Mock headphones connected
+  touch "$TEST_DIR/.mock_headphones_connected"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "headphones_only: skips sound when speakers only" {
+  # Enable headphones_only in config
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['headphones_only'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  # Mock speakers only (no headphones)
+  touch "$TEST_DIR/.mock_speakers_only"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "headphones_only disabled: plays sound regardless of output device" {
+  # headphones_only defaults to false, mock speakers only
+  touch "$TEST_DIR/.mock_speakers_only"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+

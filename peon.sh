@@ -30,6 +30,53 @@ detect_platform() {
 }
 PLATFORM=${PLATFORM:-$(detect_platform)}
 
+# Detect if headphones/external audio is connected
+# Returns 0 (true) if headphones detected, 1 (false) if built-in speakers only
+detect_headphones() {
+  case "$PLATFORM" in
+    mac)
+      local output default_section
+      output=$(system_profiler SPAudioDataType 2>/dev/null) || return 0
+      # Get the device section containing "Default Output Device: Yes" (10 lines before, 5 after)
+      default_section=$(echo "$output" | grep -B10 -A5 "Default Output Device: Yes" | tr '[:upper:]' '[:lower:]')
+      # Check if this section has built-in transport AND speaker in the name
+      if echo "$default_section" | grep -q "transport: built-in" && echo "$default_section" | grep -q "speaker"; then
+        return 1  # Built-in speakers, no headphones
+      fi
+      return 0  # Default: assume headphones
+      ;;
+    linux)
+      local out
+      if command -v wpctl &>/dev/null; then
+        out=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | tr '[:upper:]' '[:lower:]') || return 0
+        if [[ "$out" == *"speaker"* && "$out" != *"headphone"* ]]; then
+          return 1
+        fi
+      elif command -v pactl &>/dev/null; then
+        out=$(pactl list sinks 2>/dev/null | tr '[:upper:]' '[:lower:]') || return 0
+        if [[ "$out" == *"analog-output-speaker"* && "$out" != *"headphone"* ]]; then
+          return 1
+        fi
+      fi
+      return 0
+      ;;
+    wsl)
+      local out
+      out=$(powershell.exe -NoProfile -Command 'Get-PnpDevice -Class AudioEndpoint -Status OK -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FriendlyName' 2>/dev/null | tr '[:upper:]' '[:lower:]') || return 0
+      local has_speakers=false has_headphones=false
+      [[ "$out" == *"speaker"* ]] && has_speakers=true
+      [[ "$out" == *"headphone"* || "$out" == *"headset"* || "$out" == *"airpod"* || "$out" == *"buds"* || "$out" == *"earphone"* ]] && has_headphones=true
+      if [[ "$has_speakers" == true && "$has_headphones" == false ]]; then
+        return 1
+      fi
+      return 0
+      ;;
+    *)
+      return 0  # Other platforms: assume headphones/allow sound
+      ;;
+  esac
+}
+
 PEON_DIR="${CLAUDE_PEON_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 # Save original install directory for finding bundled scripts (Nix, Homebrew)
 _INSTALL_DIR="$PEON_DIR"
@@ -635,11 +682,15 @@ case "${1:-}" in
     sync_adapter_paused; exit 0 ;;
   status)
     [ -f "$PAUSED_FILE" ] && echo "peon-ping: paused" || echo "peon-ping: active"
+    # Run headphone detection in bash before Python
+    _headphones_detected=true
+    detect_headphones || _headphones_detected=false
     python3 -c "
 import json, os
 
 config_path = '$CONFIG_PY'
 peon_dir = '$PEON_DIR_PY'
+headphones_detected = '$_headphones_detected' == 'true'
 
 # --- Config ---
 try:
@@ -659,6 +710,13 @@ if mn and mn.get('service'):
     print(f'peon-ping: mobile notifications ' + ('on' if enabled else 'off') + f' ({svc})')
 else:
     print('peon-ping: mobile notifications not configured')
+
+# --- Headphones-only mode ---
+headphones_only = c.get('headphones_only', False)
+if headphones_only:
+    print('peon-ping: headphones_only: on')
+    status_str = 'connected' if headphones_detected else 'not detected (sounds muted)'
+    print(f'peon-ping: headphones: {status_str}')
 
 # --- Active pack ---
 active = c.get('default_pack', c.get('active_pack', 'peon'))
@@ -2061,6 +2119,8 @@ annoyed_threshold = int(cfg.get('annoyed_threshold', 3))
 annoyed_window = float(cfg.get('annoyed_window_seconds', 10))
 silent_window = float(cfg.get('silent_window_seconds', 0))
 suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).lower() == 'true'
+headphones_only = str(cfg.get('headphones_only', False)).lower() == 'true'
+
 cats = cfg.get('categories', {})
 cat_enabled = {}
 default_off = {'task.acknowledge'}
@@ -2564,6 +2624,7 @@ print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))
 mn = cfg.get('mobile_notify', {})
 mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
+print('HEADPHONES_ONLY=' + ('true' if headphones_only else 'false'))
 print('SOUND_FILE=' + q(sound_file))
 print('ICON_PATH=' + q(icon_path))
 print('TRAINER_SOUND=' + q(trainer_sound))
@@ -2573,6 +2634,12 @@ print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 
 # If Python signalled early exit (disabled, agent, unknown event), bail out
 [ "${PEON_EXIT:-true}" = "true" ] && exit 0
+
+# --- Headphone detection (bash, uses $PLATFORM) ---
+HEADPHONES_DETECTED=true
+if [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
+  detect_headphones || HEADPHONES_DETECTED=false
+fi
 
 # --- Check for updates (SessionStart only, once per day, non-blocking) ---
 if [ "$EVENT" = "SessionStart" ]; then
@@ -2667,7 +2734,12 @@ fi
 _run_sound_and_notify() {
   # --- Play sound ---
   if [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ]; then
-    play_sound "$SOUND_FILE" "$VOLUME"
+    # Check headphones_only: skip sound if enabled but no headphones detected
+    if [ "${HEADPHONES_ONLY:-false}" = "true" ] && [ "${HEADPHONES_DETECTED:-true}" = "false" ]; then
+      : # Skip sound - headphones required but not detected
+    else
+      play_sound "$SOUND_FILE" "$VOLUME"
+    fi
   fi
 
   # --- Smart notification: only when terminal is NOT frontmost ---
