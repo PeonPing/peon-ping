@@ -837,6 +837,11 @@ if _lbl:
     print('peon-ping: label override: ' + _lbl)
 if _pmap:
     print('peon-ping: project name map: ' + str(len(_pmap)) + ' pattern(s)')
+_tpls = c.get('notification_templates', {})
+if _tpls:
+    print('peon-ping: notification templates:')
+    for _tk, _tv in _tpls.items():
+        print(f'  {_tk} = "{_tv}"')
 
 mn = c.get('mobile_notify', {})
 if mn and mn.get('service'):
@@ -1141,8 +1146,83 @@ print('NOTIF_DISMISS=' + q(str(nd)))
         echo "peon-ping: sending test notification (style: $NOTIF_STYLE)"
         PEON_TEST=1 send_notification "This is a test notification" "peon-ping" "blue"
         exit 0 ;;
+      template)
+        TPL_KEY="${3:-}"
+        TPL_VAL="${4:-}"
+        if [ -z "$TPL_KEY" ]; then
+          # Show all templates
+          python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_PY'))
+    tpls = cfg.get('notification_templates', {})
+except Exception:
+    tpls = {}
+if not tpls:
+    print('peon-ping: no notification templates configured (using defaults)')
+else:
+    valid = ('stop', 'permission', 'error', 'idle', 'question')
+    for k in valid:
+        v = tpls.get(k, '')
+        if v:
+            print(f'peon-ping: template {k} = \"{v}\"')
+    extra = set(tpls) - set(valid)
+    for k in sorted(extra):
+        print(f'peon-ping: template {k} = \"{tpls[k]}\" (unknown key)')
+"
+          exit 0
+        fi
+        if [ "$TPL_KEY" = "--reset" ]; then
+          python3 -c "
+import json
+config_path = '$CONFIG_PY'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg.pop('notification_templates', None)
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: notification templates cleared')
+"
+          sync_adapter_configs; exit 0
+        fi
+        # Validate key and set/show value
+        python3 -c "
+import json, sys
+config_path = '$CONFIG_PY'
+key = '$TPL_KEY'
+valid = ('stop', 'permission', 'error', 'idle', 'question')
+if key not in valid:
+    print(f'peon-ping: invalid template key \"{key}\" — use one of: ' + ', '.join(valid), file=sys.stderr)
+    sys.exit(1)
+val = sys.argv[1] if len(sys.argv) > 1 else ''
+if not val:
+    # Show single template
+    try:
+        cfg = json.load(open(config_path))
+        tpls = cfg.get('notification_templates', {})
+    except Exception:
+        tpls = {}
+    v = tpls.get(key, '')
+    if v:
+        print(f'peon-ping: template {key} = \"{v}\"')
+    else:
+        print(f'peon-ping: template {key} not set (default: \"{{project}}\")')
+    sys.exit(0)
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+tpls = cfg.get('notification_templates', {})
+tpls[key] = val
+cfg['notification_templates'] = tpls
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print(f'peon-ping: template {key} set to \"{val}\"')
+" "$TPL_VAL"
+        _rc=$?; [ "$_rc" -ne 0 ] && exit "$_rc"
+        sync_adapter_configs; exit 0 ;;
       *)
-        echo "Usage: peon notifications <on|off|overlay|standard|position|dismiss|label|test>" >&2; exit 1 ;;
+        echo "Usage: peon notifications <on|off|overlay|standard|position|dismiss|label|template|test>" >&2; exit 1 ;;
     esac ;;
   popups)
     # Alias for 'notifications' command - same behavior
@@ -2097,6 +2177,7 @@ Commands:
                        bottom-right, bottom-left, bottom-center
   notifications dismiss [N]  Get or set auto-dismiss time in seconds (0 = persistent)
   notifications label [text|reset]  Get, set, or reset notification label override
+  notifications template [key] [fmt]  Get/set message templates (keys: stop, permission, error, idle, question)
   notifications test      Send a test notification
   popups on|off         Alias for 'notifications' - toggle desktop notification popups
   preview [category]   Play all sounds from a category (default: session.start)
