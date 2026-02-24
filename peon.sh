@@ -3004,6 +3004,33 @@ if tab_color_enabled:
         rgb = colors[status_key]
         tab_color_rgb = f'{rgb[0]} {rgb[1]} {rgb[2]}'
 
+# --- Notification message template resolution ---
+from collections import defaultdict as _defaultdict
+_templates = cfg.get('notification_templates', {})
+_tpl_key_map = {
+    'task.complete': 'stop',
+    'task.error': 'error',
+}
+_tpl_key = _tpl_key_map.get(category, '')
+if event == 'Notification':
+    if ntype == 'idle_prompt': _tpl_key = 'idle'
+    elif ntype == 'elicitation_dialog': _tpl_key = 'question'
+elif event == 'PermissionRequest':
+    _tpl_key = 'permission'
+_tpl = _templates.get(_tpl_key, '')
+if _tpl:
+    _tpl_vars = _defaultdict(str, {
+        'project': project,
+        'summary': event_data.get('transcript_summary', '').strip()[:120],
+        'tool_name': event_data.get('tool_name', ''),
+        'status': status,
+        'event': event,
+    })
+    try:
+        msg = _tpl.format_map(_tpl_vars)
+    except Exception:
+        pass
+
 # --- Output shell variables ---
 print('PEON_EXIT=false')
 print('EVENT=' + q(event))
