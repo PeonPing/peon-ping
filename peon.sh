@@ -123,6 +123,26 @@ else
   PEON_DIR_PY="$PEON_DIR"
 fi
 
+# --- Export paths for Python blocks (avoids shell→Python string injection) ---
+export PEON_ENV_CONFIG="$CONFIG_PY"
+export PEON_ENV_GLOBAL_CONFIG="$GLOBAL_CONFIG_PY"
+export PEON_ENV_STATE="$STATE_PY"
+export PEON_ENV_PEON_DIR="$PEON_DIR_PY"
+
+# --- Safe eval: only allow lines matching VAR=value (defense-in-depth for Python output) ---
+safe_eval_python() {
+  local output="$1"
+  [ -z "$output" ] && return 0
+  # Reject any line that doesn't look like a shell variable assignment
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+      return 1
+    fi
+  done <<< "$output"
+  eval "$output"
+}
+
 # --- Resolve a bundled script from scripts/ (handles local + Homebrew/Cellar installs) ---
 # Prints the resolved path on success, prints nothing on failure.
 # Skips the BASH_SOURCE fallback in test mode to preserve "missing script" test cases.
@@ -209,7 +229,7 @@ play_linux_sound() {
       ;;
     paplay)
       local pa_vol
-      pa_vol=$(python3 -c "print(max(0, min(65536, int($vol * 65536))))")
+      pa_vol=$(PEON_ENV_VOL="$vol" python3 -c "import os; v=float(os.environ.get('PEON_ENV_VOL','0.5')); print(max(0, min(65536, int(v * 65536))))")
       if [ "$use_bg" = true ]; then
         nohup paplay --volume="$pa_vol" "$file" >/dev/null 2>&1 &
       else
@@ -218,7 +238,7 @@ play_linux_sound() {
       ;;
     ffplay)
       local ff_vol
-      ff_vol=$(python3 -c "print(max(0, min(100, int($vol * 100))))")
+      ff_vol=$(PEON_ENV_VOL="$vol" python3 -c "import os; v=float(os.environ.get('PEON_ENV_VOL','0.5')); print(max(0, min(100, int(v * 100))))")
       if [ "$use_bg" = true ]; then
         nohup ffplay -nodisp -autoexit -volume "$ff_vol" "$file" >/dev/null 2>&1 &
       else
@@ -297,8 +317,9 @@ play_sound() {
       else
         return 0
       fi
+      local safe_tmpdir="${tmpdir//\'/\'\'}"
       setsid powershell.exe -NoProfile -NonInteractive -Command "
-        (New-Object Media.SoundPlayer '${tmpdir}peon-ping-sound.wav').PlaySync()
+        (New-Object Media.SoundPlayer '${safe_tmpdir}peon-ping-sound.wav').PlaySync()
       " &>/dev/null &
       save_sound_pid $!
       ;;
@@ -565,11 +586,12 @@ send_mobile_notification() {
 
   # Read mobile config via Python (fast, single invocation)
   local mobile_vars
+  export PEON_ENV_CONFIG_RO="$config"
   mobile_vars=$(python3 -c "
-import json, sys, shlex
+import json, sys, shlex, os
 q = shlex.quote
 try:
-    cfg = json.load(open('$config'))
+    cfg = json.load(open(os.environ.get('PEON_ENV_CONFIG_RO', '')))
     mn = cfg.get('mobile_notify', {})
 except Exception:
     mn = {}
@@ -587,7 +609,7 @@ print('MOBILE_CHAT_ID=' + q(mn.get('chat_id', '')))
 print('MOBILE_BOT_TOKEN=' + q(mn.get('bot_token', '')))
 " 2>/dev/null) || return 0
 
-  eval "$mobile_vars"
+  safe_eval_python "$mobile_vars" || return 0
 
   [ -z "$MOBILE_SERVICE" ] && return 0
 
@@ -684,11 +706,12 @@ sync_adapter_configs() {
   [ ${#_ADAPTER_CONFIG_DIRS[@]} -eq 0 ] && return 0
   for _dir in "${_ADAPTER_CONFIG_DIRS[@]}"; do
     _target="$_dir/config.json"
+    export PEON_ENV_SYNC_SRC="$CONFIG_PY" PEON_ENV_SYNC_DST="$_target"
     python3 -c "
 import json, sys, os
 
-src_path = '$CONFIG'
-dst_path = '$_target'
+src_path = os.environ.get('PEON_ENV_SYNC_SRC', '')
+dst_path = os.environ.get('PEON_ENV_SYNC_DST', '')
 
 # Keys shared between peon.sh and standalone adapters
 SHARED_KEYS = ('default_pack', 'active_pack', 'volume', 'enabled', 'desktop_notifications', 'pack_rotation', 'mobile_notify')
@@ -742,8 +765,8 @@ case "${1:-}" in
     python3 -c "
 import json, os
 
-config_path = '$CONFIG_PY'
-peon_dir = '$PEON_DIR_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
 headphones_detected = '$_headphones_detected' == 'true'
 
 # --- Config ---
@@ -856,8 +879,8 @@ else:
     case "${2:-}" in
       on)
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -869,8 +892,8 @@ print('peon-ping: desktop notifications on')
         sync_adapter_configs; exit 0 ;;
       off)
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -882,8 +905,8 @@ print('peon-ping: desktop notifications off')
         sync_adapter_configs; exit 0 ;;
       overlay)
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -895,8 +918,8 @@ print('peon-ping: notification style set to overlay')
         sync_adapter_configs; exit 0 ;;
       standard)
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -908,10 +931,11 @@ print('peon-ping: notification style set to standard')
         sync_adapter_configs; exit 0 ;;
       test)
         # Read config to check if notifications are enabled and get style
-        eval "$(python3 -c "
-import json, shlex
+        local _py_out
+        _py_out="$(python3 -c "
+import json, shlex, os
 q = shlex.quote
-config_path = '$CONFIG_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -921,6 +945,7 @@ ns = cfg.get('notification_style', 'overlay')
 print('_NOTIF_ENABLED=' + ('true' if dn else 'false'))
 print('NOTIF_STYLE=' + q(ns))
 ")"
+        safe_eval_python "$_py_out" || true
         if [ "$_NOTIF_ENABLED" != "true" ]; then
           echo "peon-ping: desktop notifications are off (run 'peon notifications on' to enable)" >&2
           exit 1
@@ -934,23 +959,26 @@ print('NOTIF_STYLE=' + q(ns))
   volume)
     VOL_ARG="${2:-}"
     if [ -z "$VOL_ARG" ]; then
+      export PEON_ENV_CONFIG_RO="$CONFIG_PY"
       python3 -c "
-import json
+import json, os
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(os.environ.get('PEON_ENV_CONFIG_RO', '')))
     print('peon-ping: volume ' + str(cfg.get('volume', 0.5)))
 except Exception:
     print('peon-ping: volume 0.5')
 "
       exit 0
     fi
+    export PEON_ENV_VOL_ARG="$VOL_ARG"
     python3 -c "
-import json, sys
-config_path = '$CONFIG_PY'
+import json, sys, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+vol_arg = os.environ.get('PEON_ENV_VOL_ARG', '')
 try:
-    vol = float('$VOL_ARG')
+    vol = float(vol_arg)
 except ValueError:
-    print('peon-ping: invalid volume \"$VOL_ARG\" — use a number between 0.0 and 1.0', file=sys.stderr)
+    print('peon-ping: invalid volume \"' + vol_arg + '\" — use a number between 0.0 and 1.0', file=sys.stderr)
     sys.exit(1)
 if not (0.0 <= vol <= 1.0):
     print('peon-ping: volume must be between 0.0 and 1.0', file=sys.stderr)
@@ -967,10 +995,11 @@ print(f'peon-ping: volume set to {vol}')
   rotation)
     ROT_ARG="${2:-}"
     if [ -z "$ROT_ARG" ]; then
+      export PEON_ENV_CONFIG_RO="$CONFIG_PY"
       python3 -c "
-import json
+import json, os
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(os.environ.get('PEON_ENV_CONFIG_RO', '')))
     mode = cfg.get('pack_rotation_mode', 'random')
     rotation = cfg.get('pack_rotation', [])
     print('peon-ping: rotation mode: ' + mode)
@@ -985,15 +1014,16 @@ except Exception:
     fi
     case "$ROT_ARG" in
       random|round-robin|session_override|agentskill)
+        export PEON_ENV_ROT_ARG="$ROT_ARG"
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
     cfg = {}
 # Normalize agentskill alias to session_override
-mode = '$ROT_ARG'
+mode = os.environ.get('PEON_ENV_ROT_ARG', '')
 if mode == 'agentskill':
     mode = 'session_override'
 cfg['pack_rotation_mode'] = mode
@@ -1020,13 +1050,13 @@ print('peon-ping: rotation mode set to ' + mode)
         fi
         python3 -c "
 import json, os, glob
-config_path = '$CONFIG_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     _cfg_list = json.load(open(config_path))
     active = _cfg_list.get('default_pack', _cfg_list.get('active_pack', 'peon'))
 except Exception:
     active = 'peon'
-packs_dir = '$PEON_DIR_PY/packs'
+packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
 for d in sorted(os.listdir(packs_dir)):
     for mname in ('openpeon.json', 'manifest.json'):
         mpath = os.path.join(packs_dir, d, mname)
@@ -1069,9 +1099,9 @@ for d in sorted(os.listdir(packs_dir)):
 
         PACK_ARG="$PACK_ARG" python3 -c "
 import json, os, glob, sys
-config_path = '$CONFIG_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 pack_arg = os.environ.get('PACK_ARG', '')
-packs_dir = '$PEON_DIR_PY/packs'
+packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
 names = sorted([
     d for d in os.listdir(packs_dir)
     if os.path.isdir(os.path.join(packs_dir, d)) and (
@@ -1116,13 +1146,13 @@ print(f'peon-ping: switched to {pack_arg} ({display})')
       next)
         python3 -c "
 import json, os, glob
-config_path = '$CONFIG_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
     cfg = {}
 active = cfg.get('default_pack', cfg.get('active_pack', 'peon'))
-packs_dir = '$PEON_DIR_PY/packs'
+packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
 names = sorted([
     d for d in os.listdir(packs_dir)
     if os.path.isdir(os.path.join(packs_dir, d)) and (
@@ -1156,8 +1186,8 @@ print(f'peon-ping: switched to {next_pack} ({display})')
           PACKS_TO_REMOVE=$(python3 -c "
 import json, os, sys
 
-config_path = '$CONFIG_PY'
-peon_dir = '$PEON_DIR_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
 packs_dir = os.path.join(peon_dir, 'packs')
 
 try:
@@ -1185,8 +1215,8 @@ print(','.join(removable))
           PACKS_TO_REMOVE=$(REMOVE_ARG="$REMOVE_ARG" python3 -c "
 import json, os, sys
 
-config_path = '$CONFIG_PY'
-peon_dir = '$PEON_DIR_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
 packs_dir = os.path.join(peon_dir, 'packs')
 remove_arg = os.environ.get('REMOVE_ARG', '')
 
@@ -1248,13 +1278,14 @@ print(','.join(valid))
         esac
 
         # Delete pack directories and clean config
+        export PEON_ENV_PACKS_TO_REMOVE="$PACKS_TO_REMOVE"
         python3 -c "
 import json, os, shutil
 
-config_path = '$CONFIG_PY'
-peon_dir = '$PEON_DIR_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
 packs_dir = os.path.join(peon_dir, 'packs')
-to_remove = '$PACKS_TO_REMOVE'.split(',')
+to_remove = os.environ.get('PEON_ENV_PACKS_TO_REMOVE', '').split(',')
 
 for pack in to_remove:
     pack_path = os.path.join(packs_dir, pack)
@@ -1312,7 +1343,7 @@ import json, os, shutil, sys
 
 src = os.environ['LOCAL_SRC']
 force = os.environ.get('LOCAL_FORCE', '0') == '1'
-packs_dir = os.path.join('$PEON_DIR_PY', 'packs')
+packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
 
 manifest_name = 'openpeon.json' if os.path.exists(os.path.join(src, 'openpeon.json')) else 'manifest.json'
 if os.path.exists(os.path.join(src, manifest_name)):
@@ -1353,8 +1384,8 @@ print(f'Use peon packs use {pack_name} to activate it')
             ROT_ARG="$ROT_ARG" python3 -c "
 import json, os, sys
 
-config_path = '$GLOBAL_CONFIG_PY'
-peon_dir = '$PEON_DIR_PY'
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
 packs_dir = os.path.join(peon_dir, 'packs')
 add_arg = os.environ.get('ROT_ARG', '')
 
@@ -1404,7 +1435,7 @@ print('Rotation: ' + ', '.join(rotation))
             ROT_ARG="$ROT_ARG" python3 -c "
 import json, os, sys
 
-config_path = '$GLOBAL_CONFIG_PY'
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 remove_arg = os.environ.get('ROT_ARG', '')
 
 try:
@@ -1438,8 +1469,8 @@ print('Rotation: ' + ', '.join(rotation))
             sync_adapter_configs; exit 0 ;;
           list|"")
             python3 -c "
-import json
-config_path = '$GLOBAL_CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -1481,9 +1512,10 @@ else:
             --token=*)  NTFY_TOKEN="${arg#--token=}" ;;
           esac
         done
+        export PEON_ENV_NTFY_TOPIC="$TOPIC" PEON_ENV_NTFY_SERVER="$NTFY_SERVER" PEON_ENV_NTFY_TOKEN="$NTFY_TOKEN"
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -1491,9 +1523,9 @@ except Exception:
 cfg['mobile_notify'] = {
     'enabled': True,
     'service': 'ntfy',
-    'topic': '$TOPIC',
-    'server': '$NTFY_SERVER',
-    'token': '$NTFY_TOKEN'
+    'topic': os.environ.get('PEON_ENV_NTFY_TOPIC', ''),
+    'server': os.environ.get('PEON_ENV_NTFY_SERVER', 'https://ntfy.sh'),
+    'token': os.environ.get('PEON_ENV_NTFY_TOKEN', '')
 }
 json.dump(cfg, open(config_path, 'w'), indent=2)
 "
@@ -1514,9 +1546,10 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
           echo "Usage: peon mobile pushover <user_key> <app_token>" >&2
           exit 1
         fi
+        export PEON_ENV_PO_USER_KEY="$USER_KEY" PEON_ENV_PO_APP_TOKEN="$APP_TOKEN"
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -1524,8 +1557,8 @@ except Exception:
 cfg['mobile_notify'] = {
     'enabled': True,
     'service': 'pushover',
-    'user_key': '$USER_KEY',
-    'app_token': '$APP_TOKEN'
+    'user_key': os.environ.get('PEON_ENV_PO_USER_KEY', ''),
+    'app_token': os.environ.get('PEON_ENV_PO_APP_TOKEN', '')
 }
 json.dump(cfg, open(config_path, 'w'), indent=2)
 "
@@ -1538,9 +1571,10 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
           echo "Usage: peon mobile telegram <bot_token> <chat_id>" >&2
           exit 1
         fi
+        export PEON_ENV_TG_BOT_TOKEN="$BOT_TOKEN" PEON_ENV_TG_CHAT_ID="$CHAT_ID"
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -1548,8 +1582,8 @@ except Exception:
 cfg['mobile_notify'] = {
     'enabled': True,
     'service': 'telegram',
-    'bot_token': '$BOT_TOKEN',
-    'chat_id': '$CHAT_ID'
+    'bot_token': os.environ.get('PEON_ENV_TG_BOT_TOKEN', ''),
+    'chat_id': os.environ.get('PEON_ENV_TG_CHAT_ID', '')
 }
 json.dump(cfg, open(config_path, 'w'), indent=2)
 "

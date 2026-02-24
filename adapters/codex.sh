@@ -39,5 +39,13 @@ NTYPE="${NTYPE:-}"
 SESSION_ID="codex-${CODEX_SESSION_ID:-$$}"
 CWD="${PWD}"
 
-echo "{\"hook_event_name\":\"$EVENT\",\"notification_type\":\"$NTYPE\",\"cwd\":\"$CWD\",\"session_id\":\"$SESSION_ID\",\"permission_mode\":\"\"}" \
-  | bash "$PEON_DIR/peon.sh"
+_PE="$EVENT" _PN="$NTYPE" _PC="$CWD" _PS="$SESSION_ID" python3 -c "
+import json, os
+print(json.dumps({
+    'hook_event_name': os.environ['_PE'],
+    'notification_type': os.environ['_PN'],
+    'cwd': os.environ['_PC'],
+    'session_id': os.environ['_PS'],
+    'permission_mode': '',
+}))
+" | bash "$PEON_DIR/peon.sh"
