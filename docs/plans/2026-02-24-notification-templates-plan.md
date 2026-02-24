@@ -377,10 +377,10 @@ git commit -m "test: BATS tests for notification message templates"
 **Step 2: Fire test notifications**
 
 ```bash
-echo '{"hook_event_name":"Stop","session_id":"tpl-test","cwd":"/Users/Jackal/iWorld/iNote/test0","transcript_summary":"Added notification templates"}' | ~/.claude/hooks/peon-ping/peon.sh 2>/dev/null &
+echo '{"hook_event_name":"Stop","session_id":"tpl-test","cwd":"/path/to/my-project","transcript_summary":"Added notification templates"}' | ~/.claude/hooks/peon-ping/peon.sh 2>/dev/null &
 ```
 
-Expected: Overlay shows "iNote Vault: Added notification templates" at top-right, persistent.
+Expected: Overlay shows "My Project: Added notification templates" at top-right, persistent.
 
 **Step 3: Verify stacking still works**
 
@@ -388,7 +388,7 @@ Fire a second notification. Both should stack vertically, no overlap.
 
 **Step 4: Verify default behavior**
 
-Reset templates and fire again — notification should show just "iNote Vault".
+Reset templates and fire again — notification should show just "My Project".
 
 ```bash
 ~/iWorld/projects/peon-ping/peon.sh notifications template --reset
