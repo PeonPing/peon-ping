@@ -266,6 +266,7 @@ Config location depends on install mode:
 - **session_ttl_days** (number, default: 7): Expire stale per-session pack assignments older than N days. Keeps `.state.json` from growing unbounded when using `session_override` mode.
 - **headphones_only** (boolean, default: `false`): Only play sounds when headphones or external audio devices are detected. When enabled, sounds are suppressed if built-in speakers are the active output — useful for open offices. Check status with `peon status`. Supported on macOS (via `system_profiler`) and Linux (via PipeWire `wpctl` or PulseAudio `pactl`).
 - **suppress_sound_when_tab_focused** (boolean, default: `false`): Skip sound playback when the terminal tab that generated the hook event is the currently active/focused tab. Sounds still play for background tabs as an alert that something happened elsewhere. Desktop and mobile notifications are unaffected. Useful when you only want audio cues from tabs you're not watching. macOS only (uses `osascript` to check frontmost app and iTerm2 tab focus).
+- **meeting_detect** Detects if the microphone is currently being used and temporarily suppresses the audio only until the microphone is no longer in use. Notification still appears.
 
 ## Peon Trainer
 
