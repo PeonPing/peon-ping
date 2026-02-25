@@ -305,7 +305,8 @@ $hookScript = @'
 
 param(
     [string]$Command = "",
-    [string]$Arg1 = ""
+    [string]$Arg1 = "",
+    [string]$Arg2 = ""
 )
 
 # Raw config read; repair is done at install/update time, so hook only needs plain read.
@@ -365,15 +366,47 @@ if ($Command) {
         "^--packs$" {
             $packsDir = Join-Path $InstallDir "packs"
             $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
-            Write-Host "Available packs:" -ForegroundColor Cyan
-            Get-ChildItem -Path $packsDir -Directory | Sort-Object Name | ForEach-Object {
-                $soundCount = (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count
-                if ($soundCount -gt 0) {
-                    $marker = if ($_.Name -eq $cfg.active_pack) { " <-- active" } else { "" }
-                    Write-Host "  $($_.Name) ($soundCount sounds)$marker"
+            $available = Get-ChildItem -Path $packsDir -Directory | Where-Object {
+                (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
+            } | ForEach-Object { $_.Name } | Sort-Object
+
+            switch ($Arg1) {
+                "use" {
+                    if (-not $Arg2) {
+                        Write-Host "Usage: peon packs use <pack-name>" -ForegroundColor Yellow
+                        return
+                    }
+                    $newPack = $Arg2
+                    if ($newPack -notin $available) {
+                        Write-Host "Pack '$newPack' not found. Available: $($available -join ', ')" -ForegroundColor Red
+                        return
+                    }
+                    $raw = Get-Content $ConfigPath -Raw
+                    $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+                    Set-Content $ConfigPath -Value $raw -Encoding UTF8
+                    Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
+                    return
+                }
+                "next" {
+                    $idx = [array]::IndexOf($available, $cfg.active_pack)
+                    $newPack = $available[($idx + 1) % $available.Count]
+                    $raw = Get-Content $ConfigPath -Raw
+                    $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+                    Set-Content $ConfigPath -Value $raw -Encoding UTF8
+                    Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
+                    return
+                }
+                default {
+                    # "list" or no subcommand - show available packs
+                    Write-Host "Available packs:" -ForegroundColor Cyan
+                    foreach ($packName in $available) {
+                        $soundCount = (Get-ChildItem -Path (Join-Path $packsDir "$packName\sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count
+                        $marker = if ($packName -eq $cfg.active_pack) { " <-- active" } else { "" }
+                        Write-Host "  $packName ($soundCount sounds)$marker"
+                    }
+                    return
                 }
             }
-            return
         }
         "^--pack$" {
             $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
@@ -382,11 +415,27 @@ if ($Command) {
                 (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
             } | ForEach-Object { $_.Name } | Sort-Object
 
-            if ($Arg1) {
+            if ($Arg1 -eq "use") {
+                # "peon pack use <name>" - treat Arg2 as the pack name
+                if (-not $Arg2) {
+                    Write-Host "Usage: peon pack use <pack-name>" -ForegroundColor Yellow
+                    return
+                }
+                $newPack = $Arg2
+            } elseif ($Arg1 -eq "next") {
+                # "peon pack next" - cycle to next
+                $idx = [array]::IndexOf($available, $cfg.active_pack)
+                $newPack = $available[($idx + 1) % $available.Count]
+            } elseif ($Arg1) {
                 $newPack = $Arg1
             } else {
                 $idx = [array]::IndexOf($available, $cfg.active_pack)
                 $newPack = $available[($idx + 1) % $available.Count]
+            }
+
+            if ($newPack -notin $available) {
+                Write-Host "Pack '$newPack' not found. Available: $($available -join ', ')" -ForegroundColor Red
+                return
             }
 
             $raw = Get-Content $ConfigPath -Raw
