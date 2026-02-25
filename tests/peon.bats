@@ -28,6 +28,33 @@ teardown() {
   ! afplay_was_called
 }
 
+@test "rapid SessionStart events from multiple workspaces are debounced" {
+  # First SessionStart plays the greeting
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/proj1","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # Second SessionStart (different session, same instant) does NOT play again
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/proj2","session_id":"s2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "1" ]
+}
+
+@test "SessionStart plays greeting after cooldown expires" {
+  # Set last_session_start_sound_time to 60 seconds ago (beyond 30s default cooldown)
+  /usr/bin/python3 -c "
+import json, time
+state = json.load(open('$TEST_DIR/.state.json'))
+state['last_session_start_sound_time'] = time.time() - 60
+json.dump(state, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
 @test "Notification permission_prompt sets tab title but no sound (PermissionRequest handles sound)" {
   run_peon '{"hook_event_name":"Notification","notification_type":"permission_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]

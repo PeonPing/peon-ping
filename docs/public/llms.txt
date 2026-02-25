@@ -100,7 +100,7 @@ Full list: https://openpeon.com/packs
 
 Config file: `~/.claude/hooks/peon-ping/config.json`
 
-Key settings: volume, categories (per-event toggles), default_pack (replaces active_pack), path_rules (glob-based per-repo pack assignment), pack_rotation, pack_rotation_mode, desktop_notifications, silent_window_seconds, headphones_only (mute when no headphones detected), suppress_sound_when_tab_focused (skip sound when the generating tab is focused).
+Key settings: volume, categories (per-event toggles), default_pack (replaces active_pack), path_rules (glob-based per-repo pack assignment), pack_rotation, pack_rotation_mode, desktop_notifications, silent_window_seconds, session_start_cooldown_seconds (dedup greeting sounds when many workspaces open at once; default 30s), headphones_only (mute when no headphones detected), suppress_sound_when_tab_focused (skip sound when the generating tab is focused).
 
 ## CLI Commands
 

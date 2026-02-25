@@ -2616,6 +2616,17 @@ if event == 'SessionStart':
     session_starts[session_id] = now
     state['session_start_times'] = session_starts
     state_dirty = True
+    # --- Debounce rapid SessionStart events (e.g. multi-workspace IDE startup) ---
+    # When IDEs open many workspaces at once, each fires SessionStart simultaneously.
+    # Only the first one plays the greeting; the rest stay quiet until the cooldown expires.
+    _ss_cooldown = float(cfg.get('session_start_cooldown_seconds', 30))
+    if _ss_cooldown > 0:
+        _last_ss = state.get('last_session_start_sound_time', 0)
+        if now - _last_ss < _ss_cooldown:
+            category = ''  # another workspace just greeted — stay quiet
+        else:
+            state['last_session_start_sound_time'] = now
+            state_dirty = True
 elif category:
     session_starts = state.get('session_start_times', {})
     start_time = session_starts.get(session_id, 0)

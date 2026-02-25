@@ -188,6 +188,7 @@ peon-ping 在 Claude Code 中安装两个斜杠命令：
 - **categories**：单独开关 CESP 声音分类（例如 `"session.start": false` 禁用问候声音）
 - **annoyed_threshold / annoyed_window_seconds**：在 N 秒内多少次提示触发 `user.spam` 彩蛋
 - **silent_window_seconds**：对于短于 N 秒的任务，抑制 `task.complete` 声音和通知。（例如 `10` 表示只播放超过 10 秒的任务声音）
+- **session_start_cooldown_seconds**（数字，默认：`30`）：当多个工作区同时启动时（例如用 OpenCode 或 Cursor 打开多个文件夹），对问候声音进行去重。只有第一个会话启动会播放问候声；在此窗口期内的后续会话保持静默。设为 `0` 可禁用去重，始终播放问候声。
 - **suppress_subagent_complete**（布尔值，默认：`false`）：当子 Agent 会话结束时，抑制 `task.complete` 声音和通知。当 Claude Code 的 Task 工具并行派发多个子 Agent 时，每个子 Agent 完成都会触发一次提示音——将此选项设为 `true`，则只播放父会话的完成提示音。
 - **default_pack**：当没有更具体的规则时使用的备选语音包（默认：`"peon"`）。取代旧的 `active_pack` 键——现有配置在 `peon update` 时自动迁移。
 - **path_rules**：`{ "pattern": "...", "pack": "..." }` 对象数组。根据工作目录使用通配符匹配（`*`、`?`）为会话分配语音包。第一个匹配规则生效，优先级高于 `pack_rotation` 和 `default_pack`，但低于 `session_override` 分配。

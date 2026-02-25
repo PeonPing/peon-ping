@@ -15,6 +15,7 @@
   "annoyed_threshold": 3,
   "annoyed_window_seconds": 10,
   "silent_window_seconds": 0,
+  "session_start_cooldown_seconds": 30,
   "suppress_subagent_complete": false,
   "no_rc": false,
   "pack_rotation": [],
