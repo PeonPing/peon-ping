@@ -5,6 +5,21 @@ param(
     [double]$vol
 )
 
+# WAV files: use SoundPlayer directly, which works correctly in hidden/detached
+# processes. MediaPlayer (WPF) silently fails without a message pump — it reports
+# HasAudio: False and never plays, so we bypass it entirely for .wav files.
+# See: https://github.com/PeonPing/peon-ping/issues/252
+if ($path -match "\.wav$") {
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        $sp = New-Object System.Media.SoundPlayer $path
+        $sp.PlaySync()
+        $sp.Dispose()
+    } catch {}
+    return
+}
+
+# Non-WAV formats (mp3, ogg, etc.): use WPF MediaPlayer
 try {
     Add-Type -AssemblyName PresentationCore
     $player = New-Object System.Windows.Media.MediaPlayer
@@ -26,13 +41,5 @@ try {
         Start-Sleep -Seconds 2
     }
     $player.Close()
-} catch {
-    if ($path -match "\.wav$") {
-        try {
-            $sp = New-Object System.Media.SoundPlayer $path
-            $sp.Play()
-            Start-Sleep -Seconds 2
-            $sp.Dispose()
-        } catch {}
-    }
-}
+} catch {}
+
