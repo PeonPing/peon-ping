@@ -425,7 +425,17 @@ _mac_terminal_bundle_id() {
         _bid=$(osascript -e "tell application \"System Events\" to get bundle identifier of first process whose name is \"$_candidate\"" 2>/dev/null) && [ -n "$_bid" ] && { echo "$_bid"; return; }
       done
       echo "" ;;
-    *)              echo "" ;;
+    *)
+      # Fallback: detect terminal via env vars that survive tmux/screen
+      if [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
+        echo "com.mitchellh.ghostty"
+      elif [ -n "${ITERM_SESSION_ID:-}" ]; then
+        echo "com.googlecode.iterm2"
+      elif [ -n "${WARP_IS_LOCAL_SHELL_SESSION:-}" ]; then
+        echo "dev.warp.Warp-Stable"
+      else
+        echo ""
+      fi ;;
   esac
 }
 
@@ -578,7 +588,7 @@ terminal_is_focused() {
           done
           return 1  # Different tab/pane is active in all windows — notify
           ;;
-        Terminal|Warp|Alacritty|kitty|WezTerm|Ghostty) return 0 ;;
+        Terminal|Warp|Alacritty|kitty|WezTerm|Ghostty|ghostty) return 0 ;;
         *) return 1 ;;
       esac
       ;;
