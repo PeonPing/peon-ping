@@ -212,6 +212,11 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - **session_ttl_days**（数字，默认：7）：使超过 N 天的陈旧每会话语音包分配过期。防止使用 `session_override` 模式时 `.state.json` 无限增长。
 - **headphones_only**（布尔值，默认：`false`）：仅在检测到耳机或外部音频设备时播放声音。启用后，如果内置扬声器是活动输出，声音将被静音 — 适用于开放式办公室。使用 `peon status` 查看状态。支持 macOS（通过 `system_profiler`）和 Linux（通过 PipeWire `wpctl` 或 PulseAudio `pactl`）。
 - **suppress_sound_when_tab_focused**（布尔值，默认：`false`）：当生成钩子事件的终端标签页处于当前活动/聚焦状态时，跳过声音播放。声音仍会在后台标签页中播放，提醒您其他地方发生了事件。桌面和移动通知不受影响。适用于只想在未查看的标签页中听到音频提示的用户。仅支持 macOS（使用 `osascript` 检查最前端应用和 iTerm2 标签页焦点）。
+- **notification_position**（字符串，默认：`"top-center"`）：覆盖通知在屏幕上的显示位置。选项：`"top-left"`、`"top-center"`、`"top-right"`、`"bottom-left"`、`"bottom-center"`、`"bottom-right"`。
+- **notification_dismiss_seconds**（数字，默认：`4`）：覆盖通知在 N 秒后自动消失。设为 `0` 则通知持续显示，需点击关闭。
+- **notification_title_override**（字符串，默认：`""`）：覆盖通知标题中显示的项目名称。为空时自动检测：`.peon-label` > `project_name_map` > git 仓库名 > 文件夹名。
+- **project_name_map**（对象，默认：`{}`）：将目录路径映射为通知中的自定义项目标签。键为路径模式，值为显示名称。
+- **notification_templates**（对象，默认：`{}`）：自定义通知事件的消息格式。键为事件类型（`stop`、`permission`、`error`、`idle`、`question`），值为支持变量替换的模板字符串。可用变量：`{project}`、`{summary}`、`{tool_name}`、`{status}`、`{event}`。
 
 ## 常见用例
 
