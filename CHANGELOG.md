@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.10.1 (2026-02-25)
+
+### Fixed
+- Fix Ghostty terminal detection when running inside tmux: `_mac_terminal_bundle_id()` now falls back to env vars (`GHOSTTY_RESOURCES_DIR`, `ITERM_SESSION_ID`, `WARP_IS_LOCAL_SHELL_SESSION`) when `TERM_PROGRAM` is overwritten by tmux/screen (#269)
+- Fix case-sensitive Ghostty process name in `terminal_is_focused()`: add lowercase `ghostty` match alongside `Ghostty` (#269)
+
 ## v2.10.0 (2026-02-23)
 
 ### Added
