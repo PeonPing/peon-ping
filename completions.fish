@@ -42,6 +42,9 @@ complete -c peon -n "__peon_using_subcommand packs" -a install -d "Download and 
 complete -c peon -n "__peon_using_subcommand packs" -a install-local -d "Install a pack from a local directory" -F
 complete -c peon -n "__peon_using_subcommand packs" -a remove -d "Remove specific packs"
 complete -c peon -n "__peon_using_subcommand packs" -a rotation -d "Manage pack rotation list"
+complete -c peon -n "__peon_using_subcommand packs" -a bind -d "Bind a pack to the current directory"
+complete -c peon -n "__peon_using_subcommand packs" -a unbind -d "Remove pack binding for current directory"
+complete -c peon -n "__peon_using_subcommand packs" -a bindings -d "List all directory-to-pack bindings"
 
 # packs rotation subcommands
 complete -c peon -n "__peon_packs_subcommand rotation" -a list -d "Show current rotation list and mode"
@@ -56,6 +59,17 @@ complete -c peon -n "__peon_packs_subcommand list" -a "--registry" -d "List all 
 
 # Pack name completions for 'packs use' and 'packs remove'
 complete -c peon -n "__peon_packs_subcommand use" -a "(
+  set -l packs_dir (set -q CLAUDE_PEON_DIR; and echo \$CLAUDE_PEON_DIR; or echo \$HOME/.claude/hooks/peon-ping)/packs
+  if not test -d \$packs_dir; and test -d \$HOME/.openpeon/packs
+    set packs_dir \$HOME/.openpeon/packs
+  end
+  if test -d \$packs_dir
+    for manifest in \$packs_dir/*/manifest.json \$packs_dir/*/openpeon.json
+      basename (dirname \$manifest)
+    end
+  end
+)"
+complete -c peon -n "__peon_packs_subcommand bind" -a "(
   set -l packs_dir (set -q CLAUDE_PEON_DIR; and echo \$CLAUDE_PEON_DIR; or echo \$HOME/.claude/hooks/peon-ping)/packs
   if not test -d \$packs_dir; and test -d \$HOME/.openpeon/packs
     set packs_dir \$HOME/.openpeon/packs

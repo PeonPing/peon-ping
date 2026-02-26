@@ -190,6 +190,10 @@ peon packs use <name>     # Switch to a specific pack
 peon packs use --install <name>  # Switch to pack, installing from registry if needed
 peon packs next           # Cycle to the next pack
 peon packs remove <p1,p2> # Remove specific packs
+peon packs bind <name>    # Bind a pack to the current directory
+peon packs bind --pattern <path> # Bind a pack to a directory pattern, e.g. "*/services"
+peon packs unbind         # Remove the current directory
+peon packs bindings       # List all assigned bindings
 peon notifications on     # Enable desktop notifications
 peon notifications off    # Disable desktop notifications
 peon notifications overlay   # Use large overlay banners (default)

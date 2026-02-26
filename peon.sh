@@ -1226,6 +1226,168 @@ for mname in ('openpeon.json', 'manifest.json'):
 print(f'peon-ping: switched to {pack_arg} ({display})')
 " || exit 1
         sync_adapter_configs; exit 0 ;;
+      bind)
+        # Parse --install, --pattern flags and pack name from remaining args
+        BIND_INSTALL=0
+        BIND_PATTERN=""
+        PACK_ARG=""
+        _skip_next=0
+        for arg in "${@:3}"; do
+          if [ "$_skip_next" -eq 1 ]; then
+            BIND_PATTERN="$arg"
+            _skip_next=0
+            continue
+          fi
+          case "$arg" in
+            --install) BIND_INSTALL=1 ;;
+            --pattern) _skip_next=1 ;;
+            --pattern=*) BIND_PATTERN="${arg#--pattern=}" ;;
+            "") ;;
+            *) PACK_ARG="$arg" ;;
+          esac
+        done
+        if [ -z "$PACK_ARG" ]; then
+          echo "Usage: peon packs bind <pack> [--pattern <glob>] [--install]" >&2; exit 1
+        fi
+
+        # If --install, download pack first
+        if [ "$BIND_INSTALL" -eq 1 ]; then
+          PACK_DL="$(resolve_pack_download)" || exit 1
+          bash "$PACK_DL" --dir="$PEON_DIR" --packs="$PACK_ARG" || exit 1
+        fi
+
+        PACK_ARG="$PACK_ARG" BIND_PATTERN="$BIND_PATTERN" python3 -c "
+import json, os, sys
+
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+pack_arg = os.environ.get('PACK_ARG', '')
+bind_pattern = os.environ.get('BIND_PATTERN', '')
+packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
+cwd = os.getcwd()
+
+# Validate pack exists
+names = sorted([
+    d for d in os.listdir(packs_dir)
+    if os.path.isdir(os.path.join(packs_dir, d)) and (
+        os.path.exists(os.path.join(packs_dir, d, 'openpeon.json')) or
+        os.path.exists(os.path.join(packs_dir, d, 'manifest.json'))
+    )
+])
+if pack_arg not in names:
+    print(f'Error: pack \"{pack_arg}\" not found.', file=sys.stderr)
+    print(f'Available packs: {\", \".join(names)}', file=sys.stderr)
+    sys.exit(1)
+
+# Determine pattern
+if not bind_pattern:
+    bind_pattern = cwd
+
+# Load config
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+
+path_rules = cfg.get('path_rules', [])
+
+# Update existing rule or append new one
+found = False
+for rule in path_rules:
+    if rule.get('pattern') == bind_pattern:
+        rule['pack'] = pack_arg
+        found = True
+        break
+if not found:
+    path_rules.append({'pattern': bind_pattern, 'pack': pack_arg})
+
+cfg['path_rules'] = path_rules
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print(f'peon-ping: bound {pack_arg} to {bind_pattern}')
+if not os.environ.get('BIND_PATTERN', ''):
+    print(f'Tip: use --pattern \"*/{os.path.basename(cwd)}\" to match any directory named {os.path.basename(cwd)}')
+" || exit 1
+        sync_adapter_configs; exit 0 ;;
+      unbind)
+        # Parse --pattern flag from remaining args
+        UNBIND_PATTERN=""
+        _skip_next=0
+        for arg in "${@:3}"; do
+          if [ "$_skip_next" -eq 1 ]; then
+            UNBIND_PATTERN="$arg"
+            _skip_next=0
+            continue
+          fi
+          case "$arg" in
+            --pattern) _skip_next=1 ;;
+            --pattern=*) UNBIND_PATTERN="${arg#--pattern=}" ;;
+          esac
+        done
+
+        UNBIND_PATTERN="$UNBIND_PATTERN" python3 -c "
+import json, os, sys, fnmatch
+
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+unbind_pattern = os.environ.get('UNBIND_PATTERN', '')
+cwd = os.getcwd()
+
+# Load config
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+
+path_rules = cfg.get('path_rules', [])
+if not path_rules:
+    print('No pack bindings configured.')
+    sys.exit(0)
+
+# Determine which pattern to remove
+target = unbind_pattern if unbind_pattern else cwd
+
+# Try exact match first
+new_rules = [r for r in path_rules if r.get('pattern') != target]
+if len(new_rules) < len(path_rules):
+    cfg['path_rules'] = new_rules
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+    print(f'peon-ping: unbound {target}')
+    sys.exit(0)
+
+# No exact match — try fnmatch to find rules that match current directory
+if not unbind_pattern:
+    matching = [r for r in path_rules if fnmatch.fnmatch(cwd, r.get('pattern', ''))]
+    if matching:
+        print(f'No binding for \"{target}\", but found rules matching this directory:', file=sys.stderr)
+        for r in matching:
+            print(f'  {r[\"pattern\"]} -> {r[\"pack\"]}', file=sys.stderr)
+        print(f'Use --pattern to remove a specific rule.', file=sys.stderr)
+        sys.exit(1)
+
+print(f'No binding found for \"{target}\".')
+" || exit 1
+        sync_adapter_configs; exit 0 ;;
+      bindings)
+        python3 -c "
+import json, os, fnmatch
+
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+cwd = os.getcwd()
+
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+
+path_rules = cfg.get('path_rules', [])
+if not path_rules:
+    print('No pack bindings configured.')
+else:
+    for rule in path_rules:
+        pattern = rule.get('pattern', '')
+        pack = rule.get('pack', '')
+        marker = ' *' if fnmatch.fnmatch(cwd, pattern) else ''
+        print(f'  {pattern} -> {pack}{marker}')
+"
+        exit 0 ;;
       next)
         python3 -c "
 import json, os, glob
@@ -1572,7 +1734,7 @@ else:
             echo "Usage: peon packs rotation <list|add|remove>" >&2; exit 1 ;;
         esac ;;
       *)
-        echo "Usage: peon packs <list|use|next|install|install-local|remove|rotation>" >&2; exit 1 ;;
+        echo "Usage: peon packs <list|use|next|install|install-local|remove|rotation|bind|unbind|bindings>" >&2; exit 1 ;;
     esac ;;
   mobile)
     case "${2:-}" in

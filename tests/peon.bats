@@ -3281,3 +3281,119 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+# ============================================================
+# packs bind / unbind / bindings CLI
+# ============================================================
+
+@test "packs bind sets path_rules entry" {
+  run bash "$PEON_SH" packs bind peon
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"bound peon to"* ]]
+  # Verify config has the rule (pattern is exact PWD)
+  rules=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(len(c.get('path_rules', [])))")
+  [ "$rules" = "1" ]
+  pack=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(c['path_rules'][0]['pack'])")
+  [ "$pack" = "peon" ]
+}
+
+@test "packs bind with --pattern stores custom pattern" {
+  run bash "$PEON_SH" packs bind sc_kerrigan --pattern "*/myproject/*"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"bound sc_kerrigan to */myproject/*"* ]]
+  pattern=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(c['path_rules'][0]['pattern'])")
+  [ "$pattern" = "*/myproject/*" ]
+}
+
+@test "packs bind updates existing rule for same pattern" {
+  # Bind peon first, then rebind sc_kerrigan to same pattern
+  bash "$PEON_SH" packs bind peon --pattern "*/proj/*"
+  bash "$PEON_SH" packs bind sc_kerrigan --pattern "*/proj/*"
+  rules=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(len(c.get('path_rules', [])))")
+  [ "$rules" = "1" ]
+  pack=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(c['path_rules'][0]['pack'])")
+  [ "$pack" = "sc_kerrigan" ]
+}
+
+@test "packs bind validates pack exists" {
+  run bash "$PEON_SH" packs bind nonexistent
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not found"* ]]
+}
+
+@test "packs bind with --install downloads missing pack" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs bind test_pack_a --install --pattern "*/test/*"
+  [ "$status" -eq 0 ]
+  [ -d "$TEST_DIR/packs/test_pack_a" ]
+  [[ "$output" == *"bound test_pack_a"* ]]
+}
+
+@test "packs unbind removes rule" {
+  # Bind first using explicit pattern matching PWD
+  bash "$PEON_SH" packs bind peon --pattern "$TEST_DIR/*"
+  rules=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(len(c.get('path_rules', [])))")
+  [ "$rules" = "1" ]
+  # Unbind with same pattern
+  run bash "$PEON_SH" packs unbind --pattern "$TEST_DIR/*"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"unbound"* ]]
+  rules=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(len(c.get('path_rules', [])))")
+  [ "$rules" = "0" ]
+}
+
+@test "packs unbind with --pattern removes specific pattern" {
+  bash "$PEON_SH" packs bind peon --pattern "*/proj-a/*"
+  bash "$PEON_SH" packs bind sc_kerrigan --pattern "*/proj-b/*"
+  run bash "$PEON_SH" packs unbind --pattern "*/proj-a/*"
+  [ "$status" -eq 0 ]
+  rules=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(len(c.get('path_rules', [])))")
+  [ "$rules" = "1" ]
+  pack=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(c['path_rules'][0]['pack'])")
+  [ "$pack" = "sc_kerrigan" ]
+}
+
+@test "packs unbind no matching rule prints message" {
+  # Add a rule so path_rules is non-empty, then unbind a different pattern
+  bash "$PEON_SH" packs bind peon --pattern "*/other/*"
+  run bash "$PEON_SH" packs unbind --pattern "*/nonexistent/*"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"No binding found"* ]]
+}
+
+@test "packs bindings lists rules" {
+  bash "$PEON_SH" packs bind peon --pattern "*/proj-a/*"
+  bash "$PEON_SH" packs bind sc_kerrigan --pattern "*/proj-b/*"
+  run bash "$PEON_SH" packs bindings
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"*/proj-a/* -> peon"* ]]
+  [[ "$output" == *"*/proj-b/* -> sc_kerrigan"* ]]
+}
+
+@test "packs bindings empty prints message" {
+  run bash "$PEON_SH" packs bindings
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"No pack bindings configured"* ]]
+}
+
+@test "packs bind end-to-end: bound pack plays correct sounds" {
+  # Bind sc_kerrigan to a path that matches our test CWD
+  bash "$PEON_SH" packs bind sc_kerrigan --pattern "*/myproject*"
+  # Fire an event with a matching cwd
+  run_peon '{"hook_event_name":"Stop","cwd":"/home/user/myproject","session_id":"bind1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/sc_kerrigan/sounds/"* ]]
+}
+
+@test "packs bind default pattern (exact cwd) matches in event handler" {
+  # Bind sc_kerrigan using the exact path (simulating default bind from /home/user/myproject)
+  bash "$PEON_SH" packs bind sc_kerrigan --pattern "/home/user/myproject"
+  # Fire an event with that exact cwd
+  run_peon '{"hook_event_name":"Stop","cwd":"/home/user/myproject","session_id":"bind2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/sc_kerrigan/sounds/"* ]]
+}
+
