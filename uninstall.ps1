@@ -1,6 +1,6 @@
 # peon-ping Windows Uninstaller
 # Removes peon-ping hooks, skills, CLI command, and installation directory
-# Usage: powershell -ExecutionPolicy Bypass -File uninstall.ps1
+# Usage: powershell -File uninstall.ps1
 
 param(
     [switch]$KeepSounds,

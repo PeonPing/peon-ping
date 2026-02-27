@@ -77,6 +77,8 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - Google Antigravity
 - OpenClaw (via adapters/openclaw.sh — call with any CESP category or Claude Code event name)
 
+All adapters have native Windows PowerShell (.ps1) versions alongside the bash (.sh) originals. Filesystem watchers (Amp, Antigravity, Kimi) use .NET FileSystemWatcher on Windows instead of fswatch/inotifywait. The Windows installer (install.ps1) copies adapter scripts to ~/.claude/hooks/peon-ping/adapters/.
+
 ## Sound Packs (90+ available)
 
 Packs use the OpenPeon (CESP v1.0) standard. Each pack maps event categories to audio files.

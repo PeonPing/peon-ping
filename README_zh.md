@@ -349,18 +349,20 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 | IDE | 状态 | 设置 |
 |---|---|---|
 | **Claude Code** | 内置 | `curl \| bash` 安装会自动处理 |
-| **Amp** | 适配器 | `bash ~/.claude/hooks/peon-ping/adapters/amp.sh`（需要 `fswatch`：`brew install fswatch`）（[设置](#amp-设置)） |
-| **Gemini CLI** | 适配器 | 在 `~/.gemini/settings.json` 中添加指向 `adapters/gemini.sh` 的钩子（[设置](#gemini-cli-设置)） |
-| **GitHub Copilot** | 适配器 | 在 `.github/hooks/hooks.json` 中添加指向 `adapters/copilot.sh` 的钩子（[设置](#github-copilot-设置)） |
-| **OpenAI Codex** | 适配器 | 在 `~/.codex/config.toml` 中添加 `notify = ["bash", "/absolute/path/to/.claude/hooks/peon-ping/adapters/codex.sh"]` |
+| **Amp** | 适配器 | `bash adapters/amp.sh` / `powershell adapters/amp.ps1`（[设置](#amp-设置)） |
+| **Gemini CLI** | 适配器 | 添加指向 `adapters/gemini.sh`（Windows 用 `.ps1`）的钩子（[设置](#gemini-cli-设置)） |
+| **GitHub Copilot** | 适配器 | 在 `.github/hooks/hooks.json` 中添加指向 `adapters/copilot.sh`（或 `.ps1`）的钩子（[设置](#github-copilot-设置)） |
+| **OpenAI Codex** | 适配器 | 在 `~/.codex/config.toml` 中添加指向 `adapters/codex.sh`（或 `.ps1`）的 `notify` 条目 |
 | **Cursor** | 内置 | `curl \| bash`、`peon-ping-setup` 或 Windows `install.ps1` 自动检测并注册钩子。在 Windows 上，请在 **设置 → 功能 → 第三方技能** 中启用，以便 Cursor 加载 `~/.claude/settings.json` 以播放 SessionStart/Stop 音效。 |
-| **OpenCode** | 适配器 | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh \| bash`（[设置](#opencode-设置)） |
-| **Kilo CLI** | 适配器 | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/kilo.sh \| bash`（[设置](#kilo-cli-设置)） |
-| **Kiro** | 适配器 | 在 `~/.kiro/agents/peon-ping.json` 中添加指向 `adapters/kiro.sh` 的钩子条目（[设置](#kiro-设置)） |
-| **Windsurf** | 适配器 | 在 `~/.codeium/windsurf/hooks.json` 中添加指向 `adapters/windsurf.sh` 的钩子条目（[设置](#windsurf-设置)） |
-| **Google Antigravity** | 适配器 | `bash ~/.claude/hooks/peon-ping/adapters/antigravity.sh`（需要 `fswatch`：`brew install fswatch`） |
-| **Kimi Code** | 适配器 | `bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --install`（需要 `fswatch`：`brew install fswatch`）（[设置](#kimi-code-设置)） |
-| **OpenClaw** | 适配器 | 在 OpenClaw 技能中调用 `adapters/openclaw.sh <event>`，支持所有 CESP 分类和原生 Claude Code 事件名 |
+| **OpenCode** | 适配器 | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1`（[设置](#opencode-设置)） |
+| **Kilo CLI** | 适配器 | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1`（[设置](#kilo-cli-设置)） |
+| **Kiro** | 适配器 | 添加指向 `adapters/kiro.sh`（或 `.ps1`）的钩子条目（[设置](#kiro-设置)） |
+| **Windsurf** | 适配器 | 添加指向 `adapters/windsurf.sh`（或 `.ps1`）的钩子条目（[设置](#windsurf-设置)） |
+| **Google Antigravity** | 适配器 | `bash adapters/antigravity.sh` / `powershell adapters/antigravity.ps1` |
+| **Kimi Code** | 适配器 | `bash adapters/kimi.sh --install` / `powershell adapters/kimi.ps1 -Install`（[设置](#kimi-code-设置)） |
+| **OpenClaw** | 适配器 | 调用 `adapters/openclaw.sh <event>`（或 `openclaw.ps1`），支持所有 CESP 分类和原生 Claude Code 事件名 |
+
+> **Windows：** 所有适配器都有原生 PowerShell（`.ps1`）版本。Windows 安装程序（`install.ps1`）会将其复制到 `~/.claude/hooks/peon-ping/adapters/`。文件系统监视器（Amp、Antigravity、Kimi）使用 .NET `FileSystemWatcher` 而非 fswatch/inotifywait — 无需额外依赖。
 
 ### Amp 设置
 
@@ -812,10 +814,10 @@ bash .claude/hooks/peon-ping/uninstall.sh           # 项目本地
 
 ```powershell
 # 标准卸载（删除声音前会提示）
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
+powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
 
 # 保留语音包（移除其他所有内容）
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepSounds
+powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepSounds
 ```
 
 ## 系统要求

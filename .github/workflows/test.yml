@@ -17,3 +17,42 @@ jobs:
 
       - name: Run tests
         run: bats tests/
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Install-Module -Name Pester -Force -SkipPublisherCheck -MinimumVersion 5.0.0
+          Import-Module Pester
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          $adapters = Get-ChildItem -Path adapters -Filter "*.ps1"
+          $failed = $false
+          foreach ($f in $adapters) {
+            $errors = $null
+            $null = [System.Management.Automation.PSParser]::Tokenize(
+              (Get-Content $f.FullName -Raw), [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              Write-Host "FAIL: $($f.Name) - $($errors[0].Message)" -ForegroundColor Red
+              $failed = $true
+            } else {
+              Write-Host "OK: $($f.Name)" -ForegroundColor Green
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = "tests/adapters-windows.Tests.ps1"
+          $config.Output.Verbosity = "Detailed"
+          $config.Run.Exit = $true
+          Invoke-Pester -Configuration $config

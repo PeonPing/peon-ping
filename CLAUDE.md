@@ -22,13 +22,16 @@ bash install.sh --local
 bash install.sh --packs=peon,glados,peasant
 
 # Install locally for development (native Windows)
-powershell -ExecutionPolicy Bypass -File install.ps1
+powershell -File install.ps1
 
 # Install specific packs (native Windows)
-powershell -ExecutionPolicy Bypass -File install.ps1 -Packs peon,glados,peasant
+powershell -File install.ps1 -Packs peon,glados,peasant
 
 # Install all packs (native Windows)
-powershell -ExecutionPolicy Bypass -File install.ps1 -All
+powershell -File install.ps1 -All
+
+# Run Pester tests (native Windows)
+Invoke-Pester -Path tests/adapters-windows.Tests.ps1
 ```
 
 There is no build step, linter, or formatter configured for the shell codebase.
@@ -84,7 +87,9 @@ IDE triggers hook → `peon.sh` reads JSON stdin → single Python call maps eve
 - **`adapters/windsurf.sh`** — Translates Windsurf Cascade hook events to CESP JSON
 - **`adapters/antigravity.sh`** — Filesystem watcher for Google Antigravity agent events
 
-All adapters translate IDE-specific events into the standardized CESP JSON format that `peon.sh` expects.
+All adapters have native Windows PowerShell (`.ps1`) counterparts alongside the bash originals. Windows adapters pipe CESP JSON to `peon.ps1` instead of `peon.sh`. Filesystem watchers (amp, antigravity, kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait.
+
+All adapters translate IDE-specific events into the standardized CESP JSON format that `peon.sh`/`peon.ps1` expects.
 
 ### Platform Audio Backends
 
@@ -106,7 +111,9 @@ Packs use `openpeon.json` ([CESP v1.0](https://github.com/PeonPing/openpeon)) ma
 
 Tests use [BATS](https://github.com/bats-core/bats-core) (Bash Automated Testing System). Test setup (`tests/setup.bash`) creates isolated temp directories with mock audio backends, manifests, and config so tests never touch real state. Key mock: `afplay` is replaced with a script that logs calls instead of playing audio.
 
-CI runs on macOS (`macos-latest`) via GitHub Actions.
+Windows adapter tests use [Pester](https://pester.dev/) (`tests/adapters-windows.Tests.ps1`). These validate PowerShell syntax, event mapping, daemon flags, `FileSystemWatcher` usage, and the absence of `ExecutionPolicy Bypass` across all `.ps1` adapters.
+
+CI runs two jobs via GitHub Actions: BATS on macOS (`macos-latest`) and Pester on Windows (`windows-latest`).
 
 ## Releasing
 

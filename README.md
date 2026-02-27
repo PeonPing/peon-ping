@@ -428,18 +428,20 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | IDE | Status | Setup |
 |---|---|---|
 | **Claude Code** | Built-in | `curl \| bash` install handles everything |
-| **Amp** | Adapter | `bash ~/.claude/hooks/peon-ping/adapters/amp.sh` (requires `fswatch`: `brew install fswatch`) ([setup](#amp-setup)) |
-| **Gemini CLI** | Adapter | Add hooks to `~/.gemini/settings.json` pointing to `adapters/gemini.sh` ([setup](#gemini-cli-setup)) |
-| **GitHub Copilot** | Adapter | Add hooks to `.github/hooks/hooks.json` pointing to `adapters/copilot.sh` ([setup](#github-copilot-setup)) |
-| **OpenAI Codex** | Adapter | Add `notify = ["bash", "/absolute/path/to/.claude/hooks/peon-ping/adapters/codex.sh"]` to `~/.codex/config.toml` |
+| **Amp** | Adapter | `bash adapters/amp.sh` / `powershell adapters/amp.ps1` ([setup](#amp-setup)) |
+| **Gemini CLI** | Adapter | Add hooks pointing to `adapters/gemini.sh` (or `.ps1` on Windows) ([setup](#gemini-cli-setup)) |
+| **GitHub Copilot** | Adapter | Add hooks to `.github/hooks/hooks.json` pointing to `adapters/copilot.sh` (or `.ps1`) ([setup](#github-copilot-setup)) |
+| **OpenAI Codex** | Adapter | Add `notify` in `~/.codex/config.toml` pointing to `adapters/codex.sh` (or `.ps1`) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
-| **OpenCode** | Adapter | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh \| bash` ([setup](#opencode-setup)) |
-| **Kilo CLI** | Adapter | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/kilo.sh \| bash` ([setup](#kilo-cli-setup)) |
-| **Kiro** | Adapter | Add hook entries to `~/.kiro/agents/peon-ping.json` pointing to `adapters/kiro.sh` ([setup](#kiro-setup)) |
-| **Windsurf** | Adapter | Add hook entries to `~/.codeium/windsurf/hooks.json` pointing to `adapters/windsurf.sh` ([setup](#windsurf-setup)) |
-| **Google Antigravity** | Adapter | `bash ~/.claude/hooks/peon-ping/adapters/antigravity.sh` (requires `fswatch`: `brew install fswatch`) |
-| **Kimi Code** | Adapter | `bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --install` (requires `fswatch`: `brew install fswatch`) ([setup](#kimi-code-setup)) |
-| **OpenClaw** | Adapter | Call `adapters/openclaw.sh <event>` from your OpenClaw skill. Supports all CESP categories and raw Claude Code event names. |
+| **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
+| **Kilo CLI** | Adapter | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1` ([setup](#kilo-cli-setup)) |
+| **Kiro** | Adapter | Add hook entries pointing to `adapters/kiro.sh` (or `.ps1`) ([setup](#kiro-setup)) |
+| **Windsurf** | Adapter | Add hook entries pointing to `adapters/windsurf.sh` (or `.ps1`) ([setup](#windsurf-setup)) |
+| **Google Antigravity** | Adapter | `bash adapters/antigravity.sh` / `powershell adapters/antigravity.ps1` |
+| **Kimi Code** | Adapter | `bash adapters/kimi.sh --install` / `powershell adapters/kimi.ps1 -Install` ([setup](#kimi-code-setup)) |
+| **OpenClaw** | Adapter | Call `adapters/openclaw.sh <event>` (or `openclaw.ps1`) from your OpenClaw skill |
+
+> **Windows:** All adapters have native PowerShell (`.ps1`) versions. The Windows installer (`install.ps1`) copies them to `~/.claude/hooks/peon-ping/adapters/`. Filesystem watchers (Amp, Antigravity, Kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait — no extra dependencies needed.
 
 ### Amp setup
 
@@ -901,10 +903,10 @@ bash .claude/hooks/peon-ping/uninstall.sh           # project-local
 
 ```powershell
 # Standard uninstall (prompts before deleting sounds)
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
+powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
 
 # Keep sound packs (removes everything else)
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepSounds
+powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepSounds
 ```
 
 ## Requirements

@@ -1,6 +1,6 @@
 # peon-ping Windows Installer
 # Native Windows port - plays Warcraft III Peon sounds when Claude Code needs attention
-# Usage: powershell -ExecutionPolicy Bypass -File install.ps1
+# Usage: powershell -File install.ps1
 # Originally made by https://github.com/SpamsRevenge in https://github.com/PeonPing/peon-ping/issues/94
 
 param(
@@ -41,6 +41,14 @@ $FallbackRef = "v1.1.0"
 Write-Host "=== peon-ping Windows installer ===" -ForegroundColor Cyan
 Write-Host ""
 
+# --- Execution policy detection ---
+$policy = Get-ExecutionPolicy -Scope CurrentUser
+if ($policy -eq "Restricted") {
+    Write-Host "Warning: PowerShell execution policy is 'Restricted'." -ForegroundColor Yellow
+    Write-Host "Hooks may not run. Fix with: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor Yellow
+    Write-Host ""
+}
+
 
 # --- Paths ---
 $ClaudeDir = Join-Path $env:USERPROFILE ".claude"
@@ -56,10 +64,13 @@ if (Test-Path (Join-Path $InstallDir "peon.ps1")) {
     Write-Host "Existing install found. Updating..." -ForegroundColor Yellow
 }
 
+$ClaudeCodeDetected = $true
 if (-not (Test-Path $ClaudeDir)) {
-    Write-Host "Error: $ClaudeDir not found. Is Claude Code installed?" -ForegroundColor Red
-    Write-Host "Install Claude Code first, then run this installer." -ForegroundColor Red
-    exit 1
+    $ClaudeCodeDetected = $false
+    Write-Host "Note: $ClaudeDir not found (Claude Code may not be installed)." -ForegroundColor Yellow
+    Write-Host "Installing adapters and packs only. Claude Code hooks will be skipped." -ForegroundColor Yellow
+    Write-Host ""
+    New-Item -ItemType Directory -Path $ClaudeDir -Force | Out-Null
 }
 
 # --- Fetch registry ---
@@ -814,11 +825,34 @@ exit 0
 
 $hookScriptPath = Join-Path $InstallDir "peon.ps1"
 Set-Content -Path $hookScriptPath -Value $hookScript -Encoding UTF8
+Unblock-File -Path $hookScriptPath -ErrorAction SilentlyContinue
+
+# --- Install adapter scripts ---
+Write-Host "  Installing adapter scripts..."
+$adaptersDir = Join-Path $InstallDir "adapters"
+New-Item -ItemType Directory -Path $adaptersDir -Force | Out-Null
+
+$adapterFiles = @(
+    "codex.ps1", "gemini.ps1", "copilot.ps1", "windsurf.ps1",
+    "kiro.ps1", "openclaw.ps1", "amp.ps1", "antigravity.ps1",
+    "kimi.ps1", "opencode.ps1", "kilo.ps1"
+)
+
+$sourceAdaptersDir = Join-Path $PSScriptRoot "adapters"
+foreach ($adapterFile in $adapterFiles) {
+    $sourcePath = Join-Path $sourceAdaptersDir $adapterFile
+    if (Test-Path $sourcePath) {
+        $destPath = Join-Path $adaptersDir $adapterFile
+        Copy-Item $sourcePath $destPath -Force
+        Unblock-File -Path $destPath -ErrorAction SilentlyContinue
+    }
+}
+Write-Host "  Installed $($adapterFiles.Count) adapter scripts to $adaptersDir"
 
 # --- Install CLI shortcut ---
 $peonCli = @"
 @echo off
-powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& '%USERPROFILE%\.claude\hooks\peon-ping\peon.ps1' %*"
+powershell -NoProfile -NonInteractive -Command "& '%USERPROFILE%\.claude\hooks\peon-ping\peon.ps1' %*"
 "@
 $cliBinDir = Join-Path $env:USERPROFILE ".local\bin"
 if (-not (Test-Path $cliBinDir)) {
@@ -835,7 +869,7 @@ $peonPs1Path = Join-Path $InstallDir "peon.ps1"
 $peonShScript = @"
 #!/usr/bin/env bash
 # peon-ping CLI wrapper for Git Bash / WSL / Unix shells on Windows
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& '$peonPs1Path' `$*"
+powershell.exe -NoProfile -NonInteractive -Command "& '$peonPs1Path' `$*"
 "@
 $peonShPath = Join-Path $cliBinDir "peon"
 [System.IO.File]::WriteAllLines($peonShPath, $peonShScript.Split("`n"), $utf8NoBom)
@@ -853,10 +887,16 @@ if ($userPath -notlike "*$cliBinDir*") {
 }
 
 # --- Update Claude Code settings.json with hooks ---
+if (-not $ClaudeCodeDetected) {
+    Write-Host ""
+    Write-Host "Skipping Claude Code hook registration (Claude Code not detected)." -ForegroundColor Yellow
+    Write-Host "Adapters installed to: $adaptersDir" -ForegroundColor Yellow
+    Write-Host "Register hooks manually or re-run after installing Claude Code." -ForegroundColor Yellow
+} else {
 Write-Host ""
 Write-Host "Registering Claude Code hooks..."
 
-$hookCmd = "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$hookScriptPath`""
+$hookCmd = "powershell -NoProfile -NonInteractive -File `"$hookScriptPath`""
 
 # Load settings as PSCustomObject (not hashtable) to preserve all existing
 # values — arrays, strings, nested objects — without corruption.
@@ -922,7 +962,7 @@ Write-Host "  Hooks registered for: $($events -join ', ')" -ForegroundColor Gree
 Write-Host "  Registering UserPromptSubmit hook for /peon-ping-use..."
 
 $beforeSubmitHookPath = Join-Path $InstallDir "scripts\hook-handle-use.ps1"
-$beforeSubmitCmd = "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$beforeSubmitHookPath`""
+$beforeSubmitCmd = "powershell -NoProfile -NonInteractive -File `"$beforeSubmitHookPath`""
 
 # Reload settings to ensure we have the latest
 $settings = Get-Content $SettingsFile -Raw | ConvertFrom-Json
@@ -967,6 +1007,7 @@ if ($settings.hooks | Get-Member -Name "beforeSubmitPrompt" -MemberType NoteProp
 
 $settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsFile -Encoding UTF8
 Write-Host "  UserPromptSubmit hook registered for /peon-ping-use" -ForegroundColor Green
+} # end if ($ClaudeCodeDetected)
 
 # --- Register Cursor hooks if ~/.cursor exists ---
 $CursorDir = Join-Path $env:USERPROFILE ".cursor"
@@ -1201,6 +1242,6 @@ if ($Updating) {
     Write-Host ""
     Write-Host "  To install specific packs: .\install.ps1 -Packs peon,glados,peasant" -ForegroundColor DarkGray
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
-    Write-Host "  To uninstall: powershell -ExecutionPolicy Bypass -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
+    Write-Host "  To uninstall: powershell -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
 }
 Write-Host ""```

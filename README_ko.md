@@ -717,10 +717,10 @@ bash .claude/hooks/peon-ping/uninstall.sh           # 프로젝트 로컬
 
 ```powershell
 # 일반 제거 (사운드 삭제 전 확인 프롬프트)
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
+powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1"
 
 # 사운드 팩 유지 (나머지만 제거)
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepSounds
+powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepSounds
 ```
 
 ## 시스템 요구사항
