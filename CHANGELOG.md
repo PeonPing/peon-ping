@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.11.0 (2026-02-26)
+
+### Added
+- **Kimi Code adapter** — filesystem watcher for [Kimi Code CLI](https://github.com/MoonshotAI/kimi-cli) (MoonshotAI). Watches `~/.kimi/sessions/` for session events and translates them to CESP format. Uses the same `fswatch`/`inotifywait` pattern as the Amp and Antigravity adapters. Includes BATS tests.
+
 ## v2.10.1 (2026-02-25)
 
 ### Fixed
