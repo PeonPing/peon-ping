@@ -394,6 +394,7 @@ else
   curl -fsSL "$REPO_BASE/adapters/openclaw.sh" -o "$INSTALL_DIR/adapters/openclaw.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/adapters/opencode.sh" -o "$INSTALL_DIR/adapters/opencode.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/adapters/windsurf.sh" -o "$INSTALL_DIR/adapters/windsurf.sh" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/adapters/kimi.sh" -o "$INSTALL_DIR/adapters/kimi.sh" 2>/dev/null || true
   mkdir -p "$INSTALL_DIR/scripts"
   curl -fsSL "$REPO_BASE/scripts/hook-handle-use.sh" -o "$INSTALL_DIR/scripts/hook-handle-use.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/hook-handle-use.ps1" -o "$INSTALL_DIR/scripts/hook-handle-use.ps1" 2>/dev/null || true
@@ -993,6 +994,14 @@ with open(hooks_file, 'w') as f:
 
 print('Cursor beforeSubmitPrompt hook registered')
 "
+fi
+
+# --- Auto-detect Kimi Code CLI and start watcher daemon ---
+KIMI_DIR="$HOME/.kimi"
+if [ -d "$KIMI_DIR" ]; then
+  echo ""
+  echo "Detected Kimi Code CLI installation, starting adapter..."
+  bash "$INSTALL_DIR/adapters/kimi.sh" --install
 fi
 
 # --- Remove peon-ping hooks from project-level settings to prevent doubles ---
