@@ -106,6 +106,29 @@ complete -c peon -n "__peon_using_subcommand rotation" -a random -d "Pick a rand
 complete -c peon -n "__peon_using_subcommand rotation" -a round-robin -d "Cycle through packs in order"
 complete -c peon -n "__peon_using_subcommand rotation" -a agentskill -d "Assign pack per session via /peon-ping-use"
 
+# Helper: true when notifications subcommand is active and second arg matches
+function __peon_notif_subcommand
+  set -l cmd (commandline -opc)
+  test (count $cmd) -ge 3; and test $cmd[2] = notifications; and test $cmd[3] = $argv[1]
+end
+
 # notifications subcommands
 complete -c peon -n "__peon_using_subcommand notifications" -a on -d "Enable desktop notifications"
 complete -c peon -n "__peon_using_subcommand notifications" -a off -d "Disable desktop notifications"
+complete -c peon -n "__peon_using_subcommand notifications" -a overlay -d "Use large overlay banners"
+complete -c peon -n "__peon_using_subcommand notifications" -a standard -d "Use standard system notifications"
+complete -c peon -n "__peon_using_subcommand notifications" -a position -d "Get or set overlay position"
+complete -c peon -n "__peon_using_subcommand notifications" -a dismiss -d "Get or set auto-dismiss time"
+complete -c peon -n "__peon_using_subcommand notifications" -a label -d "Get, set, or reset notification label"
+complete -c peon -n "__peon_using_subcommand notifications" -a test -d "Send test notification"
+
+# notifications position values
+complete -c peon -n "__peon_notif_subcommand position" -a "top-center" -d "Top center (default)"
+complete -c peon -n "__peon_notif_subcommand position" -a "top-right" -d "Top right corner"
+complete -c peon -n "__peon_notif_subcommand position" -a "top-left" -d "Top left corner"
+complete -c peon -n "__peon_notif_subcommand position" -a "bottom-right" -d "Bottom right corner"
+complete -c peon -n "__peon_notif_subcommand position" -a "bottom-left" -d "Bottom left corner"
+complete -c peon -n "__peon_notif_subcommand position" -a "bottom-center" -d "Bottom center"
+
+# notifications label values
+complete -c peon -n "__peon_notif_subcommand label" -a reset -d "Clear label override"

@@ -199,6 +199,10 @@ peon notifications off    # Disable desktop notifications
 peon notifications overlay   # Use large overlay banners (default)
 peon notifications standard  # Use standard system notifications
 peon notifications test      # Send a test notification
+peon notifications position [pos]    # Get/set notification position (top-left, top-center, top-right, bottom-left, bottom-center, bottom-right)
+peon notifications dismiss [N]       # Get/set auto-dismiss time in seconds (0 = persistent)
+peon notifications label [text|reset] # Get/set project label override for notifications
+peon notifications template [key] [fmt]  # Get/set/reset message templates (keys: stop, permission, error, idle, question)
 peon preview              # Play all sounds from session.start
 peon preview <category>   # Play all sounds from a specific category
 peon preview --list       # List all categories in the active pack
@@ -287,6 +291,11 @@ This means you can:
 - **headphones_only** (boolean, default: `false`): Only play sounds when headphones or external audio devices are detected. When enabled, sounds are suppressed if built-in speakers are the active output — useful for open offices. Check status with `peon status`. Supported on macOS (via `system_profiler`) and Linux (via PipeWire `wpctl` or PulseAudio `pactl`).
 - **suppress_sound_when_tab_focused** (boolean, default: `false`): Skip sound playback when the terminal tab that generated the hook event is the currently active/focused tab. Sounds still play for background tabs as an alert that something happened elsewhere. Desktop and mobile notifications are unaffected. Useful when you only want audio cues from tabs you're not watching. macOS only (uses `osascript` to check frontmost app and iTerm2 tab focus).
 - **meeting_detect** Detects if the microphone is currently being used and temporarily suppresses the audio only until the microphone is no longer in use. Notification still appears.
+- **notification_position** (string, default: `"top-center"`): Where overlay notifications appear on screen. Options: `"top-left"`, `"top-center"`, `"top-right"`, `"bottom-left"`, `"bottom-center"`, `"bottom-right"`.
+- **notification_dismiss_seconds** (number, default: `4`): Auto-dismiss overlay notifications after N seconds. Set to `0` for persistent notifications that require a click to dismiss.
+- **notification_title_override** (string, default: `""`): Override the project name shown in notification titles. When empty, the project name is auto-detected from `.peon-label` > `project_name_map` > git repo name > folder name.
+- **project_name_map** (object, default: `{}`): Map directory paths to custom project labels for notifications. Keys are path patterns, values are display names. Example: `{ "/home/user/work/client-a": "Client A" }`.
+- **notification_templates** (object, default: `{}`): Custom message format strings for notification events. Keys are event types (`stop`, `permission`, `error`, `idle`, `question`), values are template strings with variable substitution. Available variables: `{project}`, `{summary}`, `{tool_name}`, `{status}`, `{event}`. Example: `{ "stop": "{project}: {summary}", "permission": "{project}: {tool_name} needs approval" }`.
 
 ## Common Use Cases
 

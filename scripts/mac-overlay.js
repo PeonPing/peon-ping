@@ -1,10 +1,11 @@
 #!/usr/bin/env osascript -l JavaScript
 // mac-overlay.js — JXA Cocoa overlay notification for macOS
-// Usage: osascript -l JavaScript mac-overlay.js <message> <color> <icon_path> <slot> <dismiss_seconds> [bundle_id]
+// Usage: osascript -l JavaScript mac-overlay.js <message> <color> <icon_path> <slot> <dismiss_seconds> [bundle_id] [ide_pid] [session_tty] [subtitle] [position]
 //
 // Creates a borderless, always-on-top overlay on every screen.
-// Dismisses automatically after <dismiss_seconds> seconds.
+// Dismisses automatically after <dismiss_seconds> seconds (0 = persistent until clicked).
 // If bundle_id is provided, clicking the overlay activates that app (click-to-focus).
+// position: top-center (default), top-right, top-left, bottom-right, bottom-left, bottom-center
 
 ObjC.import('Cocoa');
 
@@ -13,10 +14,13 @@ function run(argv) {
   var color    = argv[1] || 'red';
   var iconPath = argv[2] || '';
   var slot     = parseInt(argv[3], 10) || 0;
-  var dismiss  = parseFloat(argv[4]) || 4;
+  var dismiss  = argv[4] !== undefined ? parseFloat(argv[4]) : 4;
+  if (isNaN(dismiss)) dismiss = 4;
   var bundleId   = argv[5] || '';
   var idePid     = parseInt(argv[6], 10) || 0;
   var sessionTty = argv[7] || '';
+  var subtitle    = argv[8] || '';
+  var position    = argv[9] || 'top-center';
 
   // Color map
   var r = 180/255, g = 0, b = 0;
@@ -32,9 +36,11 @@ function run(argv) {
   $.NSApplication.sharedApplication;
   $.NSApp.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
 
-  // Register a click handler if we have a target bundle ID or IDE PID
+  var persistent = dismiss <= 0;
+
+  // Register a click handler if we have a target bundle ID, IDE PID, or persistent mode
   var clickHandler = null;
-  if (bundleId || idePid > 0) {
+  if (bundleId || idePid > 0 || persistent) {
     ObjC.registerSubclass({
       name: 'PeonClickHandler',
       superclass: 'NSObject',
@@ -100,9 +106,35 @@ function run(argv) {
     var screen = screens.objectAtIndex(i);
     var visibleFrame = screen.visibleFrame;
 
-    var yOffset = 40 + slot * 90;
-    var x = visibleFrame.origin.x + (visibleFrame.size.width - winWidth) / 2;
-    var y = visibleFrame.origin.y + visibleFrame.size.height - winHeight - yOffset;
+    var margin = 10;
+    var slotStep = winHeight + margin;
+    var ySlotOffset = margin + slot * slotStep;
+    var x, y;
+    switch (position) {
+      case 'top-right':
+        x = visibleFrame.origin.x + visibleFrame.size.width - winWidth - margin;
+        y = visibleFrame.origin.y + visibleFrame.size.height - winHeight - ySlotOffset;
+        break;
+      case 'top-left':
+        x = visibleFrame.origin.x + margin;
+        y = visibleFrame.origin.y + visibleFrame.size.height - winHeight - ySlotOffset;
+        break;
+      case 'bottom-right':
+        x = visibleFrame.origin.x + visibleFrame.size.width - winWidth - margin;
+        y = visibleFrame.origin.y + ySlotOffset;
+        break;
+      case 'bottom-left':
+        x = visibleFrame.origin.x + margin;
+        y = visibleFrame.origin.y + ySlotOffset;
+        break;
+      case 'bottom-center':
+        x = visibleFrame.origin.x + (visibleFrame.size.width - winWidth) / 2;
+        y = visibleFrame.origin.y + ySlotOffset;
+        break;
+      default: // top-center
+        x = visibleFrame.origin.x + (visibleFrame.size.width - winWidth) / 2;
+        y = visibleFrame.origin.y + visibleFrame.size.height - winHeight - ySlotOffset;
+    }
     var frame = $.NSMakeRect(x, y, winWidth, winHeight);
 
     var win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer(
@@ -173,7 +205,8 @@ function run(argv) {
       var hintLabel = $.NSTextField.alloc.initWithFrame(
         $.NSMakeRect(winWidth - 108, 7, 100, 14)
       );
-      hintLabel.setStringValue($('click to focus'));
+      var hintText = (bundleId || idePid > 0) ? 'click to focus' : 'click to dismiss';
+      hintLabel.setStringValue($(hintText));
       hintLabel.setBezeled(false);
       hintLabel.setDrawsBackground(false);
       hintLabel.setEditable(false);
@@ -197,14 +230,16 @@ function run(argv) {
     windows.push(win);
   }
 
-  // Auto-dismiss timer
-  $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
-    dismiss,
-    $.NSApp,
-    'terminate:',
-    null,
-    false
-  );
+  // Auto-dismiss timer (skip when persistent — dismiss on click only)
+  if (dismiss > 0) {
+    $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
+      dismiss,
+      $.NSApp,
+      'terminate:',
+      null,
+      false
+    );
+  }
 
   $.NSApp.run;
 }

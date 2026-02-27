@@ -2538,7 +2538,7 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/overlay.log" ]
-  # overlay.log line: -l JavaScript /path/mac-overlay.js msg color icon slot dismiss ide_pid
+  # overlay.log line: -l JavaScript /path/mac-overlay.js msg color icon slot dismiss bundle_id ide_pid session_tty subtitle notif_position
   args=$(tail -1 "$TEST_DIR/overlay.log")
   # Count space-separated tokens — should be at least 7 after "-l JavaScript script"
   count=$(echo "$args" | wc -w | tr -d ' ')
@@ -2552,7 +2552,10 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/overlay.log" ]
-  ide_pid=$(tail -1 "$TEST_DIR/overlay.log" | awk '{print $NF}')
+  # Fields from end: ... bundle_id ide_pid session_tty subtitle notif_position
+  # With awk (empty fields collapse): ... bundle_id ide_pid session_tty notif_position
+  # ide_pid is NF-2 (session_tty=NF-1, notif_position=NF)
+  ide_pid=$(tail -1 "$TEST_DIR/overlay.log" | awk '{print $(NF-2)}')
   [[ "$ide_pid" =~ ^[0-9]+$ ]]
 }
 

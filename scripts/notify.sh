@@ -10,6 +10,8 @@
 #   PEON_SYNC           1 = synchronous (for tests), 0 = async (default)
 #   PEON_BUNDLE_ID      macOS terminal bundle ID for click-to-focus (empty = skip)
 #   PEON_IDE_PID        macOS IDE ancestor PID for click-to-focus (empty = skip)
+#   PEON_NOTIF_POSITION notification position: top-center|top-right|top-left|bottom-right|bottom-left|bottom-center
+#   PEON_NOTIF_DISMISS  dismiss time in seconds (0 = persistent until clicked)
 #   TERM_PROGRAM        Terminal emulator name (for iTerm2/Kitty escape sequences)
 set -uo pipefail
 
@@ -186,8 +188,10 @@ case "$PEON_PLATFORM" in
         fi
         local session_tty="${PEON_SESSION_TTY:-}"
         local subtitle="${PEON_MSG_SUBTITLE:-}"
-        # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty (window focus), argv[8]=subtitle
-        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "4" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" >/dev/null 2>&1 || true
+        local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
+        local notif_position="${PEON_NOTIF_POSITION:-top-center}"
+        # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty, argv[8]=subtitle, argv[9]=position
+        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" >/dev/null 2>&1 || true
         rm -rf "$slot_dir/slot-$slot"
       )
       if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi
@@ -308,6 +312,7 @@ TOASTEOF
           find "$slot_dir" -maxdepth 1 -name 'slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null
           slot=0; mkdir -p "$slot_dir/slot-0"
         fi
+        local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
         y_offset=$((40 + slot * 90))
         # Security: pass message via temp file to avoid PowerShell injection from untrusted $msg
         tmpmsg=$(mktemp) && printf '%s' "$msg" > "$tmpmsg"
@@ -352,8 +357,8 @@ TOASTEOF
             \$form.Controls.Add(\$label)
             \$form.Show()
           }
-          Start-Sleep -Seconds 4
-          [System.Windows.Forms.Application]::Exit()
+          if ($dismiss_secs -gt 0) { Start-Sleep -Seconds $dismiss_secs; [System.Windows.Forms.Application]::Exit() }
+          else { [System.Windows.Forms.Application]::Run() }
           if (Test-Path \$msgPath) { Remove-Item -Force \$msgPath }
         " &>/dev/null
         rm -rf "$slot_dir/slot-$slot"
@@ -439,6 +444,7 @@ TOASTEOF
           find "$slot_dir" -maxdepth 1 -name 'slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null
           slot=0; mkdir -p "$slot_dir/slot-0"
         fi
+        local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
         y_offset=$((40 + slot * 90))
         tmpmsg=$(mktemp) && printf '%s' "$msg" > "$tmpmsg"
         tmpmsg_win=$(cygpath -w "$tmpmsg")
@@ -482,8 +488,8 @@ TOASTEOF
             \$form.Controls.Add(\$label)
             \$form.Show()
           }
-          Start-Sleep -Seconds 4
-          [System.Windows.Forms.Application]::Exit()
+          if ($dismiss_secs -gt 0) { Start-Sleep -Seconds $dismiss_secs; [System.Windows.Forms.Application]::Exit() }
+          else { [System.Windows.Forms.Application]::Run() }
           if (Test-Path '$tmpmsg_win') { Remove-Item -Force '$tmpmsg_win' }
         " &>/dev/null
         rm -rf "$slot_dir/slot-$slot"

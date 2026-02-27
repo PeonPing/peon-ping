@@ -515,6 +515,8 @@ send_notification() {
       # Set env vars for notify.sh
       export PEON_PLATFORM="$PLATFORM"
       export PEON_NOTIF_STYLE="${NOTIF_STYLE:-overlay}"
+      export PEON_NOTIF_POSITION="${NOTIF_POSITION:-top-center}"
+      export PEON_NOTIF_DISMISS="${NOTIF_DISMISS:-4}"
       export PEON_DIR
       export PEON_SYNC="0"
       [ "${PEON_TEST:-0}" = "1" ] && export PEON_SYNC="1"
@@ -825,6 +827,21 @@ else:
     print('peon-ping: desktop notifications ' + ('on' if dn else 'off'))
 ns = c.get('notification_style', 'overlay')
 print('peon-ping: notification style ' + ns)
+np = c.get('notification_position', 'top-center')
+print('peon-ping: notification position ' + np)
+nd = c.get('notification_dismiss_seconds', 4)
+print('peon-ping: dismiss time ' + (str(nd) + 's' if nd > 0 else 'persistent (click to dismiss)'))
+_lbl = c.get('notification_title_override', '')
+_pmap = c.get('project_name_map', {})
+if _lbl:
+    print('peon-ping: label override: ' + _lbl)
+if _pmap:
+    print('peon-ping: project name map: ' + str(len(_pmap)) + ' pattern(s)')
+_tpls = c.get('notification_templates', {})
+if _tpls:
+    print('peon-ping: notification templates:')
+    for _tk, _tv in _tpls.items():
+        print(f'  {_tk} = "{_tv}"')
 
 mn = c.get('mobile_notify', {})
 if mn and mn.get('service'):
@@ -979,6 +996,128 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
 print('peon-ping: notification style set to standard')
 "
         sync_adapter_configs; exit 0 ;;
+      position)
+        POS_ARG="${3:-}"
+        if [ -z "$POS_ARG" ]; then
+          python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_PY'))
+    print('peon-ping: notification position ' + cfg.get('notification_position', 'top-center'))
+except Exception:
+    print('peon-ping: notification position top-center')
+"
+          exit 0
+        fi
+        python3 -c "
+import json, sys
+config_path = '$CONFIG_PY'
+pos = '$POS_ARG'
+valid = ('top-center', 'top-right', 'top-left', 'bottom-right', 'bottom-left', 'bottom-center')
+if pos not in valid:
+    print(f'peon-ping: invalid position \"{pos}\" — use one of: ' + ', '.join(valid), file=sys.stderr)
+    sys.exit(1)
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['notification_position'] = pos
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print(f'peon-ping: notification position set to {pos}')
+"
+        _rc=$?; [ "$_rc" -ne 0 ] && exit "$_rc"
+        sync_adapter_configs; exit 0 ;;
+      dismiss)
+        DISMISS_ARG="${3:-}"
+        if [ -z "$DISMISS_ARG" ]; then
+          python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_PY'))
+    d = cfg.get('notification_dismiss_seconds', 4)
+    if d <= 0:
+        print('peon-ping: dismiss time persistent (click to dismiss)')
+    else:
+        print(f'peon-ping: dismiss time {d}s')
+except Exception:
+    print('peon-ping: dismiss time 4s')
+"
+          exit 0
+        fi
+        python3 -c "
+import json, sys
+config_path = '$CONFIG_PY'
+try:
+    secs = int('$DISMISS_ARG')
+except ValueError:
+    print('peon-ping: invalid dismiss time \"$DISMISS_ARG\" — use a number (0 = persistent)', file=sys.stderr)
+    sys.exit(1)
+if secs < 0:
+    print('peon-ping: dismiss time cannot be negative', file=sys.stderr)
+    sys.exit(1)
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['notification_dismiss_seconds'] = secs
+json.dump(cfg, open(config_path, 'w'), indent=2)
+if secs == 0:
+    print('peon-ping: notifications set to persistent (click to dismiss)')
+else:
+    print(f'peon-ping: dismiss time set to {secs}s')
+"
+        _rc=$?; [ "$_rc" -ne 0 ] && exit "$_rc"
+        sync_adapter_configs; exit 0 ;;
+      label)
+        LABEL_ARG="${3:-}"
+        if [ -z "$LABEL_ARG" ]; then
+          python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_PY'))
+    lbl = cfg.get('notification_title_override', '')
+    pmap = cfg.get('project_name_map', {})
+    if lbl:
+        print(f'peon-ping: label override: {lbl}')
+    else:
+        print('peon-ping: no label override set')
+    if pmap:
+        print(f'peon-ping: project name map ({len(pmap)} patterns):')
+        for pat, name in pmap.items():
+            print(f'  {pat} → {name}')
+except Exception:
+    print('peon-ping: no label override set')
+"
+          exit 0
+        fi
+        if [ "$LABEL_ARG" = "reset" ]; then
+          python3 -c "
+import json
+config_path = '$CONFIG_PY'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['notification_title_override'] = ''
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: label override cleared')
+"
+          sync_adapter_configs; exit 0
+        fi
+        python3 -c "
+import json, sys
+config_path = '$CONFIG_PY'
+label = sys.argv[1][:50]
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['notification_title_override'] = label
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print(f'peon-ping: label override set to \"{label}\"')
+" "$LABEL_ARG"
+        _rc=$?; [ "$_rc" -ne 0 ] && exit "$_rc"
+        sync_adapter_configs; exit 0 ;;
       test)
         # Read config to check if notifications are enabled and get style
         local _py_out
@@ -992,8 +1131,12 @@ except Exception:
     cfg = {}
 dn = cfg.get('desktop_notifications', True)
 ns = cfg.get('notification_style', 'overlay')
+np = cfg.get('notification_position', 'top-center')
+nd = cfg.get('notification_dismiss_seconds', 4)
 print('_NOTIF_ENABLED=' + ('true' if dn else 'false'))
 print('NOTIF_STYLE=' + q(ns))
+print('NOTIF_POSITION=' + q(np))
+print('NOTIF_DISMISS=' + q(str(nd)))
 ")"
         safe_eval_python "$_py_out" || true
         if [ "$_NOTIF_ENABLED" != "true" ]; then
@@ -1003,8 +1146,83 @@ print('NOTIF_STYLE=' + q(ns))
         echo "peon-ping: sending test notification (style: $NOTIF_STYLE)"
         PEON_TEST=1 send_notification "This is a test notification" "peon-ping" "blue"
         exit 0 ;;
+      template)
+        TPL_KEY="${3:-}"
+        TPL_VAL="${4:-}"
+        if [ -z "$TPL_KEY" ]; then
+          # Show all templates
+          python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_PY'))
+    tpls = cfg.get('notification_templates', {})
+except Exception:
+    tpls = {}
+if not tpls:
+    print('peon-ping: no notification templates configured (using defaults)')
+else:
+    valid = ('stop', 'permission', 'error', 'idle', 'question')
+    for k in valid:
+        v = tpls.get(k, '')
+        if v:
+            print(f'peon-ping: template {k} = \"{v}\"')
+    extra = set(tpls) - set(valid)
+    for k in sorted(extra):
+        print(f'peon-ping: template {k} = \"{tpls[k]}\" (unknown key)')
+"
+          exit 0
+        fi
+        if [ "$TPL_KEY" = "--reset" ]; then
+          python3 -c "
+import json
+config_path = '$CONFIG_PY'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg.pop('notification_templates', None)
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: notification templates cleared')
+"
+          sync_adapter_configs; exit 0
+        fi
+        # Validate key and set/show value
+        python3 -c "
+import json, sys
+config_path = '$CONFIG_PY'
+key = '$TPL_KEY'
+valid = ('stop', 'permission', 'error', 'idle', 'question')
+if key not in valid:
+    print(f'peon-ping: invalid template key \"{key}\" — use one of: ' + ', '.join(valid), file=sys.stderr)
+    sys.exit(1)
+val = sys.argv[1] if len(sys.argv) > 1 else ''
+if not val:
+    # Show single template
+    try:
+        cfg = json.load(open(config_path))
+        tpls = cfg.get('notification_templates', {})
+    except Exception:
+        tpls = {}
+    v = tpls.get(key, '')
+    if v:
+        print(f'peon-ping: template {key} = \"{v}\"')
+    else:
+        print(f'peon-ping: template {key} not set (default: \"{{project}}\")')
+    sys.exit(0)
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+tpls = cfg.get('notification_templates', {})
+tpls[key] = val
+cfg['notification_templates'] = tpls
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print(f'peon-ping: template {key} set to \"{val}\"')
+" "$TPL_VAL"
+        _rc=$?; [ "$_rc" -ne 0 ] && exit "$_rc"
+        sync_adapter_configs; exit 0 ;;
       *)
-        echo "Usage: peon notifications <on|off|overlay|standard|test>" >&2; exit 1 ;;
+        echo "Usage: peon notifications <on|off|overlay|standard|position|dismiss|label|template|test>" >&2; exit 1 ;;
     esac ;;
   popups)
     # Alias for 'notifications' command - same behavior
@@ -2116,6 +2334,12 @@ Commands:
   notifications off       Disable desktop notification popups (sounds continue playing)
   notifications overlay   Use large overlay banners (default)
   notifications standard  Use standard system notifications
+  notifications position [pos]  Get or set overlay position
+                       Positions: top-center (default), top-right, top-left,
+                       bottom-right, bottom-left, bottom-center
+  notifications dismiss [N]  Get or set auto-dismiss time in seconds (0 = persistent)
+  notifications label [text|reset]  Get, set, or reset notification label override
+  notifications template [key] [fmt]  Get/set message templates (keys: stop, permission, error, idle, question)
   notifications test      Send a test notification
   popups on|off         Alias for 'notifications' - toggle desktop notification popups
   preview [category]   Play all sounds from a category (default: session.start)
@@ -2653,21 +2877,44 @@ state['last_active'] = dict(session_id=session_id, pack=active_pack,
                             timestamp=time.time(), event=event, cwd=cwd)
 state_dirty = True
 
-# --- Project name (git repo name, fallback to directory name) ---
-project = ''
+# --- Project name (priority chain: .peon-label > project_name_map > title_override > git repo > folder) ---
+project = None
+
+# 1. .peon-label file in project root
 if cwd:
+    _lf = os.path.join(cwd, '.peon-label')
+    if os.path.isfile(_lf):
+        try:
+            _l = open(_lf).read().strip().split('\n')[0][:50]
+            if _l: project = _l
+        except Exception: pass
+
+# 2. project_name_map (glob pattern matching)
+if not project:
+    for _pat, _label in cfg.get('project_name_map', {}).items():
+        if cwd and fnmatch.fnmatch(cwd, _pat):
+            project = str(_label)[:50]; break
+
+# 3. Static override
+if not project:
+    _ov = cfg.get('notification_title_override', '')
+    if _ov: project = str(_ov)[:50]
+
+# 4. Git repo name
+if not project and cwd:
     try:
         import subprocess
         _git_remote = subprocess.check_output(
             ['git', 'remote', 'get-url', 'origin'],
             cwd=cwd, stderr=subprocess.DEVNULL, timeout=2
         ).decode().strip()
-        # Extract repo name from URL (handles ssh and https)
         project = _git_remote.rstrip('/').rsplit('/', 1)[-1].removesuffix('.git')
     except Exception:
         pass
-    if not project:
-        project = cwd.rsplit('/', 1)[-1]
+
+# 5. Folder name fallback
+if not project and cwd:
+    project = cwd.rsplit('/', 1)[-1]
 if not project:
     project = 'claude'
 project = re.sub(r'[^a-zA-Z0-9 ._-]', '', project)
@@ -3000,6 +3247,33 @@ if tab_color_enabled:
         rgb = colors[status_key]
         tab_color_rgb = f'{rgb[0]} {rgb[1]} {rgb[2]}'
 
+# --- Notification message template resolution ---
+from collections import defaultdict as _defaultdict
+_templates = cfg.get('notification_templates', {})
+_tpl_key_map = {
+    'task.complete': 'stop',
+    'task.error': 'error',
+}
+_tpl_key = _tpl_key_map.get(category, '')
+if event == 'Notification':
+    if ntype == 'idle_prompt': _tpl_key = 'idle'
+    elif ntype == 'elicitation_dialog': _tpl_key = 'question'
+elif event == 'PermissionRequest':
+    _tpl_key = 'permission'
+_tpl = _templates.get(_tpl_key, '')
+if _tpl:
+    _tpl_vars = _defaultdict(str, {
+        'project': project,
+        'summary': event_data.get('transcript_summary', '').strip()[:120],
+        'tool_name': event_data.get('tool_name', ''),
+        'status': status,
+        'event': event,
+    })
+    try:
+        msg = _tpl.format_map(_tpl_vars)
+    except Exception:
+        pass
+
 # --- Output shell variables ---
 print('PEON_EXIT=false')
 print('EVENT=' + q(event))
@@ -3013,6 +3287,8 @@ print('MSG=' + q(msg))
 print('MSG_SUBTITLE=' + q(msg_subtitle))
 print('DESKTOP_NOTIF=' + ('true' if desktop_notif else 'false'))
 print('NOTIF_STYLE=' + q(cfg.get('notification_style', 'overlay')))
+print('NOTIF_POSITION=' + q(cfg.get('notification_position', 'top-center')))
+print('NOTIF_DISMISS=' + q(str(cfg.get('notification_dismiss_seconds', 4))))
 print('USE_SOUND_EFFECTS_DEVICE=' + q(str(use_sound_effects_device).lower()))
 print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))
 mn = cfg.get('mobile_notify', {})

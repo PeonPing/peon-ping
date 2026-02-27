@@ -44,7 +44,11 @@ _peon_completions() {
         return 0 ;;
       notifications)
         if [ "$cword" -eq 2 ]; then
-          COMPREPLY=( $(compgen -W "on off overlay standard test" -- "$cur") )
+          COMPREPLY=( $(compgen -W "on off overlay standard position dismiss label test" -- "$cur") )
+        elif [ "$cword" -eq 3 ] && [ "$prev" = "position" ]; then
+          COMPREPLY=( $(compgen -W "top-center top-right top-left bottom-right bottom-left bottom-center" -- "$cur") )
+        elif [ "$cword" -eq 3 ] && [ "$prev" = "label" ]; then
+          COMPREPLY=( $(compgen -W "reset" -- "$cur") )
         fi
         return 0 ;;
       rotation)
