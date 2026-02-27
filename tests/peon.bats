@@ -29,6 +29,13 @@ teardown() {
 }
 
 @test "rapid SessionStart events from multiple workspaces are debounced" {
+  # Enable debounce cooldown (global test config sets it to 0 to avoid flaky timing tests)
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['session_start_cooldown_seconds'] = 30
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
   # First SessionStart plays the greeting
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/proj1","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -43,9 +50,12 @@ teardown() {
 }
 
 @test "SessionStart plays greeting after cooldown expires" {
-  # Set last_session_start_sound_time to 60 seconds ago (beyond 30s default cooldown)
+  # Enable debounce cooldown and set last greeting to 60 seconds ago (beyond 30s cooldown)
   /usr/bin/python3 -c "
 import json, time
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['session_start_cooldown_seconds'] = 30
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 state = json.load(open('$TEST_DIR/.state.json'))
 state['last_session_start_sound_time'] = time.time() - 60
 json.dump(state, open('$TEST_DIR/.state.json', 'w'))
