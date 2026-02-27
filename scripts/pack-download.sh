@@ -56,12 +56,15 @@ is_safe_source_path() {
 }
 
 is_safe_filename() {
-  [[ "$1" =~ ^[A-Za-z0-9._?!-]+$ ]]
+  [[ "$1" =~ ^[A-Za-z0-9._?!\ \(\)/-]+$ ]] && [[ "$1" != *".."* ]] && [[ "$1" != /* ]]
 }
 
-# URL-encode characters that break raw GitHub URLs (e.g. ? in filenames)
+# URL-encode characters that break raw GitHub URLs (e.g. ? or spaces in filenames)
 urlencode_filename() {
   local f="$1"
+  f="${f// /%20}"
+  f="${f//\(/%28}"
+  f="${f//\)/%29}"
   f="${f//\?/%3F}"
   f="${f//\!/%21}"
   f="${f//\#/%23}"
@@ -293,12 +296,18 @@ for p in data.get('packs', []):
   manifest="$PEON_DIR/packs/$pack/openpeon.json"
   manifest_py="$(py_path "$manifest")"
   SOUND_COUNT=$(python3 -c "
-import json, os
+import json, posixpath
 m = json.load(open('$manifest_py'))
 seen = set()
 for cat in m.get('categories', {}).values():
     for s in cat.get('sounds', []):
-        seen.add(os.path.basename(s['file']))
+        f = s['file']
+        # Strip leading 'sounds/' to get relative path; fall back to basename
+        if f.startswith('sounds/'):
+            rel = f[len('sounds/'):]
+        else:
+            rel = posixpath.basename(f)
+        seen.add(rel)
 print(len(seen))
 " 2>/dev/null || echo "?")
 
@@ -316,6 +325,7 @@ print(len(seen))
         echo "  Warning: skipped unsafe filename in $pack: $sfile" >&2
         continue
       fi
+      mkdir -p "$PEON_DIR/packs/$pack/sounds/$(dirname "$sfile")"
       if is_cached_valid "$PEON_DIR/packs/$pack/sounds/$sfile" "$CHECKSUMS_FILE" "$sfile"; then
         local_file_count=$((local_file_count + 1))
         fsize=$(wc -c < "$PEON_DIR/packs/$pack/sounds/$sfile" | tr -d ' ')
@@ -332,16 +342,19 @@ print(len(seen))
       draw_progress "$PACK_INDEX" "$TOTAL_PACKS" "$pack" \
         "$local_file_count" "$SOUND_COUNT" "$local_byte_count"
     done < <(python3 -c "
-import json, os
+import json, posixpath
 m = json.load(open('$manifest_py'))
 seen = set()
 for cat in m.get('categories', {}).values():
     for s in cat.get('sounds', []):
         f = s['file']
-        basename = os.path.basename(f)
-        if basename not in seen:
-            seen.add(basename)
-            print(basename)
+        if f.startswith('sounds/'):
+            rel = f[len('sounds/'):]
+        else:
+            rel = posixpath.basename(f)
+        if rel not in seen:
+            seen.add(rel)
+            print(rel)
 ")
 
     draw_progress "$PACK_INDEX" "$TOTAL_PACKS" "$pack" \
@@ -355,21 +368,25 @@ for cat in m.get('categories', {}).values():
     printf "  [%d/%d] %s " "$PACK_INDEX" "$TOTAL_PACKS" "$pack"
 
     python3 -c "
-import json, os
+import json, posixpath
 m = json.load(open('$manifest_py'))
 seen = set()
 for cat in m.get('categories', {}).values():
     for s in cat.get('sounds', []):
         f = s['file']
-        basename = os.path.basename(f)
-        if basename not in seen:
-            seen.add(basename)
-            print(basename)
+        if f.startswith('sounds/'):
+            rel = f[len('sounds/'):]
+        else:
+            rel = posixpath.basename(f)
+        if rel not in seen:
+            seen.add(rel)
+            print(rel)
 " | while read -r sfile; do
       if ! is_safe_filename "$sfile"; then
         echo "  Warning: skipped unsafe filename in $pack: $sfile" >&2
         continue
       fi
+      mkdir -p "$PEON_DIR/packs/$pack/sounds/$(dirname "$sfile")"
       if is_cached_valid "$PEON_DIR/packs/$pack/sounds/$sfile" "$CHECKSUMS_FILE" "$sfile"; then
         printf "."
       elif curl -fsSL "$PACK_BASE/sounds/$(urlencode_filename "$sfile")" -o "$PEON_DIR/packs/$pack/sounds/$sfile" </dev/null 2>/dev/null; then

@@ -67,6 +67,17 @@ teardown() {
   [ -f "$TEST_DIR/packs/test_pack_a/sounds/Hello1.wav" ]
 }
 
+@test "--packs downloads sound files in nested subdirectories" {
+  # Override mock manifest with nested paths
+  cat > "$TEST_DIR/.mock_manifest_json" <<'JSON'
+{"cesp_version":"1.0","name":"nested","display_name":"Nested Pack","categories":{"session.start":{"sounds":[{"file":"sounds/start/Hello.wav","label":"Hello"}]},"task.complete":{"sounds":[{"file":"sounds/complete/Done.wav","label":"Done"}]}}}
+JSON
+  run bash "$PACK_DL_SH" --dir="$TEST_DIR" --packs=test_pack_a
+  [ "$status" -eq 0 ]
+  [ -f "$TEST_DIR/packs/test_pack_a/sounds/start/Hello.wav" ]
+  [ -f "$TEST_DIR/packs/test_pack_a/sounds/complete/Done.wav" ]
+}
+
 @test "--packs creates checksums file" {
   run bash "$PACK_DL_SH" --dir="$TEST_DIR" --packs=test_pack_a
   [ "$status" -eq 0 ]
@@ -125,11 +136,34 @@ teardown() {
   is_safe_filename "Hello.wav"
 }
 
+@test "is_safe_filename allows spaces and parentheses" {
+  eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$PACK_DL_SH")"
+  is_safe_filename "incoming (1).mp3"
+  is_safe_filename "sound file.wav"
+}
+
+@test "is_safe_filename allows paths with slashes" {
+  eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$PACK_DL_SH")"
+  is_safe_filename "ack/63a.wav"
+  is_safe_filename "complete/allies/hq_objdest.wav"
+}
+
 @test "is_safe_filename rejects unsafe characters" {
   eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$PACK_DL_SH")"
-  ! is_safe_filename "../etc/passwd"
-  ! is_safe_filename "file;rm -rf /"
-  ! is_safe_filename 'file$(cmd)'
+  run is_safe_filename "file;rm -rf /"
+  [ "$status" -ne 0 ]
+  run is_safe_filename 'file$(cmd)'
+  [ "$status" -ne 0 ]
+}
+
+@test "is_safe_filename rejects path traversal and absolute paths" {
+  eval "$(sed -n '/^is_safe_filename()/,/^}/p' "$PACK_DL_SH")"
+  run is_safe_filename "../etc/passwd"
+  [ "$status" -ne 0 ]
+  run is_safe_filename "/etc/passwd"
+  [ "$status" -ne 0 ]
+  run is_safe_filename "start/../../etc/passwd"
+  [ "$status" -ne 0 ]
 }
 
 @test "urlencode_filename encodes question marks" {
@@ -142,6 +176,18 @@ teardown() {
   eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$PACK_DL_SH")"
   result=$(urlencode_filename "Wow!.mp3")
   [ "$result" = "Wow%21.mp3" ]
+}
+
+@test "urlencode_filename encodes spaces" {
+  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$PACK_DL_SH")"
+  result=$(urlencode_filename "incoming (1).mp3")
+  [ "$result" = "incoming%20%281%29.mp3" ]
+}
+
+@test "urlencode_filename preserves path separators" {
+  eval "$(sed -n '/^urlencode_filename()/,/^}/p' "$PACK_DL_SH")"
+  result=$(urlencode_filename "ack/63a.wav")
+  [ "$result" = "ack/63a.wav" ]
 }
 
 @test "urlencode_filename leaves normal filenames unchanged" {
