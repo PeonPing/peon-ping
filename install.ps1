@@ -838,14 +838,23 @@ $adapterFiles = @(
     "kimi.ps1", "opencode.ps1", "kilo.ps1"
 )
 
-$sourceAdaptersDir = Join-Path $PSScriptRoot "adapters"
+$sourceAdaptersDir = Join-Path $ScriptDir "adapters"
 foreach ($adapterFile in $adapterFiles) {
+    $destPath = Join-Path $adaptersDir $adapterFile
     $sourcePath = Join-Path $sourceAdaptersDir $adapterFile
     if (Test-Path $sourcePath) {
-        $destPath = Join-Path $adaptersDir $adapterFile
+        # Local install: copy from repo
         Copy-Item $sourcePath $destPath -Force
-        Unblock-File -Path $destPath -ErrorAction SilentlyContinue
+    } else {
+        # One-liner install: download from GitHub
+        try {
+            Invoke-WebRequest -Uri "$RepoBase/adapters/$adapterFile" -OutFile $destPath -UseBasicParsing -ErrorAction Stop
+        } catch {
+            Write-Host "  Warning: Could not download adapter $adapterFile" -ForegroundColor Yellow
+            continue
+        }
     }
+    Unblock-File -Path $destPath -ErrorAction SilentlyContinue
 }
 Write-Host "  Installed $($adapterFiles.Count) adapter scripts to $adaptersDir"
 
