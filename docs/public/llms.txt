@@ -79,11 +79,11 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 
 All adapters have native Windows PowerShell (.ps1) versions alongside the bash (.sh) originals. Filesystem watchers (Amp, Antigravity, Kimi) use .NET FileSystemWatcher on Windows instead of fswatch/inotifywait. The Windows installer (install.ps1) copies adapter scripts to ~/.claude/hooks/peon-ping/adapters/.
 
-## Sound Packs (90+ available)
+## Sound Packs (160+ available)
 
 Packs use the OpenPeon (CESP v1.0) standard. Each pack maps event categories to audio files.
 
-Notable packs: peon (Warcraft III orc), glados (Portal), sc_kerrigan (StarCraft), duke_nukem, tf2_engineer, hd2_helldiver (Helldivers 2), ra2_kirov (Red Alert 2), dota2_axe, molag_bal (Elder Scrolls), rick (Rick and Morty), murloc (Warcraft), ocarina_of_time (Zelda).
+Notable packs: peon (Warcraft III orc), glados (Portal), sc_kerrigan (StarCraft), sc2_abathur (StarCraft II Co-op), duke_nukem, tf2_engineer, hd2_helldiver (Helldivers 2), ra2_kirov (Red Alert 2), dota2_axe, molag_bal (Elder Scrolls), rick (Rick and Morty), murloc (Warcraft), ocarina_of_time (Zelda).
 
 Full list: https://openpeon.com/packs
 

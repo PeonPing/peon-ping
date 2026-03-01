@@ -342,7 +342,7 @@ export default function LandingPage() {
   const [playingPackBtn, setPlayingPackBtn] = useState<string | null>(null);
 
   /* ---- Pack count ---- */
-  const [packCount, setPackCount] = useState("75+");
+  const [packCount, setPackCount] = useState("160+");
 
   /* ---- Picker state ---- */
   const [registryPacks, setRegistryPacks] = useState<RegistryPack[]>([]);
@@ -648,7 +648,7 @@ export default function LandingPage() {
   }, []);
 
   /* ---- Picker: filter and search ---- */
-  const knownLangs = ["en", "ru", "es", "fr", "cs", "pt-BR"];
+  const knownLangs = ["en", "ru", "es", "fr", "cs", "pt-BR", "zh"];
   const filteredPacks = registryPacks
     .filter((p) => {
       if (activeFilter === "all") return true;
@@ -976,7 +976,7 @@ export default function LandingPage() {
 
           <div className="contribute-cta">
             <p>
-              <strong><span className="pack-count">{packCount}</span> packs and counting!</strong> You&apos;re only seeing a few above &mdash; there are many more including GLaDOS, StarCraft Terran units, Czech, Spanish &amp; Russian &amp; Polish Warcraft packs, and others.
+              <strong><span className="pack-count">{packCount}</span> packs and counting!</strong> You&apos;re only seeing a few above &mdash; there are many more including GLaDOS, StarCraft Terran units, SC2 Co-op Commanders (Abathur, Alarak, Stetmann), Czech, Spanish &amp; Russian &amp; Polish Warcraft packs, and others.
             </p>
             <p>
               Run <code>peon packs list --registry</code> to see what&apos;s available, <code>peon packs install</code> to add more, or <a href="https://openpeon.com/packs">browse the full catalog at openpeon.com</a>.
@@ -1016,6 +1016,7 @@ export default function LandingPage() {
               { lang: "fr", label: "French" },
               { lang: "cs", label: "Czech" },
               { lang: "pt-BR", label: "Portuguese (BR)" },
+              { lang: "zh", label: "Chinese" },
               { lang: "other", label: "Other" },
               { lang: "all", label: "All" },
             ].map((f) => (
@@ -1239,7 +1240,7 @@ export default function LandingPage() {
               <div className="feature-text">
                 <h3>Pack system</h3>
                 <p>
-                  <span className="pack-count">{packCount}</span> packs across 7 languages. <a href="#picker">Pick your favorites</a> or <a href="https://openpeon.com/create">create your own.</a>
+                  <span className="pack-count">{packCount}</span> packs across 14 languages. <a href="#picker">Pick your favorites</a> or <a href="https://openpeon.com/create">create your own.</a>
                 </p>
               </div>
             </div>
