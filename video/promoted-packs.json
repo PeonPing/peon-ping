@@ -1,0 +1,326 @@
+[
+  {
+    "pack": "ra2_soviet_engineer",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/ra2_soviet_engineer-preview.mp4"
+  },
+  {
+    "pack": "sc_kerrigan",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/sc_kerrigan-preview.mp4"
+  },
+  {
+    "pack": "sopranos",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/sopranos-preview.mp4"
+  },
+  {
+    "pack": "glados",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/glados-preview.mp4"
+  },
+  {
+    "pack": "sheogorath",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/sheogorath-preview.mp4"
+  },
+  {
+    "pack": "dota2_axe",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/dota2_axe-preview.mp4"
+  },
+  {
+    "pack": "sc_battlecruiser",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/sc_battlecruiser-preview.mp4"
+  },
+  {
+    "pack": "duke_nukem",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/duke_nukem-preview.mp4"
+  },
+  {
+    "pack": "ra2_kirov",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/ra2_kirov-preview.mp4"
+  },
+  {
+    "pack": "hd2_helldiver",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/hd2_helldiver-preview.mp4"
+  },
+  {
+    "pack": "peon",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/peon-preview.mp4"
+  },
+  {
+    "pack": "tf2_engineer",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/tf2_engineer-preview.mp4"
+  },
+  {
+    "pack": "molag_bal",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/molag_bal-preview.mp4"
+  },
+  {
+    "pack": "rick",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/rick-preview.mp4"
+  },
+  {
+    "pack": "murloc",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/murloc-preview.mp4"
+  },
+  {
+    "pack": "ocarina_of_time",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/ocarina_of_time-preview.mp4"
+  },
+  {
+    "pack": "aoe2",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/aoe2-preview.mp4"
+  },
+  {
+    "pack": "aom_greek",
+    "date": "2025-01-01",
+    "platform": "x",
+    "video": "video/out/aom_greek-preview.mp4"
+  },
+  {
+    "pack": "sc_firebat",
+    "date": "2026-02-18",
+    "platform": "x",
+    "video": "video/out/sc_firebat-preview.mp4"
+  },
+  {
+    "pack": "sc_medic",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": "video/out/sc_medic-preview.mp4"
+  },
+  {
+    "pack": "sc_scv",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": "video/out/sc_scv-preview.mp4"
+  },
+  {
+    "pack": "arnold",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": "video/out/arnold-preview.mp4"
+  },
+  {
+    "pack": "sc_tank",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": ""
+  },
+  {
+    "pack": "sc_terran",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": ""
+  },
+  {
+    "pack": "sc_vessel",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": ""
+  },
+  {
+    "pack": "ra_soviet",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": ""
+  },
+  {
+    "pack": "wc2_peasant",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": ""
+  },
+  {
+    "pack": "peasant",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": ""
+  },
+  {
+    "pack": "d2_deckard_cain",
+    "date": "2026-02-19",
+    "platform": "x",
+    "video": "video/out/d2-deckard-cain-preview.mp4"
+  },
+  {
+    "pack": "solid_snake",
+    "date": "2026-02-20",
+    "platform": "x",
+    "video": "video/out/solid-snake-preview.mp4"
+  },
+  {
+    "pack": "dobby",
+    "date": "2026-02-20",
+    "platform": "x",
+    "video": "video/out/dobby-preview.mp4"
+  },
+  {
+    "pack": "deadpool",
+    "date": "2026-02-20",
+    "platform": "x",
+    "video": "video/out/deadpool-preview.mp4"
+  },
+  {
+    "pack": "dota2_invoker",
+    "date": "2026-02-20",
+    "platform": "x",
+    "video": "video/out/invoker-preview.mp4"
+  },
+  {
+    "pack": "charlie_sheen",
+    "date": "2026-02-21",
+    "platform": "x",
+    "video": "video/out/charlie-sheen-preview.mp4"
+  },
+  {
+    "pack": "futurama_bender",
+    "date": "2026-02-21",
+    "platform": "x",
+    "video": "video/out/bender-preview.mp4"
+  },
+  {
+    "pack": "counterstrike",
+    "date": "2026-02-21",
+    "platform": "x",
+    "video": "video/out/counterstrike-preview.mp4"
+  },
+  {
+    "pack": "dva",
+    "date": "2026-02-21",
+    "platform": "x",
+    "video": "video/out/dva-preview.mp4"
+  },
+  {
+    "pack": "wc3_corrupted_arthas",
+    "date": "2026-02-21",
+    "platform": "x",
+    "video": "video/out/arthas-preview.mp4"
+  },
+  {
+    "pack": "st_worf",
+    "date": "2026-02-22",
+    "platform": "x",
+    "video": "video/out/worf-preview.mp4"
+  },
+  {
+    "pack": "protoss",
+    "date": "2026-02-23",
+    "platform": "x",
+    "video": "video/out/protoss-preview.mp4"
+  },
+  {
+    "pack": "sc2_stalker",
+    "date": "2026-02-23",
+    "platform": "x",
+    "video": "video/out/stalker-preview.mp4"
+  },
+  {
+    "pack": "ra2_yuri",
+    "date": "2026-02-23",
+    "platform": "x",
+    "video": "video/out/yuri-preview.mp4"
+  },
+  {
+    "pack": "wc3_jaina",
+    "date": "2026-02-23",
+    "platform": "x",
+    "video": "video/out/jaina-preview.mp4"
+  },
+  {
+    "pack": "cc_commando",
+    "date": "2026-02-23",
+    "platform": "x",
+    "video": "video/out/cc-commando-preview.mp4"
+  },
+  {
+    "pack": "dota2_zeus",
+    "date": "2026-02-24",
+    "platform": "x",
+    "video": "video/out/zeus-preview.mp4"
+  },
+  {
+    "pack": "dota2_witch_doctor",
+    "date": "2026-02-24",
+    "platform": "x",
+    "video": "video/out/witch-doctor-preview.mp4"
+  },
+  {
+    "pack": "dota2_ember_spirit",
+    "date": "2026-02-25",
+    "platform": "x",
+    "video": "video/out/ember-spirit-preview.mp4"
+  },
+  {
+    "pack": "dota2_phantom_lancer",
+    "date": "2026-02-25",
+    "platform": "x",
+    "video": "video/out/phantom-lancer-preview.mp4"
+  },
+  {
+    "pack": "deadlock_dynamo",
+    "date": "2026-02-25",
+    "platform": "x",
+    "video": "video/out/deadlock-dynamo-preview.mp4"
+  },
+  {
+    "pack": "tekken3_announcer",
+    "date": "2026-02-25",
+    "platform": "x",
+    "video": "video/out/tekken3-announcer-preview.mp4"
+  },
+  {
+    "pack": "ccg_china_dozer",
+    "date": "2026-02-26",
+    "platform": "x",
+    "video": "video/out/ccg-china-dozer-preview.mp4"
+  },
+  {
+    "pack": "ccg_us_dozer",
+    "date": "2026-02-26",
+    "platform": "x",
+    "video": "video/out/ccg-us-dozer-preview.mp4"
+  },
+  {
+    "pack": "ccg_gla_worker",
+    "date": "2026-02-26",
+    "platform": "x",
+    "video": "video/out/ccg-gla-worker-preview.mp4"
+  },
+  {
+    "pack": "wc2_human_ships",
+    "date": "2026-02-28",
+    "platform": "x",
+    "video": "video/out/wc2-human-ships-preview.mp4"
+  }
+]

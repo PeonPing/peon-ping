@@ -5,6 +5,9 @@ import { ScFirebatPreview } from "./ScFirebatPreview";
 import { ScMedicPreview } from "./ScMedicPreview";
 import { ScScvPreview } from "./ScScvPreview";
 import { ArnoldPreview } from "./ArnoldPreview";
+import { CcgUsDozerPreview } from "./CcgUsDozerPreview";
+import { CcgGlaWorkerPreview } from "./CcgGlaWorkerPreview";
+import { Wc2HumanShipsPreview } from "./Wc2HumanShipsPreview";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -52,6 +55,30 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="ArnoldPreview"
         component={ArnoldPreview}
+        durationInFrames={840}
+        fps={30}
+        width={1080}
+        height={1080}
+      />
+      <Composition
+        id="CcgUsDozerPreview"
+        component={CcgUsDozerPreview}
+        durationInFrames={940}
+        fps={30}
+        width={1080}
+        height={1080}
+      />
+      <Composition
+        id="CcgGlaWorkerPreview"
+        component={CcgGlaWorkerPreview}
+        durationInFrames={975}
+        fps={30}
+        width={1080}
+        height={1080}
+      />
+      <Composition
+        id="Wc2HumanShipsPreview"
+        component={Wc2HumanShipsPreview}
         durationInFrames={840}
         fps={30}
         width={1080}
