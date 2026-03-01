@@ -322,5 +322,11 @@
     "date": "2026-02-28",
     "platform": "x",
     "video": "video/out/wc2-human-ships-preview.mp4"
+  },
+  {
+    "pack": "wc2_sapper",
+    "date": "2026-02-28",
+    "platform": "x",
+    "video": "video/out/wc2-sapper-preview.mp4"
   }
 ]
