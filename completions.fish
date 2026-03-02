@@ -24,6 +24,8 @@ complete -c peon -f
 # Top-level commands (only when no subcommand given)
 complete -c peon -n __peon_no_subcommand -a pause -d "Mute sounds"
 complete -c peon -n __peon_no_subcommand -a resume -d "Unmute sounds"
+complete -c peon -n __peon_no_subcommand -a mute -d "Alias for 'pause' — mute sounds"
+complete -c peon -n __peon_no_subcommand -a unmute -d "Alias for 'resume' — unmute sounds"
 complete -c peon -n __peon_no_subcommand -a toggle -d "Toggle mute on/off"
 complete -c peon -n __peon_no_subcommand -a status -d "Show current status"
 complete -c peon -n __peon_no_subcommand -a volume -d "Get or set volume level"

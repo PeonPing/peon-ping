@@ -119,6 +119,8 @@ peon-ping은 [코딩 이벤트 사운드 팩 표준 (CESP)](https://github.com/P
 ```bash
 peon pause                # 소리 끄기
 peon resume               # 소리 켜기
+peon mute                 # 'pause'의 별칭
+peon unmute               # 'resume'의 별칭
 peon status               # 일시정지/활성 상태 확인
 peon volume               # 현재 볼륨 확인
 peon volume 0.7           # 볼륨 설정 (0.0–1.0)

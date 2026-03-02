@@ -176,6 +176,8 @@ Other CLI commands:
 ```bash
 peon pause                # Mute sounds
 peon resume               # Unmute sounds
+peon mute                 # Alias for 'pause'
+peon unmute               # Alias for 'resume'
 peon status               # Check if paused or active
 peon volume               # Show current volume
 peon volume 0.7           # Set volume (0.0–1.0)

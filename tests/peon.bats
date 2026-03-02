@@ -645,6 +645,21 @@ JSON
   [ ! -f "$TEST_DIR/.paused" ]
 }
 
+@test "mute creates .paused file" {
+  run bash "$PEON_SH" mute
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sounds paused"* ]]
+  [ -f "$TEST_DIR/.paused" ]
+}
+
+@test "unmute removes .paused file" {
+  touch "$TEST_DIR/.paused"
+  run bash "$PEON_SH" unmute
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sounds resumed"* ]]
+  [ ! -f "$TEST_DIR/.paused" ]
+}
+
 @test "status reports paused when .paused exists" {
   touch "$TEST_DIR/.paused"
   run bash "$PEON_SH" status

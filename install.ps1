@@ -349,14 +349,14 @@ if ($Command) {
             Write-Host "peon-ping: $state" -ForegroundColor Cyan
             return
         }
-        "^--pause$" {
+        "^--(pause|mute)$" {
             $raw = Get-Content $ConfigPath -Raw
             $raw = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": false'
             Set-Content $ConfigPath -Value $raw -Encoding UTF8
             Write-Host "peon-ping: PAUSED" -ForegroundColor Yellow
             return
         }
-        "^--resume$" {
+        "^--(resume|unmute)$" {
             $raw = Get-Content $ConfigPath -Raw
             $raw = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": true'
             Set-Content $ConfigPath -Value $raw -Encoding UTF8
@@ -473,6 +473,8 @@ if ($Command) {
             Write-Host "  --toggle       Toggle enabled/paused"
             Write-Host "  --pause        Pause sounds"
             Write-Host "  --resume       Resume sounds"
+            Write-Host "  --mute         Alias for --pause"
+            Write-Host "  --unmute       Alias for --resume"
             Write-Host "  --status       Show current status"
             Write-Host "  --packs        List available sound packs"
             Write-Host "  --pack [name]  Switch pack (or cycle)"
@@ -1245,6 +1247,8 @@ if ($Updating) {
     Write-Host "    peon --volume N   Set volume (0.0-1.0)"
     Write-Host "    peon --pause      Mute sounds"
     Write-Host "    peon --resume     Unmute sounds"
+    Write-Host "    peon --mute       Alias for --pause"
+    Write-Host "    peon --unmute     Alias for --resume"
     Write-Host "    peon --toggle     Toggle on/off"
     Write-Host ""
     Write-Host "  Start Claude Code and you'll hear: `"Ready to work?`"" -ForegroundColor Yellow

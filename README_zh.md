@@ -114,11 +114,13 @@ peon-ping 实现了 [编码事件语音包规范（CESP）](https://github.com/P
 
 ```bash
 peon pause                # 静音
+peon mute                 # 'pause' 的别名
 peon volume               # 查看当前音量
 peon volume 0.7           # 设置音量（0.0–1.0）
 peon rotation             # 查看当前轮换模式
 peon rotation random      # 设置轮换模式（random|round-robin|session_override）
 peon resume               # 取消静音
+peon unmute               # 'resume' 的别名
 peon status               # 查看暂停或活动状态
 peon packs list           # 列出已安装的语音包
 peon packs list --registry # 浏览注册表中所有可用语音包

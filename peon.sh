@@ -793,8 +793,8 @@ sync_adapter_paused() {
 }
 
 case "${1:-}" in
-  pause)   touch "$PAUSED_FILE"; sync_adapter_paused; echo "peon-ping: sounds paused (run 'peon toggle' to unpause)"; exit 0 ;;
-  resume)  rm -f "$PAUSED_FILE"; sync_adapter_paused; echo "peon-ping: sounds resumed"; exit 0 ;;
+  pause|mute)   touch "$PAUSED_FILE"; sync_adapter_paused; echo "peon-ping: sounds paused (run 'peon toggle' to unpause)"; exit 0 ;;
+  resume|unmute)  rm -f "$PAUSED_FILE"; sync_adapter_paused; echo "peon-ping: sounds resumed"; exit 0 ;;
   toggle)
     if [ -f "$PAUSED_FILE" ]; then rm -f "$PAUSED_FILE"; echo "peon-ping: sounds resumed"
     else touch "$PAUSED_FILE"; echo "peon-ping: sounds paused (run 'peon toggle' to unpause)"; fi
@@ -2326,6 +2326,8 @@ Usage: peon <command>
 Commands:
   pause                Mute sounds
   resume               Unmute sounds
+  mute                 Alias for 'pause'
+  unmute               Alias for 'resume'
   toggle               Toggle mute on/off
   status               Check if paused or active
   volume [0.0-1.0]     Get or set volume level

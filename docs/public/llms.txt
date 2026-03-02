@@ -126,7 +126,7 @@ Independent Controls:
 ## CLI Commands
 
 ```bash
-peon pause / resume / status
+peon pause / resume / mute / unmute / status
 peon volume [0.0-1.0]
 peon rotation [random|round-robin|session_override]
 peon packs list / use / install / next / remove
