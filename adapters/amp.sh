@@ -201,7 +201,6 @@ check_idle_threads() {
       local last_stop
       last_stop=$(stop_time_get "$tid")
       if [ "$((now - last_stop))" -lt "$STOP_COOLDOWN" ]; then
-        thread_set "$tid" "idle"
         continue
       fi
 

@@ -172,7 +172,6 @@ check_idle_sessions() {
       local last_stop
       last_stop=$(stop_time_get "$guid")
       if [ "$((now - last_stop))" -lt "$STOP_COOLDOWN" ]; then
-        guid_set "$guid" "idle"
         continue
       fi
 
