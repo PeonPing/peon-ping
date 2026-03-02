@@ -352,5 +352,11 @@
     "date": "2026-03-01",
     "platform": "x",
     "video": "video/out/jarvis-preview.mp4"
+  },
+  {
+    "pack": "mr_meeseeks",
+    "date": "2026-03-02",
+    "platform": "x",
+    "video": "video/out/meeseeks-preview.mp4"
   }
 ]

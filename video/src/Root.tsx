@@ -13,6 +13,7 @@ import { JarvisPreview } from "./JarvisPreview";
 import { Hal9000Preview } from "./Hal9000Preview";
 import { SiliconValleyPreview } from "./SiliconValleyPreview";
 import { WolfETPreview } from "./WolfETPreview";
+import { MeeseeksPreview } from "./MeeseeksPreview";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -125,6 +126,14 @@ export const RemotionRoot: React.FC = () => {
         id="JarvisPreview"
         component={JarvisPreview}
         durationInFrames={1169}
+        fps={30}
+        width={1080}
+        height={1080}
+      />
+      <Composition
+        id="MeeseeksPreview"
+        component={MeeseeksPreview}
+        durationInFrames={1110}
         fps={30}
         width={1080}
         height={1080}
