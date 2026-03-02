@@ -3055,6 +3055,7 @@ elif event == 'SessionEnd':
     state_dirty = True
     os.makedirs(os.path.dirname(state_file) or '.', exist_ok=True)
     json.dump(state, open(state_file, 'w'))
+    print('EVENT=' + q(event))
     print('PEON_EXIT=true')
     sys.exit(0)
 else:
@@ -3307,7 +3308,13 @@ print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 " <<< "$INPUT" 2>/dev/null)"
 
 # If Python signalled early exit (disabled, agent, unknown event), bail out
-[ "${PEON_EXIT:-true}" = "true" ] && exit 0
+if [ "${PEON_EXIT:-true}" = "true" ]; then
+  # On session end, kill any lingering overlay popups (macOS only)
+  if [ "${EVENT:-}" = "SessionEnd" ] && [ "$PLATFORM" = "mac" ]; then
+    pkill -f "mac-overlay" 2>/dev/null || true
+  fi
+  exit 0
+fi
 
 HEADPHONES_DETECTED=true
 if [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
