@@ -191,7 +191,13 @@ case "$PEON_PLATFORM" in
         local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
         local notif_position="${PEON_NOTIF_POSITION:-top-center}"
         # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty, argv[8]=subtitle, argv[9]=position
-        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" >/dev/null 2>&1 || true
+        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" >/dev/null 2>&1 &
+        local _overlay_pid=$!
+        # Shell-level watchdog: kill if JXA terminate timer doesn't fire (macOS regression)
+        local _max_wait
+        _max_wait=$(python3 -c "print(int(float('${dismiss_secs}'))+5)" 2>/dev/null || echo '9')
+        ( sleep "$_max_wait" && kill "$_overlay_pid" 2>/dev/null ) &
+        wait "$_overlay_pid" 2>/dev/null || true
         rm -rf "$slot_dir/slot-$slot"
       )
       if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi
