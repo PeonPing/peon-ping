@@ -3009,6 +3009,12 @@ elif event == 'Notification':
         print('PEON_EXIT=true')
         sys.exit(0)
 elif event == 'PermissionRequest':
+    # Suppress permission sound/notification for known sub-agent sessions
+    if suppress_subagent_complete and session_id in state.get('subagent_sessions', {}):
+        os.makedirs(os.path.dirname(state_file) or '.', exist_ok=True)
+        json.dump(state, open(state_file, 'w'))
+        print('PEON_EXIT=true')
+        sys.exit(0)
     category = 'input.required'
     status = 'needs approval'
     marker = '\u25cf '
