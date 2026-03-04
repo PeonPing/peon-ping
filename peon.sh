@@ -2879,17 +2879,36 @@ state['last_active'] = dict(session_id=session_id, pack=active_pack,
                             timestamp=time.time(), event=event, cwd=cwd)
 state_dirty = True
 
-# --- Project name (priority chain: .peon-label > project_name_map > title_override > git repo > folder) ---
+# --- Project name (priority chain: CLAUDE_SESSION_NAME > .peon-label > notification_title_script > project_name_map > title_override > git repo > folder) ---
 project = None
 
+# 0. CLAUDE_SESSION_NAME env var (per-terminal session override, highest priority)
+_sn = os.environ.get('CLAUDE_SESSION_NAME', '').strip()
+if _sn: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn[:50])
+
 # 1. .peon-label file in project root
-if cwd:
+if not project and cwd:
     _lf = os.path.join(cwd, '.peon-label')
     if os.path.isfile(_lf):
         try:
             _l = open(_lf).read().strip().split('\n')[0][:50]
             if _l: project = _l
         except Exception: pass
+
+# 1.5. notification_title_script (dynamic shell command)
+if not project:
+    _script = cfg.get('notification_title_script', '').strip()
+    if _script:
+        try:
+            import subprocess as _sp
+            _env = {**os.environ, 'PEON_SESSION_ID': session_id or '', 'PEON_CWD': cwd or '',
+                    'PEON_HOOK_EVENT': event or '', 'PEON_SESSION_NAME': os.environ.get('CLAUDE_SESSION_NAME', '')}
+            _r = _sp.run(_script, shell=True, capture_output=True, text=True, timeout=2, env=_env)
+            _out = _r.stdout.strip()[:50]
+            if _r.returncode == 0 and _out:
+                project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _out)
+        except Exception:
+            pass
 
 # 2. project_name_map (glob pattern matching)
 if not project:
