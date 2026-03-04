@@ -538,6 +538,64 @@ print('absent' if 'sub4' not in subs else 'present')
   [ "$PEON_EXIT" -eq 0 ]
 }
 
+@test "CLAUDE_SESSION_NAME overrides project name in notification title" {
+  # Set standard notification style so title appears in terminal_notifier.log
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  CLAUDE_SESSION_NAME="My Test Session" \
+    run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  grep -q "My Test Session" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "CLAUDE_SESSION_NAME strips disallowed characters" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  CLAUDE_SESSION_NAME="Feature: Auth <Refactor>" \
+    run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  # Angle brackets and colon stripped; remaining text preserved
+  grep -q "Feature Auth Refactor" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_title_script output used as project name" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_script'] = 'echo Scripted'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  grep -q "Scripted" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_title_script non-zero exit falls through to next tier" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_script'] = 'exit 1'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # Falls through to git/folder name — just verify it ran without crashing
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+}
+
 # ============================================================
 # Volume passthrough
 # ============================================================
