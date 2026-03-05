@@ -51,6 +51,12 @@ brew install PeonPing/tap/peon-ping
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
 ```
 
+⚠️ 在 WSL2 中，若要使用 **WAV** 以外格式的语音包，必须安装 **ffmpeg**。在 Debian 发行版中可使用以下命令安装：
+
+```sh
+sudo apt update; sudo apt install -y ffmpeg
+```
+
 ### 方式三：Windows 安装
 
 ```powershell

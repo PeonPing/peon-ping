@@ -53,6 +53,12 @@ Then run `peon-ping-setup` to register hooks and download sound packs. macOS and
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
 ```
 
+⚠️ In WSL2, **ffmpeg** must be installed to use sound packs that use formats other than **WAV**. In Debian distros, install with
+
+```sh
+sudo apt update; sudo apt install -y ffmpeg
+```
+
 ### Option 3: Installer for Windows
 
 ```powershell
@@ -122,7 +128,7 @@ For reproducible setups, use the Home Manager module:
   programs.peon-ping = {
     enable = true;
     package = inputs.peon-ping.packages.${pkgs.system}.default;
-    
+
     settings = {
       default_pack = "glados";
       volume = 0.7;
@@ -137,7 +143,7 @@ For reproducible setups, use the Home Manager module:
         "user.spam" = true;
       };
     };
-    
+
     installPacks = [ "peon" "glados" "sc_kerrigan" ];
     enableZshIntegration = true;
   };
