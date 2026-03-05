@@ -2644,6 +2644,9 @@ INPUT=$(cat)
 PAUSED=false
 [ -f "$PEON_DIR/.paused" ] && PAUSED=true
 
+# Capture TTY now (before stdin is consumed) so Python can store/read tty_names for rename persistence
+_PEON_HOOK_TTY="$(tty 2>/dev/null || true)"
+
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
 # Outputs shell variables consumed by the bash play/notify/title logic below.
@@ -2655,6 +2658,7 @@ config_path = '$CONFIG_PY'
 state_file = '$STATE_PY'
 peon_dir = '$PEON_DIR_PY'
 paused = '$PAUSED' == 'true'
+hook_tty = '$_PEON_HOOK_TTY'
 agent_modes = {'delegate'}
 state_dirty = False
 
@@ -2886,6 +2890,11 @@ project = None
 if session_id:
     _sn_state = state.get('session_names', {}).get(session_id, '').strip()
     if _sn_state: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_state[:50])
+
+# -0.5. TTY-based session name fallback — persists across /clear context resets in the same terminal
+if not project and hook_tty:
+    _sn_tty = state.get('tty_names', {}).get(hook_tty, '').strip()
+    if _sn_tty: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_tty[:50])
 
 # 0. CLAUDE_SESSION_NAME env var (per-terminal session override)
 if not project:
