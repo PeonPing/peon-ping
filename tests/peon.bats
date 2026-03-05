@@ -498,6 +498,35 @@ print('absent' if 'sub4' not in subs else 'present')
   [ "$result" = "absent" ]
 }
 
+@test "suppress_subagent_complete: subagent PermissionRequest is suppressed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+JSON
+  # Parent session gets a SubagentStart (records pending_subagent_pack)
+  run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent5","permission_mode":"default"}'
+  # Subagent session starts within 30s — marked as subagent
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"sub5","permission_mode":"default"}'
+  count_before=$(afplay_call_count)
+  # Subagent PermissionRequest should be suppressed — no additional afplay calls
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"sub5","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count_after=$(afplay_call_count)
+  [ "$count_after" = "$count_before" ]
+}
+
+@test "suppress_subagent_complete: parent PermissionRequest still plays sound" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+JSON
+  # Subagent flow: parent → SubagentStart → sub SessionStart
+  run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent6","permission_mode":"default"}'
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"sub6","permission_mode":"default"}'
+  # Parent session PermissionRequest should still play
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"parent6","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
 # ============================================================
 # Update check
 # ============================================================
