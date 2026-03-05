@@ -122,7 +122,11 @@ For reproducible setups, use the Home Manager module:
 
 ```nix
 # In your home.nix or flake.nix
-{ inputs, pkgs, ... }: {
+{ inputs, pkgs, ... }:
+
+let
+  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/cursor.sh";
+in {
   imports = [ inputs.peon-ping.homeManagerModules.default ];
 
   programs.peon-ping = {
@@ -147,10 +151,25 @@ For reproducible setups, use the Home Manager module:
     installPacks = [ "peon" "glados" "sc_kerrigan" ];
     enableZshIntegration = true;
   };
+
+  # Cursor hooks
+  home.file.".cursor/hooks.json".text = builtins.toJSON {
+    version = 1;
+    hooks = {
+      afterAgentResponse = [{ command = "bash ${peonCursorAdapterPath} afterAgentResponse"; }];
+      stop               = [{ command = "bash ${peonCursorAdapterPath} stop"; }];
+    };
+  };
 }
 ```
 
-This creates `~/.openpeon/config.json` and installs specified packs automatically.
+Note: peon-ping Home Manager module will not setup your IDE hooks to avoid conflicting updates. You must define these hooks yourself (see example above) depending on how you usually manage your IDE configuration.
+- peon-ping provide adapters scripts for various IDE such as `cursor.sh` - see [`adapters/`](https://github.com/PeonPing/peon-ping/tree/main/adapters)
+- You need to call them as your hook such command like
+  ```sh
+  ${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
+  ```
+  See Cursor example above
 
 ## What you'll hear
 
