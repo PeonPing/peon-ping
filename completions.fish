@@ -52,6 +52,7 @@ complete -c peon -n "__peon_using_subcommand packs" -a bindings -d "List all dir
 complete -c peon -n "__peon_packs_subcommand rotation" -a list -d "Show current rotation list and mode"
 complete -c peon -n "__peon_packs_subcommand rotation" -a add -d "Add pack(s) to rotation"
 complete -c peon -n "__peon_packs_subcommand rotation" -a remove -d "Remove pack(s) from rotation"
+complete -c peon -n "__peon_packs_subcommand rotation" -a clear -d "Clear all packs from rotation"
 
 # packs install options
 complete -c peon -n "__peon_packs_subcommand install" -a "--all" -d "Install all packs from registry"

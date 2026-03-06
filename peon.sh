@@ -1971,6 +1971,19 @@ for p in removed:
 print('Rotation: ' + ', '.join(rotation))
 " || exit 1
             sync_adapter_configs; exit 0 ;;
+          clear)
+            python3 -c "
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['pack_rotation'] = []
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('Rotation cleared')
+" || exit 1
+            sync_adapter_configs; exit 0 ;;
           list|"")
             python3 -c "
 import json, os
@@ -1990,7 +2003,7 @@ else:
 "
             exit 0 ;;
           *)
-            echo "Usage: peon packs rotation <list|add|remove>" >&2; exit 1 ;;
+            echo "Usage: peon packs rotation <list|add|remove|clear>" >&2; exit 1 ;;
         esac ;;
       *)
         echo "Usage: peon packs <list|use|next|install|install-local|remove|rotation|bind|unbind|bindings>" >&2; exit 1 ;;
@@ -2436,6 +2449,7 @@ Pack management:
   packs rotation list     Show current rotation list and mode
   packs rotation add <p>  Add pack(s) to rotation (comma-separated)
   packs rotation remove <p> Remove pack(s) from rotation
+  packs rotation clear    Clear all packs from rotation
 
 Mobile notifications:
   mobile ntfy <topic>      Set up ntfy.sh push notifications
