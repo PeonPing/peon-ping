@@ -1972,17 +1972,14 @@ print('Rotation: ' + ', '.join(rotation))
 " || exit 1
             sync_adapter_configs; exit 0 ;;
           clear)
-            python3 -c "
-import json, os
-config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-cfg['pack_rotation'] = []
-json.dump(cfg, open(config_path, 'w'), indent=2)
-print('Rotation cleared')
-" || exit 1
+            local _tmp
+            _tmp=$(mktemp)
+            sed -e ':a' -e 'N' -e '$!ba' \
+                -e 's/"pack_rotation": \[[^]]*\]/"pack_rotation": []/' \
+                "$PEON_ENV_GLOBAL_CONFIG" > "$_tmp" \
+              && mv "$_tmp" "$PEON_ENV_GLOBAL_CONFIG" \
+              || { rm -f "$_tmp"; exit 1; }
+            echo "Rotation cleared"
             sync_adapter_configs; exit 0 ;;
           list|"")
             python3 -c "
