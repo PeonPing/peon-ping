@@ -1154,6 +1154,7 @@ ROVOEOF
 
   echo "Rovo Dev CLI event hooks created at $ROVODEV_CONFIG"
   echo "Restart Rovo Dev CLI for hooks to take effect."
+fi
 
 # --- Auto-detect Kimi Code CLI and start watcher daemon ---
 KIMI_DIR="$HOME/.kimi"
