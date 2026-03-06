@@ -319,6 +319,19 @@ save_sound_pid() {
   echo "$1" > "$PEON_DIR/.sound.pid"
 }
 
+# SSH audio routing mode.
+# relay (default): current behavior, require relay endpoint.
+# auto: try relay first, fallback to local host playback.
+# local: always use local host playback.
+ssh_audio_mode() {
+  local mode="${PEON_SSH_AUDIO_MODE:-relay}"
+  case "$mode" in
+    relay|auto|local) ;;
+    *) mode="relay" ;;
+  esac
+  echo "$mode"
+}
+
 # --- Platform-aware audio playback ---
 play_sound() {
   local file="$1" vol="$2"
@@ -362,13 +375,40 @@ play_sound() {
       local rel_path="${file#$PEON_DIR/}"
       local encoded_path
       encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$rel_path" 2>/dev/null || echo "$rel_path")
-      if [ "${PEON_TEST:-0}" = "1" ]; then
-        curl -sf -H "X-Volume: $vol" \
-          "http://${relay_host}:${relay_port}/play?file=${encoded_path}" 2>/dev/null
+
+      local ssh_mode="relay"
+      [ "$PLATFORM" = "ssh" ] && ssh_mode="$(ssh_audio_mode)"
+
+      # SSH local mode bypasses relay and plays on the SSH host.
+      if [ "$PLATFORM" = "ssh" ] && [ "$ssh_mode" = "local" ]; then
+        local player
+        player=$(detect_linux_player "${LINUX_AUDIO_PLAYER:-}") || player=""
+        if [ -n "$player" ]; then
+          play_linux_sound "$file" "$vol" "$player"
+          save_sound_pid $!
+        fi
+      # SSH auto mode tries relay first, then falls back to local playback.
+      elif [ "$PLATFORM" = "ssh" ] && [ "$ssh_mode" = "auto" ]; then
+        if curl -sf --connect-timeout 1 --max-time 2 -H "X-Volume: $vol" \
+          "http://${relay_host}:${relay_port}/play?file=${encoded_path}" >/dev/null 2>&1; then
+          :
+        else
+          local player
+          player=$(detect_linux_player "${LINUX_AUDIO_PLAYER:-}") || player=""
+          if [ -n "$player" ]; then
+            play_linux_sound "$file" "$vol" "$player"
+            save_sound_pid $!
+          fi
+        fi
       else
-        nohup curl -sf -H "X-Volume: $vol" \
-          "http://${relay_host}:${relay_port}/play?file=${encoded_path}" >/dev/null 2>&1 &
-        save_sound_pid $!
+        if [ "${PEON_TEST:-0}" = "1" ]; then
+          curl -sf -H "X-Volume: $vol" \
+            "http://${relay_host}:${relay_port}/play?file=${encoded_path}" 2>/dev/null
+        else
+          nohup curl -sf -H "X-Volume: $vol" \
+            "http://${relay_host}:${relay_port}/play?file=${encoded_path}" >/dev/null 2>&1 &
+          save_sound_pid $!
+        fi
       fi
       ;;
     linux)
@@ -2146,6 +2186,36 @@ print('service=' + mn.get('service', ''))
         echo "  test                        Send a test notification" >&2
         exit 1 ;;
     esac ;;
+  ssh-audio)
+    SSH_MODE_ARG="${2:-}"
+    if [ -z "$SSH_MODE_ARG" ]; then
+      python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_PY'))
+except Exception:
+    cfg = {}
+print('peon-ping: ssh audio mode ' + cfg.get('ssh_audio_mode', 'relay'))
+"
+      exit 0
+    fi
+    if [ "$SSH_MODE_ARG" != "relay" ] && [ "$SSH_MODE_ARG" != "auto" ] && [ "$SSH_MODE_ARG" != "local" ]; then
+      echo "Usage: peon ssh-audio [relay|auto|local]" >&2
+      exit 1
+    fi
+    python3 -c "
+import json
+config_path = '$CONFIG_PY'
+mode = '$SSH_MODE_ARG'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['ssh_audio_mode'] = mode
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('peon-ping: ssh audio mode set to ' + mode)
+"
+    sync_adapter_configs; exit 0 ;;
   relay)
     # Find relay.sh - use original install dir (Nix, Homebrew), then PEON_DIR (legacy)
     RELAY_SCRIPT=""
@@ -2386,6 +2456,7 @@ Trainer (exercise reminders):
   trainer help         Show trainer help
 
 Relay (SSH/devcontainer/Codespaces):
+  ssh-audio [mode]        SSH routing mode: relay (default), auto, or local
   relay [--port=N]        Start audio relay on your local machine
   relay --bind=<addr>     Bind relay to a specific address (default: 127.0.0.1)
   relay --daemon          Start relay in background
@@ -3371,6 +3442,7 @@ print('NOTIF_POSITION=' + q(cfg.get('notification_position', 'top-center')))
 print('NOTIF_DISMISS=' + q(str(cfg.get('notification_dismiss_seconds', 4))))
 print('USE_SOUND_EFFECTS_DEVICE=' + q(str(use_sound_effects_device).lower()))
 print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))
+print('PEON_SSH_AUDIO_MODE=' + q(str(cfg.get('ssh_audio_mode', 'relay'))))
 mn = cfg.get('mobile_notify', {})
 mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
@@ -3464,6 +3536,10 @@ _relay_guidance() {
       echo "peon-ping: run 'peon relay' on your host machine to enable sounds" >&2
     fi
   elif [ "$PLATFORM" = "ssh" ]; then
+    local _ssh_mode
+    _ssh_mode="$(ssh_audio_mode)"
+    # In local/auto mode, SSH can play locally without relay.
+    [ "$_ssh_mode" = "relay" ] || return 0
     RELAY_HOST="${PEON_RELAY_HOST:-localhost}"
     RELAY_PORT="${PEON_RELAY_PORT:-19998}"
     if ! curl -sf --connect-timeout 1 --max-time 2 "http://${RELAY_HOST}:${RELAY_PORT}/health" >/dev/null 2>&1; then

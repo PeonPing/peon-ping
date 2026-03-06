@@ -825,6 +825,14 @@ Coding on a remote server or inside a container? peon-ping auto-detects SSH sess
 
 That's it. Sounds play on your laptop, not the remote server.
 
+Optional SSH routing modes:
+
+```bash
+peon ssh-audio relay   # default, always use relay
+peon ssh-audio auto    # try relay, fall back to local playback on SSH host
+peon ssh-audio local   # always play on SSH host
+```
+
 ### Devcontainers / Codespaces
 
 No port forwarding needed — peon-ping auto-detects `REMOTE_CONTAINERS` and `CODESPACES` environment variables and routes audio to `host.docker.internal:19998`. Just run `peon relay --daemon` on your host machine.

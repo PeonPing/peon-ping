@@ -1977,6 +1977,35 @@ JSON
   [ "$PEON_EXIT" -eq 0 ]
 }
 
+@test "ssh local mode plays locally and skips relay" {
+  export PLATFORM=ssh
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "ssh_audio_mode": "local"
+}
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  linux_audio_was_called
+  ! relay_was_called
+}
+
+@test "ssh auto mode falls back to local when relay is unavailable" {
+  export PLATFORM=ssh
+  export LINUX_AUDIO_PLAYER="ffplay"
+  rm -f "$TEST_DIR/.relay_available"
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "ssh_audio_mode": "auto"
+}
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  linux_audio_was_called
+}
+
 @test "ssh SessionStart shows relay guidance when relay unavailable" {
   export PLATFORM=ssh
   rm -f "$TEST_DIR/.relay_available"  # Remove to simulate relay unavailable
@@ -1990,6 +2019,19 @@ JSON
 @test "ssh SessionStart does NOT show relay guidance when relay available" {
   export PLATFORM=ssh
   touch "$TEST_DIR/.relay_available"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [[ "$PEON_STDERR" != *"relay not reachable"* ]]
+}
+
+@test "ssh local mode does not show relay guidance" {
+  export PLATFORM=ssh
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "ssh_audio_mode": "local"
+}
+JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [[ "$PEON_STDERR" != *"relay not reachable"* ]]
