@@ -1422,6 +1422,36 @@ JSON
   [[ "$output" == *"not in rotation"* ]]
 }
 
+@test "packs rotation clear clears all packs from rotation" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["peon", "sc_kerrigan"]
+}
+JSON
+  run bash "$PEON_SH" packs rotation clear
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Rotation cleared"* ]]
+  rotation=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('pack_rotation', 'MISSING'))")
+  [[ "$rotation" == "[]" ]]
+}
+
+@test "packs rotation clear works when rotation already empty" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": []
+}
+JSON
+  run bash "$PEON_SH" packs rotation clear
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Rotation cleared"* ]]
+  rotation=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('pack_rotation', 'MISSING'))")
+  [[ "$rotation" == "[]" ]]
+}
+
 @test "packs rotation no args shows usage" {
   run bash "$PEON_SH" packs rotation invalid_sub
   [ "$status" -ne 0 ]
