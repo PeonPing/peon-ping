@@ -915,16 +915,18 @@ print('UserPromptSubmit hooks registered for /peon-ping-use and /peon-ping-renam
 CURSOR_DIR="$HOME/.cursor"
 CURSOR_HOOKS_FILE="$CURSOR_DIR/hooks.json"
 CURSOR_HOOK_CMD="$GLOBAL_BASE/hooks/peon-ping/scripts/hook-handle-use.sh"
+CURSOR_RENAME_CMD="$GLOBAL_BASE/hooks/peon-ping/scripts/hook-handle-rename.sh"
 
 if [ -d "$CURSOR_DIR" ]; then
   echo ""
   echo "Detected Cursor IDE installation, registering hooks..."
-  
+
   python3 -c "
 import json, os
 
 hooks_file = '$(py_path "$CURSOR_HOOKS_FILE")'
 hook_cmd = '$(py_path "$CURSOR_HOOK_CMD")'
+rename_cmd = '$(py_path "$CURSOR_RENAME_CMD")'
 
 # Load or create hooks.json
 if os.path.exists(hooks_file):
@@ -941,8 +943,9 @@ if 'hooks' not in data:
 
 hooks = data['hooks']
 
-# Preserve existing command path if it resolves to the installed file
-installed = os.path.realpath(hook_cmd)
+# Preserve existing command paths if they resolve to the installed files
+installed_use = os.path.realpath(hook_cmd)
+installed_rename = os.path.realpath(rename_cmd)
 def _find_existing(hooks_data, suffix):
     if isinstance(hooks_data, list):
         for h in hooks_data:
@@ -957,16 +960,14 @@ def _find_existing(hooks_data, suffix):
                     yield cmd
 
 for cmd in _find_existing(hooks, '/hook-handle-use'):
-    resolved = os.path.realpath(os.path.expanduser(cmd))
-    if resolved == installed:
+    if os.path.realpath(os.path.expanduser(cmd)) == installed_use:
         hook_cmd = cmd
         break
 
-# Create beforeSubmitPrompt hook entry (Cursor format)
-before_submit_hook = {
-    'command': hook_cmd,
-    'timeout': 5
-}
+for cmd in _find_existing(hooks, '/hook-handle-rename'):
+    if os.path.realpath(os.path.expanduser(cmd)) == installed_rename:
+        rename_cmd = cmd
+        break
 
 # Handle both flat-array format [{event, command}] and dict format {event: [{command}]}
 if isinstance(hooks, list):
@@ -975,8 +976,8 @@ if isinstance(hooks, list):
         h for h in hooks
         if not (h.get('event') == 'beforeSubmitPrompt' and 'peon-ping/' in h.get('command', ''))
     ]
-    before_submit_hook['event'] = 'beforeSubmitPrompt'
-    hooks.append(before_submit_hook)
+    hooks.append({'event': 'beforeSubmitPrompt', 'command': hook_cmd, 'timeout': 5})
+    hooks.append({'event': 'beforeSubmitPrompt', 'command': rename_cmd, 'timeout': 5})
 else:
     # Dict format
     event_hooks = hooks.get('beforeSubmitPrompt', [])
@@ -984,7 +985,8 @@ else:
         h for h in event_hooks
         if 'peon-ping' not in h.get('command', '')
     ]
-    event_hooks.append(before_submit_hook)
+    event_hooks.append({'command': hook_cmd, 'timeout': 5})
+    event_hooks.append({'command': rename_cmd, 'timeout': 5})
     hooks['beforeSubmitPrompt'] = event_hooks
 
 data['hooks'] = hooks
@@ -996,7 +998,7 @@ with open(hooks_file, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
 
-print('Cursor beforeSubmitPrompt hook registered')
+print('Cursor beforeSubmitPrompt hooks registered for /peon-ping-use and /peon-ping-rename commands')
 "
 fi
 
