@@ -1199,7 +1199,6 @@ print(f'peon-ping: label override set to \"{label}\"')
         sync_adapter_configs; exit 0 ;;
       test)
         # Read config to check if notifications are enabled and get style
-        local _py_out
         _py_out="$(python3 -c "
 import json, shlex, os
 q = shlex.quote
