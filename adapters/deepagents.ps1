@@ -1,15 +1,22 @@
 # peon-ping adapter for deepagents-cli (Windows)
 # Translates deepagents hook events into peon.ps1 stdin JSON
 #
+# deepagents-cli pipes JSON with an "event" field (dotted names like
+# "session.start") and an optional "thread_id".  This adapter remaps
+# to Claude Code PascalCase event names and forwards to peon.ps1.
+#
 # Setup: Add to ~/.deepagents/hooks.json:
 #   {
 #     "hooks": [
 #       {
 #         "command": ["powershell", "-NoProfile", "-File", "C:\\Users\\YOU\\.claude\\hooks\\peon-ping\\adapters\\deepagents.ps1"],
-#         "events": ["session.start", "task.complete", "input.required", "task.error"]
+#         "events": ["session.start", "session.end", "task.complete", "input.required", "task.error", "tool.error", "user.prompt", "permission.request", "compact"]
 #       }
 #     ]
 #   }
+#
+# Note: tool.call is intentionally excluded — it fires on every tool
+# invocation and would be extremely noisy.
 
 $ErrorActionPreference = "SilentlyContinue"
 
@@ -44,6 +51,9 @@ switch ($daEvent) {
     "session.start" {
         $mapped = "SessionStart"
     }
+    "session.end" {
+        $mapped = "SessionEnd"
+    }
     "task.complete" {
         $mapped = "Stop"
     }
@@ -53,6 +63,20 @@ switch ($daEvent) {
     }
     "task.error" {
         $mapped = "Stop"
+    }
+    "tool.error" {
+        $mapped = "Notification"
+        $ntype = "postToolUseFailure"
+    }
+    "user.prompt" {
+        $mapped = "UserPromptSubmit"
+    }
+    "permission.request" {
+        $mapped = "PermissionRequest"
+    }
+    "compact" {
+        $mapped = "Notification"
+        $ntype = "preCompact"
     }
     "tool.call" {
         # Too noisy - skip
