@@ -5,6 +5,9 @@
 ### Added
 - **`peon packs rotation clear`** — new subcommand to zero out the pack rotation in a single command. Sets `pack_rotation` to `[]` in config.json and syncs adapter configs. Closes #321.
 
+### Fixed
+- **`/peon-ping-rename` bleeds across tabs in same project** — names set in one terminal tab were appearing in all other tabs opened to the same project directory. Root cause: hooks run detached from the controlling terminal, so `tty` returned the same value across all tabs, collapsing the per-tab key. Switched to `$PPID` (Claude Code's process PID) as the stable tab identifier: different terminal tabs spawn separate Claude Code processes with different PIDs, while `/clear` within a tab reuses the same process. Composite key `ppid::cwd` replaces the previous `tty::cwd` key in `tty_names` state. Closes #325.
+
 
 ## v2.14.0 (2026-03-06)
 

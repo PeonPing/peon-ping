@@ -24,8 +24,24 @@ except:
     print("default")
 ' 2>/dev/null || echo "default")
 
-# Capture TTY for persistent rename across context clears (/clear starts a new session_id)
-HOOK_TTY="$(tty 2>/dev/null || true)"
+# Capture PPID — Claude Code's process PID, stable across /clear (process continues, session_id changes).
+# Different terminal tabs spawn separate Claude Code processes → different PPIDs → no cross-tab bleed.
+HOOK_PPID="${PPID:-}"
+
+# Extract CWD from event JSON — combined with PPID for a composite key that isolates by process+project
+HOOK_CWD=$(echo "$INPUT" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    cwd = data.get("cwd", "") or ""
+    roots = data.get("workspace_roots", [])
+    print(cwd or (roots[0] if roots else ""))
+except:
+    pass
+' 2>/dev/null || echo "")
+
+# Composite key: ppid::cwd (ppid for per-process isolation, cwd for project-level safety net)
+HOOK_PPID_KEY="${HOOK_PPID}${HOOK_CWD:+::${HOOK_CWD}}"
 
 # Extract prompt text
 PROMPT=$(echo "$INPUT" | python3 -c '
@@ -69,13 +85,13 @@ STATE="$PEON_DIR/.state.json"
 
 # Clear name if called with no argument (reset to auto-detect)
 if [ -z "$SESSION_NAME" ]; then
-  export PEON_ENV_STATE="$STATE" PEON_ENV_SESSION_ID="$SESSION_ID" PEON_ENV_HOOK_TTY="$HOOK_TTY"
+  export PEON_ENV_STATE="$STATE" PEON_ENV_SESSION_ID="$SESSION_ID" PEON_ENV_HOOK_PPID_KEY="$HOOK_PPID_KEY"
   python3 -c "
 import json, os
 
 state_path = os.environ.get('PEON_ENV_STATE', '')
 session_id = os.environ.get('PEON_ENV_SESSION_ID', '')
-hook_tty = os.environ.get('PEON_ENV_HOOK_TTY', '')
+hook_ppid_key = os.environ.get('PEON_ENV_HOOK_PPID_KEY', '')
 
 try:
     with open(state_path) as f:
@@ -85,13 +101,13 @@ except:
 
 if 'session_names' in state and session_id in state['session_names']:
     del state['session_names'][session_id]
-if hook_tty and 'tty_names' in state and hook_tty in state['tty_names']:
-    del state['tty_names'][hook_tty]
+if hook_ppid_key and 'tty_names' in state and hook_ppid_key in state['tty_names']:
+    del state['tty_names'][hook_ppid_key]
 with open(state_path, 'w') as f:
     json.dump(state, f, indent=2)
     f.write('\n')
 "
-  log "cleared name sessionId=$SESSION_ID tty=$HOOK_TTY"
+  log "cleared name sessionId=$SESSION_ID ppid_key=$HOOK_PPID_KEY"
   echo '{"continue": false, "user_message": "Session name cleared (auto-detect resumed)"}'
   exit 0
 fi
@@ -104,15 +120,15 @@ if [ -z "$SESSION_NAME" ]; then
   exit 0
 fi
 
-# Write session name to .state.json (by session_id AND tty for cross-clear-context persistence)
-export PEON_ENV_STATE="$STATE" PEON_ENV_SESSION_ID="$SESSION_ID" PEON_ENV_SESSION_NAME="$SESSION_NAME" PEON_ENV_HOOK_TTY="$HOOK_TTY"
+# Write session name to .state.json (by session_id AND ppid::cwd for cross-clear-context persistence)
+export PEON_ENV_STATE="$STATE" PEON_ENV_SESSION_ID="$SESSION_ID" PEON_ENV_SESSION_NAME="$SESSION_NAME" PEON_ENV_HOOK_PPID_KEY="$HOOK_PPID_KEY"
 python3 -c "
 import json, os
 
 state_path = os.environ.get('PEON_ENV_STATE', '')
 session_id = os.environ.get('PEON_ENV_SESSION_ID', '')
 session_name = os.environ.get('PEON_ENV_SESSION_NAME', '')
-hook_tty = os.environ.get('PEON_ENV_HOOK_TTY', '')
+hook_ppid_key = os.environ.get('PEON_ENV_HOOK_PPID_KEY', '')
 
 try:
     with open(state_path) as f:
@@ -124,11 +140,12 @@ if 'session_names' not in state:
     state['session_names'] = {}
 state['session_names'][session_id] = session_name
 
-# Also store by TTY so the name survives /clear (which generates a new session_id)
-if hook_tty:
+# Also store by ppid::cwd composite key so the name survives /clear (which generates a new session_id)
+# PPID isolates per Claude Code process; different terminal tabs have different PPIDs
+if hook_ppid_key:
     if 'tty_names' not in state:
         state['tty_names'] = {}
-    state['tty_names'][hook_tty] = session_name
+    state['tty_names'][hook_ppid_key] = session_name
 
 with open(state_path, 'w') as f:
     json.dump(state, f, indent=2)
@@ -138,6 +155,6 @@ with open(state_path, 'w') as f:
 # Immediately update tab title via ANSI escape (peon.sh will keep it updated on future events)
 printf '\033]0;%s\007' "• ${SESSION_NAME}: ready" > /dev/tty 2>/dev/null || true
 
-log "success name='$SESSION_NAME' sessionId=$SESSION_ID tty=$HOOK_TTY"
+log "success name='$SESSION_NAME' sessionId=$SESSION_ID ppid_key=$HOOK_PPID_KEY"
 echo "{\"continue\": false, \"user_message\": \"Session renamed to \\\"${SESSION_NAME}\\\"\"}"
 exit 0

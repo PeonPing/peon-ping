@@ -2727,8 +2727,9 @@ INPUT=$(cat)
 PAUSED=false
 [ -f "$PEON_DIR/.paused" ] && PAUSED=true
 
-# Capture TTY now (before stdin is consumed) so Python can store/read tty_names for rename persistence
-_PEON_HOOK_TTY="$(tty 2>/dev/null || true)"
+# Capture PPID before stdin is consumed — Claude Code's process PID, stable across /clear since the
+# process continues running. Different terminal tabs → different Claude Code processes → different PPIDs.
+_PEON_HOOK_PPID="${PPID:-}"
 
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
@@ -2741,7 +2742,7 @@ config_path = '$CONFIG_PY'
 state_file = '$STATE_PY'
 peon_dir = '$PEON_DIR_PY'
 paused = '$PAUSED' == 'true'
-hook_tty = '$_PEON_HOOK_TTY'
+hook_ppid = '$_PEON_HOOK_PPID'
 agent_modes = {'delegate'}
 state_dirty = False
 
@@ -2974,10 +2975,13 @@ if session_id:
     _sn_state = state.get('session_names', {}).get(session_id, '').strip()
     if _sn_state: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_state[:50])
 
-# -0.5. TTY-based session name fallback — persists across /clear context resets in the same terminal
-if not project and hook_tty:
-    _sn_tty = state.get('tty_names', {}).get(hook_tty, '').strip()
-    if _sn_tty: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_tty[:50])
+# -0.5. PPID-based session name fallback — persists across /clear (Claude Code process continues,
+# only session_id changes). Different terminal tabs spawn separate Claude Code processes → different PPIDs.
+# Composite key ppid::cwd adds project-level isolation as a safety net.
+hook_ppid_key = (hook_ppid + '::' + cwd) if hook_ppid else cwd
+if not project and hook_ppid_key:
+    _sn_ppid = state.get('tty_names', {}).get(hook_ppid_key, '').strip()
+    if _sn_ppid: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_ppid[:50])
 
 # 0. CLAUDE_SESSION_NAME env var (per-terminal session override)
 if not project:
