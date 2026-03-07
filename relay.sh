@@ -254,7 +254,7 @@ def pick_sound_for_category(category):
     Returns (file_path, volume) or (None, None) if not found.
     """
     config = load_config()
-    active_pack = config.get("active_pack", "peon")
+    active_pack = config.get("default_pack", config.get("active_pack", "peon"))
     volume = config.get("volume", 0.5)
 
     pack_dir = os.path.join(PEON_DIR, "packs", active_pack)

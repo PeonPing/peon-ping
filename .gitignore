@@ -17,6 +17,7 @@ PLAN-*.md
 checksums.txt
 video/promoted-packs.json
 scripts/peon-play
+.DS_Store
 
 # Nix
 result
