@@ -2766,14 +2766,25 @@ INPUT=$(cat)
 PAUSED=false
 [ -f "$PEON_DIR/.paused" ] && PAUSED=true
 
-# Capture PPID before stdin is consumed — Claude Code's process PID, stable across /clear since the
-# process continues running. Different terminal tabs → different Claude Code processes → different PPIDs.
-_PEON_HOOK_PPID="${PPID:-}"
+# Walk the process tree to find the terminal TTY — stable across /clear (the process tree doesn't
+# change when session_id resets) and unique per terminal tab (each tab has its own PTY).
+# Using raw $PPID was unreliable because hooks run from worker subprocesses whose PIDs change per event.
+_peon_walk_tty() {
+  local _w="${PPID:-}" _last=""
+  while [ -n "$_w" ] && [ "$_w" -gt 1 ] 2>/dev/null; do
+    local _t
+    _t=$(ps -p "$_w" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+    [ -n "$_t" ] && [ "$_t" != "??" ] && _last="$_t"
+    _w=$(ps -p "$_w" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+  done
+  echo "$_last"
+}
+_PEON_HOOK_TTY=$(_peon_walk_tty)
 
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
 # Outputs shell variables consumed by the bash play/notify/title logic below.
-eval "$(python3 -c "
+_PEON_PYOUT=$(python3 -c "
 import sys, json, os, re, random, time, shlex
 q = shlex.quote
 
@@ -2781,7 +2792,7 @@ config_path = '$CONFIG_PY'
 state_file = '$STATE_PY'
 peon_dir = '$PEON_DIR_PY'
 paused = '$PAUSED' == 'true'
-hook_ppid = '$_PEON_HOOK_PPID'
+hook_tty = '$_PEON_HOOK_TTY'
 agent_modes = {'delegate'}
 state_dirty = False
 
@@ -3014,13 +3025,13 @@ if session_id:
     _sn_state = state.get('session_names', {}).get(session_id, '').strip()
     if _sn_state: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_state[:50])
 
-# -0.5. PPID-based session name fallback — persists across /clear (Claude Code process continues,
-# only session_id changes). Different terminal tabs spawn separate Claude Code processes → different PPIDs.
-# Composite key ppid::cwd adds project-level isolation as a safety net.
-hook_ppid_key = (hook_ppid + '::' + cwd) if hook_ppid else cwd
-if not project and hook_ppid_key:
-    _sn_ppid = state.get('tty_names', {}).get(hook_ppid_key, '').strip()
-    if _sn_ppid: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_ppid[:50])
+# -0.5. TTY-based session name fallback — persists across /clear (terminal PTY doesn't change when
+# session_id resets) and is unique per terminal tab (each tab has its own PTY).
+# Composite key tty::cwd adds project-level isolation as a safety net.
+hook_tty_key = (hook_tty + '::' + cwd) if hook_tty else cwd
+if not project and hook_tty_key:
+    _sn_tty = state.get('tty_names', {}).get(hook_tty_key, '').strip()
+    if _sn_tty: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn_tty[:50])
 
 # 0. CLAUDE_SESSION_NAME env var (per-terminal session override)
 if not project:
@@ -3514,7 +3525,8 @@ print('ICON_PATH=' + q(icon_path))
 print('TRAINER_SOUND=' + q(trainer_sound))
 print('TRAINER_MSG=' + q(trainer_msg))
 print('TAB_COLOR_RGB=' + q(tab_color_rgb))
-" <<< "$INPUT" 2>/dev/null)"
+" <<< "$INPUT" 2>/dev/null)
+eval "$_PEON_PYOUT"
 
 # If Python signalled early exit (disabled, agent, unknown event), bail out
 if [ "${PEON_EXIT:-true}" = "true" ]; then

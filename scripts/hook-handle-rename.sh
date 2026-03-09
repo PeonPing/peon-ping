@@ -24,11 +24,22 @@ except:
     print("default")
 ' 2>/dev/null || echo "default")
 
-# Capture PPID — Claude Code's process PID, stable across /clear (process continues, session_id changes).
-# Different terminal tabs spawn separate Claude Code processes → different PPIDs → no cross-tab bleed.
-HOOK_PPID="${PPID:-}"
+# Walk the process tree to find the terminal TTY — stable across /clear (the process tree doesn't
+# change when session_id resets) and unique per terminal tab (each tab has its own PTY).
+# Using raw $PPID was unreliable because hooks run from worker subprocesses whose PIDs change per event.
+_walk_tty() {
+  local _w="${PPID:-}" _last=""
+  while [ -n "$_w" ] && [ "$_w" -gt 1 ] 2>/dev/null; do
+    local _t
+    _t=$(ps -p "$_w" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+    [ -n "$_t" ] && [ "$_t" != "??" ] && _last="$_t"
+    _w=$(ps -p "$_w" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+  done
+  echo "$_last"
+}
+HOOK_TTY=$(_walk_tty)
 
-# Extract CWD from event JSON — combined with PPID for a composite key that isolates by process+project
+# Extract CWD from event JSON — combined with TTY for a composite key that isolates by tab+project
 HOOK_CWD=$(echo "$INPUT" | python3 -c '
 import json, sys
 try:
@@ -40,8 +51,8 @@ except:
     pass
 ' 2>/dev/null || echo "")
 
-# Composite key: ppid::cwd (ppid for per-process isolation, cwd for project-level safety net)
-HOOK_PPID_KEY="${HOOK_PPID}${HOOK_CWD:+::${HOOK_CWD}}"
+# Composite key: tty::cwd (tty for per-tab isolation, cwd for project-level safety net)
+HOOK_PPID_KEY="${HOOK_TTY}${HOOK_CWD:+::${HOOK_CWD}}"
 
 # Extract prompt text
 PROMPT=$(echo "$INPUT" | python3 -c '
@@ -107,7 +118,7 @@ with open(state_path, 'w') as f:
     json.dump(state, f, indent=2)
     f.write('\n')
 "
-  log "cleared name sessionId=$SESSION_ID ppid_key=$HOOK_PPID_KEY"
+  log "cleared name sessionId=$SESSION_ID tty_key=$HOOK_PPID_KEY"
   echo '{"continue": false, "user_message": "Session name cleared (auto-detect resumed)"}'
   exit 0
 fi
@@ -155,6 +166,6 @@ with open(state_path, 'w') as f:
 # Immediately update tab title via ANSI escape (peon.sh will keep it updated on future events)
 printf '\033]0;%s\007' "• ${SESSION_NAME}: ready" > /dev/tty 2>/dev/null || true
 
-log "success name='$SESSION_NAME' sessionId=$SESSION_ID ppid_key=$HOOK_PPID_KEY"
+log "success name='$SESSION_NAME' sessionId=$SESSION_ID tty_key=$HOOK_PPID_KEY"
 echo "{\"continue\": false, \"user_message\": \"Session renamed to \\\"${SESSION_NAME}\\\"\"}"
 exit 0
