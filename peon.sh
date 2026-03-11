@@ -295,6 +295,14 @@ play_linux_sound() {
       fi
       ;;
     aplay)
+      if [[ "$file" != *.wav ]]; then
+        # aplay only supports WAV (and raw). If we try to play mp3/ogg, it will likely fail or play static.
+        if [ -z "${WARNED_APLAY_FORMAT:-}" ]; then
+          echo "Warning: aplay can only play WAV files, but '$file' is not a WAV. Install pw-play, paplay, ffplay, mpv, or play (SoX) for better support." >&2
+          WARNED_APLAY_FORMAT=1
+        fi
+        return 0
+      fi
       if [ "$use_bg" = true ]; then
         nohup aplay -q "$file" >/dev/null 2>&1 &
       else
