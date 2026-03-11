@@ -744,6 +744,7 @@ Create `~/.kiro/agents/peon-ping.json`:
 
 ```json
 {
+  "name": "peon-ping",
   "hooks": {
     "agentSpawn": [
       { "command": "bash ~/.claude/hooks/peon-ping/adapters/kiro.sh" }
