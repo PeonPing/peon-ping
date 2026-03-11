@@ -511,3 +511,73 @@ MOCK_CURL
   [ -f "$TEST_HOME/.openclaw/hooks/peon-ping/peon.sh" ]
   [ -f "$TEST_HOME/.openclaw/skills/peon-ping/SKILL.md" ]
 }
+
+# ---------------------------------------------------------------------------
+# --rovodev-only flag tests
+# ---------------------------------------------------------------------------
+
+@test "--rovodev-only exits 0 when ~/.rovodev dir exists" {
+  mkdir -p "$TEST_HOME/.rovodev"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/adapters"
+  echo '#!/bin/bash' > "$TEST_HOME/.claude/hooks/peon-ping/adapters/rovodev.sh"
+  run bash "$CLONE_DIR/install.sh" --rovodev-only
+  [ "$status" -eq 0 ]
+}
+
+@test "--rovodev-only exits 1 when ~/.rovodev dir does not exist" {
+  run bash "$CLONE_DIR/install.sh" --rovodev-only
+  [ "$status" -eq 1 ]
+}
+
+@test "--rovodev-only creates config.yml when dir exists but no config" {
+  mkdir -p "$TEST_HOME/.rovodev"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/adapters"
+  echo '#!/bin/bash' > "$TEST_HOME/.claude/hooks/peon-ping/adapters/rovodev.sh"
+  run bash "$CLONE_DIR/install.sh" --rovodev-only
+  [ "$status" -eq 0 ]
+  [ -f "$TEST_HOME/.rovodev/config.yml" ]
+  grep -q "on_complete" "$TEST_HOME/.rovodev/config.yml"
+  grep -q "on_error" "$TEST_HOME/.rovodev/config.yml"
+  grep -q "on_tool_permission" "$TEST_HOME/.rovodev/config.yml"
+}
+
+@test "--rovodev-only replaces events: [] with event entries" {
+  mkdir -p "$TEST_HOME/.rovodev"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/adapters"
+  echo '#!/bin/bash' > "$TEST_HOME/.claude/hooks/peon-ping/adapters/rovodev.sh"
+  cat > "$TEST_HOME/.rovodev/config.yml" <<EOF
+eventHooks:
+  logFile: /tmp/test.log
+  events: []
+EOF
+  run bash "$CLONE_DIR/install.sh" --rovodev-only
+  [ "$status" -eq 0 ]
+  # Should not contain empty array anymore
+  ! grep -q 'events: \[\]' "$TEST_HOME/.rovodev/config.yml"
+  # Should have events
+  grep -q "on_complete" "$TEST_HOME/.rovodev/config.yml"
+  # Should preserve logFile
+  grep -q "logFile:" "$TEST_HOME/.rovodev/config.yml"
+}
+
+@test "--rovodev-only skips if rovodev.sh already registered" {
+  mkdir -p "$TEST_HOME/.rovodev"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/adapters"
+  echo '#!/bin/bash' > "$TEST_HOME/.claude/hooks/peon-ping/adapters/rovodev.sh"
+  cat > "$TEST_HOME/.rovodev/config.yml" <<EOF
+eventHooks:
+  events:
+    - name: on_complete
+      commands:
+        - command: bash /some/path/rovodev.sh on_complete
+EOF
+  run bash "$CLONE_DIR/install.sh" --rovodev-only
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already present"* ]]
+}
+
+@test "--rovodev-only shows in help" {
+  run bash "$CLONE_DIR/install.sh" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--rovodev-only"* ]]
+}
