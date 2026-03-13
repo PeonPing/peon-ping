@@ -295,6 +295,23 @@ for p in data.get('packs', []):
   # Download sound files
   manifest="$PEON_DIR/packs/$pack/openpeon.json"
   manifest_py="$(py_path "$manifest")"
+  ICON_LIST=$(python3 -c "
+import json
+m = json.load(open('$manifest_py'))
+seen = []
+def add(v):
+    if not isinstance(v, str) or not v or v.startswith(('http://', 'https://')):
+        return
+    if v not in seen:
+        seen.append(v)
+add(m.get('icon'))
+for cat in m.get('categories', {}).values():
+    add(cat.get('icon'))
+    for s in cat.get('sounds', []):
+        add(s.get('icon'))
+for v in seen:
+    print(v)
+" 2>/dev/null || true)
   SOUND_COUNT=$(python3 -c "
 import json, posixpath
 m = json.load(open('$manifest_py'))
@@ -313,6 +330,22 @@ print(len(seen))
 
   CHECKSUMS_FILE="$PEON_DIR/packs/$pack/.checksums"
   touch "$CHECKSUMS_FILE"
+
+  if [ -n "$ICON_LIST" ]; then
+    while read -r ifile; do
+      ifile="${ifile%$'\r'}"  # strip Windows CRLF trailing CR (Python on Windows outputs \r\n)
+      [ -z "$ifile" ] && continue
+      if ! is_safe_filename "$ifile"; then
+        echo "  Warning: skipped unsafe icon path in $pack: $ifile" >&2
+        continue
+      fi
+      mkdir -p "$PEON_DIR/packs/$pack/$(dirname "$ifile")"
+      if ! curl -fsSL "$PACK_BASE/$(urlencode_filename "$ifile")" \
+           -o "$PEON_DIR/packs/$pack/$ifile" </dev/null 2>/dev/null; then
+        echo "  Warning: failed to download $pack/$ifile" >&2
+      fi
+    done <<< "$ICON_LIST"
+  fi
 
   if [ "$IS_TTY" = true ] && [ "$SOUND_COUNT" != "?" ]; then
     local_file_count=0
