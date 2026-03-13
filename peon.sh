@@ -1454,8 +1454,8 @@ for d in sorted(os.listdir(packs_dir)):
             info = json.load(open(mpath))
             name = info.get('name', d)
             display = info.get('display_name', name)
-            marker = ' *' if name == active else ''
-            print(f'  {name:24s} {display}{marker}')
+            marker = ' *' if d == active else ''
+            print(f'  {d:24s} {display}{marker}')
             break
 "
         exit 0 ;;
