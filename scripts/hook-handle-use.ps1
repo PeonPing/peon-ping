@@ -133,8 +133,8 @@ try {
         $config = @{}
     }
     
-    # Set rotation mode to agentskill
-    $config | Add-Member -NotePropertyName "pack_rotation_mode" -NotePropertyValue "agentskill" -Force
+    # Set rotation mode to session_override
+    $config | Add-Member -NotePropertyName "pack_rotation_mode" -NotePropertyValue "session_override" -Force
     
     # Ensure pack is in pack_rotation array
     $packRotation = if ($config.pack_rotation) { 

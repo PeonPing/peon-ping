@@ -132,14 +132,14 @@ if isinstance(pack, dict):
 "
 }
 
-@test "success: sets agentskill rotation mode in config.json" {
+@test "success: sets session_override rotation mode in config.json" {
   run_hook '{"session_id":"s1","prompt":"/peon-ping-use peon"}'
   [ "$HOOK_EXIT" -eq 0 ]
 
   python3 -c "
 import json
 config = json.load(open('$TEST_DIR/hooks/peon-ping/config.json'))
-assert config.get('pack_rotation_mode') == 'agentskill', f'rotation mode not set: {config}'
+assert config.get('pack_rotation_mode') == 'session_override', f'rotation mode not set: {config}'
 "
 }
 

@@ -88,7 +88,8 @@ interface CESPManifest {
 }
 
 interface PeonConfig {
-  active_pack: string
+  default_pack: string
+  active_pack?: string // legacy alias for default_pack
   volume: number
   enabled: boolean
   desktop_notifications: boolean
@@ -156,7 +157,7 @@ const PAUSED_PATH = path.join(PLUGIN_DIR, ".paused")
 const DEFAULT_PACKS_DIR = path.join(os.homedir(), ".openpeon", "packs")
 
 const DEFAULT_CONFIG: PeonConfig = {
-  active_pack: "peon",
+  default_pack: "peon",
   volume: 0.5,
   enabled: true,
   desktop_notifications: true,
@@ -379,11 +380,12 @@ function resolveActivePack(
     }
   }
 
-  if (available.includes(config.active_pack)) {
-    return config.active_pack
+  const activePack = config.default_pack || config.active_pack || "peon"
+  if (available.includes(activePack)) {
+    return activePack
   }
 
-  return available[0] || config.active_pack
+  return available[0] || activePack
 }
 
 function escapeAppleScript(s: string): string {

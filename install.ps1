@@ -211,7 +211,7 @@ if (-not $Updating) {
     $firstPack = if ($packsToInstall.Count -gt 0) { $packsToInstall[0].name } else { "peon" }
 
     $config = @{
-        active_pack = $firstPack
+        default_pack = $firstPack
         volume = 0.5
         enabled = $true
         desktop_notifications = $true
@@ -367,7 +367,8 @@ if ($Command) {
             try {
                 $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
                 $state = if ($cfg.enabled) { "ENABLED" } else { "PAUSED" }
-                Write-Host "peon-ping: $state | pack: $($cfg.active_pack) | volume: $($cfg.volume)" -ForegroundColor Cyan
+                $pack = if ($cfg.default_pack) { $cfg.default_pack } elseif ($cfg.active_pack) { $cfg.active_pack } else { "peon" }
+                Write-Host "peon-ping: $state | pack: $pack | volume: $($cfg.volume)" -ForegroundColor Cyan
             } catch {
                 Write-Host "Error reading config: $_" -ForegroundColor Red
                 exit 1
@@ -393,16 +394,17 @@ if ($Command) {
                         return
                     }
                     $raw = Get-Content $ConfigPath -Raw
-                    $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+                    $raw = $raw -replace '"(default_pack|active_pack)"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
                     Set-Content $ConfigPath -Value $raw -Encoding UTF8
                     Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
                     return
                 }
                 "next" {
-                    $idx = [array]::IndexOf($available, $cfg.active_pack)
+                    $currentPack = if ($cfg.default_pack) { $cfg.default_pack } elseif ($cfg.active_pack) { $cfg.active_pack } else { "peon" }
+                    $idx = [array]::IndexOf($available, $currentPack)
                     $newPack = $available[($idx + 1) % $available.Count]
                     $raw = Get-Content $ConfigPath -Raw
-                    $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+                    $raw = $raw -replace '"(default_pack|active_pack)"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
                     Set-Content $ConfigPath -Value $raw -Encoding UTF8
                     Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
                     return
@@ -410,9 +412,10 @@ if ($Command) {
                 default {
                     # "list" or no subcommand - show available packs
                     Write-Host "Available packs:" -ForegroundColor Cyan
+                    $currentPack = if ($cfg.default_pack) { $cfg.default_pack } elseif ($cfg.active_pack) { $cfg.active_pack } else { "peon" }
                     foreach ($packName in $available) {
                         $soundCount = (Get-ChildItem -Path (Join-Path $packsDir "$packName\sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count
-                        $marker = if ($packName -eq $cfg.active_pack) { " <-- active" } else { "" }
+                        $marker = if ($packName -eq $currentPack) { " <-- active" } else { "" }
                         Write-Host "  $packName ($soundCount sounds)$marker"
                     }
                     return
@@ -426,6 +429,7 @@ if ($Command) {
                 (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
             } | ForEach-Object { $_.Name } | Sort-Object
 
+            $currentPack = if ($cfg.default_pack) { $cfg.default_pack } elseif ($cfg.active_pack) { $cfg.active_pack } else { "peon" }
             if ($Arg1 -eq "use") {
                 # "peon pack use <name>" - treat Arg2 as the pack name
                 if (-not $Arg2) {
@@ -435,12 +439,12 @@ if ($Command) {
                 $newPack = $Arg2
             } elseif ($Arg1 -eq "next") {
                 # "peon pack next" - cycle to next
-                $idx = [array]::IndexOf($available, $cfg.active_pack)
+                $idx = [array]::IndexOf($available, $currentPack)
                 $newPack = $available[($idx + 1) % $available.Count]
             } elseif ($Arg1) {
                 $newPack = $Arg1
             } else {
-                $idx = [array]::IndexOf($available, $cfg.active_pack)
+                $idx = [array]::IndexOf($available, $currentPack)
                 $newPack = $available[($idx + 1) % $available.Count]
             }
 
@@ -450,7 +454,7 @@ if ($Command) {
             }
 
             $raw = Get-Content $ConfigPath -Raw
-            $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+            $raw = $raw -replace '"(default_pack|active_pack)"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
             Set-Content $ConfigPath -Value $raw -Encoding UTF8
             Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
             return
@@ -678,8 +682,7 @@ try {
 } catch {}
 
 # --- Pick a sound ---
-$activePack = $config.active_pack
-if (-not $activePack) { $activePack = "peon" }
+$activePack = if ($config.default_pack) { $config.default_pack } elseif ($config.active_pack) { $config.active_pack } else { "peon" }
 
 # Support pack rotation
 $rotationMode = $config.pack_rotation_mode
@@ -706,8 +709,7 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
             $stateDirty = $true
         } else {
             # Pack missing, use default and clean up
-            $activePack = $config.active_pack
-            if (-not $activePack) { $activePack = "peon" }
+            $activePack = if ($config.default_pack) { $config.default_pack } elseif ($config.active_pack) { $config.active_pack } else { "peon" }
             $sessionPacks.Remove($sessionId)
             $state.session_packs = $sessionPacks
             $stateDirty = $true
@@ -721,12 +723,10 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
             if ($candidate -and (Test-Path $candidateDir -PathType Container)) {
                 $activePack = $candidate
             } else {
-                $activePack = $config.active_pack
-                if (-not $activePack) { $activePack = "peon" }
+                $activePack = if ($config.default_pack) { $config.default_pack } elseif ($config.active_pack) { $config.active_pack } else { "peon" }
             }
         } else {
-            $activePack = $config.active_pack
-            if (-not $activePack) { $activePack = "peon" }
+            $activePack = if ($config.default_pack) { $config.default_pack } elseif ($config.active_pack) { $config.active_pack } else { "peon" }
         }
     }
 } elseif ($config.pack_rotation -and $config.pack_rotation.Count -gt 0) {
@@ -1248,7 +1248,8 @@ Write-Host ""
 Write-Host "Testing sound..."
 
 $testPack = try {
-    (Get-PeonConfigRaw $configPath | ConvertFrom-Json).active_pack
+    $cfg = Get-PeonConfigRaw $configPath | ConvertFrom-Json
+    if ($cfg.default_pack) { $cfg.default_pack } elseif ($cfg.active_pack) { $cfg.active_pack } else { "peon" }
 } catch { "peon" }
 
 $testPackDir = Join-Path $InstallDir "packs\$testPack\sounds"
@@ -1278,7 +1279,10 @@ if ($Updating) {
 } else {
     Write-Host "=== peon-ping installed! ===" -ForegroundColor Green
     Write-Host ""
-    $activePack = try { (Get-PeonConfigRaw $configPath | ConvertFrom-Json).active_pack } catch { "peon" }
+    $activePack = try {
+        $cfg = Get-PeonConfigRaw $configPath | ConvertFrom-Json
+        if ($cfg.default_pack) { $cfg.default_pack } elseif ($cfg.active_pack) { $cfg.active_pack } else { "peon" }
+    } catch { "peon" }
     Write-Host "  Active pack: $activePack" -ForegroundColor Cyan
     Write-Host "  Volume: 0.5" -ForegroundColor Cyan
     Write-Host ""

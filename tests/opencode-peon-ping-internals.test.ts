@@ -105,11 +105,11 @@ describe("loadConfig", () => {
 
   it("merges user overrides while preserving defaults", () => {
     vi.mocked(fs.readFileSync).mockReturnValue(
-      JSON.stringify({ volume: 0.9, active_pack: "glados" }),
+      JSON.stringify({ volume: 0.9, default_pack: "glados" }),
     )
     const config = loadConfig()
     expect(config.volume).toBe(0.9)
-    expect(config.active_pack).toBe("glados")
+    expect(config.default_pack).toBe("glados")
     expect(config.enabled).toBe(true)
   })
 
@@ -315,14 +315,20 @@ describe("pickSound", () => {
 describe("resolveActivePack", () => {
   beforeEach(() => vi.resetAllMocks())
 
-  it("returns active_pack when available", () => {
+  it("returns default_pack when available", () => {
     setupListPacks(["peon", "glados"])
-    expect(resolveActivePack({ ...DEFAULT_CONFIG, active_pack: "glados" }, makeState(), "s1", "/p")).toBe("glados")
+    expect(resolveActivePack({ ...DEFAULT_CONFIG, default_pack: "glados" }, makeState(), "s1", "/p")).toBe("glados")
   })
 
-  it("falls back to first available when active_pack is missing", () => {
+  it("falls back to first available when default_pack is missing from disk", () => {
     setupListPacks(["alpha", "beta"])
-    expect(resolveActivePack({ ...DEFAULT_CONFIG, active_pack: "gone" }, makeState(), "s1", "/p")).toBe("alpha")
+    expect(resolveActivePack({ ...DEFAULT_CONFIG, default_pack: "gone" }, makeState(), "s1", "/p")).toBe("alpha")
+  })
+
+  it("reads legacy active_pack as fallback when default_pack absent", () => {
+    setupListPacks(["peon", "glados"])
+    const cfg = { ...DEFAULT_CONFIG, default_pack: "", active_pack: "glados" } as any
+    expect(resolveActivePack(cfg, makeState(), "s1", "/p")).toBe("glados")
   })
 
   it("uses rotation, stores pick, and reuses existing session pack", () => {
@@ -340,7 +346,7 @@ describe("resolveActivePack", () => {
 
   it("falls through when all rotation packs are unavailable", () => {
     setupListPacks(["peon"])
-    const config = { ...DEFAULT_CONFIG, active_pack: "peon", pack_rotation: ["gone1", "gone2"] }
+    const config = { ...DEFAULT_CONFIG, default_pack: "peon", pack_rotation: ["gone1", "gone2"] }
     expect(resolveActivePack(config, makeState(), "s1", "/p")).toBe("peon")
   })
 })

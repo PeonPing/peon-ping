@@ -1,6 +1,6 @@
 ---
 name: peon-ping-use
-description: Set which voice pack (character voice) plays for the current chat session. Automatically enables agentskill rotation mode if not already set. Use when user wants a specific character voice like GLaDOS, Peon, or Kerrigan for this conversation.
+description: Set which voice pack (character voice) plays for the current chat session. Automatically enables session_override rotation mode if not already set. Use when user wants a specific character voice like GLaDOS, Peon, or Kerrigan for this conversation.
 user_invocable: true
 license: MIT
 metadata:
@@ -17,7 +17,7 @@ Set which voice pack (character voice) plays for the current chat session.
 When the user types `/peon-ping-use <packname>`, a **beforeSubmitPrompt hook** intercepts the command before it reaches the model and handles it instantly:
 
 1. Validates the requested pack exists
-2. Enables `agentskill` rotation mode in config.json
+2. Enables `session_override` rotation mode in config.json
 3. Maps the current session ID to the requested pack in .state.json
 4. Returns immediate confirmation (zero tokens used)
 
@@ -70,7 +70,7 @@ echo "$CLAUDE_SESSION_ID"
 
 **If empty (Cursor users):** Use `"default"` as the key in `session_packs`. This applies the pack to all sessions without explicit assignment. Add `session_packs["default"] = {"pack": "PACK_NAME", "last_used": UNIX_TIMESTAMP}`.
 
-### 4. Update config to enable agentskill mode
+### 4. Update config to enable session_override mode
 
 Read the config file:
 
@@ -78,16 +78,16 @@ Read the config file:
 cat "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/hooks/peon-ping/config.json
 ```
 
-**Required:** Set `pack_rotation_mode` to `"agentskill"`. The pack must exist in the packs directory; if the assigned pack is missing or invalid, peon-ping falls back to `active_pack` and removes the stale assignment. The hook also adds the pack to `pack_rotation` (manual fallback can do the same).
+**Required:** Set `pack_rotation_mode` to `"session_override"`. The pack must exist in the packs directory; if the assigned pack is missing or invalid, peon-ping falls back to `default_pack` and removes the stale assignment. The hook also adds the pack to `pack_rotation` (manual fallback can do the same).
 
 Example config after setup:
 
 ```json
-"pack_rotation_mode": "agentskill",
+"pack_rotation_mode": "session_override",
 "pack_rotation": ["peasant", "peon", "ra2_kirov"]
 ```
 
-If `pack_rotation_mode` is `"random"` or `"round-robin"`, change it to `"agentskill"`. If the requested pack is not in `pack_rotation`, add it.
+If `pack_rotation_mode` is `"random"` or `"round-robin"`, change it to `"session_override"`. If the requested pack is not in `pack_rotation`, add it.
 
 ### 5. Update state to assign pack to this session
 
@@ -118,7 +118,7 @@ Report success with a message like:
 
 ```
 Voice set to [PACK_NAME] for this session
-   Rotation mode: agentskill
+   Rotation mode: session_override
 ```
 
 ## Error handling
@@ -133,10 +133,10 @@ Voice set to [PACK_NAME] for this session
 User: Use GLaDOS voice for this chat
 Assistant: [Lists packs to verify glados exists]
 Assistant: [Gets session ID]
-Assistant: [Updates config.json to set pack_rotation_mode: "agentskill"]
+Assistant: [Updates config.json to set pack_rotation_mode: "session_override"]
 Assistant: [Updates .state.json to set session_packs[session_id] = "glados"]
 Assistant: Voice set to GLaDOS for this session
-           Rotation mode: agentskill
+           Rotation mode: session_override
 ```
 
 ## Cursor compatibility note

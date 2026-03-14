@@ -1294,7 +1294,7 @@ else
 import json
 try:
     c = json.load(open('$INSTALL_DIR_PY/config.json'))
-    print(c.get('active_pack', 'peon'))
+    print(c.get('default_pack', c.get('active_pack', 'peon')))
 except Exception:
     print('peon')
 " 2>/dev/null)

@@ -402,7 +402,7 @@ Describe "Category C: OpenCode Installer" {
 
     It "creates default config.json" {
         $script:opencodeContent | Should -Match 'config\.json'
-        $script:opencodeContent | Should -Match 'active_pack'
+        $script:opencodeContent | Should -Match 'default_pack'
     }
 
     It "installs default pack from registry" {
@@ -434,7 +434,7 @@ Describe "Category C: Kilo Installer" {
 
     It "creates default config.json" {
         $script:kiloContent | Should -Match 'config\.json'
-        $script:kiloContent | Should -Match 'active_pack'
+        $script:kiloContent | Should -Match 'default_pack'
     }
 
     It "installs default pack from registry" {
@@ -606,8 +606,8 @@ Describe "hook-handle-use.ps1" {
         $script:hhuContent | Should -Match 'Test-Path \$packPath'
     }
 
-    It "sets pack_rotation_mode to agentskill" {
-        $script:hhuContent | Should -Match 'pack_rotation_mode.*agentskill'
+    It "sets pack_rotation_mode to session_override" {
+        $script:hhuContent | Should -Match 'pack_rotation_mode.*session_override'
     }
 
     It "writes session_packs with timestamp to .state.json" {
@@ -824,11 +824,11 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'sessionId'
     }
 
-    It "defaults to active_pack when no session assignment" {
-        $script:peonHookContent | Should -Match '\$activePack = \$config\.active_pack'
+    It "defaults to default_pack with active_pack fallback when no session assignment" {
+        $script:peonHookContent | Should -Match 'default_pack.*active_pack'
     }
 
-    It "falls back to peon when no active_pack configured" {
+    It "falls back to peon when no default_pack configured" {
         $script:peonHookContent | Should -Match '\$activePack.*"peon"'
     }
 

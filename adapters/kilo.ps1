@@ -76,7 +76,7 @@ $configPath = Join-Path $PeonConfigDir "config.json"
 
 if (-not (Test-Path $configPath)) {
     $config = @{
-        active_pack           = "peon"
+        default_pack          = "peon"
         volume                = 0.5
         enabled               = $true
         categories            = @{

@@ -103,7 +103,7 @@ mkdir -p "$PEON_CONFIG_DIR"
 if [ ! -f "$PEON_CONFIG_DIR/config.json" ]; then
   cat > "$PEON_CONFIG_DIR/config.json" << 'CONFIGEOF'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "categories": {
