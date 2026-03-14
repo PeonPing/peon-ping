@@ -1,0 +1,8 @@
+{"timestamp":"2026-03-14T21:11:42Z","operation":"init","role":"router","sprint":"SMARTPACK","card_id":"janrlf","cycle":1}
+{"timestamp":"2026-03-14T21:11:42Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/SMARTPACK-janrlf-reviewer-1.md","verdict":"APPROVAL"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"init","role":"router","sprint":"SMARTPACK","card_id":"janrlf","cycle":1}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/SMARTPACK-janrlf-reviewer-1.md","verdict":"APPROVAL"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"event","label":"write-executor-inbox","metadata":{"file":".gitban/agents/executor/inbox/SMARTPACK-janrlf-executor-1.md"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"event","label":"write-planner-inbox","metadata":{"file":".gitban/agents/planner/inbox/SMARTPACK-janrlf-planner-1.md"}}
+{"timestamp":"2026-03-14T21:12:53Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
+{"timestamp":"2026-03-14T21:12:53Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}
