@@ -824,12 +824,15 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'sessionId'
     }
 
-    It "defaults to active_pack when no session assignment" {
-        $script:peonHookContent | Should -Match '\$activePack = \$config\.active_pack'
+    It "uses Get-ActivePack helper for pack resolution" {
+        $script:peonHookContent | Should -Match 'function Get-ActivePack'
+        $script:peonHookContent | Should -Match '\$activePack = Get-ActivePack \$config'
     }
 
-    It "falls back to peon when no active_pack configured" {
-        $script:peonHookContent | Should -Match '\$activePack.*"peon"'
+    It "Get-ActivePack falls back through default_pack, active_pack, then peon" {
+        $script:peonHookContent | Should -Match 'default_pack'
+        $script:peonHookContent | Should -Match 'active_pack'
+        $script:peonHookContent | Should -Match '"peon"'
     }
 
     # --- Volume (mirrors BATS: volume from config is passed to playback) ---
