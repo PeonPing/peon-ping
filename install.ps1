@@ -328,6 +328,17 @@ param(
     [string]$Arg2 = ""
 )
 
+# 8-second self-timeout safety net — kills this process if anything blocks unexpectedly.
+# Uses System.Timers.Timer (not Forms.Timer) so it works in headless PowerShell without a message pump.
+# Must fire before ANY I/O (config read, state read, stdin read).
+if (-not $Command) {
+    $safetyTimer = New-Object System.Timers.Timer
+    $safetyTimer.Interval = 8000
+    $safetyTimer.AutoReset = $false
+    Register-ObjectEvent -InputObject $safetyTimer -EventName Elapsed -Action { [Environment]::Exit(1) } | Out-Null
+    $safetyTimer.Start()
+}
+
 # Raw config read; repair is done at install/update time, so hook only needs plain read.
 function Get-PeonConfigRaw {
     param([string]$Path)
@@ -428,8 +439,8 @@ if ($Command) {
                 }
                 default {
                     # "list" or no subcommand - show available packs
-                    $currentPack = Get-ActivePack $cfg
                     Write-Host "Available packs:" -ForegroundColor Cyan
+                    $currentPack = Get-ActivePack $cfg
                     foreach ($packName in $available) {
                         $soundCount = (Get-ChildItem -Path (Join-Path $packsDir "$packName\sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count
                         $marker = if ($packName -eq $currentPack) { " <-- active" } else { "" }
@@ -580,20 +591,48 @@ function ConvertTo-Hashtable {
     return $obj
 }
 
-# Read state
-$state = @{}
-try {
-    if (Test-Path $StatePath) {
-        $raw = Get-Content $StatePath -Raw
-        if ($raw -and $raw.Trim().Length -gt 0) {
-            $stateObj = $raw | ConvertFrom-Json
-            $converted = ConvertTo-Hashtable $stateObj
-            if ($converted -is [hashtable]) { $state = $converted }
+# --- Atomic state I/O helpers ---
+function Write-StateAtomic {
+    param([hashtable]$State, [string]$Path)
+    $dir = Split-Path $Path -Parent
+    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $tmp = "$Path.$PID.tmp"
+    try {
+        $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
+        # [System.IO.File]::Move with overwrite requires .NET Core (PS 7+).
+        # For PS 5.1 compat: delete target then move (atomic on NTFS same-volume).
+        if (Test-Path $Path) { [System.IO.File]::Delete($Path) }
+        [System.IO.File]::Move($tmp, $Path)
+    } catch {
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+    }
+}
+
+function Read-StateWithRetry {
+    param([string]$Path)
+    $delays = @(50, 100, 200)
+    for ($i = 0; $i -le $delays.Count; $i++) {
+        try {
+            if (Test-Path $Path) {
+                $raw = Get-Content $Path -Raw
+                if ($raw -and $raw.Trim().Length -gt 0) {
+                    $stateObj = $raw | ConvertFrom-Json
+                    $converted = ConvertTo-Hashtable $stateObj
+                    if ($converted -is [hashtable]) { return $converted }
+                }
+            }
+            return @{}
+        } catch {
+            if ($i -lt $delays.Count) {
+                Start-Sleep -Milliseconds $delays[$i]
+            }
         }
     }
-} catch {
-    $state = @{}
+    return @{}
 }
+
+# Read state
+$state = Read-StateWithRetry -Path $StatePath
 
 # --- Session cleanup: expire old sessions ---
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -688,7 +727,7 @@ switch ($hookEvent) {
 
 # Save state
 try {
-    $state | ConvertTo-Json -Depth 3 | Set-Content $StatePath -Encoding UTF8
+    Write-StateAtomic -State $state -Path $StatePath
 } catch {}
 
 if (-not $category) { exit 0 }
@@ -801,44 +840,17 @@ if ($iconCandidate) {
 # Save last played
 $state[$lastKey] = $soundFile
 try {
-    $state | ConvertTo-Json -Depth 3 | Set-Content $StatePath -Encoding UTF8
+    Write-StateAtomic -State $state -Path $StatePath
 } catch {}
 
-# --- Play the sound inline ---
+# --- Delegate audio to win-play.ps1 in a detached process ---
 $volume = $config.volume
 if (-not $volume) { $volume = 0.5 }
 
-# Background jobs are terminated when this short-lived hook process exits.
-# Inline playback is deterministic and keeps behavior consistent.
-try {
-    if ($soundPath -match '\.wav$') {
-        Add-Type -AssemblyName System.Windows.Forms
-        $sp = New-Object System.Media.SoundPlayer $soundPath
-        $sp.PlaySync()
-        $sp.Dispose()
-    } else {
-        Add-Type -AssemblyName PresentationCore
-        $player = New-Object System.Windows.Media.MediaPlayer
-        $player.Open([Uri]::new("file:///$($soundPath -replace '\\','/')"))
-        $player.Volume = $volume
-        Start-Sleep -Milliseconds 150
-        $player.Play()
-        $timeout = 50
-        while ($timeout -gt 0 -and $player.Position.TotalMilliseconds -eq 0) {
-            Start-Sleep -Milliseconds 100
-            $timeout--
-        }
-        if ($player.NaturalDuration.HasTimeSpan) {
-            $remaining = $player.NaturalDuration.TimeSpan.TotalMilliseconds - $player.Position.TotalMilliseconds
-            if ($remaining -gt 0 -and $remaining -lt 5000) {
-                Start-Sleep -Milliseconds ([int]$remaining + 100)
-            }
-        } else {
-            Start-Sleep -Seconds 2
-        }
-        $player.Close()
-    }
-} catch {}
+$winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
+if (Test-Path $winPlayScript) {
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
+}
 
 exit 0
 '@
@@ -1266,7 +1278,8 @@ Write-Host ""
 Write-Host "Testing sound..."
 
 $testPack = try {
-    Get-ActivePack (Get-PeonConfigRaw $configPath | ConvertFrom-Json)
+    $cfg = Get-PeonConfigRaw $configPath | ConvertFrom-Json
+    Get-ActivePack $cfg
 } catch { "peon" }
 
 $testPackDir = Join-Path $InstallDir "packs\$testPack\sounds"
@@ -1296,7 +1309,10 @@ if ($Updating) {
 } else {
     Write-Host "=== peon-ping installed! ===" -ForegroundColor Green
     Write-Host ""
-    $activePack = try { Get-ActivePack (Get-PeonConfigRaw $configPath | ConvertFrom-Json) } catch { "peon" }
+    $activePack = try {
+        $cfg = Get-PeonConfigRaw $configPath | ConvertFrom-Json
+        Get-ActivePack $cfg
+    } catch { "peon" }
     Write-Host "  Active pack: $activePack" -ForegroundColor Cyan
     Write-Host "  Volume: 0.5" -ForegroundColor Cyan
     Write-Host ""
@@ -1313,6 +1329,12 @@ if ($Updating) {
     Write-Host ""
     Write-Host "  Start Claude Code and you'll hear: `"Ready to work?`"" -ForegroundColor Yellow
     Write-Host ""
+    # Recommend ffmpeg for MP3/OGG support if ffplay is not on PATH
+    if (-not (Get-Command ffplay -ErrorAction SilentlyContinue)) {
+        Write-Host "  Tip: For MP3/OGG sound support, install ffmpeg:" -ForegroundColor Yellow
+        Write-Host "    winget install ffmpeg" -ForegroundColor DarkGray
+        Write-Host ""
+    }
     Write-Host "  To install specific packs: .\install.ps1 -Packs peon,glados,peasant" -ForegroundColor DarkGray
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
     Write-Host "  To uninstall: powershell -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
