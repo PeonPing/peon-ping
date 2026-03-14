@@ -54,3 +54,25 @@
 - **Merge**: b818463 (merge commit into sprint/SMARTPACK)
 - **Review verdict**: APPROVAL (no backlog items)
 - **Close-out**: card 0vvvnb → done
+
+---
+
+## Phase 3: Step 3 — Path Rules CLI and Status Output (c8vcdx)
+
+- **Status**: Recovered from interrupted session
+- **Executor commit**: present on sprint branch (worktree merge lost, code intact)
+- **Review verdict**: APPROVAL (reviewer-1 completed, no blockers, no backlog)
+- **Close-out**: card c8vcdx → done (manual recovery)
+- **Note**: Executor work was on branch but commit hash 624e7e1 not in history — likely worktree cleanup without merge. All code changes verified present.
+
+---
+
+## Phase 4: Step 4A/4B — Documentation + Refactor (janrlf, z0c9fd)
+
+### Updated Execution Plan
+| Batch | Step | Card ID | Title |
+|-------|------|---------|-------|
+| 4 | 4A | janrlf | Smart pack selection documentation |
+| 4 | 4B | z0c9fd | Extract Get-ActivePack helper (P2 refactor) |
+
+Cards are independent (docs vs install.ps1 refactor). Dispatching in parallel.
