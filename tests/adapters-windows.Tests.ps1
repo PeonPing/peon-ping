@@ -402,7 +402,7 @@ Describe "Category C: OpenCode Installer" {
 
     It "creates default config.json" {
         $script:opencodeContent | Should -Match 'config\.json'
-        $script:opencodeContent | Should -Match 'default_pack'
+        $script:opencodeContent | Should -Match 'active_pack'
     }
 
     It "installs default pack from registry" {
@@ -434,7 +434,7 @@ Describe "Category C: Kilo Installer" {
 
     It "creates default config.json" {
         $script:kiloContent | Should -Match 'config\.json'
-        $script:kiloContent | Should -Match 'default_pack'
+        $script:kiloContent | Should -Match 'active_pack'
     }
 
     It "installs default pack from registry" {
@@ -539,47 +539,26 @@ Describe "win-play.ps1 Audio Backend" {
         $script:winPlayContent | Should -Match 'PlaySync'
     }
 
-    It "contains zero references to MediaPlayer or PresentationCore" {
-        $script:winPlayContent | Should -Not -Match 'System\.Windows\.Media\.MediaPlayer'
-        $script:winPlayContent | Should -Not -Match 'PresentationCore'
+    It "uses MediaPlayer for non-WAV files" {
+        $script:winPlayContent | Should -Match 'System\.Windows\.Media\.MediaPlayer'
+        $script:winPlayContent | Should -Match '\.Play\(\)'
     }
 
-    It "uses ffplay as first CLI player choice" {
-        $script:winPlayContent | Should -Match 'ffplay'
-        $script:winPlayContent | Should -Match '-nodisp'
-        $script:winPlayContent | Should -Match '-autoexit'
-    }
-
-    It "uses mpv as second CLI player choice" {
-        $script:winPlayContent | Should -Match 'mpv'
-        $script:winPlayContent | Should -Match '--no-video'
-    }
-
-    It "uses vlc as third CLI player choice" {
-        $script:winPlayContent | Should -Match 'vlc'
-        $script:winPlayContent | Should -Match '--play-and-exit'
-    }
-
-    It "normalizes volume for ffplay (0-100 scale)" {
-        $script:winPlayContent | Should -Match '\$vol \* 100'
-    }
-
-    It "normalizes volume for mpv (0-100 scale)" {
-        $script:winPlayContent | Should -Match 'volume=\$mpvVol'
-    }
-
-    It "normalizes volume for vlc (0.0-2.0 gain multiplier)" {
-        $script:winPlayContent | Should -Match '\$vol \* 2\.0'
-        $script:winPlayContent | Should -Match '--gain'
-    }
-
-    It "exits silently (exit 0) if no CLI player found" {
-        # The last line before the end should be exit 0
-        $script:winPlayContent | Should -Match 'exit 0'
+    It "sets volume on MediaPlayer" {
+        $script:winPlayContent | Should -Match '\$player\.Volume = \$vol'
     }
 
     It "disposes SoundPlayer after playback" {
         $script:winPlayContent | Should -Match '\$sp\.Dispose\(\)'
+    }
+
+    It "closes MediaPlayer after playback" {
+        $script:winPlayContent | Should -Match '\$player\.Close\(\)'
+    }
+
+    It "waits for duration before closing (no premature exit)" {
+        $script:winPlayContent | Should -Match 'NaturalDuration'
+        $script:winPlayContent | Should -Match 'remaining'
     }
 }
 
@@ -627,8 +606,8 @@ Describe "hook-handle-use.ps1" {
         $script:hhuContent | Should -Match 'Test-Path \$packPath'
     }
 
-    It "sets pack_rotation_mode to session_override" {
-        $script:hhuContent | Should -Match 'pack_rotation_mode.*session_override'
+    It "sets pack_rotation_mode to agentskill" {
+        $script:hhuContent | Should -Match 'pack_rotation_mode.*agentskill'
     }
 
     It "writes session_packs with timestamp to .state.json" {
@@ -845,12 +824,15 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'sessionId'
     }
 
-    It "defaults to default_pack with active_pack fallback when no session assignment" {
-        $script:peonHookContent | Should -Match 'default_pack.*active_pack'
+    It "uses Get-ActivePack helper for pack resolution" {
+        $script:peonHookContent | Should -Match 'function Get-ActivePack'
+        $script:peonHookContent | Should -Match '\$activePack = Get-ActivePack \$config'
     }
 
-    It "falls back to peon when no default_pack configured" {
-        $script:peonHookContent | Should -Match '\$activePack.*"peon"'
+    It "Get-ActivePack falls back through default_pack, active_pack, then peon" {
+        $script:peonHookContent | Should -Match 'default_pack'
+        $script:peonHookContent | Should -Match 'active_pack'
+        $script:peonHookContent | Should -Match '"peon"'
     }
 
     # --- Volume (mirrors BATS: volume from config is passed to playback) ---
@@ -863,27 +845,15 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match '\$volume.*0\.5'
     }
 
-    # --- Self-Timeout Safety Net ---
+    # --- Audio Playback (mirrors BATS: platform-specific audio) ---
 
-    It "registers an 8-second self-timeout timer before any I/O" {
-        $script:peonHookContent | Should -Match 'System\.Timers\.Timer'
-        $script:peonHookContent | Should -Match '8000'
-        $script:peonHookContent | Should -Match '\[Environment\]::Exit\(1\)'
+    It "uses SoundPlayer for WAV files inline" {
+        $script:peonHookContent | Should -Match 'System\.Media\.SoundPlayer'
+        $script:peonHookContent | Should -Match '\.wav\$'
     }
 
-    # --- Audio Delegation (detached process via win-play.ps1) ---
-
-    It "contains zero references to MediaPlayer, PresentationCore, SoundPlayer, or System.Windows.Forms" {
-        $script:peonHookContent | Should -Not -Match 'MediaPlayer'
-        $script:peonHookContent | Should -Not -Match 'PresentationCore'
-        $script:peonHookContent | Should -Not -Match 'SoundPlayer'
-        $script:peonHookContent | Should -Not -Match 'System\.Windows\.Forms'
-    }
-
-    It "delegates audio to win-play.ps1 via Start-Process with -WindowStyle Hidden" {
-        $script:peonHookContent | Should -Match 'Start-Process'
-        $script:peonHookContent | Should -Match 'win-play\.ps1'
-        $script:peonHookContent | Should -Match 'WindowStyle Hidden'
+    It "uses MediaPlayer for non-WAV files inline" {
+        $script:peonHookContent | Should -Match 'System\.Windows\.Media\.MediaPlayer'
     }
 
     # --- CLI Commands (mirrors BATS: peon --toggle/--pause/--resume/--status) ---
@@ -928,7 +898,7 @@ Describe "Embedded peon.ps1 Hook Script" {
 
     It "reads and writes .state.json" {
         $script:peonHookContent | Should -Match '\.state\.json'
-        $script:peonHookContent | Should -Match 'Write-StateAtomic'
+        $script:peonHookContent | Should -Match 'ConvertTo-Json.*Set-Content \$StatePath'
     }
 
     It "reads stdin JSON via StreamReader (UTF-8 BOM-safe)" {
@@ -1026,10 +996,5 @@ Describe "install.ps1 Default Config" {
 
     It "blocks path traversal in source ref and path" {
         $script:installContent | Should -Match '\.\.'
-    }
-
-    It "prints ffmpeg recommendation if ffplay not found" {
-        $script:installContent | Should -Match 'ffplay'
-        $script:installContent | Should -Match 'winget install ffmpeg'
     }
 }
