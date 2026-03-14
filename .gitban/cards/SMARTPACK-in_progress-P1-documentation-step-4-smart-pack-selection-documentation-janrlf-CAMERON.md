@@ -100,3 +100,9 @@ Pre-existing state verified:
 - `default_pack` rename from `active_pack` was already done in both READMEs and llms.txt
 - `session_override` rename from `agentskill` was already done in both READMEs
 - `path_rules` inline config docs were already present; new standalone section adds CLI usage and hierarchy context
+
+## Review Log
+
+| Review 1 | **APPROVAL** | Commit `0a67a57` | `.gitban/agents/reviewer/inbox/SMARTPACK-janrlf-reviewer-1.md` |
+| | 2 BACKLOG items routed to planner | | `.gitban/agents/planner/inbox/SMARTPACK-janrlf-planner-1.md` |
+| | Executor close-out instructions written | | `.gitban/agents/executor/inbox/SMARTPACK-janrlf-executor-1.md` |
