@@ -803,7 +803,7 @@ if (-not $volume) { $volume = 0.5 }
 
 $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
 if (Test-Path $winPlayScript) {
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden | Out-Null
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
 }
 
 exit 0
