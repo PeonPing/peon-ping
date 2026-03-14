@@ -539,26 +539,47 @@ Describe "win-play.ps1 Audio Backend" {
         $script:winPlayContent | Should -Match 'PlaySync'
     }
 
-    It "uses MediaPlayer for non-WAV files" {
-        $script:winPlayContent | Should -Match 'System\.Windows\.Media\.MediaPlayer'
-        $script:winPlayContent | Should -Match '\.Play\(\)'
+    It "contains zero references to MediaPlayer or PresentationCore" {
+        $script:winPlayContent | Should -Not -Match 'System\.Windows\.Media\.MediaPlayer'
+        $script:winPlayContent | Should -Not -Match 'PresentationCore'
     }
 
-    It "sets volume on MediaPlayer" {
-        $script:winPlayContent | Should -Match '\$player\.Volume = \$vol'
+    It "uses ffplay as first CLI player choice" {
+        $script:winPlayContent | Should -Match 'ffplay'
+        $script:winPlayContent | Should -Match '-nodisp'
+        $script:winPlayContent | Should -Match '-autoexit'
+    }
+
+    It "uses mpv as second CLI player choice" {
+        $script:winPlayContent | Should -Match 'mpv'
+        $script:winPlayContent | Should -Match '--no-video'
+    }
+
+    It "uses vlc as third CLI player choice" {
+        $script:winPlayContent | Should -Match 'vlc'
+        $script:winPlayContent | Should -Match '--play-and-exit'
+    }
+
+    It "normalizes volume for ffplay (0-100 scale)" {
+        $script:winPlayContent | Should -Match '\$vol \* 100'
+    }
+
+    It "normalizes volume for mpv (0-100 scale)" {
+        $script:winPlayContent | Should -Match 'volume=\$mpvVol'
+    }
+
+    It "normalizes volume for vlc (0.0-2.0 gain multiplier)" {
+        $script:winPlayContent | Should -Match '\$vol \* 2\.0'
+        $script:winPlayContent | Should -Match '--gain'
+    }
+
+    It "exits silently (exit 0) if no CLI player found" {
+        # The last line before the end should be exit 0
+        $script:winPlayContent | Should -Match 'exit 0'
     }
 
     It "disposes SoundPlayer after playback" {
         $script:winPlayContent | Should -Match '\$sp\.Dispose\(\)'
-    }
-
-    It "closes MediaPlayer after playback" {
-        $script:winPlayContent | Should -Match '\$player\.Close\(\)'
-    }
-
-    It "waits for duration before closing (no premature exit)" {
-        $script:winPlayContent | Should -Match 'NaturalDuration'
-        $script:winPlayContent | Should -Match 'remaining'
     }
 }
 
@@ -842,15 +863,27 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match '\$volume.*0\.5'
     }
 
-    # --- Audio Playback (mirrors BATS: platform-specific audio) ---
+    # --- Self-Timeout Safety Net ---
 
-    It "uses SoundPlayer for WAV files inline" {
-        $script:peonHookContent | Should -Match 'System\.Media\.SoundPlayer'
-        $script:peonHookContent | Should -Match '\.wav\$'
+    It "registers an 8-second self-timeout timer before any I/O" {
+        $script:peonHookContent | Should -Match 'System\.Timers\.Timer'
+        $script:peonHookContent | Should -Match '8000'
+        $script:peonHookContent | Should -Match '\[Environment\]::Exit\(1\)'
     }
 
-    It "uses MediaPlayer for non-WAV files inline" {
-        $script:peonHookContent | Should -Match 'System\.Windows\.Media\.MediaPlayer'
+    # --- Audio Delegation (detached process via win-play.ps1) ---
+
+    It "contains zero references to MediaPlayer, PresentationCore, SoundPlayer, or System.Windows.Forms" {
+        $script:peonHookContent | Should -Not -Match 'MediaPlayer'
+        $script:peonHookContent | Should -Not -Match 'PresentationCore'
+        $script:peonHookContent | Should -Not -Match 'SoundPlayer'
+        $script:peonHookContent | Should -Not -Match 'System\.Windows\.Forms'
+    }
+
+    It "delegates audio to win-play.ps1 via Start-Process with -WindowStyle Hidden" {
+        $script:peonHookContent | Should -Match 'Start-Process'
+        $script:peonHookContent | Should -Match 'win-play\.ps1'
+        $script:peonHookContent | Should -Match 'WindowStyle Hidden'
     }
 
     # --- CLI Commands (mirrors BATS: peon --toggle/--pause/--resume/--status) ---
@@ -993,5 +1026,10 @@ Describe "install.ps1 Default Config" {
 
     It "blocks path traversal in source ref and path" {
         $script:installContent | Should -Match '\.\.'
+    }
+
+    It "prints ffmpeg recommendation if ffplay not found" {
+        $script:installContent | Should -Match 'ffplay'
+        $script:installContent | Should -Match 'winget install ffmpeg'
     }
 }

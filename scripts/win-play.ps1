@@ -5,41 +5,56 @@ param(
     [double]$vol
 )
 
-# WAV files: use SoundPlayer directly, which works correctly in hidden/detached
-# processes. MediaPlayer (WPF) silently fails without a message pump — it reports
-# HasAudio: False and never plays, so we bypass it entirely for .wav files.
-# See: https://github.com/PeonPing/peon-ping/issues/252
+# WAV files: use SoundPlayer (works correctly in hidden/detached processes)
 if ($path -match "\.wav$") {
     try {
-        Add-Type -AssemblyName System.Windows.Forms
         $sp = New-Object System.Media.SoundPlayer $path
         $sp.PlaySync()
         $sp.Dispose()
     } catch {}
-    return
+    exit 0
 }
 
-# Non-WAV formats (mp3, ogg, etc.): use WPF MediaPlayer
-try {
-    Add-Type -AssemblyName PresentationCore
-    $player = New-Object System.Windows.Media.MediaPlayer
-    $player.Open([Uri]::new("file:///$($path -replace '\\','/')"))
-    $player.Volume = $vol
-    Start-Sleep -Milliseconds 150
-    $player.Play()
-    $timeout = 50
-    while ($timeout -gt 0 -and $player.Position.TotalMilliseconds -eq 0) {
-        Start-Sleep -Milliseconds 100
-        $timeout--
-    }
-    if ($player.NaturalDuration.HasTimeSpan) {
-        $remaining = $player.NaturalDuration.TimeSpan.TotalMilliseconds - $player.Position.TotalMilliseconds
-        if ($remaining -gt 0 -and $remaining -lt 5000) {
-            Start-Sleep -Milliseconds ([int]$remaining + 100)
-        }
-    } else {
-        Start-Sleep -Seconds 2
-    }
-    $player.Close()
-} catch {}
+# Non-WAV formats (mp3, ogg, etc.): CLI player priority chain
+# ffplay -> mpv -> vlc (no MediaPlayer — it deadlocks in headless PowerShell)
 
+# ffplay: volume 0-100 integer scale
+$ffplay = Get-Command ffplay -ErrorAction SilentlyContinue
+if ($ffplay) {
+    $ffVol = [math]::Max(0, [math]::Min(100, [int]($vol * 100)))
+    & $ffplay.Source -nodisp -autoexit -volume $ffVol $path 2>$null
+    exit 0
+}
+
+# mpv: volume 0-100 integer scale
+$mpv = Get-Command mpv -ErrorAction SilentlyContinue
+if ($mpv) {
+    $mpvVol = [math]::Max(0, [math]::Min(100, [int]($vol * 100)))
+    & $mpv.Source --no-video --volume=$mpvVol $path 2>$null
+    exit 0
+}
+
+# vlc: volume 0.0-2.0 gain multiplier (1.0 = 100%)
+$vlc = Get-Command vlc -ErrorAction SilentlyContinue
+if (-not $vlc) {
+    # Check common install locations
+    $vlcPaths = @(
+        "$env:ProgramFiles\VideoLAN\VLC\vlc.exe",
+        "${env:ProgramFiles(x86)}\VideoLAN\VLC\vlc.exe"
+    )
+    foreach ($p in $vlcPaths) {
+        if (Test-Path $p) {
+            $vlc = Get-Item $p
+            break
+        }
+    }
+}
+if ($vlc) {
+    $vlcGain = [math]::Round($vol * 2.0, 2).ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    $vlcPath = if ($vlc -is [System.Management.Automation.ApplicationInfo]) { $vlc.Source } else { $vlc.FullName }
+    & $vlcPath --intf dummy --play-and-exit --gain $vlcGain $path 2>$null
+    exit 0
+}
+
+# No CLI player found — exit silently
+exit 0
