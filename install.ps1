@@ -320,6 +320,17 @@ param(
     [string]$Arg2 = ""
 )
 
+# 8-second self-timeout safety net — kills this process if anything blocks unexpectedly.
+# Uses System.Timers.Timer (not Forms.Timer) so it works in headless PowerShell without a message pump.
+# Must fire before ANY I/O (config read, state read, stdin read).
+if (-not $Command) {
+    $safetyTimer = New-Object System.Timers.Timer
+    $safetyTimer.Interval = 8000
+    $safetyTimer.AutoReset = $false
+    Register-ObjectEvent -InputObject $safetyTimer -EventName Elapsed -Action { [Environment]::Exit(1) } | Out-Null
+    $safetyTimer.Start()
+}
+
 # Raw config read; repair is done at install/update time, so hook only needs plain read.
 function Get-PeonConfigRaw {
     param([string]$Path)
@@ -786,41 +797,14 @@ try {
     $state | ConvertTo-Json -Depth 3 | Set-Content $StatePath -Encoding UTF8
 } catch {}
 
-# --- Play the sound inline ---
+# --- Delegate audio to win-play.ps1 in a detached process ---
 $volume = $config.volume
 if (-not $volume) { $volume = 0.5 }
 
-# Background jobs are terminated when this short-lived hook process exits.
-# Inline playback is deterministic and keeps behavior consistent.
-try {
-    if ($soundPath -match '\.wav$') {
-        Add-Type -AssemblyName System.Windows.Forms
-        $sp = New-Object System.Media.SoundPlayer $soundPath
-        $sp.PlaySync()
-        $sp.Dispose()
-    } else {
-        Add-Type -AssemblyName PresentationCore
-        $player = New-Object System.Windows.Media.MediaPlayer
-        $player.Open([Uri]::new("file:///$($soundPath -replace '\\','/')"))
-        $player.Volume = $volume
-        Start-Sleep -Milliseconds 150
-        $player.Play()
-        $timeout = 50
-        while ($timeout -gt 0 -and $player.Position.TotalMilliseconds -eq 0) {
-            Start-Sleep -Milliseconds 100
-            $timeout--
-        }
-        if ($player.NaturalDuration.HasTimeSpan) {
-            $remaining = $player.NaturalDuration.TimeSpan.TotalMilliseconds - $player.Position.TotalMilliseconds
-            if ($remaining -gt 0 -and $remaining -lt 5000) {
-                Start-Sleep -Milliseconds ([int]$remaining + 100)
-            }
-        } else {
-            Start-Sleep -Seconds 2
-        }
-        $player.Close()
-    }
-} catch {}
+$winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
+if (Test-Path $winPlayScript) {
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden | Out-Null
+}
 
 exit 0
 '@
@@ -1295,6 +1279,12 @@ if ($Updating) {
     Write-Host ""
     Write-Host "  Start Claude Code and you'll hear: `"Ready to work?`"" -ForegroundColor Yellow
     Write-Host ""
+    # Recommend ffmpeg for MP3/OGG support if ffplay is not on PATH
+    if (-not (Get-Command ffplay -ErrorAction SilentlyContinue)) {
+        Write-Host "  Tip: For MP3/OGG sound support, install ffmpeg:" -ForegroundColor Yellow
+        Write-Host "    winget install ffmpeg" -ForegroundColor DarkGray
+        Write-Host ""
+    }
     Write-Host "  To install specific packs: .\install.ps1 -Packs peon,glados,peasant" -ForegroundColor DarkGray
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
     Write-Host "  To uninstall: powershell -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
