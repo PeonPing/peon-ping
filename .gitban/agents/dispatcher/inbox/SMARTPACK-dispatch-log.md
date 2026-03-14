@@ -76,3 +76,46 @@
 | 4 | 4B | z0c9fd | Extract Get-ActivePack helper (P2 refactor) |
 
 Cards are independent (docs vs install.ps1 refactor). Dispatching in parallel.
+
+### Phase 4 Metrics
+
+| Agent | Tools | Duration |
+|:------|------:|---------:|
+| janrlf-executor-1 | 55 | 5m 38s |
+| z0c9fd-executor-1 | 73 | 8m 7s |
+| janrlf-reviewer-1 | 30 | 3m 7s |
+| z0c9fd-reviewer-1 | 21 | 2m 13s |
+| janrlf-router-1 | 18 | 1m 56s |
+| z0c9fd-router-1 | 19 | 1m 58s |
+| janrlf-closeout-1 | 6 | 0m 22s |
+| z0c9fd-closeout-1 | 5 | 0m 25s |
+| janrlf-planner-1 | 15 | 1m 19s |
+| z0c9fd-planner-1 | 13 | 1m 13s |
+| **Phase total** | **255** | **26m 18s** |
+
+- **Executor commits**: c998fa3 (janrlf), 6b155fc (z0c9fd)
+- **Merge**: janrlf clean, z0c9fd had conflicts (HOOKBUG regression) — resolved manually
+- **Review verdicts**: Both APPROVAL
+- **Close-out**: janrlf → done, z0c9fd → done
+- **Backlog created**: 26yooi (Write-StateAtomic upgrade), ji2847 (ffplay guidance), exg19y (atomic state edge cases)
+
+---
+
+## Phase 5: Sprint Close-out
+
+- Umbrella card 0xybwm: 27/27 checkboxes → done → archived
+- All done cards archived to sprint-smartpack-20260314
+- Sprint summary generated (enhanced mode)
+- Roadmap changelog updated: v2.16.0
+
+## Sprint Metrics
+
+| Metric | Value |
+|:-------|------:|
+| Cards completed | 5 (3 feature + 1 docs + 1 refactor) |
+| Total agent dispatches | 18 |
+| Total tool uses | 558 |
+| Total wall time | ~60m |
+| Rework cycles | 0 |
+| Merge conflicts | 1 (z0c9fd worktree vs HOOKBUG — resolved manually) |
+| Backlog cards created | 3 (26yooi, ji2847, exg19y) |

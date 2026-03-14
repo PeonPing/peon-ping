@@ -19,6 +19,17 @@ changelog:
       - 'M1: Smart Pack Selection — path_rules and config key renames'
       - 'M2: Rich Notifications — templates, click-to-focus, discoverability'
       - 'M3: Trainer Mode — Pavel-style daily exercise tracker'
+  - version: 2.16.0
+    date: '2026-03-14'
+    changes:
+      - 'Smart Pack Selection: path_rules glob matching for per-project pack assignment'
+      - 'CLI: peon packs bind/unbind/bindings commands for managing path rules'
+      - 'Config: renamed active_pack to default_pack, agentskill to session_override
+        (with migration)'
+      - 'Status: peon status shows active path rule when one matches cwd'
+      - 'Refactor: extracted Get-ActivePack helper to DRY pack resolution in install.ps1'
+      - 'Docs: pack selection hierarchy, per-project assignment docs in README and
+        README_zh'
 versions:
   v2:
     id: v2
