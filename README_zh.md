@@ -69,11 +69,11 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PeonPing/peon-ping/mai
 
 - `--all` — 安装所有可用语音包
 - `--packs=peon,sc_kerrigan,...` — 仅安装指定语音包
-- `--local` — 将语音包和配置安装到当前项目的 `./.claude/` 目录（钩子始终全局注册到 `~/.claude/settings.json`）
+- `--local` — 将语音包、配置和钩子安装到当前项目的 `./.claude/` 目录
 - `--global` — 显式全局安装（与默认相同）
 - `--init-local-config` — 仅创建 `./.claude/hooks/peon-ping/config.json`
 
-`--local` 不会修改你的 shell rc 文件（不注入全局 `peon` 别名/补全）。钩子始终写入全局 `~/.claude/settings.json` 并使用绝对路径，因此在任何项目目录下都能工作。
+`--local` 不会修改你的 shell rc 文件（不注入全局 `peon` 别名/补全）。钩子注册到项目级 `./.claude/settings.json` 并使用绝对路径，因此在项目内的任何工作目录下都能工作。
 
 示例：
 

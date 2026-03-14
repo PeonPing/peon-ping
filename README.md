@@ -71,11 +71,11 @@ Useful installer flags:
 
 - `--all` — install all available packs
 - `--packs=peon,sc_kerrigan,...` — install specific packs only
-- `--local` — install packs and config into `./.claude/` for the current project (hooks are always registered globally in `~/.claude/settings.json`)
+- `--local` — install packs, config, and hooks into `./.claude/` for the current project
 - `--global` — explicit global install (same as default)
 - `--init-local-config` — create `./.claude/hooks/peon-ping/config.json` only
 
-`--local` does not modify your shell rc files (no global `peon` alias/completion injection). Hooks are always written to the global `~/.claude/settings.json` with absolute paths so they work from any project directory.
+`--local` does not modify your shell rc files (no global `peon` alias/completion injection). Hooks are registered in the project-level `./.claude/settings.json` with absolute paths so they work from any working directory within the project.
 
 Examples:
 

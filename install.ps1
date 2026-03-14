@@ -475,7 +475,7 @@ if ($Command) {
                 $vol = [math]::Round([math]::Max(0.0, [math]::Min(1.0, [double]::Parse($Arg1.Trim(), [System.Globalization.CultureInfo]::InvariantCulture))), 2)
                 $volStr = $vol.ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 $raw = Get-Content $ConfigPath -Raw
-                $raw = $raw -replace '"volume"\s*:\s*[\d.,]+', "`"volume`": $volStr"
+                $raw = $raw -replace '"volume"\s*:\s*[\d.]+,', "`"volume`": $volStr,"
                 Set-Content $ConfigPath -Value $raw -Encoding UTF8
                 Write-Host "peon-ping: volume set to $vol" -ForegroundColor Green
             } else {

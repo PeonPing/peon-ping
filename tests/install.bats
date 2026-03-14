@@ -204,14 +204,14 @@ print('OK')
   [ -f "$LOCAL_INSTALL_DIR/packs/peon/openpeon.json" ]
 }
 
-@test "--local registers hooks in global settings.json" {
+@test "--local registers hooks in project-level settings.json" {
   cd "$PROJECT_DIR"
   bash "$CLONE_DIR/install.sh" --local
-  # Hooks are always written to global settings (HOME/.claude/settings.json)
-  [ -f "$TEST_HOME/.claude/settings.json" ]
+  # Hooks should be written to the project-level settings (PROJECT_DIR/.claude/settings.json)
+  [ -f "$PROJECT_DIR/.claude/settings.json" ]
   /usr/bin/python3 -c "
 import json
-s = json.load(open('$TEST_HOME/.claude/settings.json'))
+s = json.load(open('$PROJECT_DIR/.claude/settings.json'))
 hooks = s.get('hooks', {})
 for event in ['SessionStart', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest']:
     assert event in hooks, f'{event} not in hooks'
@@ -241,17 +241,17 @@ print('OK')
   cd "$PROJECT_DIR"
   bash "$CLONE_DIR/install.sh" --local
   [ -f "$LOCAL_INSTALL_DIR/peon.sh" ]
-  # Hooks are in global settings
-  [ -f "$TEST_HOME/.claude/settings.json" ]
+  # Hooks are in project-level settings
+  [ -f "$PROJECT_DIR/.claude/settings.json" ]
   [ -d "$PROJECT_DIR/.claude/skills/peon-ping-toggle" ]
 
   # Run uninstall (non-interactive — no notify.sh restore prompt for local)
   bash "$LOCAL_INSTALL_DIR/uninstall.sh"
 
-  # Hook entries removed from global settings.json
+  # Hook entries removed from project-level settings.json
   /usr/bin/python3 -c "
 import json
-s = json.load(open('$TEST_HOME/.claude/settings.json'))
+s = json.load(open('$PROJECT_DIR/.claude/settings.json'))
 hooks = s.get('hooks', {})
 for event, entries in hooks.items():
     for entry in entries:
@@ -262,6 +262,25 @@ print('OK')
   # Install and skill directories removed
   [ ! -d "$LOCAL_INSTALL_DIR" ]
   [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-toggle" ]
+}
+
+@test "--local hook paths point to project directory not global" {
+  cd "$PROJECT_DIR"
+  bash "$CLONE_DIR/install.sh" --local
+  # Every peon.sh hook command should reference the project path, not ~/.claude
+  /usr/bin/python3 -c "
+import json
+s = json.load(open('$PROJECT_DIR/.claude/settings.json'))
+hooks = s.get('hooks', {})
+for event, entries in hooks.items():
+    for entry in entries:
+        for h in entry.get('hooks', []):
+            cmd = h.get('command', '')
+            if 'peon.sh' in cmd:
+                assert '$PROJECT_DIR' in cmd, f'Hook for {event} points outside project: {cmd}'
+                assert '$TEST_HOME/.claude' not in cmd, f'Hook for {event} points to global: {cmd}'
+print('OK')
+"
 }
 
 @test "--local fails without .claude directory" {

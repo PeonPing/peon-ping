@@ -929,13 +929,19 @@ OCSKILL
 fi
 
 # --- Update settings.json ---
-# Always write hooks to GLOBAL settings — hooks need absolute paths and
-# must work regardless of which project directory Claude Code runs in.
+# Use BASE_DIR so --local installs register hooks in the project-level
+# settings.json, while global installs use ~/.claude/settings.json.
+# All paths are absolute either way (BASE_DIR is already absolute).
 echo ""
 echo "Updating Claude Code hooks in settings.json..."
 
-HOOK_CMD="$GLOBAL_BASE/hooks/peon-ping/peon.sh"
-HOOK_SETTINGS="$GLOBAL_BASE/settings.json"
+if [ "$LOCAL_MODE" = true ]; then
+  HOOK_CMD="$BASE_DIR/hooks/peon-ping/peon.sh"
+  HOOK_SETTINGS="$BASE_DIR/settings.json"
+else
+  HOOK_CMD="$GLOBAL_BASE/hooks/peon-ping/peon.sh"
+  HOOK_SETTINGS="$GLOBAL_BASE/settings.json"
+fi
 
 python3 -c "
 import json, os, sys
@@ -1236,12 +1242,16 @@ print('  Hooks registered for: ' + ', '.join(events))
 "
 fi
 
-# --- Remove peon-ping hooks from project-level settings to prevent doubles ---
-# Since hooks are always written to global settings now, clean any stale
-# project-level hooks that may exist from older installs.
-OTHER_SETTINGS="$LOCAL_BASE/settings.json"
+# --- Remove peon-ping hooks from the OTHER settings scope to prevent doubles ---
+# Global installs clean stale project-level hooks; local installs clean stale
+# global hooks. Skip when both scopes resolve to the same file.
+if [ "$LOCAL_MODE" = true ]; then
+  OTHER_SETTINGS="$GLOBAL_BASE/settings.json"
+else
+  OTHER_SETTINGS="$LOCAL_BASE/settings.json"
+fi
 
-if [ -f "$OTHER_SETTINGS" ] && [ "$OTHER_SETTINGS" != "$HOOK_SETTINGS" ]; then
+if [ "$OTHER_SETTINGS" != "$HOOK_SETTINGS" ] && [ -f "$OTHER_SETTINGS" ]; then
   python3 -c "
 import json, os
 
