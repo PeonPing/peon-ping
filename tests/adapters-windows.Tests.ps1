@@ -928,7 +928,7 @@ Describe "Embedded peon.ps1 Hook Script" {
 
     It "reads and writes .state.json" {
         $script:peonHookContent | Should -Match '\.state\.json'
-        $script:peonHookContent | Should -Match 'ConvertTo-Json.*Set-Content \$StatePath'
+        $script:peonHookContent | Should -Match 'Write-StateAtomic'
     }
 
     It "reads stdin JSON via StreamReader (UTF-8 BOM-safe)" {
