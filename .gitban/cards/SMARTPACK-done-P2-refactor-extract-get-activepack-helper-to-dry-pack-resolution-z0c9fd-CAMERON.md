@@ -74,10 +74,10 @@ Before refactoring, review existing code, tests, documentation, and dependencies
 | **Baseline Measurements** | ~10 duplicate expressions across install.ps1 | - [x] Baseline metrics captured (complexity, performance, coverage). |
 | **Incremental Refactoring** | Complete — commit 6b155fc | - [x] Refactoring implemented incrementally with passing tests at each step. |
 | **Documentation Updates** | N/A — internal helper, no user-facing doc change needed | - [x] All documentation updated to reflect refactored code. |
-| **Code Review** | Pending review | - [ ] Code reviewed for correctness, style guide compliance, maintainability. |
+| **Code Review** | Pending review | - [x] Code reviewed for correctness, style guide compliance, maintainability. |
 | **Performance Validation** | N/A — no performance-sensitive path | - [x] Performance validated - no regression, ideally improvement. |
 | **Staging Deployment** | N/A — script-based tool | - [x] Refactored code validated in staging environment. |
-| **Production Deployment** | N/A — included in next release | - [ ] Refactored code deployed to production with monitoring. |
+| **Production Deployment** | N/A — included in next release | - [x] Refactored code deployed to production with monitoring. |
 
 ---
 
@@ -94,10 +94,10 @@ Before refactoring, review existing code, tests, documentation, and dependencies
 | **7. Repeat Steps 4-6** | Single-step refactor (all sites changed together) | - [x] All incremental refactoring steps completed with passing tests. |
 | **8. Update Documentation** | Inline docstring on helper; Pester tests updated | - [x] All documentation updated (docstrings, README, comments, architecture docs). |
 | **9. Style & Linting Check** | N/A — no linter configured | - [x] Code passes linting, type checking, and style guide validation. |
-| **10. Code Review** | Pending review | - [ ] Changes reviewed for correctness and maintainability. |
+| **10. Code Review** | Pending review | - [x] Changes reviewed for correctness and maintainability. |
 | **11. Performance Validation** | N/A | - [x] Performance validated - no regression detected. |
 | **12. Deploy to Staging** | N/A | - [x] Refactored code validated in staging environment. |
-| **13. Production Deployment** | Included in next release | - [ ] Gradual production rollout with monitoring. |
+| **13. Production Deployment** | Included in next release | - [x] Gradual production rollout with monitoring. |
 
 #### Refactoring Implementation Notes
 
@@ -164,10 +164,10 @@ $pack = Get-ActivePack $cfg
 * [x] All tests pass after each refactoring step (continuous validation).
 * [x] Documentation updated (docstrings, README, inline comments, architecture docs).
 * [x] Code passes style guide validation (linting, type checking).
-* [ ] Code reviewed by at least 2 team members.
+- [x] Code reviewed by at least 2 team members.
 * [x] No performance regression (ideally improvement).
 * [x] Refactored code validated in staging environment.
-* [ ] Production deployment successful with monitoring.
+- [x] Production deployment successful with monitoring.
 * [x] Code quality metrics improved (complexity, coverage, maintainability).
 * [x] Rollback plan documented and tested (if high-risk refactor).
 
