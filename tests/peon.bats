@@ -3641,6 +3641,24 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   [[ "$output" == *"No pack bindings configured"* ]]
 }
 
+@test "status shows active path rule when cwd matches" {
+  # Bind a pack with a glob that matches our cwd
+  bash "$PEON_SH" packs bind sc_kerrigan --pattern "*"
+  run bash "$PEON_SH" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"path rule: * -> sc_kerrigan"* ]]
+  [[ "$output" == *"path rules: 1 configured"* ]]
+}
+
+@test "status shows path rules count but no active rule when cwd does not match" {
+  # Bind a pack with a pattern that won't match
+  bash "$PEON_SH" packs bind peon --pattern "*/nonexistent-dir-xyz/*"
+  run bash "$PEON_SH" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"path rules: 1 configured"* ]]
+  [[ "$output" != *"path rule:"* ]]
+}
+
 @test "packs bind end-to-end: bound pack plays correct sounds" {
   # Bind sc_kerrigan to a path that matches our test CWD
   bash "$PEON_SH" packs bind sc_kerrigan --pattern "*/myproject*"
