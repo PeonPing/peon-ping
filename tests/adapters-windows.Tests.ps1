@@ -1032,4 +1032,12 @@ Describe "install.ps1 Default Config" {
         $script:installContent | Should -Match 'ffplay'
         $script:installContent | Should -Match 'winget install ffmpeg'
     }
+
+    It "recommends choco as preferred ffmpeg install method" {
+        $script:installContent | Should -Match 'choco install ffmpeg'
+    }
+
+    It "warns about winget ffplay PATH issue" {
+        $script:installContent | Should -Match 'may not add ffplay to PATH'
+    }
 }
