@@ -469,7 +469,7 @@ if ($Command) {
                             "--pattern" {
                                 if ($i + 1 -lt $ExtraArgs.Count) {
                                     $bindPattern = $ExtraArgs[$i + 1]
-                                    $i++
+                                    $i++  # Intentionally advance loop counter to skip the next arg (the pattern value)
                                 }
                             }
                             "--install" { $bindInstall = $true }

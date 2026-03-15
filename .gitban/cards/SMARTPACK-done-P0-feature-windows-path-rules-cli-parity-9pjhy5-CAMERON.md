@@ -85,7 +85,7 @@ The `peon packs bind/unbind/bindings` commands exist in `peon.sh` (bash + Python
 | **TDD Implementation** | install.ps1 CLI + matching | - [x] Implementation Complete |
 | **Integration Testing** | Manual test on Windows | - [x] Integration Tests Pass |
 | **Documentation** | README already covers CLI | - [x] Documentation Complete |
-| **Code Review** | PR review | - [ ] Code Review Approved |
+| **Code Review** | PR review | - [x] Code Review Approved |
 
 ## TDD Implementation Workflow
 
@@ -153,9 +153,9 @@ Port these 12 BATS tests from `tests/peon.bats` lines 3549-3679 to Pester:
 
 - [x] All acceptance criteria are met and verified.
 - [x] All tests are passing (unit, integration, e2e, performance).
-- [ ] Code review is approved and PR is merged.
+- [x] Code review is approved and PR is merged.
 - [x] Documentation is updated (README, API docs, user guides).
-- [ ] Follow-up actions are documented and tickets created.
+- [x] Follow-up actions are documented and tickets created.
 
 
 ## BLOCKED
