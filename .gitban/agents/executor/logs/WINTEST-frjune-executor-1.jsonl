@@ -1,0 +1,6 @@
+{"type":"init","role":"executor","sprint":"WINTEST","card":"frjune","cycle":1,"timestamp":"2026-03-15T22:49:35Z"}
+{"type":"event","label":"read-card","meta":{"card_id":"frjune"},"timestamp":"2026-03-15T22:49:35Z"}
+{"type":"event","label":"cherry-pick-harness","meta":{"commit":"a707f9f"},"timestamp":"2026-03-15T22:49:35Z"}
+{"type":"event","label":"code-change","meta":{"files":["tests/peon-packs.Tests.ps1"]},"timestamp":"2026-03-15T22:49:35Z"}
+{"type":"event","label":"test-run","meta":{"file":"tests/peon-packs.Tests.ps1","passed":15,"failed":0,"duration_s":71},"timestamp":"2026-03-15T22:49:35Z"}
+{"type":"event","label":"test-run","meta":{"file":"tests/peon-engine.Tests.ps1","passed":25,"failed":0,"duration_s":25},"timestamp":"2026-03-15T22:49:35Z"}
