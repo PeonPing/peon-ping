@@ -148,7 +148,7 @@ Describe "hook-handle-use.ps1: Input Validation" {
         $r.ExitCode | Should -Be 0
 
         $config = Get-Content $script:testEnv.Config -Raw | ConvertFrom-Json
-        $config.pack_rotation_mode | Should -Be "agentskill"
+        $config.pack_rotation_mode | Should -Be "session_override"
 
         $state = Get-Content $script:testEnv.State -Raw | ConvertFrom-Json
         $state.session_packs.default.pack | Should -Be "peon"
@@ -223,11 +223,11 @@ Describe "hook-handle-use.ps1: State Mutations" {
         script:Remove-PeonTestEnv -Env $script:testEnv
     }
 
-    # Scenario 7: Sets pack_rotation_mode to agentskill in config
-    It "Scenario 7: Sets pack_rotation_mode to agentskill in config" {
+    # Scenario 7: Sets pack_rotation_mode to session_override in config
+    It "Scenario 7: Sets pack_rotation_mode to session_override in config" {
         script:Invoke-HookCli -PackName "peon" -ConfigDir $script:testEnv.Claude | Out-Null
         $config = Get-Content $script:testEnv.Config -Raw | ConvertFrom-Json
-        $config.pack_rotation_mode | Should -Be "agentskill"
+        $config.pack_rotation_mode | Should -Be "session_override"
     }
 
     # Scenario 8: Adds pack to pack_rotation array if not present
