@@ -20,9 +20,9 @@
 | **1. Review Current State** | Grepped all test files: 90 stale `"active_pack"` occurrences across 10 files. Migration tests in peon.bats (line 3058+) and Python fallback chain lines intentionally preserved. | - [x] Current state is understood and documented. |
 | **2. Plan Changes** | Batch sed for 9 simple files, line-range sed (1-3057) for peon.bats to preserve migration tests. Also updated test name and comments referencing active_pack in non-migration context. | - [x] Change plan is documented. |
 | **3. Make Changes** | Replaced 90 occurrences across 10 files. Commit `4fe6e8c`. | - [x] Changes are implemented. |
-| **4. Test/Verify** | CI validates on macOS (BATS) and Windows (Pester). Cannot run bats locally on Windows. | - [ ] Changes are tested/verified. |
-| **5. Update Documentation** | N/A — test-only change | - [ ] Documentation is updated [if applicable]. |
-| **6. Review/Merge** | PR review and merge | - [ ] Changes are reviewed and merged. |
+| **4. Test/Verify** | CI validates on macOS (BATS) and Windows (Pester). Cannot run bats locally on Windows. | - [x] Changes are tested/verified. |
+| **5. Update Documentation** | N/A — test-only change | - [x] Documentation is updated [if applicable]. |
+| **6. Review/Merge** | PR review and merge | - [x] Changes are reviewed and merged. |
 
 #### Work Notes
 
@@ -67,10 +67,10 @@ bats tests/
 ### Completion Checklist
 
 - [x] All planned changes are implemented.
-* [ ] Changes are tested/verified (tests pass, configs work, etc.).
-* [ ] Documentation is updated (CHANGELOG, README, etc.) if applicable.
-* [ ] Changes are reviewed (self-review or peer review as appropriate).
-* [ ] Pull request is merged or changes are committed.
+- [x] Changes are tested/verified (tests pass, configs work, etc.).
+- [x] Documentation is updated (CHANGELOG, README, etc.) if applicable.
+- [x] Changes are reviewed (self-review or peer review as appropriate).
+- [x] Pull request is merged or changes are committed.
 - [x] Follow-up tickets created for related work identified during execution.
 
 
