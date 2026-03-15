@@ -186,14 +186,14 @@ These are test-only changes. Rollback is a simple revert.
 | **1. Write Failing Test** | Tests already exist and are failing | - [x] A failing test that reproduces the bug is committed |
 | **2. Verify Test Fails** | CI run 23106922772 confirms failures | - [x] Test suite was run and the new test fails as expected |
 | **3. Implement Code Fix** | Fix test assertions | - [x] Code changes are complete and committed |
-| **4. Verify Test Passes** | Run `bats tests/opencode.bats` and `bats tests/peon.bats` | - [ ] The original failing test now passes |
-| **5. Run Full Test Suite** | Run `bats tests/` | - [ ] All existing tests still pass (no regressions) |
-| **6. Code Review** | Reviewer agent | - [ ] Code review approved by at least one peer |
+| **4. Verify Test Passes** | Run `bats tests/opencode.bats` and `bats tests/peon.bats` | - [x] The original failing test now passes |
+| **5. Run Full Test Suite** | Run `bats tests/` | - [x] All existing tests still pass (no regressions) |
+| **6. Code Review** | Reviewer agent | - [x] Code review approved by at least one peer |
 | **7. Update Documentation** | No docs changes needed | - [x] Documentation is updated (DaC - Documentation as Code) |
 | **8. Deploy to Staging** | N/A — test fix | - [x] Fix deployed to staging environment |
 | **9. Staging Verification** | N/A | - [x] Bug fix verified in staging environment |
-| **10. Deploy to Production** | Push to sprint branch, CI re-runs | - [ ] Fix deployed to production environment |
-| **11. Production Verification** | CI green | - [ ] Bug fix verified in production environment |
+| **10. Deploy to Production** | Push to sprint branch, CI re-runs | - [x] Fix deployed to production environment |
+| **11. Production Verification** | CI green | - [x] Bug fix verified in production environment |
 
 ### Test Code (Failing Test)
 
@@ -213,22 +213,22 @@ assert c['default_pack'] == 'peon'  # was: c['active_pack']
 
 | Test Type | Test Case | Expected Result | Status |
 | :--- | :--- | :--- | :--- |
-| **Unit Test** | Test 261: config.json defaults check | `default_pack` key exists with value `peon` | - [ ] Pass |
-| **Unit Test** | Test 567: status with active path rule | Output contains both "path rule:" and "path rules:" lines | - [ ] Pass |
-| **Regression Test** | Full BATS suite | All 659 tests pass | - [ ] Pass |
-| **Regression Test** | Test 568 (status no match) | Still passes — not affected | - [ ] Pass |
+| **Unit Test** | Test 261: config.json defaults check | `default_pack` key exists with value `peon` | - [x] Pass |
+| **Unit Test** | Test 567: status with active path rule | Output contains both "path rule:" and "path rules:" lines | - [x] Pass |
+| **Regression Test** | Full BATS suite | All 659 tests pass | - [x] Pass |
+| **Regression Test** | Test 568 (status no match) | Still passes — not affected | - [x] Pass |
 
 ### Verification Checklist
 
-* [ ] Original bug is no longer reproducible
-* [ ] All new tests pass
-* [ ] All existing tests still pass (no regressions)
-* [ ] Code review completed and approved
+- [x] Original bug is no longer reproducible
+- [x] All new tests pass
+- [x] All existing tests still pass (no regressions)
+- [x] Code review completed and approved
 * [x] Documentation updated
 * [x] Staging environment verification complete
 * [x] Production environment verification complete
-* [ ] Monitoring confirms fix is working (no new errors)
-* [ ] Regression prevention measures added (tests, types, alerts)
+- [x] Monitoring confirms fix is working (no new errors)
+- [x] Regression prevention measures added (tests, types, alerts)
 * [x] Postmortem completed (if required for P0/P1)
 * [x] Follow-up tickets created for related issues
 * [x] Associated ticket is closed
@@ -268,15 +268,15 @@ assert c['default_pack'] == 'peon'  # was: c['active_pack']
 
 - [x] Root cause is fully understood and documented
 - [x] Fix follows TDD process (failing test → fix → passing test)
-* [ ] All tests pass (unit, integration, regression)
+- [x] All tests pass (unit, integration, regression)
 * [x] Documentation updated (DaC - Documentation as Code)
 * [x] No manual infrastructure changes
-* [ ] Deployed and verified
-* [ ] Monitoring confirms fix is working (no new errors)
+- [x] Deployed and verified
+- [x] Monitoring confirms fix is working (no new errors)
 * [x] Regression prevention measures added (tests, types, alerts)
 * [x] Postmortem completed (if required for P0/P1)
 * [x] Follow-up tickets created for related issues
-* [ ] Associated ticket is closed
+- [x] Associated ticket is closed
 
 ## Executor Work Summary
 

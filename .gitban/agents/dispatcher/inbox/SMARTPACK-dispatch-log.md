@@ -156,3 +156,37 @@ Cards are independent (docs vs install.ps1 refactor). Dispatching in parallel.
 
 - Card 9pjhy5 archived to sprint-smartpack-20260315
 - Sprint branch pushed and PR created
+
+---
+
+## Batch 3: Card i0u93q (fix-ci-test-261-and-567-failures)
+
+**P0 bug fix.** Two BATS tests fail on CI after SMARTPACK rename (`active_pack` → `default_pack`) and path_rules status output. Blocks PR #365 merge.
+
+### Execution Plan
+| Batch | Step | Card ID | Title |
+|-------|------|---------|-------|
+| 1 | 1 | i0u93q | Fix CI test 261 and 567 failures |
+
+---
+
+### Phase 1: Step 1 — Fix CI Test 261 and 567 Failures (i0u93q)
+
+| Agent | Tools | Duration |
+|:------|------:|---------:|
+| executor-1 | 88 | 10m 42s |
+| reviewer-1 | 20 | 1m 56s |
+| router-1 | 15 | 1m 35s |
+| closeout-1 | 9 | 0m 40s |
+| planner-1 | 15 | 1m 31s |
+| **Phase total** | **147** | **16m 24s** |
+
+- **Executor commit**: 3878c19 (fix: resolve CI test 261 and 567 failures)
+- **Merge**: fast-forward to sprint/SMARTPACK (2557009)
+- **Review verdict**: APPROVAL (3 non-blocking items: L1 stale active_pack sweep, L2 local test skip, L3 python quoting audit)
+- **Close-out**: card i0u93q → done (19 checkboxes checked)
+- **Backlog created**: 3b0gx7 (sweep stale active_pack refs, P2), dsmh31 (audit python3 -c quoting, P2)
+
+### Batch 3 Close-out
+
+This is NOT the full sprint — only a single bug fix card dispatched. Committing .gitban/ changes and stopping. Sprint stays open for the existing PR.
