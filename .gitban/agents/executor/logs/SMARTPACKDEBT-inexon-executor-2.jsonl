@@ -1,0 +1,6 @@
+{"event":"init","role":"executor","sprint_tag":"SMARTPACKDEBT","card_id":"inexon","cycle":2,"ts":"2026-03-15T11:11:11Z"}
+{"event":"read-card","card_id":"inexon","ts":"2026-03-15T11:11:11Z"}
+{"event":"code-change","files":["install.ps1","tests/adapters-windows.Tests.ps1"],"blockers_fixed":["B1","B2","B3","B4","B5","B6"],"ts":"2026-03-15T11:11:11Z"}
+{"event":"test-run","file":"tests/adapters-windows.Tests.ps1","passed":241,"failed":0,"ts":"2026-03-15T11:11:11Z"}
+{"event":"commit","hash":"2599893","message":"feat(windows): add bind/unbind/bindings CLI and fix 6 review blockers","ts":"2026-03-15T11:11:11Z"}
+{"event":"summary","total_events":5,"ts":"2026-03-15T11:11:12Z"}
