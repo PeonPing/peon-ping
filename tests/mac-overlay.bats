@@ -9,7 +9,7 @@ setup() {
   # Enable desktop notifications in config
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "desktop_notifications": true,
@@ -200,7 +200,7 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
 @test "macOS standard notification uses terminal-notifier when available" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "desktop_notifications": true,
@@ -228,7 +228,7 @@ JSON
 @test "macOS standard notification falls back to osascript when terminal-notifier unavailable" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "desktop_notifications": true,
@@ -304,7 +304,7 @@ assert cfg['notification_style'] == 'standard', f'Expected standard, got {cfg[\"
 @test "peon notifications test sends standard notification" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "desktop_notifications": true,
@@ -322,7 +322,7 @@ JSON
 @test "peon notifications test errors when notifications are off" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "desktop_notifications": false,
@@ -340,7 +340,7 @@ JSON
 
 @test "peon status shows standard when configured" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard" }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard" }
 JSON
   output=$(bash "$PEON_SH" status 2>/dev/null)
   [[ "$output" == *"notification style standard"* ]]
@@ -356,7 +356,7 @@ terminal_notifier_log() {
 
 @test "standard: terminal-notifier used when available (no icon)" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
   TERM_PROGRAM= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -367,7 +367,7 @@ JSON
 
 @test "standard: terminal-notifier includes -activate for Ghostty" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
   TERM_PROGRAM=ghostty run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -378,7 +378,7 @@ JSON
 
 @test "standard: terminal-notifier includes -activate for Warp" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
   TERM_PROGRAM=WarpTerminal run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -389,7 +389,7 @@ JSON
 
 @test "standard: terminal-notifier includes -activate for Zed" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
   TERM_PROGRAM=zed run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -400,7 +400,7 @@ JSON
 
 @test "standard: terminal-notifier no -activate for unknown terminal" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
   TERM_PROGRAM=some_unknown_term run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -412,7 +412,7 @@ JSON
   mkdir -p "$TEST_DIR/docs"
   echo "fake-png" > "$TEST_DIR/docs/peon-icon.png"
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]

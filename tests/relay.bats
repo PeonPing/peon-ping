@@ -259,7 +259,7 @@ start_relay() {
 @test "relay uses peon-play when use_sound_effects_device is true" {
   install_peon_play_mock
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
 JSON
   start_relay
   run "$REAL_CURL" -sf "http://127.0.0.1:$RELAY_PORT/play?file=packs/peon/sounds/Hello1.wav" \
@@ -274,7 +274,7 @@ JSON
 @test "relay uses afplay when use_sound_effects_device is false" {
   install_peon_play_mock
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": false, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": false, "categories": {} }
 JSON
   start_relay
   run "$REAL_CURL" -sf "http://127.0.0.1:$RELAY_PORT/play?file=packs/peon/sounds/Hello1.wav" \
@@ -294,7 +294,7 @@ JSON
   _src_dir="$(cd "$(dirname "$PEON_SH")" && pwd)"
   cp "$_src_dir/scripts/mac-overlay.js" "$TEST_DIR/scripts/mac-overlay.js"
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "overlay", "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "overlay", "categories": {} }
 JSON
   start_relay
   run "$REAL_CURL" -sf -X POST "http://127.0.0.1:$RELAY_PORT/notify" \
@@ -310,7 +310,7 @@ JSON
 
 @test "relay /notify uses standard when notification_style=standard" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": {} }
 JSON
   start_relay
   run "$REAL_CURL" -sf -X POST "http://127.0.0.1:$RELAY_PORT/notify" \

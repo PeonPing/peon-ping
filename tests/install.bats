@@ -147,7 +147,7 @@ print('OK')
   bash "$CLONE_DIR/install.sh"
 
   # Modify config
-  echo '{"volume": 0.9, "active_pack": "peon"}' > "$INSTALL_DIR/config.json"
+  echo '{"volume": 0.9, "default_pack": "peon"}' > "$INSTALL_DIR/config.json"
 
   # Re-run (update)
   bash "$CLONE_DIR/install.sh"
@@ -162,7 +162,7 @@ print('OK')
   bash "$CLONE_DIR/install.sh"
 
   # Simulate an old config missing newer keys
-  echo '{"volume": 0.8, "active_pack": "peon", "enabled": true}' > "$INSTALL_DIR/config.json"
+  echo '{"volume": 0.8, "default_pack": "peon", "enabled": true}' > "$INSTALL_DIR/config.json"
 
   # Re-run (update)
   bash "$CLONE_DIR/install.sh"
