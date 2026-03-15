@@ -1677,7 +1677,8 @@ if not unbind_pattern:
     if matching:
         print(f'No binding for \"{target}\", but found rules matching this directory:', file=sys.stderr)
         for r in matching:
-            pat = r.get('pattern', ''); pk = r.get('pack', '')
+            pat = r.get('pattern', '')
+            pk = r.get('pack', '')
             print(f'  {pat} -> {pk}', file=sys.stderr)
         print(f'Use --pattern to remove a specific rule.', file=sys.stderr)
         sys.exit(1)
