@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           $config = New-PesterConfiguration
-          $config.Run.Path = "tests/adapters-windows.Tests.ps1"
+          $config.Run.Path = @("tests/adapters-windows.Tests.ps1", "tests/peon-engine.Tests.ps1", "tests/peon-adapters.Tests.ps1")
           $config.Output.Verbosity = "Detailed"
           $config.Run.Exit = $true
           Invoke-Pester -Configuration $config
