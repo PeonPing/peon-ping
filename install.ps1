@@ -1310,7 +1310,11 @@ if ($Updating) {
     # Recommend ffmpeg for MP3/OGG support if ffplay is not on PATH
     if (-not (Get-Command ffplay -ErrorAction SilentlyContinue)) {
         Write-Host "  Tip: For MP3/OGG sound support, install ffmpeg:" -ForegroundColor Yellow
-        Write-Host "    winget install ffmpeg" -ForegroundColor DarkGray
+        Write-Host "    choco install ffmpeg          (recommended — adds ffplay to PATH)" -ForegroundColor DarkGray
+        Write-Host "    winget install ffmpeg          (Gyan build — may not add ffplay to PATH)" -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host "  If ffplay is still not found after winget install, add the ffmpeg bin" -ForegroundColor DarkGray
+        Write-Host "  folder to your PATH manually (e.g. C:\ffmpeg\bin) or use choco instead." -ForegroundColor DarkGray
         Write-Host ""
     }
     Write-Host "  To install specific packs: .\install.ps1 -Packs peon,glados,peasant" -ForegroundColor DarkGray
