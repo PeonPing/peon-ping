@@ -416,7 +416,7 @@ Describe "Category C: OpenCode Installer" {
 
     It "creates default config.json" {
         $script:opencodeContent | Should -Match 'config\.json'
-        $script:opencodeContent | Should -Match 'active_pack'
+        $script:opencodeContent | Should -Match 'default_pack'
     }
 
     It "installs default pack from registry" {
@@ -448,7 +448,7 @@ Describe "Category C: Kilo Installer" {
 
     It "creates default config.json" {
         $script:kiloContent | Should -Match 'config\.json'
-        $script:kiloContent | Should -Match 'active_pack'
+        $script:kiloContent | Should -Match 'default_pack'
     }
 
     It "installs default pack from registry" {
@@ -641,8 +641,8 @@ Describe "hook-handle-use.ps1" {
         $script:hhuContent | Should -Match 'Test-Path \$packPath'
     }
 
-    It "sets pack_rotation_mode to agentskill" {
-        $script:hhuContent | Should -Match 'pack_rotation_mode.*agentskill'
+    It "sets pack_rotation_mode to session_override" {
+        $script:hhuContent | Should -Match 'pack_rotation_mode.*session_override'
     }
 
     It "writes session_packs with timestamp to .state.json" {
