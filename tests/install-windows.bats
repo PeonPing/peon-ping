@@ -45,7 +45,7 @@ ntype = event_data.get('notification_type', '')
 # Mock config
 config = {
     'enabled': True,
-    'active_pack': 'peon',
+    'default_pack': 'peon',
     'volume': 0.5,
     'categories': {
         'session.start': True,
@@ -231,7 +231,7 @@ sys.exit(proc.returncode)
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
   "enabled": false,
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "categories": {
     "session.start": true,
@@ -248,7 +248,7 @@ JSON
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
   "enabled": true,
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "categories": {
     "session.start": false,

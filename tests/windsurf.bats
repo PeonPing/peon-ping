@@ -106,7 +106,7 @@ run_windsurf() {
 
 @test "enabled=false suppresses Windsurf sounds" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "enabled": false, "active_pack": "peon", "volume": 0.5, "categories": {} }
+{ "enabled": false, "default_pack": "peon", "volume": 0.5, "categories": {} }
 JSON
   run_windsurf post_cascade_response
   [ "$WINDSURF_EXIT" -eq 0 ]
@@ -115,7 +115,7 @@ JSON
 
 @test "volume from config is passed through" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
   run_windsurf post_cascade_response
   afplay_was_called

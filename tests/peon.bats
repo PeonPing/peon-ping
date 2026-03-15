@@ -150,7 +150,7 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
   mkdir -p "$local_cfg_dir"
   cat > "$local_cfg_dir/config.json" <<'JSON'
 {
-  "active_pack": "sc_kerrigan",
+  "default_pack": "sc_kerrigan",
   "volume": 0.5,
   "enabled": true,
   "categories": {
@@ -192,7 +192,7 @@ JSON
 
 @test "enabled=false skips everything" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "enabled": false, "active_pack": "peon", "volume": 0.5, "categories": {} }
+{ "enabled": false, "default_pack": "peon", "volume": 0.5, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -202,7 +202,7 @@ JSON
 @test "category disabled skips sound but still exits 0" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": { "session.start": false }
 }
 JSON
@@ -345,7 +345,7 @@ JSON
 @test "annoyed disabled in config suppresses easter egg" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": { "user.spam": false },
   "annoyed_threshold": 3, "annoyed_window_seconds": 10
 }
@@ -362,7 +362,7 @@ JSON
 
 @test "silent_window suppresses sound for fast tasks" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
 JSON
   # Submit prompt (records start time)
   run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -374,7 +374,7 @@ JSON
 
 @test "silent_window allows sound for slow tasks" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
 JSON
   # Submit prompt
   run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -401,7 +401,7 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
 
 @test "silent_window suppresses without prior prompt (no crash)" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
 JSON
   # Stop without any prior UserPromptSubmit — should NOT crash, should play sound
   # (start_time defaults to 0, which is falsy, so silent stays False)
@@ -412,7 +412,7 @@ JSON
 
 @test "silent_window does not interfere with debounce" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
 JSON
   # Submit prompt and backdate to make it a "slow" task
   run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -437,7 +437,7 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
 
 @test "silent_window multi-session isolation" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "silent_window_seconds": 5 }
 JSON
   # Session A: prompt + fast Stop (silent)
   run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"sA","permission_mode":"default"}'
@@ -463,7 +463,7 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
 
 @test "suppress_subagent_complete: subagent Stop is suppressed" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
 JSON
   # Parent session gets a SubagentStart (records pending_subagent_pack)
   run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent1","permission_mode":"default"}'
@@ -480,7 +480,7 @@ JSON
 
 @test "suppress_subagent_complete: parent Stop still plays sound" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
 JSON
   # Subagent flow: parent → SubagentStart → sub SessionStart (suppressed)
   run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent2","permission_mode":"default"}'
@@ -511,7 +511,7 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
 
 @test "suppress_subagent_complete: subagent_sessions cleaned up on SessionEnd" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
 JSON
   run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent4","permission_mode":"default"}'
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"sub4","permission_mode":"default"}'
@@ -529,7 +529,7 @@ print('absent' if 'sub4' not in subs else 'present')
 
 @test "suppress_subagent_complete: subagent PermissionRequest is suppressed" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
 JSON
   # Parent session gets a SubagentStart (records pending_subagent_pack)
   run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent5","permission_mode":"default"}'
@@ -545,7 +545,7 @@ JSON
 
 @test "suppress_subagent_complete: parent PermissionRequest still plays sound" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
 JSON
   # Subagent flow: parent → SubagentStart → sub SessionStart
   run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent6","permission_mode":"default"}'
@@ -707,7 +707,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 
 @test "volume from config is passed to afplay" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
   afplay_was_called
@@ -722,7 +722,7 @@ JSON
 @test "peon-play is used when use_sound_effects_device is true" {
   install_peon_play_mock
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -733,7 +733,7 @@ JSON
 @test "afplay is used when use_sound_effects_device is false" {
   install_peon_play_mock
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": false, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": false, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -744,7 +744,7 @@ JSON
 @test "use_sound_effects_device defaults to true when not in config" {
   install_peon_play_mock
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -755,7 +755,7 @@ JSON
 @test "afplay is used when peon-play is not installed" {
   # Do NOT call install_peon_play_mock — peon-play binary absent
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "use_sound_effects_device": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -766,7 +766,7 @@ JSON
 @test "volume is passed to peon-play" {
   install_peon_play_mock
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.7, "enabled": true, "use_sound_effects_device": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.7, "enabled": true, "use_sound_effects_device": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
   peon_play_was_called
@@ -1176,7 +1176,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
 @test "packs remove <name> cleans pack_rotation in config" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation": ["peon", "sc_kerrigan"]
 }
@@ -1553,7 +1553,7 @@ JSON
 @test "pack_rotation picks a pack from the list" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation": ["sc_kerrigan"]
 }
@@ -1569,7 +1569,7 @@ JSON
 @test "pack_rotation keeps same pack within a session" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation": ["sc_kerrigan"]
 }
@@ -1588,7 +1588,7 @@ JSON
 @test "pack_rotation keeps same pack when session_packs entry is dict format" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation": ["sc_kerrigan"]
 }
@@ -1611,7 +1611,7 @@ PYTHON
 @test "SubagentStart fires no sound and saves pending_subagent_pack" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {"task.acknowledge": true},
   "pack_rotation": ["sc_kerrigan"]
 }
@@ -1634,7 +1634,7 @@ print(p.get('pack', ''))
 @test "child SessionStart inherits parent pack via pending_subagent_pack" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation": ["sc_kerrigan", "peon"]
 }
@@ -1656,10 +1656,10 @@ PYTHON
   [[ "$sound" == *"/packs/sc_kerrigan/sounds/"* ]]
 }
 
-@test "empty pack_rotation falls back to active_pack" {
+@test "empty pack_rotation falls back to default_pack" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation": []
 }
@@ -1674,7 +1674,7 @@ JSON
 @test "agentskill mode uses assigned pack" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation_mode": "agentskill"
 }
@@ -1700,7 +1700,7 @@ PYTHON
 @test "agentskill mode uses default pack when no assignment" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation_mode": "agentskill"
 }
@@ -1710,14 +1710,14 @@ JSON
   [ "$PEON_EXIT" -eq 0 ]
   afplay_was_called
   sound=$(afplay_sound)
-  # Should use peon (active_pack) since ask2 has no assignment
+  # Should use peon (default_pack) since ask2 has no assignment
   [[ "$sound" == *"/packs/peon/sounds/"* ]]
 }
 
 @test "agentskill mode falls back when assigned pack missing" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "pack_rotation_mode": "agentskill"
 }
@@ -1736,7 +1736,7 @@ PYTHON
   [ "$PEON_EXIT" -eq 0 ]
   afplay_was_called
   sound=$(afplay_sound)
-  # Should fallback to peon (active_pack)
+  # Should fallback to peon (default_pack)
   [[ "$sound" == *"/packs/peon/sounds/"* ]]
   
   # Verify ask3 was removed from session_packs
@@ -1753,7 +1753,7 @@ PYTHON
 @test "old sessions expire after TTL" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true,
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
   "categories": {},
   "session_ttl_days": 7
 }
@@ -1879,7 +1879,7 @@ PYTHON
     touch "$TEST_DIR/.disabled_${player}"
   done
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   linux_audio_was_called
@@ -1891,7 +1891,7 @@ JSON
   export PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play"
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   linux_audio_was_called
@@ -1904,7 +1904,7 @@ JSON
   export PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay"
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   linux_audio_was_called
@@ -1917,7 +1917,7 @@ JSON
   export PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay"
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   linux_audio_was_called
@@ -1930,7 +1930,7 @@ JSON
   export PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay" "$TEST_DIR/.disabled_mpv"
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   linux_audio_was_called
@@ -2020,7 +2020,7 @@ JSON
 @test "devcontainer volume passed in X-Volume header" {
   export PLATFORM=devcontainer
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.7, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.7, "enabled": true, "categories": {} }
 JSON
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2085,7 +2085,7 @@ JSON
   export PLATFORM=ssh
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "ssh_audio_mode": "local"
 }
 JSON
@@ -2101,7 +2101,7 @@ JSON
   rm -f "$TEST_DIR/.relay_available"
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "ssh_audio_mode": "auto"
 }
 JSON
@@ -2132,7 +2132,7 @@ JSON
   export PLATFORM=ssh
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "ssh_audio_mode": "local"
 }
 JSON
@@ -2187,7 +2187,7 @@ JSON
 @test "mobile ntfy sends push notification on Stop" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic", "server": "https://ntfy.sh" }
 }
 JSON
@@ -2202,7 +2202,7 @@ JSON
 @test "mobile ntfy sends push on PermissionRequest" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic", "server": "https://ntfy.sh" }
 }
 JSON
@@ -2216,7 +2216,7 @@ JSON
 @test "mobile disabled does not send push" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "mobile_notify": { "enabled": false, "service": "ntfy", "topic": "test-topic" }
 }
 JSON
@@ -2234,7 +2234,7 @@ JSON
 @test "mobile paused does not send push" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic" }
 }
 JSON
@@ -2247,7 +2247,7 @@ JSON
 @test "mobile does not send on SessionStart (no NOTIFY)" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic" }
 }
 JSON
@@ -2259,7 +2259,7 @@ JSON
 @test "mobile pushover sends notification" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "mobile_notify": { "enabled": true, "service": "pushover", "user_key": "ukey123", "app_token": "atoken456" }
 }
 JSON
@@ -2274,7 +2274,7 @@ JSON
 @test "mobile telegram sends notification" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
   "mobile_notify": { "enabled": true, "service": "telegram", "bot_token": "bot123", "chat_id": "456" }
 }
 JSON
@@ -2391,7 +2391,7 @@ setup_adapter_sync() {
   # Create a config with adapter-specific keys that should be preserved
   cat > "$XDG_CONFIG_HOME/opencode/peon-ping/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "categories": {
@@ -2654,7 +2654,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   # Override config to NOT include task.acknowledge in categories
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "categories": {
@@ -2676,7 +2676,7 @@ JSON
   # Override config to enable task.acknowledge
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
-  "active_pack": "peon",
+  "default_pack": "peon",
   "volume": 0.5,
   "enabled": true,
   "categories": {
