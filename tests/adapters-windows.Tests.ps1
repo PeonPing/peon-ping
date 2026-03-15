@@ -38,6 +38,20 @@ Describe "PowerShell Syntax Validation" {
     }
 }
 
+Describe "Core Script Syntax Validation" {
+    It "<name> has valid PowerShell syntax" -ForEach @(
+        @{ name = "install.ps1" },
+        @{ name = "scripts/win-play.ps1" }
+    ) {
+        $path = Join-Path $script:RepoRoot $name
+        $path | Should -Exist
+        $content = Get-Content $path -Raw
+        $errors = $null
+        $null = [System.Management.Automation.PSParser]::Tokenize($content, [ref]$errors)
+        $errors.Count | Should -Be 0 -Because "Parse errors: $($errors | ForEach-Object { "$($_.Token.StartLine):$($_.Message)" })"
+    }
+}
+
 # ============================================================
 # Security: no ExecutionPolicy Bypass
 # ============================================================
