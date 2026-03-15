@@ -190,3 +190,35 @@ Cards are independent (docs vs install.ps1 refactor). Dispatching in parallel.
 ### Batch 3 Close-out
 
 This is NOT the full sprint — only a single bug fix card dispatched. Committing .gitban/ changes and stopping. Sprint stays open for the existing PR.
+
+---
+
+## Batch 4: Card 3b0gx7 (sweep-stale-active-pack-references-in-test-fixtures)
+
+**P2 chore.** Replace all `"active_pack"` references with `"default_pack"` in test fixture configs across ~10 test files. Follow-up from i0u93q reviewer L1 item.
+
+### Execution Plan
+| Batch | Step | Card ID | Title |
+|-------|------|---------|-------|
+| 1 | 1 | 3b0gx7 | Sweep stale active_pack references in test fixtures |
+
+---
+
+### Phase 1: Step 1 — Sweep stale active_pack references (3b0gx7)
+
+| Agent | Tools | Duration |
+|:------|------:|---------:|
+| executor-1 | 37 | 3m 37s |
+| reviewer-1 | 42 | 3m 13s |
+| router-1 | 12 | 1m 3s |
+| closeout-1 | 8 | 0m 35s |
+| **Phase total** | **99** | **8m 28s** |
+
+- **Executor commit**: 4fe6e8c (90 replacements across 10 test files)
+- **Merge**: 6a8659c (merge commit into sprint/SMARTPACK)
+- **Review verdict**: APPROVAL (no blockers, no backlog)
+- **Close-out**: card 3b0gx7 → done (7 checkboxes checked)
+
+### Batch 4 Close-out
+
+This is NOT the full sprint — single chore card dispatched. Committing .gitban/ changes and stopping.
