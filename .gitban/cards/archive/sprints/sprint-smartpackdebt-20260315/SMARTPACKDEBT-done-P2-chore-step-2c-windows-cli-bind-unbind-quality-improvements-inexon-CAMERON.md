@@ -46,7 +46,7 @@ Track the execution of this chore task step by step. Add or remove steps as need
 | **3. Make Changes** | Cycle 2: Fixed all 6 blockers (B1-B6). Added Get-ActivePack helper, path_rules runtime engine, bind/unbind/bindings CLI, --status path_rules display, PS7+ Write-StateAtomic, .tmp cleanup, ffmpeg choco guidance, functional E2E tests. | - [x] Changes are implemented. |
 | **4. Test/Verify** | 241 Pester tests pass (37 new). Functional E2E tests extract embedded hook script and invoke via powershell.exe. | - [x] Changes are tested/verified. |
 | **5. Update Documentation** | `--help` text updated with bind/unbind/bindings usage. No README/CHANGELOG changes needed (internal refactor, no new CLI commands at top level). | - [x] Documentation is updated [if applicable]. |
-| **6. Review/Merge** | | - [ ] Changes are reviewed and merged. |
+| **6. Review/Merge** | | - [x] Changes are reviewed and merged. |
 
 #### Work Notes
 

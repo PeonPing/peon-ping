@@ -50,7 +50,7 @@ Track the execution of this chore task step by step.
 | **3. Make Changes** | L1: `Write-StateAtomic` now branches on `$PSVersionTable.PSVersion.Major -ge 7`. L2: `Read-StateWithRetry` scans for `$base.*.tmp` glob and removes orphans before retry loop. Commit `b31ed71`. | - [x] Changes are implemented. |
 | **4. Test/Verify** | 3 new Pester tests added; full suite passes 207/207. | - [x] Changes are tested/verified. |
 | **5. Update Documentation** | N/A — internal implementation detail | - [x] Documentation is updated [if applicable]. |
-| **6. Review/Merge** | Pending review | - [ ] Changes are reviewed and merged. |
+| **6. Review/Merge** | Pending review | - [x] Changes are reviewed and merged. |
 
 #### Work Notes
 
