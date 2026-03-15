@@ -1589,4 +1589,4 @@ if ($Updating) {
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
     Write-Host "  To uninstall: powershell -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
 }
-Write-Host ""```
+Write-Host ""
