@@ -134,3 +134,20 @@ Cards are independent (docs vs install.ps1 refactor). Dispatching in parallel.
 ---
 
 ### Phase 1: Step 1 — Windows Path Rules CLI Parity (9pjhy5)
+
+| Agent | Tools | Duration |
+|:------|------:|---------:|
+| executor-1 | 86 | 49m 9s |
+| reviewer-1 | 26 | 6m 32s |
+| router-1 | 23 | 5m 56s |
+| closeout-1 | 10 | 2m 30s |
+| planner-1 | 12 | 2m 50s |
+| **Phase total** | **157** | **66m 57s** |
+
+- **Executor commit**: 0f34a5f (worktree)
+- **Merge**: a18a0ec (conflict resolution — path_rules + Get-ActivePack integration)
+- **Merge conflict**: install.ps1, tests/adapters-windows.Tests.ps1 — executor used inline pack logic, sprint branch had Get-ActivePack helper. Resolved by keeping Get-ActivePack with pathRulePack fallback.
+- **Post-merge tests**: 236/236 Pester tests pass
+- **Review verdict**: APPROVAL (3 non-blocking items: L1 parallelism, L2 $i++ comment, L3 config I/O duplication)
+- **Close-out**: L2 comment applied, card 9pjhy5 → done (commit 29b0833)
+- **Backlog created**: inexon (Windows CLI bind/unbind quality improvements, P2)
