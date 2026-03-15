@@ -80,3 +80,34 @@
 {"ts":"2026-03-15T04:43:15Z","tool":"Glob","input":{"pattern":"scripts/parse-agent*"}}
 {"ts":"2026-03-15T04:43:37Z","tool":"Edit","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.gitban\\agents\\dispatcher\\inbox\\SMARTPACK-dispatch-log.md","old_string":"### Phase 1: Step 1 \u2014 Windows Path Rules CLI Parity (9pjhy5)","new_string":"### Phase 1: Step 1 \u2014 Windows Path Rules CLI Parity (9pjhy5)\n\n| Agent | Tools | Duration |\n|:------|------:|---------:|\n| executor-1 | 86 | 49m 9s |\n| reviewer-1 | 26 | 6m 32s |\n| router-1 | 23 | 5m 5...","replace_all":"False"}}
 {"ts":"2026-03-15T04:43:48Z","tool":"Bash","input":{"command":"git add .gitban/ && git commit -m \"$(cat <<'EOF'\nchore: dispatch log for batch 2 card 9pjhy5 (windows path rules CLI parity)\nEOF\n)\"","description":"Commit dispatch log update"}}
+{"ts":"2026-03-15T05:10:23Z","tool":"Bash","input":{"command":"ls ~/.claude/hooks/peon-ping/packs/ 2>/dev/null || ls \"$USERPROFILE/.claude/hooks/peon-ping/packs/\" 2>/dev/null","description":"List installed packs"}}
+{"ts":"2026-03-15T05:16:03Z","tool":"Bash","input":{"command":"powershell.exe -NoProfile -File install.ps1 --packs bind glados","description":"Bind GLaDOS pack to current directory"}}
+{"ts":"2026-03-15T05:16:52Z","tool":"Bash","input":{"command":"head -30 install.ps1","description":"Check param block"}}
+{"ts":"2026-03-15T05:17:10Z","tool":"Grep","input":{"pattern":"ExtraArgs","path":"install.ps1","output_mode":"content"}}
+{"ts":"2026-03-15T05:17:23Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\install.ps1","offset":"320","limit":"20"}}
+{"ts":"2026-03-15T05:23:10Z","tool":"Grep","input":{"pattern":"\"bind|unbind|bindings\"","path":"install.ps1","output_mode":"content","-n":"True"}}
+{"ts":"2026-03-15T05:23:22Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\install.ps1","offset":"430","limit":"35"}}
+{"ts":"2026-03-15T05:23:35Z","tool":"Grep","input":{"pattern":"\"--packs|packs\"","path":"install.ps1","output_mode":"content","-B":"2","-A":"5","-n":"True","head_limit":"30"}}
+{"ts":"2026-03-15T05:23:42Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\install.ps1","offset":"422","limit":"15"}}
+{"ts":"2026-03-15T05:23:53Z","tool":"Bash","input":{"command":"cat \"$USERPROFILE/.local/bin/peon.cmd\" 2>/dev/null || cat \"$HOME/.local/bin/peon.cmd\" 2>/dev/null","description":"Check peon.cmd routing"}}
+{"ts":"2026-03-15T05:24:08Z","tool":"Bash","input":{"command":"grep -n \"bind\" \"$USERPROFILE/.claude/hooks/peon-ping/peon.ps1\" | head -20","description":"Check if bind commands exist in installed peon.ps1"}}
+{"ts":"2026-03-15T05:24:23Z","tool":"Bash","input":{"command":"grep -n \"bind\" \"$HOME/.claude/hooks/peon-ping/peon.ps1\" | head -20","description":"Check installed peon.ps1 for bind commands"}}
+{"ts":"2026-03-15T05:24:38Z","tool":"Bash","input":{"command":"ls /c/Users/Cameron/.claude/hooks/peon-ping/peon.ps1 2>/dev/null || ls \"C:/Users/Cameron/.claude/hooks/peon-ping/peon.ps1\" 2>/dev/null","description":"Find installed peon.ps1"}}
+{"ts":"2026-03-15T05:24:53Z","tool":"Bash","input":{"command":"grep -c \"bind\" /c/Users/Cameron/.claude/hooks/peon-ping/peon.ps1","description":"Check if bind exists in installed hook"}}
+{"ts":"2026-03-15T08:24:49Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__list_roadmap","max_results":"1"}}
+{"ts":"2026-03-15T08:24:53Z","tool":"mcp__gitban__list_roadmap","input":{}}
+{"ts":"2026-03-15T08:24:55Z","tool":"mcp__gitban__list_roadmap","input":{"path":"v2"}}
+{"ts":"2026-03-15T08:38:03Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__list_cards,mcp__gitban__get_gitban_stats","max_results":"2"}}
+{"ts":"2026-03-15T08:38:06Z","tool":"mcp__gitban__get_gitban_stats","input":{}}
+{"ts":"2026-03-15T08:38:07Z","tool":"mcp__gitban__list_cards","input":{"active_only":"True"}}
+{"ts":"2026-03-15T08:39:28Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__list_cards,mcp__gitban__take_sprint","max_results":"2"}}
+{"ts":"2026-03-15T08:39:30Z","tool":"mcp__gitban__list_cards","input":{"sprint":"SMARTPACK"}}
+{"ts":"2026-03-15T08:39:31Z","tool":"Glob","input":{"pattern":".gitban/agents/dispatcher/inbox/SMARTPACK-dispatch-log.md"}}
+{"ts":"2026-03-15T08:39:36Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.gitban\\agents\\dispatcher\\inbox\\SMARTPACK-dispatch-log.md"}}
+{"ts":"2026-03-15T08:39:49Z","tool":"Bash","input":{"command":"git status -s","description":"Check working tree status"}}
+{"ts":"2026-03-15T08:39:50Z","tool":"Bash","input":{"command":"git log --oneline -5","description":"Recent commits"}}
+{"ts":"2026-03-15T08:39:51Z","tool":"Bash","input":{"command":"git branch -vv | grep 'sprint/SMARTPACK'","description":"Check if branch tracks remote"}}
+{"ts":"2026-03-15T08:40:05Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__archive_card","max_results":"1"}}
+{"ts":"2026-03-15T08:40:11Z","tool":"mcp__gitban__archive_card","input":{"card_id":"9pjhy5","sprint_name":"SMARTPACK"}}
+{"ts":"2026-03-15T08:40:17Z","tool":"Edit","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.gitban\\agents\\dispatcher\\inbox\\SMARTPACK-dispatch-log.md","old_string":"- **Backlog created**: inexon (Windows CLI bind/unbind quality improvements, P2)","new_string":"- **Backlog created**: inexon (Windows CLI bind/unbind quality improvements, P2)\n\n### Batch 2 Close-out\n\n- Card 9pjhy5 archived to sprint-smartpack-20260315\n- Sprint branch pushed and PR created","replace_all":"False"}}
+{"ts":"2026-03-15T08:40:21Z","tool":"Bash","input":{"command":"git add .gitban/ && git commit -m \"chore: archive card 9pjhy5 and close out batch 2\"","description":"Stage and commit .gitban/ changes"}}

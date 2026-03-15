@@ -151,3 +151,8 @@ Cards are independent (docs vs install.ps1 refactor). Dispatching in parallel.
 - **Review verdict**: APPROVAL (3 non-blocking items: L1 parallelism, L2 $i++ comment, L3 config I/O duplication)
 - **Close-out**: L2 comment applied, card 9pjhy5 → done (commit 29b0833)
 - **Backlog created**: inexon (Windows CLI bind/unbind quality improvements, P2)
+
+### Batch 2 Close-out
+
+- Card 9pjhy5 archived to sprint-smartpack-20260315
+- Sprint branch pushed and PR created
