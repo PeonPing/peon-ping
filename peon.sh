@@ -953,7 +953,9 @@ if rules:
             _matched = _r
             break
     if _matched:
-        print(f'peon-ping: path rule: {_matched["pattern"]} -> {_matched["pack"]}')
+        _mp = _matched.get('pattern', '')
+        _mk = _matched.get('pack', '')
+        print(f'peon-ping: path rule: {_mp} -> {_mk}')
     print(f'peon-ping: path rules: {len(rules)} configured')
 
 # --- IDE detection ---

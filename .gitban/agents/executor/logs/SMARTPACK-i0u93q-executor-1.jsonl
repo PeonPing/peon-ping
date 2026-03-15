@@ -1,0 +1,3 @@
+{"timestamp":"2026-03-15T09:00:19Z","operation":"init","role":"executor","sprint":"SMARTPACK","card_id":"i0u93q","cycle":1}
+{"event":"read-card","ts":"2026-03-15T09:08:54Z","data":{"card_id":"i0u93q"}}
+{"event":"code-change","ts":"2026-03-15T09:08:54Z","data":{"files":["tests/opencode.bats","peon.sh"],"fix_261":"renamed active_pack to default_pack","fix_567":"fixed bash quoting in python3 -c f-string"}}

@@ -123,7 +123,7 @@ teardown() {
   /usr/bin/python3 -c "
 import json
 c = json.load(open('$CONFIG_DIR/config.json'))
-assert c['active_pack'] == 'peon'
+assert c['default_pack'] == 'peon'
 assert c['volume'] == 0.5
 assert c['enabled'] == True
 assert c['spam_threshold'] == 3
