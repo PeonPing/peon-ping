@@ -1,0 +1,14 @@
+{"timestamp":"2026-03-15T23:51:28Z","operation":"init","role":"reviewer","sprint":"WINTEST","card_id":"jwh5zl","cycle":2}
+{"timestamp":"2026-03-15T23:51:28Z","operation":"event","label":"read-diff","metadata":{"commit":"8ac2c7b"}}
+{"timestamp":"2026-03-15T23:51:28Z","operation":"event","label":"read-card","metadata":{"card_id":"jwh5zl"}}
+{"timestamp":"2026-03-15T23:51:28Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"WINTEST\" && export AGENT_CARD_ID=\"jwh5zl\" && export AGENT_CYCLE=\"2\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"8ac2c7b\"}' && agent_log_event \"read-card\" '{\"card_id\":\"jwh5zl\"}' && echo \"OK\""}
+{"timestamp":"2026-03-15T23:51:30Z","operation":"hook_cmd","command":"git diff 4d2405b..4642099 -- .github/workflows/test.yml"}
+{"timestamp":"2026-03-15T23:51:38Z","operation":"hook_cmd","command":"git diff 4d2405b..4642099 --stat -- .github/ tests/ adapters/ peon.sh peon.ps1 install.sh install.ps1 scripts/"}
+{"timestamp":"2026-03-15T23:51:47Z","operation":"hook_cmd","command":"ls C:/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/inbox/"}
+{"timestamp":"2026-03-15T23:51:51Z","operation":"hook_cmd","command":"ls -la tests/adapters-windows.Tests.ps1 tests/peon-engine.Tests.ps1 tests/peon-adapters.Tests.ps1 tests/peon-security.Tests.ps1 tests/peon-packs.Tests.ps1 2>&1"}
+{"timestamp":"2026-03-15T23:52:30Z","operation":"init","role":"reviewer","sprint":"WINTEST","card_id":"jwh5zl","cycle":2}
+{"timestamp":"2026-03-15T23:52:30Z","operation":"event","label":"read-diff","metadata":{"commit":"8ac2c7b"}}
+{"timestamp":"2026-03-15T23:52:30Z","operation":"event","label":"read-card","metadata":{"card_id":"jwh5zl"}}
+{"timestamp":"2026-03-15T23:52:30Z","operation":"event","label":"write-review","metadata":{"verdict":"APPROVAL"}}
+{"timestamp":"2026-03-15T23:52:30Z","operation":"event","label":"card-status-change","metadata":{"new_status":"in_progress"}}
+{"timestamp":"2026-03-15T23:52:31Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":0}
