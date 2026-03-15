@@ -317,6 +317,9 @@ function Invoke-PeonHook {
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.CreateNoWindow = $true
+    # BATS harness parity: CLAUDE_PEON_DIR and PEON_TEST are set here to mirror
+    # the Unix test harness (peon.sh reads PEON_TEST); peon.ps1 does not consume
+    # these variables, but they keep the two harnesses structurally aligned.
     $psi.Environment["CLAUDE_PEON_DIR"] = $TestDir
     $psi.Environment["PEON_TEST"] = "1"
 
