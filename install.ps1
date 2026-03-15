@@ -804,10 +804,14 @@ function Write-StateAtomic {
     $tmp = "$Path.$PID.tmp"
     try {
         $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
-        # [System.IO.File]::Move with overwrite requires .NET Core (PS 7+).
-        # For PS 5.1 compat: delete target then move (atomic on NTFS same-volume).
-        if (Test-Path $Path) { [System.IO.File]::Delete($Path) }
-        [System.IO.File]::Move($tmp, $Path)
+        if ($PSVersionTable.PSVersion.Major -ge 7) {
+            # PS 7+ / .NET Core: Move-Item -Force performs atomic overwrite (no delete gap).
+            Move-Item -Path $tmp -Destination $Path -Force
+        } else {
+            # PS 5.1: delete target then move (atomic on NTFS same-volume, sub-ms gap).
+            if (Test-Path $Path) { [System.IO.File]::Delete($Path) }
+            [System.IO.File]::Move($tmp, $Path)
+        }
     } catch {
         Remove-Item $tmp -ErrorAction SilentlyContinue
     }
@@ -815,6 +819,14 @@ function Write-StateAtomic {
 
 function Read-StateWithRetry {
     param([string]$Path)
+    # Clean up orphaned .tmp files left by safety timer [Environment]::Exit(1),
+    # which skips finally blocks and may leave partial writes behind.
+    $dir = Split-Path $Path -Parent
+    if ($dir -and (Test-Path $dir)) {
+        $base = Split-Path $Path -Leaf
+        Get-ChildItem -Path $dir -Filter "$base.*.tmp" -ErrorAction SilentlyContinue |
+            ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+    }
     $delays = @(50, 100, 200)
     for ($i = 0; $i -le $delays.Count; $i++) {
         try {

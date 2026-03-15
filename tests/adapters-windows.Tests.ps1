@@ -934,6 +934,21 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'Write-StateAtomic'
     }
 
+    It "Write-StateAtomic uses Move-Item -Force on PS 7+ for atomic overwrite" {
+        $script:peonHookContent | Should -Match 'PSVersionTable\.PSVersion\.Major -ge 7'
+        $script:peonHookContent | Should -Match 'Move-Item -Path \$tmp -Destination \$Path -Force'
+    }
+
+    It "Write-StateAtomic preserves PS 5.1 delete-then-move fallback" {
+        $script:peonHookContent | Should -Match '\[System\.IO\.File\]::Delete\(\$Path\)'
+        $script:peonHookContent | Should -Match '\[System\.IO\.File\]::Move\(\$tmp, \$Path\)'
+    }
+
+    It "Read-StateWithRetry cleans up orphaned .tmp files on startup" {
+        $script:peonHookContent | Should -Match 'Get-ChildItem.*\.tmp.*ErrorAction SilentlyContinue'
+        $script:peonHookContent | Should -Match 'orphaned \.tmp files'
+    }
+
     It "reads stdin JSON via StreamReader (UTF-8 BOM-safe)" {
         $script:peonHookContent | Should -Match 'OpenStandardInput'
         $script:peonHookContent | Should -Match 'StreamReader'
