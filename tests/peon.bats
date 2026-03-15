@@ -212,6 +212,35 @@ JSON
 }
 
 # ============================================================
+# Non-interactive mode suppression
+# ============================================================
+
+@test "sdk-cli suppresses sound" {
+  CLAUDE_CODE_ENTRYPOINT=sdk-cli run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "interactive mode (cli) still plays sound" {
+  CLAUDE_CODE_ENTRYPOINT=cli run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "unset CLAUDE_CODE_ENTRYPOINT still plays sound" {
+  unset CLAUDE_CODE_ENTRYPOINT
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "PEON_ALLOW_HEADLESS=1 overrides sdk-cli suppression" {
+  CLAUDE_CODE_ENTRYPOINT=sdk-cli PEON_ALLOW_HEADLESS=1 run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+# ============================================================
 # Missing config (defaults)
 # ============================================================
 

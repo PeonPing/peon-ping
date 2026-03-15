@@ -1,0 +1,182 @@
+{
+  "validation_template": "feature",
+  "card_id": "0xybwm",
+  "validation_timestamp": "2026-03-15T02:38:06.543384+00:00",
+  "validation_errors": {
+    "missing_sections": [
+      {
+        "section_name": "Feature Overview & Context",
+        "message": "Required section '## Feature Overview & Context' not found"
+      },
+      {
+        "section_name": "Documentation & Prior Art Review",
+        "message": "Required section '## Documentation & Prior Art Review' not found"
+      },
+      {
+        "section_name": "Design & Planning",
+        "message": "Required section '## Design & Planning' not found"
+      },
+      {
+        "section_name": "Feature Work Phases",
+        "message": "Required section '## Feature Work Phases' not found"
+      },
+      {
+        "section_name": "TDD Implementation Workflow",
+        "message": "Required section '## TDD Implementation Workflow' not found"
+      },
+      {
+        "section_name": "Validation & Closeout",
+        "message": "Required section '## Validation & Closeout' not found"
+      }
+    ],
+    "missing_checkboxes": [
+      {
+        "text": "**Associated Ticket/Epic** link is included above.",
+        "section": "Feature Overview & Context",
+        "optional": false,
+        "line_number": 34
+      },
+      {
+        "text": "**Feature Area/Component** is identified.",
+        "section": "Feature Overview & Context",
+        "optional": false,
+        "line_number": 35
+      },
+      {
+        "text": "**Target Release/Milestone** is confirmed.",
+        "section": "Feature Overview & Context",
+        "optional": false,
+        "line_number": 36
+      },
+      {
+        "text": "`README.md` or project documentation reviewed.",
+        "section": "Documentation & Prior Art Review",
+        "optional": false,
+        "line_number": 42
+      },
+      {
+        "text": "Existing architecture documentation or ADRs reviewed.",
+        "section": "Documentation & Prior Art Review",
+        "optional": false,
+        "line_number": 43
+      },
+      {
+        "text": "Related feature implementations or similar code reviewed.",
+        "section": "Documentation & Prior Art Review",
+        "optional": false,
+        "line_number": 44
+      },
+      {
+        "text": "API documentation or interface specs reviewed [if applicable].",
+        "section": "Documentation & Prior Art Review",
+        "optional": false,
+        "line_number": 45
+      },
+      {
+        "text": "[Criterion 1, e.g., \"Users can log in using OAuth2 providers (Google, GitHub)\"]",
+        "section": "# Acceptance Criteria",
+        "optional": false,
+        "line_number": 74
+      },
+      {
+        "text": "[Criterion 2, e.g., \"Session tokens expire after 24 hours\"]",
+        "section": "# Acceptance Criteria",
+        "optional": false,
+        "line_number": 75
+      },
+      {
+        "text": "[Criterion 3, e.g., \"Failed login attempts are logged for security audit\"]",
+        "section": "# Acceptance Criteria",
+        "optional": false,
+        "line_number": 76
+      },
+      {
+        "text": "[Criterion 4, e.g., \"API returns 401 with clear error message for invalid tokens\"]",
+        "section": "# Acceptance Criteria",
+        "optional": false,
+        "line_number": 77
+      },
+      {
+        "text": "[Criterion 5, e.g., \"All endpoints maintain <200ms response time\"]",
+        "section": "# Acceptance Criteria",
+        "optional": false,
+        "line_number": 78
+      },
+      {
+        "text": "All acceptance criteria are met and verified.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 141
+      },
+      {
+        "text": "All tests are passing (unit, integration, e2e, performance).",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 142
+      },
+      {
+        "text": "Code review is approved and PR is merged.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 143
+      },
+      {
+        "text": "Documentation is updated (README, API docs, user guides).",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 144
+      },
+      {
+        "text": "Feature is deployed to production.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 145
+      },
+      {
+        "text": "Monitoring and alerting are configured.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 146
+      },
+      {
+        "text": "Stakeholders are notified of completion.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 147
+      },
+      {
+        "text": "Follow-up actions are documented and tickets created.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 148
+      },
+      {
+        "text": "Associated ticket/epic is closed.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 149
+      }
+    ],
+    "missing_tables": [
+      "Document Type|Link / Location|Key Findings / Action Required",
+      "Phase / Task|Status / Link to Artifact or Card|Universal Check"
+    ]
+  },
+  "suggestions": [
+    "append_card('0xybwm', '* [ ] **Associated Ticket/Epic** link is included above.', heading='Feature Overview & Context')",
+    "append_card('0xybwm', '* [ ] **Feature Area/Component** is identified.', heading='Feature Overview & Context')",
+    "append_card('0xybwm', '* [ ] **Target Release/Milestone** is confirmed.', heading='Feature Overview & Context')",
+    "append_card('0xybwm', '* [ ] `README.md` or project documentation reviewed.', heading='Documentation & Prior Art Review')",
+    "append_card('0xybwm', '* [ ] Existing architecture documentation or ADRs reviewed.', heading='Documentation & Prior Art Review')",
+    "append_card('0xybwm', '## Feature Overview & Context\\n\\n[Add content here]')",
+    "append_card('0xybwm', '## Documentation & Prior Art Review\\n\\n[Add content here]')",
+    "append_card('0xybwm', '## Design & Planning\\n\\n[Add content here]')"
+  ],
+  "formatted_message": "[VALIDATION ERROR] Card validation failed\n\nTemplate: feature\nCard ID: 0xybwm\nTotal Issues: 29\n\n======================================================================\n\n=== MISSING CHECKBOXES (21) ===\n\nMissing checkbox #1:\n  Expected text: **Associated Ticket/Epic** link is included above.\n  Expected location: Under '## Feature Overview & Context' section\n\n  FIX: Use append_card() to add:\n  * [ ] **Associated Ticket/Epic** link is included above.\n\nMissing checkbox #2:\n  Expected text: **Feature Area/Component** is identified.\n  Expected location: Under '## Feature Overview & Context' section\n\n  FIX: Use append_card() to add:\n  * [ ] **Feature Area/Component** is identified.\n\nMissing checkbox #3:\n  Expected text: **Target Release/Milestone** is confirmed.\n  Expected location: Under '## Feature Overview & Context' section\n\n  FIX: Use append_card() to add:\n  * [ ] **Target Release/Milestone** is confirmed.\n\nMissing checkbox #4:\n  Expected text: `README.md` or project documentation reviewed.\n  Expected location: Under '## Documentation & Prior Art Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] `README.md` or project documentation reviewed.\n\nMissing checkbox #5:\n  Expected text: Existing architecture documentation or ADRs reviewed.\n  Expected location: Under '## Documentation & Prior Art Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] Existing architecture documentation or ADRs reviewed.\n\nMissing checkbox #6:\n  Expected text: Related feature implementations or similar code reviewed.\n  Expected location: Under '## Documentation & Prior Art Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] Related feature implementations or similar code reviewed.\n\nMissing checkbox #7:\n  Expected text: API documentation or interface specs reviewed [if applicable].\n  Expected location: Under '## Documentation & Prior Art Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] API documentation or interface specs reviewed [if applicable].\n\nMissing checkbox #8:\n  Expected text: [Criterion 1, e.g., \"Users can log in using OAuth2 providers (Google, GitHub)\"]\n  Expected location: Under '## # Acceptance Criteria' section\n\n  FIX: Use append_card() to add:\n  * [ ] [Criterion 1, e.g., \"Users can log in using OAuth2 providers (Google, GitHub)\"]\n\nMissing checkbox #9:\n  Expected text: [Criterion 2, e.g., \"Session tokens expire after 24 hours\"]\n  Expected location: Under '## # Acceptance Criteria' section\n\n  FIX: Use append_card() to add:\n  * [ ] [Criterion 2, e.g., \"Session tokens expire after 24 hours\"]\n\nMissing checkbox #10:\n  Expected text: [Criterion 3, e.g., \"Failed login attempts are logged for security audit\"]\n  Expected location: Under '## # Acceptance Criteria' section\n\n  FIX: Use append_card() to add:\n  * [ ] [Criterion 3, e.g., \"Failed login attempts are logged for security audit\"]\n\nMissing checkbox #11:\n  Expected text: [Criterion 4, e.g., \"API returns 401 with clear error message for invalid tokens\"]\n  Expected location: Under '## # Acceptance Criteria' section\n\n  FIX: Use append_card() to add:\n  * [ ] [Criterion 4, e.g., \"API returns 401 with clear error message for invalid tokens\"]\n\nMissing checkbox #12:\n  Expected text: [Criterion 5, e.g., \"All endpoints maintain <200ms response time\"]\n  Expected location: Under '## # Acceptance Criteria' section\n\n  FIX: Use append_card() to add:\n  * [ ] [Criterion 5, e.g., \"All endpoints maintain <200ms response time\"]\n\nMissing checkbox #13:\n  Expected text: All acceptance criteria are met and verified.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] All acceptance criteria are met and verified.\n\nMissing checkbox #14:\n  Expected text: All tests are passing (unit, integration, e2e, performance).\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] All tests are passing (unit, integration, e2e, performance).\n\nMissing checkbox #15:\n  Expected text: Code review is approved and PR is merged.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Code review is approved and PR is merged.\n\nMissing checkbox #16:\n  Expected text: Documentation is updated (README, API docs, user guides).\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Documentation is updated (README, API docs, user guides).\n\nMissing checkbox #17:\n  Expected text: Feature is deployed to production.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Feature is deployed to production.\n\nMissing checkbox #18:\n  Expected text: Monitoring and alerting are configured.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Monitoring and alerting are configured.\n\nMissing checkbox #19:\n  Expected text: Stakeholders are notified of completion.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Stakeholders are notified of completion.\n\nMissing checkbox #20:\n  Expected text: Follow-up actions are documented and tickets created.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Follow-up actions are documented and tickets created.\n\nMissing checkbox #21:\n  Expected text: Associated ticket/epic is closed.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Associated ticket/epic is closed.\n\n======================================================================\n\n=== MISSING SECTIONS (6) ===\n\nMissing section #1:\n  Expected heading: ## Feature Overview & Context\n\n  FIX: Use append_card() to add:\n  ## Feature Overview & Context\n\nMissing section #2:\n  Expected heading: ## Documentation & Prior Art Review\n\n  FIX: Use append_card() to add:\n  ## Documentation & Prior Art Review\n\nMissing section #3:\n  Expected heading: ## Design & Planning\n\n  FIX: Use append_card() to add:\n  ## Design & Planning\n\nMissing section #4:\n  Expected heading: ## Feature Work Phases\n\n  FIX: Use append_card() to add:\n  ## Feature Work Phases\n\nMissing section #5:\n  Expected heading: ## TDD Implementation Workflow\n\n  FIX: Use append_card() to add:\n  ## TDD Implementation Workflow\n\nMissing section #6:\n  Expected heading: ## Validation & Closeout\n\n  FIX: Use append_card() to add:\n  ## Validation & Closeout\n\n======================================================================\n\n=== MISSING TABLES (2) ===\n\nMissing table #1:\n  Expected headers: Document Type|Link / Location|Key Findings / Action Required\n\nMissing table #2:\n  Expected headers: Phase / Task|Status / Link to Artifact or Card|Universal Check\n\n======================================================================\n\nACTION REQUIRED:\n1. Read current content: read_card('0xybwm')\n2. Add missing checkboxes:\n   append_card('0xybwm', '* [ ] **Associated Ticket/Epic** link is included above.', heading='Feature Overview & Context')\n   append_card('0xybwm', '* [ ] **Feature Area/Component** is identified.', heading='Feature Overview & Context')\n   append_card('0xybwm', '* [ ] **Target Release/Milestone** is confirmed.', heading='Feature Overview & Context')\n   ... and 18 more\n3. Add missing sections using append_card('0xybwm', '## Section Name')\n4. Retry promotion: move_to_todo('0xybwm')\n",
+  "next_steps": [
+    "1. Read validation errors above",
+    "2. Read current content: read_card('0xybwm')",
+    "3. Fix content using suggested commands",
+    "4. Retry promotion: move_to_todo('0xybwm')"
+  ]
+}

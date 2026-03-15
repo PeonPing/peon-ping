@@ -119,3 +119,18 @@ Cards are independent (docs vs install.ps1 refactor). Dispatching in parallel.
 | Rework cycles | 0 |
 | Merge conflicts | 1 (z0c9fd worktree vs HOOKBUG — resolved manually) |
 | Backlog cards created | 3 (26yooi, ji2847, exg19y) |
+
+---
+
+## Batch 2: Card 9pjhy5 (windows-path-rules-cli-parity)
+
+**Added post-close-out.** Single P0 feature card — PowerShell port of bind/unbind/bindings CLI commands and path_rules matching engine.
+
+### Execution Plan
+| Batch | Step | Card ID | Title |
+|-------|------|---------|-------|
+| 1 | 1 | 9pjhy5 | Windows path rules CLI parity |
+
+---
+
+### Phase 1: Step 1 — Windows Path Rules CLI Parity (9pjhy5)

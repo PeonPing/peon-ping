@@ -2814,6 +2814,12 @@ TRAINER_HELP
     echo "Run 'peon help' for usage." >&2; exit 1 ;;
 esac
 
+# Skip non-interactive Claude sessions (claude -p).
+# CLAUDE_CODE_ENTRYPOINT is undocumented; if unset or unrecognised, do nothing.
+if [ "${PEON_ALLOW_HEADLESS:-0}" != "1" ] && [ "${CLAUDE_CODE_ENTRYPOINT:-}" = "sdk-cli" ]; then
+  exit 0
+fi
+
 # If no CLI arg was given and stdin is a terminal (not a pipe from Claude Code),
 # the user likely ran `peon` bare — show help instead of blocking on cat.
 if [ -t 0 ]; then
