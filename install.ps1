@@ -326,7 +326,7 @@ param(
     [string]$Command = "",
     [string]$Arg1 = "",
     [string]$Arg2 = "",
-    [Parameter(ValueFromRemainingArguments)]$ExtraArgs = @()
+    [Parameter(ValueFromRemainingArguments)][string[]]$ExtraArgs = @()
 )
 
 # 8-second self-timeout safety net — kills this process if anything blocks unexpectedly.
@@ -346,12 +346,17 @@ function Get-PeonConfigRaw {
     return Get-Content $Path -Raw
 }
 
-# Resolve the active pack from config using the default_pack -> active_pack -> "peon" fallback chain.
-# Accepts any object with optional default_pack and/or active_pack properties.
-function Get-ActivePack($config) {
-    if ($config.default_pack) { return $config.default_pack }
-    if ($config.active_pack) { return $config.active_pack }
-    return "peon"
+# Shared config I/O helper: reads JSON config, applies a mutator scriptblock, writes back.
+# The mutator receives the parsed config object and should return the (possibly modified) object.
+function Update-PeonConfig {
+    param(
+        [string]$Path,
+        [scriptblock]$Mutator
+    )
+    $cfg = Get-Content $Path -Raw | ConvertFrom-Json
+    $cfg = & $Mutator $cfg
+    $cfg | ConvertTo-Json -Depth 10 | Set-Content $Path -Encoding UTF8
+    return $cfg
 }
 
 # --- CLI commands ---
@@ -460,181 +465,160 @@ if ($Command) {
                         Write-Host "Usage: peon packs bind <pack> [--pattern <glob>] [--install]" -ForegroundColor Yellow
                         return
                     }
-                    $packName = $Arg2
+                    $packArg = $Arg2
                     $bindPattern = ""
                     $bindInstall = $false
-                    # Parse extra args for --pattern and --install flags
+                    # Parse extra flags: --pattern <glob>, --install
                     for ($i = 0; $i -lt $ExtraArgs.Count; $i++) {
                         switch ($ExtraArgs[$i]) {
-                            "--pattern" {
-                                if ($i + 1 -lt $ExtraArgs.Count) {
-                                    $bindPattern = $ExtraArgs[$i + 1]
-                                    $i++  # Intentionally advance loop counter to skip the next arg (the pattern value)
-                                }
-                            }
                             "--install" { $bindInstall = $true }
+                            "--pattern" { if ($i + 1 -lt $ExtraArgs.Count) { $bindPattern = $ExtraArgs[++$i] } }
                             default {
-                                if ($ExtraArgs[$i] -match "^--pattern=(.+)$") {
-                                    $bindPattern = $Matches[1]
-                                }
+                                if ($ExtraArgs[$i] -match '^--pattern=(.+)$') { $bindPattern = $Matches[1] }
                             }
                         }
                     }
 
-                    # If --install, download pack first
+                    # If --install, download the pack first
                     if ($bindInstall) {
-                        # Download the pack using the installer's pack download logic
                         $regUrl = "https://peonping.github.io/registry/index.json"
                         try {
-                            $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
-                            $reg = $regResp.Content | ConvertFrom-Json
-                            $packInfo = $reg.packs | Where-Object { $_.name -eq $packName }
-                            if ($packInfo) {
-                                $srcRepo = $packInfo.source_repo
-                                $srcRef = $packInfo.source_ref
-                                $srcPath = $packInfo.source_path
-                                $packBase = "https://raw.githubusercontent.com/$srcRepo/$srcRef/$srcPath"
-                                $pDir = Join-Path $packsDir $packName
-                                $sDir = Join-Path $pDir "sounds"
-                                New-Item -ItemType Directory -Path $sDir -Force | Out-Null
-                                Invoke-WebRequest -Uri "$packBase/openpeon.json" -OutFile (Join-Path $pDir "openpeon.json") -UseBasicParsing -ErrorAction Stop
-                                $mf = Get-Content (Join-Path $pDir "openpeon.json") -Raw | ConvertFrom-Json
-                                foreach ($catN in $mf.categories.PSObject.Properties.Name) {
-                                    foreach ($snd in $mf.categories.$catN.sounds) {
-                                        $sf = Split-Path $snd.file -Leaf
-                                        $sp = Join-Path $sDir $sf
-                                        if (-not (Test-Path $sp)) {
-                                            Invoke-WebRequest -Uri "$packBase/sounds/$sf" -OutFile $sp -UseBasicParsing -ErrorAction SilentlyContinue
-                                        }
-                                    }
-                                }
-                                # Refresh available list
-                                $available = Get-ChildItem -Path $packsDir -Directory | Where-Object {
-                                    (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
-                                } | ForEach-Object { $_.Name } | Sort-Object
-                            }
+                            $reg = (Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop).Content | ConvertFrom-Json
                         } catch {
-                            Write-Host "Warning: could not download pack '$packName'" -ForegroundColor Yellow
+                            Write-Host "Error: could not fetch pack registry." -ForegroundColor Red
+                            return
                         }
+                        $packMeta = $reg.packs | Where-Object { $_.name -eq $packArg }
+                        if (-not $packMeta) {
+                            Write-Host "Error: pack '$packArg' not found in registry." -ForegroundColor Red
+                            return
+                        }
+                        $srcRepo = if ($packMeta.source_repo) { $packMeta.source_repo } else { "PeonPing/og-packs" }
+                        $srcRef  = if ($packMeta.source_ref)  { $packMeta.source_ref }  else { "main" }
+                        $srcPath = if ($packMeta.source_path) { $packMeta.source_path } else { $packArg }
+                        $packBase = "https://raw.githubusercontent.com/$srcRepo/$srcRef/$srcPath"
+                        $dlPackDir = Join-Path $packsDir $packArg
+                        $dlSoundsDir = Join-Path $dlPackDir "sounds"
+                        New-Item -ItemType Directory -Path $dlSoundsDir -Force | Out-Null
+                        # Download manifest
+                        $mfPath = Join-Path $dlPackDir "openpeon.json"
+                        try {
+                            Invoke-WebRequest -Uri "$packBase/openpeon.json" -OutFile $mfPath -UseBasicParsing -ErrorAction Stop
+                        } catch {
+                            Write-Host "Error: failed to download manifest for '$packArg'." -ForegroundColor Red
+                            return
+                        }
+                        # Parse manifest and collect unique sound files
+                        $mf = Get-Content $mfPath -Raw | ConvertFrom-Json
+                        $soundFiles = @()
+                        foreach ($catName in $mf.categories.PSObject.Properties.Name) {
+                            foreach ($sound in $mf.categories.$catName.sounds) {
+                                $f = Split-Path $sound.file -Leaf
+                                if ($f -and $soundFiles -notcontains $f) { $soundFiles += $f }
+                            }
+                        }
+                        # Download sounds with progress feedback
+                        $dlCount = 0
+                        $total = $soundFiles.Count
+                        foreach ($sfile in $soundFiles) {
+                            $dlCount++
+                            $soundPath = Join-Path $dlSoundsDir $sfile
+                            if (Test-Path $soundPath) {
+                                Write-Host "`r  [$packArg] $dlCount/$total (cached)" -NoNewline -ForegroundColor DarkGray
+                                continue
+                            }
+                            try {
+                                Invoke-WebRequest -Uri "$packBase/sounds/$sfile" -OutFile $soundPath -UseBasicParsing -ErrorAction Stop
+                                Write-Host "`r  [$packArg] $dlCount/$total downloading..." -NoNewline -ForegroundColor DarkGray
+                            } catch { }
+                        }
+                        if ($total -gt 0) { Write-Host "" }
+                        Write-Host "  [$packArg] installed ($total sounds)" -ForegroundColor Green
+                        # Refresh available list after install
+                        $available = Get-ChildItem -Path $packsDir -Directory | Where-Object {
+                            (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
+                        } | ForEach-Object { $_.Name } | Sort-Object
                     }
 
                     # Validate pack exists
-                    if ($packName -notin $available) {
-                        Write-Host "Error: pack `"$packName`" not found." -ForegroundColor Red
-                        Write-Host "Available packs: $($available -join ', ')" -ForegroundColor Red
-                        exit 1
+                    if ($packArg -notin $available) {
+                        Write-Host "Error: pack '$packArg' not found. Available: $($available -join ', ')" -ForegroundColor Red
+                        return
                     }
 
-                    # Default pattern is current directory
-                    if (-not $bindPattern) {
-                        $bindPattern = $PWD.Path
-                    }
+                    # Determine pattern (default to current directory)
+                    if (-not $bindPattern) { $bindPattern = (Get-Location).Path }
 
-                    # Load config as object for manipulation
-                    $cfgObj = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-                    $pathRules = @()
-                    if ($cfgObj.path_rules) {
-                        $pathRules = @($cfgObj.path_rules)
-                    }
-
-                    # Update existing rule or append new one
-                    $found = $false
-                    for ($i = 0; $i -lt $pathRules.Count; $i++) {
-                        if ($pathRules[$i].pattern -eq $bindPattern) {
-                            $pathRules[$i] = [PSCustomObject]@{ pattern = $bindPattern; pack = $packName }
-                            $found = $true
-                            break
+                    # Update config using shared helper
+                    Update-PeonConfig -Path $ConfigPath -Mutator {
+                        param($c)
+                        $rules = if ($c.path_rules) { @($c.path_rules) } else { @() }
+                        $found = $false
+                        for ($j = 0; $j -lt $rules.Count; $j++) {
+                            if ($rules[$j].pattern -eq $bindPattern) {
+                                $rules[$j].pack = $packArg
+                                $found = $true
+                                break
+                            }
                         }
-                    }
-                    if (-not $found) {
-                        $pathRules += [PSCustomObject]@{ pattern = $bindPattern; pack = $packName }
-                    }
+                        if (-not $found) {
+                            $rules += [PSCustomObject]@{ pattern = $bindPattern; pack = $packArg }
+                        }
+                        $c.path_rules = $rules
+                        return $c
+                    } | Out-Null
 
-                    $cfgObj.path_rules = $pathRules
-                    $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
-                    Write-Host "peon-ping: bound $packName to $bindPattern"
-                    if (-not ($ExtraArgs -contains "--pattern") -and -not ($ExtraArgs -match "^--pattern=")) {
-                        $dirName = Split-Path $PWD.Path -Leaf
+                    Write-Host "peon-ping: bound $packArg to $bindPattern" -ForegroundColor Green
+                    if (-not ($ExtraArgs | Where-Object { $_ -match '^--pattern' })) {
+                        $dirName = Split-Path $bindPattern -Leaf
                         Write-Host "Tip: use --pattern `"*/$dirName`" to match any directory named $dirName"
                     }
                     return
                 }
                 "unbind" {
                     $unbindPattern = ""
-                    # Arg2 could be --pattern or empty. Also check ExtraArgs.
-                    if ($Arg2 -eq "--pattern") {
-                        if ($ExtraArgs.Count -gt 0) {
-                            $unbindPattern = $ExtraArgs[0]
-                        }
-                    } elseif ($Arg2 -match "^--pattern=(.+)$") {
-                        $unbindPattern = $Matches[1]
-                    } else {
-                        # Check ExtraArgs for --pattern
-                        for ($i = 0; $i -lt $ExtraArgs.Count; $i++) {
-                            if ($ExtraArgs[$i] -eq "--pattern" -and ($i + 1) -lt $ExtraArgs.Count) {
-                                $unbindPattern = $ExtraArgs[$i + 1]
-                                break
-                            } elseif ($ExtraArgs[$i] -match "^--pattern=(.+)$") {
-                                $unbindPattern = $Matches[1]
-                                break
+                    # Parse --pattern flag
+                    if ($Arg2) {
+                        $unbindPattern = $Arg2
+                    }
+                    for ($i = 0; $i -lt $ExtraArgs.Count; $i++) {
+                        switch ($ExtraArgs[$i]) {
+                            "--pattern" { if ($i + 1 -lt $ExtraArgs.Count) { $unbindPattern = $ExtraArgs[++$i] } }
+                            default {
+                                if ($ExtraArgs[$i] -match '^--pattern=(.+)$') { $unbindPattern = $Matches[1] }
                             }
                         }
                     }
 
-                    # Load config
-                    $cfgObj = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-                    $pathRules = @()
-                    if ($cfgObj.path_rules) {
-                        $pathRules = @($cfgObj.path_rules)
-                    }
+                    $target = if ($unbindPattern) { $unbindPattern } else { (Get-Location).Path }
 
-                    if ($pathRules.Count -eq 0) {
-                        Write-Host "No pack bindings configured."
-                        return
-                    }
-
-                    # Determine target pattern
-                    $target = if ($unbindPattern) { $unbindPattern } else { $PWD.Path }
-
-                    # Try exact match
-                    $newRules = @($pathRules | Where-Object { $_.pattern -ne $target })
-                    if ($newRules.Count -lt $pathRules.Count) {
-                        $cfgObj.path_rules = $newRules
-                        $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
-                        Write-Host "peon-ping: unbound $target"
-                        return
-                    }
-
-                    # No exact match — check if any rules match cwd via -like
-                    if (-not $unbindPattern) {
-                        $matching = @($pathRules | Where-Object { $PWD.Path -like $_.pattern })
-                        if ($matching.Count -gt 0) {
-                            Write-Host "No binding for `"$target`", but found rules matching this directory:" -ForegroundColor Red
-                            foreach ($r in $matching) {
-                                Write-Host "  $($r.pattern) -> $($r.pack)" -ForegroundColor Red
-                            }
-                            Write-Host "Use --pattern to remove a specific rule." -ForegroundColor Red
-                            exit 1
+                    Update-PeonConfig -Path $ConfigPath -Mutator {
+                        param($c)
+                        $rules = if ($c.path_rules) { @($c.path_rules) } else { @() }
+                        if ($rules.Count -eq 0) {
+                            Write-Host "No pack bindings configured."
+                            return $c
                         }
-                    }
-
-                    Write-Host "No binding found for `"$target`"."
+                        $newRules = @($rules | Where-Object { $_.pattern -ne $target })
+                        if ($newRules.Count -lt $rules.Count) {
+                            $c.path_rules = $newRules
+                            Write-Host "peon-ping: unbound $target" -ForegroundColor Green
+                        } else {
+                            Write-Host "No binding found for `"$target`"."
+                        }
+                        return $c
+                    } | Out-Null
                     return
                 }
                 "bindings" {
-                    $cfgObj = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-                    $pathRules = @()
-                    if ($cfgObj.path_rules) {
-                        $pathRules = @($cfgObj.path_rules)
-                    }
-
-                    if ($pathRules.Count -eq 0) {
+                    $cwd = (Get-Location).Path
+                    $rules = if ($cfg.path_rules) { @($cfg.path_rules) } else { @() }
+                    if ($rules.Count -eq 0) {
                         Write-Host "No pack bindings configured."
                         return
                     }
-
-                    foreach ($rule in $pathRules) {
-                        $marker = if ($PWD.Path -like $rule.pattern) { " *" } else { "" }
+                    foreach ($rule in $rules) {
+                        $marker = if ($cwd -like $rule.pattern) { " *" } else { "" }
                         Write-Host "  $($rule.pattern) -> $($rule.pack)$marker"
                     }
                     return
@@ -711,13 +695,16 @@ if ($Command) {
             Write-Host "  --mute         Alias for --pause"
             Write-Host "  --unmute       Alias for --resume"
             Write-Host "  --status       Show current status"
-            Write-Host "  --packs        List available sound packs"
-            Write-Host "  --packs bind   Bind a pack to current directory"
-            Write-Host "  --packs unbind Remove a pack binding"
-            Write-Host "  --packs bindings List all pack bindings"
-            Write-Host "  --pack [name]  Switch pack (or cycle)"
-            Write-Host "  --volume N     Set volume (0.0-1.0)"
-            Write-Host "  --help         Show this help"
+            Write-Host "  --packs             List available sound packs"
+            Write-Host "  --packs use <name>  Switch to a specific pack"
+            Write-Host "  --packs bind <pack> [--pattern <glob>] [--install]"
+            Write-Host "                      Bind a pack to a directory"
+            Write-Host "  --packs unbind [--pattern <glob>]"
+            Write-Host "                      Remove a directory binding"
+            Write-Host "  --packs bindings    List all directory bindings"
+            Write-Host "  --pack [name]       Switch pack (or cycle)"
+            Write-Host "  --volume N          Set volume (0.0-1.0)"
+            Write-Host "  --help              Show this help"
             return
         }
     }
