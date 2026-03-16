@@ -1,0 +1,9 @@
+{"ts":"2026-03-16T21:05:52Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\skills\\router\\SKILL.md"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:05:53Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__read_card","max_results":"1"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:05:57Z","tool":"Glob","input":{"pattern":".gitban/agents/reviewer/inbox/TECHDEBT-z5xm5k-reviewer-*.md","path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\worktrees\\agent-a62968c8"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:05:58Z","tool":"mcp__gitban__read_card","input":{"card_id":"z5xm5k"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:06:02Z","tool":"Glob","input":{"pattern":".gitban/agents/reviewer/inbox/*z5xm5k*.md","path":"C:\\Users\\Cameron\\Projects\\peon-ping"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:06:03Z","tool":"Glob","input":{"pattern":".gitban/agents/reviewer/inbox/TECHDEBT*.md","path":"C:\\Users\\Cameron\\Projects\\peon-ping"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:06:08Z","tool":"Glob","input":{"pattern":".gitban/agents/reviewer/**/*z5xm5k*","path":"C:\\Users\\Cameron\\Projects\\peon-ping"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:06:08Z","tool":"Glob","input":{"pattern":".gitban/agents/**/*z5xm5k*","path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\worktrees\\agent-a62968c8"},"agent_id":"adcc8857","agent_type":"router"}
+{"ts":"2026-03-16T21:06:12Z","tool":"Glob","input":{"pattern":".gitban/agents/**/*z5xm5k*","path":"C:\\Users\\Cameron\\Projects\\peon-ping"},"agent_id":"adcc8857","agent_type":"router"}

@@ -104,3 +104,64 @@ Backlog cards created: yu082h, 65ghip, tnd98r
 
 ---
 
+
+### Batch 3 Router Verdicts
+| Card | Verdict | Action |
+|------|---------|--------|
+| 5efwxz | APPROVAL | Close-out complete → done. Planner created backlog card 9gi8ut |
+| laimst | APPROVAL | Close-out complete → done. Planner created backlog card augpn7 |
+| z5xm5k | APPROVAL | Close-out complete → done. Planner created backlog card e40fvu |
+
+### Phase 3 Summary
+All 3 Batch 3 cards completed (all first-pass approvals):
+- 5efwxz: done
+- laimst: done
+- z5xm5k: done
+Backlog cards created: 9gi8ut, augpn7, e40fvu
+
+---
+
+
+## Phase 5: Sprint Close-out
+
+**Timestamp:** 2026-03-16
+
+### Sprint Summary
+| Metric | Value |
+|:-------|------:|
+| Cards completed | 10 |
+| Cards skipped | 2 (rlxvi7 tracker, 26yooi deferred) |
+| Total batches | 3 |
+| Rework cycles | 1 (csedqi) |
+| Backlog cards created | 8 |
+| All tests passing | Yes (47 engine + 279 adapter + 19 packs) |
+
+### Cards Completed
+| Batch | Card | Type | Priority | Description |
+|-------|------|------|----------|-------------|
+| 1A | d3c6b0 | chore | P1 | Remove duplicate deepagents structural tests |
+| 1B | n5uqeo | chore | P1 | Tighten security test assertion precision |
+| 1C | csedqi | chore | P2 | Add CI lint for python3 quoting hazards |
+| 1D | lyq5ta | refactor | P2 | DRY up peon.sh state helpers |
+| 2A | 8ny6qr | bug | P1 | Fix ConvertTo-Hashtable array corruption |
+| 2B | jzn4sz | chore | P1 | Harden category B extraction with AST parser |
+| 2C | rd6fu4 | chore | P1 | Port path_rules to peon.ps1 + pack selection tests |
+| 3A | 5efwxz | chore | P2 | Update PeonConfig skip-write optimization |
+| 3B | laimst | chore | P2 | Harden install flag E2E tests + registry fallbacks |
+| 3C | z5xm5k | chore | P2 | Add diagnostic logging for silent audio failures |
+
+### Backlog Cards Created
+| Card | Source | Description |
+|------|--------|-------------|
+| qufq3f | lyq5ta | Clean up state helper test timing + narrow retry exception |
+| zwho9i | csedqi | Improve lint-python-quoting reporting + test scope |
+| yu082h | 8ny6qr | Harden PS 5.1 locale handling + test harness reliability |
+| 65ghip | jzn4sz | Harden Get-FunctionAst parse-error + DRY parameter extraction |
+| tnd98r | rd6fu4 | Align default_pack config parity + interaction test |
+| 9gi8ut | 5efwxz | Add behavioral test coverage for CLI config-write commands |
+| augpn7 | laimst | Refactor install.ps1 validation into dot-sourceable module |
+| e40fvu | z5xm5k | Add Pester test coverage for PEON_DEBUG warning stream |
+
+### Archive
+All 10 done cards archived to `sprint-techdebt-20260316`.
+
