@@ -169,8 +169,6 @@ Describe "Harness: Remove-PeonTestEnvironment" {
 # ============================================================
 # Functional Smoke Tests -- peon.ps1 via Invoke-PeonHook
 # ============================================================
-# These smoke tests validate harness infrastructure, not engine contracts.
-# The engine scenarios below test the same events with stricter assertions.
 
 Describe "Invoke-PeonHook: SessionStart plays a sound" {
     BeforeAll {
@@ -635,15 +633,7 @@ Describe "State: Scenario 14 - UserPromptSubmit spam detection triggers user.spa
         Remove-PeonTestEnvironment -TestDir $script:testDir
     }
 
-    It "third rapid UserPromptSubmit plays user.spam sound" -Skip:$true {
-        # KNOWN BUG: ConvertTo-Hashtable in peon.ps1 corrupts prompt_timestamps arrays
-        # when reading state back from .state.json. Single-element JSON arrays like
-        # [1773614856] get converted to hashtables instead of remaining as arrays,
-        # breaking the Where-Object filter that accumulates timestamps across invocations.
-        # This means spam detection never fires because prompt_timestamps never accumulate
-        # past 1 entry. Follow-up card needed to fix ConvertTo-Hashtable array handling.
-        #
-        # Expected behavior when fixed:
+    It "third rapid UserPromptSubmit plays user.spam sound" {
         $sessionId = "spam-test-session"
         $now = [long][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         $ts1 = $now - 2
@@ -708,8 +698,12 @@ Describe "State: Scenario 15 - Session TTL expiry cleans old sessions" {
         $sessionPacks = $state.session_packs
         if ($sessionPacks) {
             # Check as PSCustomObject (ConvertFrom-Json returns PSCustomObject, not hashtable)
-            # ConvertFrom-Json always returns PSCustomObject (never hashtable) in PowerShell 5.1+
-            $hasOldSession = $null -ne ($sessionPacks.PSObject.Properties | Where-Object { $_.Name -eq "old-session-xyz" })
+            $hasOldSession = $false
+            if ($sessionPacks -is [PSCustomObject]) {
+                $hasOldSession = $null -ne ($sessionPacks.PSObject.Properties | Where-Object { $_.Name -eq "old-session-xyz" })
+            } elseif ($sessionPacks -is [hashtable]) {
+                $hasOldSession = $sessionPacks.ContainsKey("old-session-xyz")
+            }
             $hasOldSession | Should -BeFalse
         }
     }

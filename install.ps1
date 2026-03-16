@@ -798,9 +798,13 @@ $sessionId = if ($event.session_id) { $event.session_id } elseif ($event.convers
 # Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
 function ConvertTo-Hashtable {
     param([Parameter(ValueFromPipeline)]$obj)
+    if ($null -eq $obj) { return $obj }
     if ($obj -is [hashtable]) { return $obj }
-    if ($obj -is [System.Collections.IEnumerable] -and $obj -isnot [string]) {
-        return @($obj | ForEach-Object { ConvertTo-Hashtable $_ })
+    # Check value types before PSCustomObject — PS 5.1 pipeline wraps primitives
+    # in PSObject, making them match [PSCustomObject] when received via ValueFromPipeline.
+    if ($obj -is [System.ValueType] -or $obj -is [string]) { return $obj }
+    if ($obj -is [System.Collections.IEnumerable]) {
+        return ,@($obj | ForEach-Object { ConvertTo-Hashtable $_ })
     }
     if ($obj -is [PSCustomObject]) {
         $ht = @{}
