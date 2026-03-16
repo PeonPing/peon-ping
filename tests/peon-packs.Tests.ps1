@@ -4,13 +4,9 @@
 # Run: Invoke-Pester -Path tests/peon-packs.Tests.ps1
 #
 # Tests the pack selection override hierarchy in peon.ps1 (Windows native):
-#   session_override > pack_rotation > active_pack (default)
-#
-# NOTE: path_rules is not yet implemented in peon.ps1 (Windows). The peon.sh
-# (Unix) implementation includes path_rules as layer 3 in the hierarchy:
 #   session_override > path_rules > pack_rotation > default_pack
-# When path_rules is ported to peon.ps1, corresponding tests should be added.
-# Scenarios 4-7 from the original card are deferred pending that implementation.
+#
+# path_rules uses PowerShell -like operator for glob matching (fnmatch parity).
 
 BeforeAll {
     . $PSScriptRoot/windows-setup.ps1
@@ -85,6 +81,115 @@ Describe "Default Pack: Scenario 3 - Fallback to 'peon' when active_pack is empt
 
     It "audio log shows sound from peon pack (fallback)" {
         $json = New-CespJson -HookEventName "Stop"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+        $result.AudioLog.Count | Should -BeGreaterOrEqual 1
+        $result.AudioLog[0] | Should -Match '\\packs\\peon\\'
+    }
+}
+
+# ============================================================
+# Path Rules (Scenarios 4-7)
+# ============================================================
+
+Describe "Path Rules: Scenario 4 - path_rules glob match selects pack" {
+    BeforeAll {
+        $script:env = New-PeonTestEnvironment -ConfigOverrides @{
+            active_pack        = "peon"
+            pack_rotation      = @()
+            pack_rotation_mode = "random"
+            path_rules         = @(
+                @{ pattern = "*/myproject/*"; pack = "sc_kerrigan" }
+            )
+        }
+        $script:testDir = $script:env.TestDir
+    }
+
+    AfterAll {
+        Remove-PeonTestEnvironment -TestDir $script:testDir
+    }
+
+    It "selects sc_kerrigan when cwd matches the path_rules pattern" {
+        $json = New-CespJson -HookEventName "Stop" -Cwd "C:/Users/dev/myproject/src"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+        $result.AudioLog.Count | Should -BeGreaterOrEqual 1
+        $result.AudioLog[0] | Should -Match '\\packs\\sc_kerrigan\\'
+    }
+}
+
+Describe "Path Rules: Scenario 5 - path_rules first-match-wins" {
+    BeforeAll {
+        $script:env = New-PeonTestEnvironment -ConfigOverrides @{
+            active_pack        = "peon"
+            pack_rotation      = @()
+            pack_rotation_mode = "random"
+            path_rules         = @(
+                @{ pattern = "*/myproject/*"; pack = "sc_kerrigan" },
+                @{ pattern = "*/my*/*";       pack = "peon" }
+            )
+        }
+        $script:testDir = $script:env.TestDir
+    }
+
+    AfterAll {
+        Remove-PeonTestEnvironment -TestDir $script:testDir
+    }
+
+    It "selects sc_kerrigan (first matching rule) when cwd matches both patterns" {
+        $json = New-CespJson -HookEventName "Stop" -Cwd "C:/Users/dev/myproject/src"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+        $result.AudioLog.Count | Should -BeGreaterOrEqual 1
+        $result.AudioLog[0] | Should -Match '\\packs\\sc_kerrigan\\'
+    }
+}
+
+Describe "Path Rules: Scenario 6 - path_rules missing cwd fallthrough to default_pack" {
+    BeforeAll {
+        $script:env = New-PeonTestEnvironment -ConfigOverrides @{
+            active_pack        = "peon"
+            pack_rotation      = @()
+            pack_rotation_mode = "random"
+            path_rules         = @(
+                @{ pattern = "*/myproject/*"; pack = "sc_kerrigan" }
+            )
+        }
+        $script:testDir = $script:env.TestDir
+    }
+
+    AfterAll {
+        Remove-PeonTestEnvironment -TestDir $script:testDir
+    }
+
+    It "falls through to default_pack when cwd matches no path_rules pattern" {
+        $json = New-CespJson -HookEventName "Stop" -Cwd "C:/Users/dev/otherproject/src"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+        $result.AudioLog.Count | Should -BeGreaterOrEqual 1
+        $result.AudioLog[0] | Should -Match '\\packs\\peon\\'
+    }
+}
+
+Describe "Path Rules: Scenario 7 - path_rules matched pack directory missing fallthrough" {
+    BeforeAll {
+        $script:env = New-PeonTestEnvironment -ConfigOverrides @{
+            active_pack        = "peon"
+            pack_rotation      = @()
+            pack_rotation_mode = "random"
+            path_rules         = @(
+                @{ pattern = "*/myproject/*"; pack = "ghost_pack" }
+            )
+        }
+        $script:testDir = $script:env.TestDir
+    }
+
+    AfterAll {
+        Remove-PeonTestEnvironment -TestDir $script:testDir
+    }
+
+    It "falls through to default_pack when matched pack directory does not exist" {
+        $json = New-CespJson -HookEventName "Stop" -Cwd "C:/Users/dev/myproject/src"
         $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
         $result.ExitCode | Should -Be 0
         $result.AudioLog.Count | Should -BeGreaterOrEqual 1
