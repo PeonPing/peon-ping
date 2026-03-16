@@ -552,6 +552,9 @@ $hookEvent = if ($cursorMap.ContainsKey($rawEvent)) { $cursorMap[$rawEvent] } el
 # Extract session ID (Claude Code: session_id, Cursor: conversation_id)
 $sessionId = if ($event.session_id) { $event.session_id } elseif ($event.conversation_id) { $event.conversation_id } else { "default" }
 
+# Extract cwd from event (used by path_rules for directory-based pack selection)
+$cwd = if ($event.cwd) { $event.cwd } else { "" }
+
 # Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
 function ConvertTo-Hashtable {
     param([Parameter(ValueFromPipeline)]$obj)
@@ -724,6 +727,25 @@ if (-not $activePack) { $activePack = "peon" }
 $rotationMode = $config.pack_rotation_mode
 if (-not $rotationMode) { $rotationMode = "random" }
 
+# --- Path rules: first glob match wins (layer 3 in override hierarchy) ---
+# Beats rotation and default_pack; loses to session_override and local config.
+$pathRulePack = $null
+$pathRules = $config.path_rules
+if ($cwd -and $pathRules) {
+    foreach ($rule in $pathRules) {
+        $pattern = $rule.pattern
+        $candidate = $rule.pack
+        if ($pattern -and $candidate -and ($cwd -like $pattern)) {
+            $candidateDir = Join-Path $InstallDir "packs\$candidate"
+            if (Test-Path $candidateDir -PathType Container) {
+                $pathRulePack = $candidate
+                break
+            }
+        }
+    }
+}
+$defaultPack = if ($config.active_pack) { $config.active_pack } else { "peon" }
+
 if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
     # Explicit per-session assignments (from skill)
     $sessionPacks = $state.session_packs
@@ -744,9 +766,8 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
             $state.session_packs = $sessionPacks
             $stateDirty = $true
         } else {
-            # Pack missing, use default and clean up
-            $activePack = $config.active_pack
-            if (-not $activePack) { $activePack = "peon" }
+            # Pack missing, fall through hierarchy: path_rules > default_pack
+            $activePack = if ($pathRulePack) { $pathRulePack } else { $defaultPack }
             $sessionPacks.Remove($sessionId)
             $state.session_packs = $sessionPacks
             $stateDirty = $true
@@ -760,17 +781,23 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
             if ($candidate -and (Test-Path $candidateDir -PathType Container)) {
                 $activePack = $candidate
             } else {
-                $activePack = $config.active_pack
-                if (-not $activePack) { $activePack = "peon" }
+                $activePack = if ($pathRulePack) { $pathRulePack } else { $defaultPack }
             }
         } else {
-            $activePack = $config.active_pack
-            if (-not $activePack) { $activePack = "peon" }
+            $activePack = if ($pathRulePack) { $pathRulePack } else { $defaultPack }
         }
     }
 } elseif ($config.pack_rotation -and $config.pack_rotation.Count -gt 0) {
-    # Automatic rotation
-    $activePack = $config.pack_rotation | Get-Random
+    if ($pathRulePack) {
+        # Path rule beats rotation
+        $activePack = $pathRulePack
+    } else {
+        # Automatic rotation
+        $activePack = $config.pack_rotation | Get-Random
+    }
+} elseif ($pathRulePack) {
+    # Path rule beats default_pack
+    $activePack = $pathRulePack
 }
 
 $packDir = Join-Path $InstallDir "packs\$activePack"
