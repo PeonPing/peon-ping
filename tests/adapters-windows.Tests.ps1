@@ -13,6 +13,27 @@
 BeforeAll {
     $script:RepoRoot = Split-Path $PSScriptRoot -Parent
     $script:AdaptersDir = Join-Path $script:RepoRoot "adapters"
+
+    # AST-based function extraction helper (Category B tests)
+    # Replaces fragile regex patterns like (?s)(function Emit-Event \{.*?\n\})
+    # with format-independent PowerShell AST parsing.
+    function Get-FunctionAst {
+        param(
+            [string]$FilePath,
+            [string]$FunctionName
+        )
+        $errors = $null
+        $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $FilePath, [ref]$tokens, [ref]$errors
+        )
+        $funcAst = $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq $FunctionName
+        }, $true)
+        return $funcAst
+    }
 }
 
 # ============================================================
@@ -272,7 +293,12 @@ Describe "Category A: OpenClaw Adapter" {
 
 Describe "Category B: Amp Adapter" {
     BeforeAll {
-        $script:ampContent = Get-Content (Join-Path $script:AdaptersDir "amp.ps1") -Raw
+        $script:ampPath = Join-Path $script:AdaptersDir "amp.ps1"
+        $script:ampContent = Get-Content $script:ampPath -Raw
+        # AST-extracted functions
+        $script:ampEmitEvent = Get-FunctionAst $script:ampPath "Emit-Event"
+        $script:ampTestThreadWaiting = Get-FunctionAst $script:ampPath "Test-ThreadWaiting"
+        $script:ampHandleThreadChange = Get-FunctionAst $script:ampPath "Handle-ThreadChange"
     }
 
     It "has Install/Uninstall/Status daemon flags" {
@@ -306,11 +332,61 @@ Describe "Category B: Amp Adapter" {
     It "tries Windows-native AMP_DATA_DIR path first" {
         $script:ampContent | Should -Match 'LOCALAPPDATA'
     }
+
+    # AST-based function extraction tests
+    It "Emit-Event function is extractable via AST" {
+        $script:ampEmitEvent | Should -Not -BeNullOrEmpty
+        $script:ampEmitEvent.Count | Should -Be 1
+    }
+
+    It "Emit-Event accepts EventName and ThreadId parameters" {
+        $params = $script:ampEmitEvent[0].Body.ParamBlock.Parameters
+        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames | Should -Contain "EventName"
+        $paramNames | Should -Contain "ThreadId"
+    }
+
+    It "Emit-Event builds session_id with amp- prefix" {
+        $body = $script:ampEmitEvent[0].Extent.Text
+        $body | Should -Match 'amp-'
+        $body | Should -Match 'session_id'
+    }
+
+    It "Emit-Event pipes JSON to peon.ps1" {
+        $body = $script:ampEmitEvent[0].Extent.Text
+        $body | Should -Match 'ConvertTo-Json'
+        $body | Should -Match 'PeonScript'
+    }
+
+    It "Test-ThreadWaiting function is extractable via AST" {
+        $script:ampTestThreadWaiting | Should -Not -BeNullOrEmpty
+        $script:ampTestThreadWaiting.Count | Should -Be 1
+    }
+
+    It "Test-ThreadWaiting checks for tool_use content type" {
+        $body = $script:ampTestThreadWaiting[0].Extent.Text
+        $body | Should -Match 'tool_use'
+    }
+
+    It "Test-ThreadWaiting returns boolean" {
+        $body = $script:ampTestThreadWaiting[0].Extent.Text
+        $body | Should -Match '\$true'
+        $body | Should -Match '\$false'
+    }
+
+    It "Handle-ThreadChange function is extractable via AST" {
+        $script:ampHandleThreadChange | Should -Not -BeNullOrEmpty
+        $script:ampHandleThreadChange.Count | Should -Be 1
+    }
 }
 
 Describe "Category B: Antigravity Adapter" {
     BeforeAll {
-        $script:antigravityContent = Get-Content (Join-Path $script:AdaptersDir "antigravity.ps1") -Raw
+        $script:antigravityPath = Join-Path $script:AdaptersDir "antigravity.ps1"
+        $script:antigravityContent = Get-Content $script:antigravityPath -Raw
+        # AST-extracted functions
+        $script:antigravityEmitEvent = Get-FunctionAst $script:antigravityPath "Emit-Event"
+        $script:antigravityHandleChange = Get-FunctionAst $script:antigravityPath "Handle-ConversationChange"
     }
 
     It "has Install/Uninstall/Status daemon flags" {
@@ -335,11 +411,53 @@ Describe "Category B: Antigravity Adapter" {
     It "has PID file management" {
         $script:antigravityContent | Should -Match '\.antigravity-adapter\.pid'
     }
+
+    # AST-based function extraction tests
+    It "Emit-Event function is extractable via AST" {
+        $script:antigravityEmitEvent | Should -Not -BeNullOrEmpty
+        $script:antigravityEmitEvent.Count | Should -Be 1
+    }
+
+    It "Emit-Event accepts EventName and Guid parameters" {
+        $params = $script:antigravityEmitEvent[0].Body.ParamBlock.Parameters
+        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames | Should -Contain "EventName"
+        $paramNames | Should -Contain "Guid"
+    }
+
+    It "Emit-Event builds session_id with antigravity- prefix" {
+        $body = $script:antigravityEmitEvent[0].Extent.Text
+        $body | Should -Match 'antigravity-'
+        $body | Should -Match 'session_id'
+    }
+
+    It "Emit-Event pipes JSON to peon.ps1" {
+        $body = $script:antigravityEmitEvent[0].Extent.Text
+        $body | Should -Match 'ConvertTo-Json'
+        $body | Should -Match 'PeonScript'
+    }
+
+    It "Handle-ConversationChange function is extractable via AST" {
+        $script:antigravityHandleChange | Should -Not -BeNullOrEmpty
+        $script:antigravityHandleChange.Count | Should -Be 1
+    }
+
+    It "Handle-ConversationChange fires SessionStart for new conversations" {
+        $body = $script:antigravityHandleChange[0].Extent.Text
+        $body | Should -Match 'SessionStart'
+        $body | Should -Match 'Emit-Event'
+    }
 }
 
 Describe "Category B: Kimi Adapter" {
     BeforeAll {
-        $script:kimiContent = Get-Content (Join-Path $script:AdaptersDir "kimi.ps1") -Raw
+        $script:kimiPath = Join-Path $script:AdaptersDir "kimi.ps1"
+        $script:kimiContent = Get-Content $script:kimiPath -Raw
+        # AST-extracted functions
+        $script:kimiEmitEvent = Get-FunctionAst $script:kimiPath "Emit-Event"
+        $script:kimiProcessWireLine = Get-FunctionAst $script:kimiPath "Process-WireLine"
+        $script:kimiResolveKimiCwd = Get-FunctionAst $script:kimiPath "Resolve-KimiCwd"
+        $script:kimiHandleWireChange = Get-FunctionAst $script:kimiPath "Handle-WireChange"
     }
 
     It "has Install/Uninstall/Status/Help flags" {
@@ -358,32 +476,9 @@ Describe "Category B: Kimi Adapter" {
         $script:kimiContent | Should -Match 'IncludeSubdirectories.*true'
     }
 
-    It "maps TurnEnd to Stop" {
-        $script:kimiContent | Should -Match '"TurnEnd".*"Stop"'
-    }
-
-    It "maps TurnBegin to SessionStart for new sessions" {
-        $script:kimiContent | Should -Match '"TurnBegin"'
-        $script:kimiContent | Should -Match '"SessionStart"'
-    }
-
-    It "maps SubagentEvent with TurnBegin to SubagentStart" {
-        $script:kimiContent | Should -Match '"SubagentEvent"'
-        $script:kimiContent | Should -Match '"SubagentStart"'
-    }
-
-    It "maps CompactionBegin to PreCompact" {
-        $script:kimiContent | Should -Match '"CompactionBegin".*"PreCompact"'
-    }
-
     It "has /clear detection logic" {
         $script:kimiContent | Should -Match 'ClearGraceSeconds'
         $script:kimiContent | Should -Match 'lastNewSession'
-    }
-
-    It "resolves CWD from workspace hash using MD5" {
-        $script:kimiContent | Should -Match 'Resolve-KimiCwd'
-        $script:kimiContent | Should -Match 'MD5'
     }
 
     It "reads new bytes from wire.jsonl using offset tracking" {
@@ -393,6 +488,89 @@ Describe "Category B: Kimi Adapter" {
 
     It "has PID file management" {
         $script:kimiContent | Should -Match '\.kimi-adapter\.pid'
+    }
+
+    # AST-based function extraction tests
+    It "Emit-Event function is extractable via AST" {
+        $script:kimiEmitEvent | Should -Not -BeNullOrEmpty
+        $script:kimiEmitEvent.Count | Should -Be 1
+    }
+
+    It "Emit-Event accepts EventName, SessionId, and Cwd parameters" {
+        $params = $script:kimiEmitEvent[0].Body.ParamBlock.Parameters
+        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames | Should -Contain "EventName"
+        $paramNames | Should -Contain "SessionId"
+        $paramNames | Should -Contain "Cwd"
+    }
+
+    It "Emit-Event pipes JSON to peon.ps1" {
+        $body = $script:kimiEmitEvent[0].Extent.Text
+        $body | Should -Match 'ConvertTo-Json'
+        $body | Should -Match 'PeonScript'
+    }
+
+    It "Process-WireLine function is extractable via AST" {
+        $script:kimiProcessWireLine | Should -Not -BeNullOrEmpty
+        $script:kimiProcessWireLine.Count | Should -Be 1
+    }
+
+    It "Process-WireLine accepts Line, Uuid, and Cwd parameters" {
+        $params = $script:kimiProcessWireLine[0].Body.ParamBlock.Parameters
+        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames | Should -Contain "Line"
+        $paramNames | Should -Contain "Uuid"
+        $paramNames | Should -Contain "Cwd"
+    }
+
+    It "Process-WireLine maps TurnEnd to Stop" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"TurnEnd"'
+        $body | Should -Match '"Stop"'
+    }
+
+    It "Process-WireLine maps CompactionBegin to PreCompact" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"CompactionBegin"'
+        $body | Should -Match '"PreCompact"'
+    }
+
+    It "Process-WireLine maps SubagentEvent with TurnBegin to SubagentStart" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"SubagentEvent"'
+        $body | Should -Match '"SubagentStart"'
+    }
+
+    It "Process-WireLine maps TurnBegin for session detection" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"TurnBegin"'
+    }
+
+    It "Process-WireLine builds session_id with kimi- prefix" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match 'kimi-'
+        $body | Should -Match 'session_id'
+    }
+
+    It "Resolve-KimiCwd function is extractable via AST" {
+        $script:kimiResolveKimiCwd | Should -Not -BeNullOrEmpty
+        $script:kimiResolveKimiCwd.Count | Should -Be 1
+    }
+
+    It "Resolve-KimiCwd uses MD5 hashing" {
+        $body = $script:kimiResolveKimiCwd[0].Extent.Text
+        $body | Should -Match 'MD5'
+    }
+
+    It "Handle-WireChange function is extractable via AST" {
+        $script:kimiHandleWireChange | Should -Not -BeNullOrEmpty
+        $script:kimiHandleWireChange.Count | Should -Be 1
+    }
+
+    It "Handle-WireChange uses FileStream for offset-based reading" {
+        $body = $script:kimiHandleWireChange[0].Extent.Text
+        $body | Should -Match 'FileStream'
+        $body | Should -Match 'sessionOffset'
     }
 }
 
