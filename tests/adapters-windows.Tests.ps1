@@ -1264,7 +1264,7 @@ Describe "path_rules: Runtime Matching Engine" {
     # --- Matching engine structural tests ---
 
     It "evaluates path_rules against event cwd" {
-        $script:peonHookContent | Should -Match 'eventCwd.*-like.*\$pat'
+        $script:peonHookContent | Should -Match 'cwd.*-like.*\$pattern'
     }
 
     It "checks that matched pack directory exists before selecting" {
@@ -1290,7 +1290,7 @@ Describe "path_rules: Runtime Matching Engine" {
 
     It "empty path_rules array is a no-op (uses default_pack)" {
         # The foreach simply does nothing when path_rules is empty
-        $script:peonHookContent | Should -Match 'foreach \(\$rule in \$config\.path_rules\)'
+        $script:peonHookContent | Should -Match 'foreach \(\$rule in \$pathRules\)'
     }
 
     It "session_override beats path_rules in hierarchy" {
@@ -1299,11 +1299,11 @@ Describe "path_rules: Runtime Matching Engine" {
     }
 
     It "no cwd skips path_rules matching" {
-        $script:peonHookContent | Should -Match 'if \(\$eventCwd'
+        $script:peonHookContent | Should -Match 'if \(\$cwd'
     }
 
     It "uses Get-ActivePack for default pack resolution" {
-        $script:peonHookContent | Should -Match 'Get-ActivePack \$config'
+        $script:peonHookContent | Should -Match '\$defaultPack'
     }
 }
 
