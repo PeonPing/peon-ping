@@ -65,3 +65,42 @@ Backlog cards created: qufq3f, zwho9i
 ---
 
 /usr/bin/bash: line 1: .venv/Scripts/python.exe: No such file or directory
+
+## Phase 2: Batch 2 Execution (Step 2A-2C)
+
+**Timestamp:** 2026-03-16
+**Cards:** 8ny6qr, jzn4sz, rd6fu4
+
+### Executor Results
+| Card | Commit | Merge Status | Notes |
+|------|--------|-------------|-------|
+| 8ny6qr | ff71628 | Merged (conflict resolved) | Conflict in peon-engine.Tests.ps1 — took executor version |
+| jzn4sz | 0891dbb | Clean merge | adapters-windows.Tests.ps1 auto-merged |
+| rd6fu4 | 30ab6aa | Merged (4 conflicts resolved) | install.ps1 path_rules conflicts — took rd6fu4 version |
+
+### Post-merge Integration Fix
+- 3 adapter test assertions updated to match rd6fu4 variable names ($cwd/$pattern/$pathRules/$defaultPack)
+- Commit: 6dd1806
+
+### Post-merge Tests
+- peon-engine.Tests.ps1: 47/47 passed (Scenario 14 un-skipped!)
+- adapters-windows.Tests.ps1: 268/268 passed
+- peon-packs.Tests.ps1: 19/19 passed
+
+
+### Batch 2 Router Verdicts
+| Card | Verdict | Action |
+|------|---------|--------|
+| 8ny6qr | APPROVAL | Close-out complete → done. Planner created backlog card yu082h |
+| jzn4sz | APPROVAL | Close-out complete → done. Planner created backlog card 65ghip |
+| rd6fu4 | APPROVAL | Close-out complete → done. Planner created backlog card tnd98r |
+
+### Phase 2 Summary
+All 3 Batch 2 cards completed (all first-pass approvals):
+- 8ny6qr: done
+- jzn4sz: done
+- rd6fu4: done
+Backlog cards created: yu082h, 65ghip, tnd98r
+
+---
+

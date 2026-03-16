@@ -162,3 +162,11 @@ Recommended: Option 1 -- change `return @($obj | ...)` to `return ,@($obj | ...)
 - `install.ps1` — ConvertTo-Hashtable fix in embedded peon.ps1 here-string
 - `tests/peon-engine.Tests.ps1` — Scenario 14 un-skipped (copied from sprint/WINTEST)
 - `tests/windows-setup.ps1` — shared test harness (copied from sprint/WINTEST)
+
+## Review Log
+
+| Review | Verdict | Date | Report |
+| :--- | :--- | :--- | :--- |
+| 1 | APPROVAL | 2026-03-16 | `.gitban/agents/reviewer/inbox/TECHDEBT-8ny6qr-reviewer-1.md` |
+
+Routed: executor close-out instructions to `.gitban/agents/executor/inbox/TECHDEBT-8ny6qr-executor-1.md`. Two non-blocking items (L1 locale guard, L2 test race) grouped into 1 FASTFOLLOW card and routed to planner at `.gitban/agents/planner/inbox/TECHDEBT-8ny6qr-planner-1.md`.
