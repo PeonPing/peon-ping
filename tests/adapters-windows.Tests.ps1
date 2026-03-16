@@ -1518,6 +1518,10 @@ Describe "path_rules: CLI Commands - Functional" {
         & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
         $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
         ($result -join "`n") | Should -Match "path rules: 1 configured"
+    }
+}
+
+# ============================================================
 # install.ps1 E2E: pack download with mocked registry
 # ============================================================
 
