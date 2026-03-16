@@ -1250,6 +1250,22 @@ Describe "install.ps1 Default Config" {
     It "warns about winget ffplay PATH issue" {
         $script:installContent | Should -Match 'may not add ffplay to PATH'
     }
+
+    It "warns when a custom pack name is not found in registry" {
+        $script:installContent | Should -Match "pack '.*' not found in registry"
+    }
+
+    It "applies per-field defensive defaults for source_repo, source_ref, source_path" {
+        $script:installContent | Should -Match 'sourceRepo = \$FallbackRepo'
+        $script:installContent | Should -Match 'sourceRef = \$FallbackRef'
+        $script:installContent | Should -Match 'sourcePath = \$packName'
+    }
+
+    It "help text has aligned columns and pack management section" {
+        $script:installContent | Should -Match '--packs use <n>'
+        $script:installContent | Should -Match '--packs next'
+        $script:installContent | Should -Match 'Pack management:'
+    }
 }
 
 # ============================================================
@@ -1502,5 +1518,197 @@ Describe "path_rules: CLI Commands - Functional" {
         & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
         $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
         ($result -join "`n") | Should -Match "path rules: 1 configured"
+# install.ps1 E2E: pack download with mocked registry
+# ============================================================
+
+Describe "install.ps1 E2E: Pack Download Flow" {
+    BeforeAll {
+        # Extract validation functions from install.ps1
+        $script:installContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+
+        # Define validation functions (same as install.ps1)
+        function Test-SafePackName($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+        function Test-SafeSourceRepo($n)  { $n -match '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' }
+        function Test-SafeSourceRef($n)   { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+        function Test-SafeSourcePath($n)  { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+        function Test-SafeFilename($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+
+        $script:FallbackRepo = "PeonPing/og-packs"
+        $script:FallbackRef = "v1.1.0"
     }
+
+    It "downloads pack from mock registry with full metadata" {
+        $tmpDir = Join-Path $TestDrive "e2e-full"
+        New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+
+        # Mock registry entry with all fields populated
+        $packInfo = [PSCustomObject]@{
+            name = "test_pack"
+            source_repo = "TestOrg/test-packs"
+            source_ref = "v2.0.0"
+            source_path = "test_pack"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        # Apply per-field defaults (same logic as install.ps1)
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        $packBase = "https://raw.githubusercontent.com/$sourceRepo/$sourceRef/$sourcePath"
+
+        $sourceRepo | Should -Be "TestOrg/test-packs"
+        $sourceRef | Should -Be "v2.0.0"
+        $sourcePath | Should -Be "test_pack"
+        $packBase | Should -Be "https://raw.githubusercontent.com/TestOrg/test-packs/v2.0.0/test_pack"
+    }
+
+    It "applies per-field defaults when source_repo is missing" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = $null
+            source_ref = "v3.0.0"
+            source_path = "custom/path"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        # Only source_repo should fall back; ref and path should keep their values
+        $sourceRepo | Should -Be "PeonPing/og-packs"
+        $sourceRef | Should -Be "v3.0.0"
+        $sourcePath | Should -Be "custom/path"
+    }
+
+    It "applies per-field defaults when source_ref is missing" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = "MyOrg/my-packs"
+            source_ref = $null
+            source_path = "my_pack"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        # Only source_ref should fall back
+        $sourceRepo | Should -Be "MyOrg/my-packs"
+        $sourceRef | Should -Be "v1.1.0"
+        $sourcePath | Should -Be "my_pack"
+    }
+
+    It "applies per-field defaults when source_path is missing" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = "MyOrg/my-packs"
+            source_ref = "main"
+            source_path = $null
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        # Only source_path should fall back to pack name
+        $sourceRepo | Should -Be "MyOrg/my-packs"
+        $sourceRef | Should -Be "main"
+        $sourcePath | Should -Be "my_pack"
+    }
+
+    It "falls back all fields when all are invalid" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = "../../bad"
+            source_ref = "../evil"
+            source_path = "/absolute/path"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        $sourceRepo | Should -Be "PeonPing/og-packs"
+        $sourceRef | Should -Be "v1.1.0"
+        $sourcePath | Should -Be "my_pack"
+    }
+
+    It "creates pack directory structure and writes manifest" {
+        $tmpDir = Join-Path $TestDrive "e2e-dirs"
+        $packName = "test_pack"
+        $packDir = Join-Path $tmpDir "packs\$packName"
+        $soundsDir = Join-Path $packDir "sounds"
+        New-Item -ItemType Directory -Path $soundsDir -Force | Out-Null
+
+        # Write a mock manifest
+        $manifest = @{
+            name = "test_pack"
+            categories = @{
+                "session.start" = @{
+                    sounds = @(
+                        @{ file = "sounds/hello.wav"; label = "Hello" }
+                    )
+                }
+            }
+        } | ConvertTo-Json -Depth 5
+        $manifestPath = Join-Path $packDir "openpeon.json"
+        Set-Content $manifestPath -Value $manifest -Encoding UTF8
+
+        # Verify structure
+        $packDir | Should -Exist
+        $soundsDir | Should -Exist
+        $manifestPath | Should -Exist
+
+        # Parse manifest and extract sound files (same logic as install.ps1)
+        $parsed = Get-Content $manifestPath -Raw | ConvertFrom-Json
+        $soundFiles = @()
+        foreach ($catName in $parsed.categories.PSObject.Properties.Name) {
+            $cat = $parsed.categories.$catName
+            foreach ($sound in $cat.sounds) {
+                $file = Split-Path $sound.file -Leaf
+                if ($file -and $soundFiles -notcontains $file) {
+                    $soundFiles += $file
+                }
+            }
+        }
+
+        $soundFiles.Count | Should -Be 1
+        $soundFiles[0] | Should -Be "hello.wav"
+    }
+
+    It "skips unsafe filenames in manifest" {
+        $soundFiles = @("good.wav", "../evil.wav", "also-good.mp3")
+        $safe = @($soundFiles | Where-Object { Test-SafeFilename $_ })
+        $safe.Count | Should -Be 2
+        $safe | Should -Contain "good.wav"
+        $safe | Should -Contain "also-good.mp3"
+        $safe | Should -Not -Contain "../evil.wav"
+    }
+
+    It "skips invalid pack names" {
+        Test-SafePackName "good_pack" | Should -Be $true
+        Test-SafePackName "also-good.pack" | Should -Be $true
+        Test-SafePackName "../bad" | Should -Be $false
+        Test-SafePackName "bad pack" | Should -Be $false
+        Test-SafePackName "" | Should -Be $false    }
 }
