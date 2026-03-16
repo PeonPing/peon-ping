@@ -162,6 +162,46 @@ export PEON_ENV_STATE="$STATE_PY"
 export PEON_ENV_PEON_DIR="$PEON_DIR_PY"
 export PEON_ENV_PLATFORM="$PLATFORM"
 
+# --- Shared Python state I/O helpers (DRY: single definition used by all inline Python blocks) ---
+# Included via ${_PEON_STATE_PY_HELPERS} in python3 -c strings.
+# Requires: import json, os, time, tempfile (caller must import these before expanding).
+read -r -d '' _PEON_STATE_PY_HELPERS <<'PYHELPERS' || true
+def _write_state(st, path, indent=None):
+    """Atomically write state dict to path via temp+rename."""
+    d = os.path.dirname(path) or '.'
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(st, f, indent=indent)
+        os.replace(tmp, path)
+    except Exception:
+        try: os.unlink(tmp)
+        except OSError: pass
+        raise
+
+def _read_state(path):
+    """Read state dict from path with retry on transient I/O failures.
+    Short-circuits on FileNotFoundError (first run) to avoid 350ms retry delay."""
+    if not os.path.exists(path):
+        return {}
+    delays = [0.05, 0.1, 0.2]
+    for attempt in range(len(delays) + 1):
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+        except Exception:
+            if attempt < len(delays):
+                time.sleep(delays[attempt])
+    return {}
+
+# Aliases used by the main hook Python block (public API names)
+write_state = _write_state
+read_state = _read_state
+PYHELPERS
+
 # --- Safe eval: only allow lines matching VAR=value (defense-in-depth for Python output) ---
 safe_eval_python() {
   local output="$1"
@@ -2591,29 +2631,7 @@ import json, datetime, sys, os, time, tempfile
 config_path = '$CONFIG_PY'
 state_path = '$STATE_PY'
 
-def _write_state(st, path, indent=None):
-    d = os.path.dirname(path) or '.'
-    os.makedirs(d, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=d, suffix='.tmp')
-    try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(st, f, indent=indent)
-        os.replace(tmp, path)
-    except Exception:
-        try: os.unlink(tmp)
-        except OSError: pass
-        raise
-
-def _read_state(path):
-    delays = [0.05, 0.1, 0.2]
-    for attempt in range(len(delays) + 1):
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except Exception:
-            if attempt < len(delays):
-                time.sleep(delays[attempt])
-    return {}
+${_PEON_STATE_PY_HELPERS}
 
 try:
     cfg = json.load(open(config_path))
@@ -2676,29 +2694,7 @@ state_path = '$STATE_PY'
 count = int('$COUNT')
 exercise = '$EXERCISE'
 
-def _write_state(st, path, indent=None):
-    d = os.path.dirname(path) or '.'
-    os.makedirs(d, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=d, suffix='.tmp')
-    try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(st, f, indent=indent)
-        os.replace(tmp, path)
-    except Exception:
-        try: os.unlink(tmp)
-        except OSError: pass
-        raise
-
-def _read_state(path):
-    delays = [0.05, 0.1, 0.2]
-    for attempt in range(len(delays) + 1):
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except Exception:
-            if attempt < len(delays):
-                time.sleep(delays[attempt])
-    return {}
+${_PEON_STATE_PY_HELPERS}
 
 try:
     cfg = json.load(open(config_path))
@@ -2875,34 +2871,8 @@ hook_tty = '$_PEON_HOOK_TTY'
 agent_modes = {'delegate'}
 state_dirty = False
 
-# --- Atomic state I/O helpers ---
-def write_state(st, path, indent=None):
-    '''Atomically write state dict to path via temp+rename.'''
-    d = os.path.dirname(path) or '.'
-    os.makedirs(d, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=d, suffix='.tmp')
-    try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(st, f, indent=indent)
-        os.replace(tmp, path)
-    except Exception:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-
-def read_state(path):
-    '''Read state dict from path with retry on transient failures.'''
-    delays = [0.05, 0.1, 0.2]
-    for attempt in range(len(delays) + 1):
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except Exception:
-            if attempt < len(delays):
-                time.sleep(delays[attempt])
-    return {}
+# --- Atomic state I/O helpers (shared definition from _PEON_STATE_PY_HELPERS) ---
+${_PEON_STATE_PY_HELPERS}
 
 # --- Load config ---
 try:
