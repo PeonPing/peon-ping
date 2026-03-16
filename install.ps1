@@ -371,23 +371,23 @@ if ($Command) {
             $cfg = $raw | ConvertFrom-Json
             $newState = -not $cfg.enabled
             $raw = Get-Content $ConfigPath -Raw
-            $raw = $raw -replace '"enabled"\s*:\s*(true|false)', "`"enabled`": $($newState.ToString().ToLower())"
-            Set-Content $ConfigPath -Value $raw -Encoding UTF8
+            $updated = $raw -replace '"enabled"\s*:\s*(true|false)', "`"enabled`": $($newState.ToString().ToLower())"
+            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
             $state = if ($newState) { "ENABLED" } else { "PAUSED" }
             Write-Host "peon-ping: $state" -ForegroundColor Cyan
             return
         }
         "^--(pause|mute)$" {
             $raw = Get-Content $ConfigPath -Raw
-            $raw = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": false'
-            Set-Content $ConfigPath -Value $raw -Encoding UTF8
+            $updated = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": false'
+            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
             Write-Host "peon-ping: PAUSED" -ForegroundColor Yellow
             return
         }
         "^--(resume|unmute)$" {
             $raw = Get-Content $ConfigPath -Raw
-            $raw = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": true'
-            Set-Content $ConfigPath -Value $raw -Encoding UTF8
+            $updated = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": true'
+            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
             Write-Host "peon-ping: ENABLED" -ForegroundColor Green
             return
         }
@@ -438,9 +438,9 @@ if ($Command) {
                         return
                     }
                     $raw = Get-Content $ConfigPath -Raw
-                    $raw = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
-                    $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
-                    Set-Content $ConfigPath -Value $raw -Encoding UTF8
+                    $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
+                    $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+                    if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
                     Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
                     return
                 }
@@ -449,9 +449,9 @@ if ($Command) {
                     $idx = [array]::IndexOf($available, $currentPack)
                     $newPack = $available[($idx + 1) % $available.Count]
                     $raw = Get-Content $ConfigPath -Raw
-                    $raw = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
-                    $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
-                    Set-Content $ConfigPath -Value $raw -Encoding UTF8
+                    $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
+                    $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+                    if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
                     Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
                     return
                 }
@@ -700,9 +700,9 @@ if ($Command) {
             }
 
             $raw = Get-Content $ConfigPath -Raw
-            $raw = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
-            $raw = $raw -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
-            Set-Content $ConfigPath -Value $raw -Encoding UTF8
+            $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
+            $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
+            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
             Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
             return
         }
@@ -711,8 +711,8 @@ if ($Command) {
                 $vol = [math]::Round([math]::Max(0.0, [math]::Min(1.0, [double]::Parse($Arg1.Trim(), [System.Globalization.CultureInfo]::InvariantCulture))), 2)
                 $volStr = $vol.ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 $raw = Get-Content $ConfigPath -Raw
-                $raw = $raw -replace '"volume"\s*:\s*[\d.]+,', "`"volume`": $volStr,"
-                Set-Content $ConfigPath -Value $raw -Encoding UTF8
+                $updated = $raw -replace '"volume"\s*:\s*[\d.]+,', "`"volume`": $volStr,"
+                if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
                 Write-Host "peon-ping: volume set to $vol" -ForegroundColor Green
             } else {
                 Write-Host "Usage: peon --volume 0.5" -ForegroundColor Yellow
