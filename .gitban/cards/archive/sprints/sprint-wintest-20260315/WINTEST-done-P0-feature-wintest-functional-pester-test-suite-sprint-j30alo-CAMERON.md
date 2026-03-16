@@ -76,10 +76,10 @@
 | **Take Sprint** | [Date sprint was claimed] | - [x] Used take_sprint() to claim work |
 | **Mid-Sprint Check** | [Sprint progress notes] | - [x] Reviewed list_cards(group_by_sprint=True) |
 | **Complete Cards** | [Completed card IDs] | - [x] Cards moved to done status |
-| **Sprint Archive** | [Archive folder name] | - [ ] Used archive_cards() to bundle work |
-| **Generate Summary** | [Summary.md location] | - [ ] Used generate_archive_summary() |
-| **Update Changelog** | [Changelog entry] | - [ ] Used update_changelog() |
-| **Update Roadmap** | [Milestone status] | - [ ] Marked milestone complete |
+| **Sprint Archive** | [Archive folder name] | - [x] Used archive_cards() to bundle work |
+| **Generate Summary** | [Summary.md location] | - [x] Used generate_archive_summary() |
+| **Update Changelog** | [Changelog entry] | - [x] Used update_changelog() |
+| **Update Roadmap** | [Milestone status] | - [x] Marked milestone complete |
 
 ---
 
@@ -95,14 +95,14 @@
 
 ### Completion Checklist
 
-* [ ] All done cards archived to sprint folder
-* [ ] Sprint summary generated with automatic metrics
-* [ ] Changelog updated with version number and changes
-* [ ] Roadmap milestone marked complete with actual date
-* [ ] Incomplete cards moved to backlog or next sprint
-* [ ] Retrospective notes captured above
-* [ ] Follow-up cards created for technical debt
-* [ ] Sprint closed and celebrated!
+- [x] All done cards archived to sprint folder
+- [x] Sprint summary generated with automatic metrics
+- [x] Changelog updated with version number and changes
+- [x] Roadmap milestone marked complete with actual date
+- [x] Incomplete cards moved to backlog or next sprint
+- [x] Retrospective notes captured above
+- [x] Follow-up cards created for technical debt
+- [x] Sprint closed and celebrated!
 
 
 ## Follow-up & Lessons Learned

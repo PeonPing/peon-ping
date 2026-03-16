@@ -124,3 +124,50 @@
 | Rework cycles | 2 (lxhqpf, jwh5zl) |
 | Cards completed | 4 (1dnbzv, lxhqpf, jwh5zl, frjune) |
 | Backlog cards created | 4 (d3c6b0, jzn4sz, n5uqeo, rd6fu4) |
+
+## Phase 3: Batch 2.5 — xk4ymm (harness hardening)
+
+### Executor
+| Agent | Tools | Duration |
+|:------|------:|---------:|
+| xk4ymm-executor-1 | 48 | 7m |
+
+- **Commit:** 374fcd2
+- **Merge:** a629878 (conflict resolved: theirs for both harness fixes)
+- **Changes:** InvariantCulture for config serialization, anchored regex for hook extraction
+
+### Reviewer → Router → Close-out
+| Agent | Tools | Duration | Verdict |
+|:------|------:|---------:|:--------|
+| xk4ymm-reviewer-1 | 22 | 2m | APPROVAL |
+| xk4ymm-router-1 | 18 | 2m | — |
+| xk4ymm-closeout-1 | 5 | <1m | — |
+
+### Phase 3 Total
+| Metric | Value |
+|:-------|------:|
+| Total tool uses | ~93 |
+| Total wall time | ~12m |
+| Rework cycles | 0 |
+
+## Phase 4: Batch 3 — x5cpil (CI workflow integration)
+
+- **Executed directly** (dispatcher handled, no agent dispatch)
+- **Change:** `$config.Run.Path` from explicit 5-file array to `"tests/"` for auto-discovery
+- **Commit:** a8bc39a
+- **Verification:** 371 tests discovered across 5 files, 0 test files missed
+- **Also:** Archived superseded card gtb6dm
+
+## Sprint Summary
+
+| Metric | Value |
+|:-------|------:|
+| Cards completed | 7 (q52ygy, 1dnbzv, lxhqpf, jwh5zl, frjune, xk4ymm, x5cpil) |
+| Total agent dispatches | ~40 |
+| Total tool uses | ~835 |
+| Rework cycles | 2 (lxhqpf B1: CI workflow, jwh5zl B1: wrong assertion) |
+| Backlog cards created | 5 (xk4ymm from Phase 1, d3c6b0, jzn4sz, n5uqeo, rd6fu4 from Phase 2) |
+| Production bugs found | 1 (8ny6qr: ConvertTo-Hashtable array corruption) |
+| New test files | 4 (peon-engine, peon-adapters, peon-security, peon-packs) |
+| New tests added | ~96 functional tests |
+| Total Pester tests | 371 (370 pass, 1 skip) |
