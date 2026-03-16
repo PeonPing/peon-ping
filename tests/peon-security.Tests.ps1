@@ -189,6 +189,7 @@ Describe "hook-handle-use.ps1: Input Validation" {
     # Scenario 5: Nonexistent pack name returns error with available pack list
     It "Scenario 5: Nonexistent pack lists available packs" {
         $r = script:Invoke-HookCli -PackName "nonexistent" -ConfigDir $script:testEnv.Claude
+        $r.ExitCode | Should -Be 1
         $text = $r.Output -join "`n"
         $text | Should -Match "not found"
         $text | Should -Match "peon"
@@ -350,7 +351,7 @@ Describe "win-play.ps1: WAV/MP3 Branching and Player Chain" {
         $logContent = Get-Content $script:mockLog -Raw
         $logContent | Should -Match "vlc"
         # vol * 2.0 = 1.0 with InvariantCulture
-        $logContent | Should -Match "--gain 1"
+        $logContent | Should -Match "--gain 1(\.\d+)?(\s|$)"
     }
 
     # Scenario 16: Exits silently when no player available
