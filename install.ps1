@@ -100,7 +100,14 @@ if ($Packs -and $Packs.Count -gt 0) {
         $customPackNames = $Packs.ToString() -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     }
     $packsToInstall = $registry.packs | Where-Object { $_.name -in $customPackNames }
-    Write-Host "  Installing custom packs: $($customPackNames -join ', ')" -ForegroundColor Cyan
+    $foundNames = @($packsToInstall | ForEach-Object { $_.name })
+    $notFound = @($customPackNames | Where-Object { $_ -notin $foundNames })
+    if ($notFound.Count -gt 0) {
+        foreach ($missing in $notFound) {
+            Write-Host "  Warning: pack '$missing' not found in registry" -ForegroundColor Yellow
+        }
+    }
+    Write-Host "  Installing custom packs: $($foundNames -join ', ')" -ForegroundColor Cyan
 } elseif ($All) {
     $packsToInstall = $registry.packs
     Write-Host "  Installing ALL $($packsToInstall.Count) packs..." -ForegroundColor Cyan
@@ -132,15 +139,10 @@ foreach ($packInfo in $packsToInstall) {
     $sourceRef = $packInfo.source_ref
     $sourcePath = $packInfo.source_path
 
-    # Validate source metadata; fall back to default repo if invalid
-    if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = "" }
-    if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = "" }
-    if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = "" }
-    if (-not $sourceRepo -or -not $sourceRef -or -not $sourcePath) {
-        $sourceRepo = $FallbackRepo
-        $sourceRef = $FallbackRef
-        $sourcePath = $packName
-    }
+    # Validate source metadata; apply per-field defensive defaults
+    if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $FallbackRepo }
+    if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $FallbackRef }
+    if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packName }
 
     $packBase = "https://raw.githubusercontent.com/$sourceRepo/$sourceRef/$sourcePath"
 
@@ -481,16 +483,20 @@ if ($Command) {
         }
         "^--help$" {
             Write-Host "peon-ping commands:" -ForegroundColor Cyan
-            Write-Host "  --toggle       Toggle enabled/paused"
-            Write-Host "  --pause        Pause sounds"
-            Write-Host "  --resume       Resume sounds"
-            Write-Host "  --mute         Alias for --pause"
-            Write-Host "  --unmute       Alias for --resume"
-            Write-Host "  --status       Show current status"
-            Write-Host "  --packs        List available sound packs"
-            Write-Host "  --pack [name]  Switch pack (or cycle)"
-            Write-Host "  --volume N     Set volume (0.0-1.0)"
-            Write-Host "  --help         Show this help"
+            Write-Host "  --toggle          Toggle enabled/paused"
+            Write-Host "  --pause           Pause sounds"
+            Write-Host "  --resume          Resume sounds"
+            Write-Host "  --mute            Alias for --pause"
+            Write-Host "  --unmute          Alias for --resume"
+            Write-Host "  --status          Show current status"
+            Write-Host "  --volume N        Set volume (0.0-1.0)"
+            Write-Host "  --help            Show this help"
+            Write-Host ""
+            Write-Host "Pack management:" -ForegroundColor Cyan
+            Write-Host "  --packs           List available sound packs"
+            Write-Host "  --packs use <n>   Switch to a specific pack"
+            Write-Host "  --packs next      Cycle to the next pack"
+            Write-Host "  --pack [name]     Switch pack (or cycle)"
             return
         }
     }
