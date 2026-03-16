@@ -99,7 +99,7 @@ print('valid')
 
 @test "WSL standard toast XML is well-formed" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -112,7 +112,7 @@ ET.fromstring(open('$TEST_DIR/wsl_tmp/peon-toast.xml').read())
 
 @test "WSL standard toast XML contains toast structure with silent audio" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -124,7 +124,7 @@ JSON
 
 @test "WSL standard toast XML contains project name in text" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -134,7 +134,7 @@ JSON
 
 @test "WSL standard toast with angle brackets in project name produces valid XML" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/<script>","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -151,7 +151,7 @@ ET.fromstring(open('$TEST_DIR/wsl_tmp/peon-toast.xml').read())
 
 @test "WSL standard toast PowerShell includes Remove-Item for cleanup" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -176,7 +176,7 @@ JSON
 
 @test "WSL notification_style standard uses toast notification" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -189,7 +189,7 @@ JSON
 
 @test "WSL standard toast includes icon XML when icon exists" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   mkdir -p "$TEST_DIR/docs"
   echo "fake-png" > "$TEST_DIR/docs/peon-icon.png"
@@ -204,7 +204,7 @@ JSON
 
 @test "WSL standard toast works without pack icon" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": { "session.start": true, "task.complete": true, "task.error": true, "input.required": true, "resource.limit": true, "user.spam": true }, "annoyed_threshold": 3, "annoyed_window_seconds": 10 }
 JSON
   rm -f "$TEST_DIR/docs/peon-icon.png" 2>/dev/null
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'

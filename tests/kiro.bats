@@ -106,7 +106,7 @@ run_kiro() {
 
 @test "enabled=false suppresses Kiro sounds" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "enabled": false, "active_pack": "peon", "volume": 0.5, "categories": {} }
+{ "enabled": false, "default_pack": "peon", "volume": 0.5, "categories": {} }
 JSON
   run_kiro '{"hook_event_name":"agentSpawn","cwd":"/tmp/myproject","session_id":"k1"}'
   [ "$KIRO_EXIT" -eq 0 ]
@@ -115,7 +115,7 @@ JSON
 
 @test "volume from config is passed through" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
   run_kiro '{"hook_event_name":"agentSpawn","cwd":"/tmp/myproject","session_id":"k1"}'
   afplay_was_called

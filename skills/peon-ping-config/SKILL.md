@@ -15,16 +15,16 @@ The config file is at `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/confi
 ## Available settings
 
 - **volume** (number, 0.0–1.0): Sound volume
-- **active_pack** (string): Current sound pack name (e.g. `"peon"`, `"sc_kerrigan"`, `"glados"`)
+- **default_pack** (string): Current sound pack name (e.g. `"peon"`, `"sc_kerrigan"`, `"glados"`). Legacy key `active_pack` is also accepted as a fallback.
 - **enabled** (boolean): Master on/off switch
-- **pack_rotation** (array of strings): List of packs to rotate through per session. Empty `[]` uses `active_pack` only.
-- **pack_rotation_mode** (string): `"random"` (default) picks a random pack each session. `"round-robin"` cycles through in order. `"agentskill"` uses explicit per-session assignments from `/peon-ping-use`; invalid or missing packs fall back to `active_pack` and the stale assignment is removed.
+- **pack_rotation** (array of strings): List of packs to rotate through per session. Empty `[]` uses `default_pack` only.
+- **pack_rotation_mode** (string): `"random"` (default) picks a random pack each session. `"round-robin"` cycles through in order. `"session_override"` uses explicit per-session assignments from `/peon-ping-use`; invalid or missing packs fall back to `default_pack` and the stale assignment is removed. Legacy value `"agentskill"` is accepted as an alias.
 - **categories** (object): Toggle individual CESP sound categories:
   - `session.start`, `task.acknowledge`, `task.complete`, `task.error`, `input.required`, `resource.limit`, `user.spam` — each a boolean
 - **annoyed_threshold** (number): How many rapid prompts trigger user.spam sounds
 - **annoyed_window_seconds** (number): Time window for the annoyed threshold
 - **silent_window_seconds** (number): Suppress task.complete sounds for tasks shorter than this many seconds
-- **session_ttl_days** (number, default: 7): Expire stale per-session pack assignments older than N days (when using agentskill mode)
+- **session_ttl_days** (number, default: 7): Expire stale per-session pack assignments older than N days (when using session_override mode)
 - **desktop_notifications** (boolean): Toggle notification popups independently from sounds (default: `true`)
 - **use_sound_effects_device** (boolean): Route audio through macOS Sound Effects device (`true`) or default output via afplay (`false`). Only affects macOS. Default: `true`
 
@@ -116,7 +116,7 @@ The `path_rules` array in `config.json` can also be edited directly:
 }
 ```
 
-Patterns use Python `fnmatch` glob syntax. First matching rule wins. Path rules override `default_pack` and `pack_rotation` but are overridden by `session_override` (agentskill) assignments.
+Patterns use Python `fnmatch` glob syntax. First matching rule wins. Path rules override `default_pack` and `pack_rotation` but are overridden by `session_override` assignments.
 
 ## List available packs
 

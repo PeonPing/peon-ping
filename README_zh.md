@@ -136,6 +136,10 @@ peon packs install-local <path> # 从本地目录安装语音包
 peon packs use <name>     # 切换到指定语音包
 peon packs next           # 切换到下一个语音包
 peon packs remove <p1,p2> # 移除指定语音包
+peon packs bind <name>    # 将语音包绑定到当前目录
+peon packs bind --pattern <path> # 将语音包绑定到目录模式，例如 "*/services"
+peon packs unbind         # 移除当前目录的绑定
+peon packs bindings       # 列出所有已分配的绑定
 peon notifications on     # 启用桌面通知
 peon notifications off    # 禁用桌面通知
 peon preview              # 播放 session.start 的所有声音
@@ -228,6 +232,47 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - **notification_title_script**（字符串，默认：`""`）：在事件触发时运行的 Shell 命令，用于动态计算项目名称。可用环境变量：`PEON_SESSION_ID`、`PEON_CWD`、`PEON_HOOK_EVENT`、`PEON_SESSION_NAME`。使用标准输出（去除首尾空白，最多 50 字符）；非零退出码则继续查找下一层级。示例：`"basename $PEON_CWD"`。
 - **project_name_map**（对象，默认：`{}`）：将目录路径映射为通知中的自定义项目标签。键为路径模式，值为显示名称。
 - **notification_templates**（对象，默认：`{}`）：自定义通知事件的消息格式。键为事件类型（`stop`、`permission`、`error`、`idle`、`question`），值为支持变量替换的模板字符串。可用变量：`{project}`、`{summary}`、`{tool_name}`、`{status}`、`{event}`。
+
+### 语音包选择层级
+
+peon-ping 通过 5 层层级结构确定使用哪个语音包。第一个产生有效已安装语音包的层级生效：
+
+| 优先级 | 层级 | 来源 | 设置方式 |
+|--------|------|------|----------|
+| 1（最高） | **session_override** | 每会话分配 | `/peon-ping-use <pack>` 技能或 MCP |
+| 2 | **path_rules** | 工作目录的通配符匹配 | `peon packs bind` 或配置中的 `path_rules` |
+| 3 | **pack_rotation** | 从列表中随机或轮换 | 配置中的 `pack_rotation` 数组 + `pack_rotation_mode` |
+| 4 | **default_pack** | 静态回退 | `peon packs use <name>` 或配置中的 `default_pack` |
+| 5（最低） | **硬编码** | 内置默认 | `"peon"` |
+
+如果某层级引用的语音包未安装，则回退到下一层级。
+
+### 按项目分配语音包（path_rules）
+
+根据目录路径为不同项目分配不同的语音包。可以使用 CLI 或直接编辑 `config.json`。
+
+**CLI（推荐）：**
+
+```bash
+peon packs bind glados                     # 将 glados 绑定到当前目录
+peon packs bind sc_kerrigan --pattern "*/services/*"  # 绑定到通配符模式
+peon packs bind duke_nukem --install       # 绑定并在需要时从注册表安装
+peon packs unbind                          # 移除当前目录的绑定
+peon packs unbind --pattern "*/services/*" # 移除特定模式的绑定
+peon packs bindings                        # 列出所有绑定
+```
+
+**手动配置：**
+
+```json
+"path_rules": [
+  { "pattern": "*/work/client-a/*", "pack": "glados" },
+  { "pattern": "*/personal/*",      "pack": "peon" },
+  { "pattern": "*/services/*",      "pack": "sc_kerrigan" }
+]
+```
+
+规则使用通配符匹配（`*`、`?`）。第一个匹配规则生效。路径规则优先级高于 `pack_rotation` 和 `default_pack`，但低于 `session_override` 分配。
 
 ## 常见用例
 

@@ -108,7 +108,7 @@ run_deepagents() {
 
 @test "enabled=false suppresses deepagents sounds" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "enabled": false, "active_pack": "peon", "volume": 0.5, "categories": {} }
+{ "enabled": false, "default_pack": "peon", "volume": 0.5, "categories": {} }
 JSON
   run_deepagents '{"event":"session.start","thread_id":"t1"}'
   [ "$DA_EXIT" -eq 0 ]
@@ -117,7 +117,7 @@ JSON
 
 @test "volume from config is passed through" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
   run_deepagents '{"event":"session.start","thread_id":"t1"}'
   afplay_was_called

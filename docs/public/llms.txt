@@ -107,6 +107,10 @@ Config file: `~/.claude/hooks/peon-ping/config.json`
 
 Key settings: volume, categories (per-event toggles), default_pack (replaces active_pack), path_rules (glob-based per-repo pack assignment), pack_rotation, pack_rotation_mode, desktop_notifications, silent_window_seconds, session_start_cooldown_seconds (dedup greeting sounds when many workspaces open at once; default 30s), headphones_only (mute when no headphones detected), suppress_sound_when_tab_focused (skip sound when the generating tab is focused), notification_position (screen position for overlays), notification_dismiss_seconds (auto-dismiss timer, 0 = persistent), notification_title_override (custom project label), notification_title_script (shell command for dynamic project name; receives PEON_SESSION_ID/PEON_CWD/PEON_HOOK_EVENT/PEON_SESSION_NAME env vars), project_name_map (directory-to-label mapping), notification_templates (per-event message format strings with {project}/{summary}/{tool_name} variables).
 
+Pack selection hierarchy (highest to lowest priority): session_override (per-session via /peon-ping-use) > path_rules (glob match on working directory) > pack_rotation (random/round-robin from list) > default_pack (static fallback) > hardcoded "peon". Invalid or missing packs fall through to the next layer.
+
+Per-project pack assignment via CLI: `peon packs bind <pack>` (bind to current directory), `peon packs bind <pack> --pattern <glob>` (bind to pattern), `peon packs unbind` (remove binding), `peon packs bindings` (list all). Or configure path_rules manually in config.json as array of {pattern, pack} objects with glob matching (first match wins).
+
 Slash command: /peon-ping-rename <name> — give the current Claude Code session a custom name shown in notification titles and terminal tab title. Zero tokens consumed (hook-intercepted). No argument resets to auto-detect. Priority chain: /peon-ping-rename > CLAUDE_SESSION_NAME > .peon-label > notification_title_script > project_name_map > notification_title_override > git repo name > folder name.
 
 Env var: CLAUDE_SESSION_NAME — set before launching claude to give a session a custom name shown in notification titles and terminal tab titles. Example: `CLAUDE_SESSION_NAME="Auth Refactor" claude`. Priority chain: /peon-ping-rename > CLAUDE_SESSION_NAME > .peon-label > notification_title_script > project_name_map > notification_title_override > git repo name > folder name.
@@ -135,7 +139,7 @@ Independent Controls:
 peon pause / resume / mute / unmute / status
 peon volume [0.0-1.0]
 peon rotation [random|round-robin|session_override]
-peon packs list / use / install / next / remove
+peon packs list / use / install / next / remove / bind / unbind / bindings
 peon notifications on / off / test
 peon mobile ntfy <topic>
 peon relay --daemon

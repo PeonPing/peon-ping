@@ -944,6 +944,18 @@ print(f'peon-ping: default pack: {active} ({display_name})')
 print(f'peon-ping: {pack_count} pack(s) installed')
 rules = c.get('path_rules', [])
 if rules:
+    import fnmatch as _fnm
+    _cwd = os.getcwd()
+    _matched = None
+    for _r in rules:
+        _pat = _r.get('pattern', '')
+        if _cwd and _fnm.fnmatch(_cwd, _pat):
+            _matched = _r
+            break
+    if _matched:
+        _mp = _matched.get('pattern', '')
+        _mk = _matched.get('pack', '')
+        print(f'peon-ping: path rule: {_mp} -> {_mk}')
     print(f'peon-ping: path rules: {len(rules)} configured')
 
 # --- IDE detection ---
@@ -1665,7 +1677,9 @@ if not unbind_pattern:
     if matching:
         print(f'No binding for \"{target}\", but found rules matching this directory:', file=sys.stderr)
         for r in matching:
-            print(f'  {r[\"pattern\"]} -> {r[\"pack\"]}', file=sys.stderr)
+            pat = r.get('pattern', '')
+            pk = r.get('pack', '')
+            print(f'  {pat} -> {pk}', file=sys.stderr)
         print(f'Use --pattern to remove a specific rule.', file=sys.stderr)
         sys.exit(1)
 
@@ -2201,12 +2215,16 @@ else:
     status = 'on' if enabled else 'off'
     print(f'peon-ping: mobile notifications {status} ({service})')
     if service == 'ntfy':
-        print(f'  Topic:  {mn.get(\"topic\", \"?\")}')
-        print(f'  Server: {mn.get(\"server\", \"https://ntfy.sh\")}')
+        topic = mn.get('topic', '?')
+        server = mn.get('server', 'https://ntfy.sh')
+        print(f'  Topic:  {topic}')
+        print(f'  Server: {server}')
     elif service == 'pushover':
-        print(f'  User:   {mn.get(\"user_key\", \"?\")[:8]}...')
+        ukey = mn.get('user_key', '?')
+        print(f'  User:   {ukey[:8]}...')
     elif service == 'telegram':
-        print(f'  Chat:   {mn.get(\"chat_id\", \"?\")}')
+        chat = mn.get('chat_id', '?')
+        print(f'  Chat:   {chat}')
 "
         exit 0 ;;
       test)
@@ -2859,7 +2877,7 @@ state_dirty = False
 
 # --- Atomic state I/O helpers ---
 def write_state(st, path, indent=None):
-    \"\"\"Atomically write state dict to path via temp+rename.\"\"\"
+    '''Atomically write state dict to path via temp+rename.'''
     d = os.path.dirname(path) or '.'
     os.makedirs(d, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=d, suffix='.tmp')
@@ -2875,7 +2893,7 @@ def write_state(st, path, indent=None):
         raise
 
 def read_state(path):
-    \"\"\"Read state dict from path with retry on transient failures.\"\"\"
+    '''Read state dict from path with retry on transient failures.'''
     delays = [0.05, 0.1, 0.2]
     for attempt in range(len(delays) + 1):
         try:

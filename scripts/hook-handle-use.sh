@@ -90,7 +90,7 @@ fi
 # When SESSION_ID is "default" (Cursor without conversation_id), use session_packs["default"]
 # so peon.sh will apply this pack for sessions without explicit assignment
 
-# Update config.json to enable agentskill mode and ensure pack is in rotation
+# Update config.json to enable session_override mode and ensure pack is in rotation
 export PEON_ENV_CONFIG="$CONFIG" PEON_ENV_PACK_NAME="$PACK_NAME"
 python3 -c "
 import json, sys, os
@@ -105,8 +105,8 @@ try:
 except:
     config = {}
 
-# Set rotation mode to agentskill
-config['pack_rotation_mode'] = 'agentskill'
+# Set rotation mode to session_override
+config['pack_rotation_mode'] = 'session_override'
 
 # Ensure pack is in pack_rotation array
 pack_rotation = config.get('pack_rotation', [])

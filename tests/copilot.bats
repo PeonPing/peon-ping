@@ -152,7 +152,7 @@ run_copilot() {
 
 @test "enabled=false suppresses Copilot sounds" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "enabled": false, "active_pack": "peon", "volume": 0.5, "categories": {} }
+{ "enabled": false, "default_pack": "peon", "volume": 0.5, "categories": {} }
 JSON
   run_copilot sessionStart '{"sessionId":"test-123","cwd":"/tmp"}'
   [ "$COPILOT_EXIT" -eq 0 ]
@@ -161,7 +161,7 @@ JSON
 
 @test "volume from config is passed through" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "active_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
+{ "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
   run_copilot postToolUse '{"sessionId":"test-123","cwd":"/tmp"}'
   afplay_was_called

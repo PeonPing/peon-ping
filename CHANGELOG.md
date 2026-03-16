@@ -3,6 +3,14 @@
 ### Added
 - **Nix/Home Manager: custom pack sources** — `installPacks` now accepts both simple strings (for og-packs) and attribute sets with `name` and `src` fields to install packs from any source. The `src` field accepts any Nix fetcher result (e.g., `pkgs.fetchFromGitHub`), enabling community packs from the [openpeon.com registry](https://openpeon.com/) that aren't in og-packs while maintaining full reproducibility.
 
+## v2.15.2 (2026-03-15)
+
+### Fixed
+- **Shell quoting safety in peon.sh** — audited all 61 `python3 -c` invocations and fixed 3 hazardous patterns (7 occurrences) where escaped double quotes inside bash double-quoted strings could cause silent failures. Dict access and method args now use single-quoted Python strings extracted to temp variables.
+- **Windows atomic state I/O hardening** — `Write-StateAtomic` now uses `Move-Item -Force` for truly atomic overwrites on PowerShell 7+, eliminating a sub-millisecond race window. `Read-StateWithRetry` cleans up orphaned `.tmp` files left by safety timer exits.
+- **Windows ffplay install guidance** — post-install tip now recommends `choco install ffmpeg` (adds ffplay to PATH automatically), warns about `winget install ffmpeg` Gyan build PATH issues, and provides manual fallback instructions.
+- **Windows CLI bind/unbind quality** — added `Get-ActivePack` helper for cross-platform parity with `peon.sh`, restored runtime `path_rules` matching engine, and added `--status` path_rules display. bind `--install` now shows download progress instead of running silently.
+
 ## v2.15.1 (2026-03-09)
 
 ### Fixed

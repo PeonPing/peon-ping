@@ -360,6 +360,47 @@ This means you can:
 - **project_name_map** (object, default: `{}`): Map directory paths to custom project labels for notifications. Keys are path patterns, values are display names. Example: `{ "/home/user/work/client-a": "Client A" }`.
 - **notification_templates** (object, default: `{}`): Custom message format strings for notification events. Keys are event types (`stop`, `permission`, `error`, `idle`, `question`), values are template strings with variable substitution. Available variables: `{project}`, `{summary}`, `{tool_name}`, `{status}`, `{event}`. Example: `{ "stop": "{project}: {summary}", "permission": "{project}: {tool_name} needs approval" }`.
 
+### Pack Selection Hierarchy
+
+peon-ping resolves which sound pack to use through a 5-layer hierarchy. The first layer that produces a valid, installed pack wins:
+
+| Priority | Layer | Source | How to set |
+|----------|-------|--------|------------|
+| 1 (highest) | **session_override** | Per-session assignment | `/peon-ping-use <pack>` skill or MCP |
+| 2 | **path_rules** | Glob match on working directory | `peon packs bind` or `path_rules` in config |
+| 3 | **pack_rotation** | Random or round-robin from a list | `pack_rotation` array + `pack_rotation_mode` in config |
+| 4 | **default_pack** | Static fallback | `peon packs use <name>` or `default_pack` in config |
+| 5 (lowest) | **hardcoded** | Built-in default | `"peon"` |
+
+If a layer references a pack that is not installed, it falls through to the next layer.
+
+### Per-Project Pack Assignment (path_rules)
+
+Assign different sound packs to different projects based on directory path. Use the CLI or edit `config.json` directly.
+
+**CLI (recommended):**
+
+```bash
+peon packs bind glados                     # Bind glados to the current directory
+peon packs bind sc_kerrigan --pattern "*/services/*"  # Bind to a glob pattern
+peon packs bind duke_nukem --install       # Bind and install from registry if needed
+peon packs unbind                          # Remove binding for the current directory
+peon packs unbind --pattern "*/services/*" # Remove a specific pattern binding
+peon packs bindings                        # List all bindings
+```
+
+**Manual config:**
+
+```json
+"path_rules": [
+  { "pattern": "*/work/client-a/*", "pack": "glados" },
+  { "pattern": "*/personal/*",      "pack": "peon" },
+  { "pattern": "*/services/*",      "pack": "sc_kerrigan" }
+]
+```
+
+Rules use glob matching (`*`, `?`). First matching rule wins. Path rules override `pack_rotation` and `default_pack` but are overridden by `session_override` assignments.
+
 ## Common Use Cases
 
 ### Sounds without popups
