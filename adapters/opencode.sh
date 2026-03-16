@@ -21,7 +21,7 @@ PLUGIN_URL="https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/o
 REGISTRY_URL="https://peonping.github.io/registry/index.json"
 DEFAULT_PACK="peon"
 
-OPENCODE_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugins"
+OPENCODE_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugin"
 PEON_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/peon-ping"
 PACKS_DIR="$HOME/.openpeon/packs"
 
@@ -48,6 +48,8 @@ error() { printf "%sx%s %s\n" "$RED" "$RESET" "$*" >&2; }
 if [ "${1:-}" = "--uninstall" ]; then
   info "Uninstalling peon-ping from OpenCode..."
   rm -f "$OPENCODE_PLUGINS_DIR/peon-ping.ts"
+  # Also clean up the old typo'd path (opencode/plugins → opencode/plugin)
+  rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugins/peon-ping.ts"
   rm -rf "$PEON_CONFIG_DIR"
   info "Plugin and config removed."
   info "Sound packs in $PACKS_DIR were preserved (shared with other adapters)."
