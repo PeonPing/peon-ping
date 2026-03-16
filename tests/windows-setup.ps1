@@ -36,11 +36,12 @@ function Extract-PeonHookScript {
     }
 
     $content = Get-Content $InstallPath -Raw
-    # The hook script is embedded between $hookScript = @' and '@
-    if ($content -match "(?s)hookScript = @'(.+?)'@") {
+    # Anchor extraction on the unique marker comment inside the peon.ps1 here-string.
+    # This avoids silently misextracting if install.ps1 gains additional here-strings.
+    if ($content -match "(?s)hookScript = @'(\r?\n# peon-ping hook for Claude Code.+?)'@") {
         return $matches[1].TrimStart("`r`n").TrimStart("`n")
     }
-    throw "Could not extract peon.ps1 from install.ps1 -- here-string pattern not found"
+    throw "Could not extract peon.ps1 from install.ps1 -- here-string with '# peon-ping hook for Claude Code' marker not found"
 }
 
 # ============================================================
@@ -202,9 +203,13 @@ $logFile = Join-Path (Split-Path $PSScriptRoot -Parent) ".audio-log.txt"
     foreach ($key in $ConfigOverrides.Keys) {
         $defaultConfig[$key] = $ConfigOverrides[$key]
     }
+    # Force InvariantCulture so ConvertTo-Json writes decimals with '.' on all locales.
+    # Previous approach used regex (?<=\d),(?=\d) which corrupted integer arrays
+    # like [1,2,3] -> [1.2.3] on non-English systems.
+    $savedCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+    [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
     $configJson = $defaultConfig | ConvertTo-Json -Depth 5
-    # Ensure decimal volume is written with dot (locale safety)
-    $configJson = $configJson -replace '(?<=\d),(?=\d)', '.'
+    [System.Threading.Thread]::CurrentThread.CurrentCulture = $savedCulture
     Set-Content -Path (Join-Path $testDir "config.json") -Value $configJson -Encoding UTF8
 
     # --- Create .state.json ---
