@@ -1,0 +1,6 @@
+{"event":"init","role":"router","sprint":"WINTEST","card":"frjune","cycle":1,"ts":"2026-03-15T00:00:00Z"}
+{"event":"read-review","file":".gitban/agents/reviewer/inbox/WINTEST-frjune-reviewer-1.md","verdict":"APPROVAL","ts":"2026-03-15T00:00:01Z"}
+{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/WINTEST-frjune-executor-1.md","ts":"2026-03-15T00:00:02Z"}
+{"event":"write-planner-inbox","file":".gitban/agents/planner/inbox/WINTEST-frjune-planner-1.md","ts":"2026-03-15T00:00:03Z"}
+{"event":"card-update","action":"append","card":"frjune","ts":"2026-03-15T00:00:04Z"}
+{"event":"summary","role":"router","sprint":"WINTEST","card":"frjune","cycle":1,"verdict":"APPROVAL","executor_items":2,"planner_cards":1,"ts":"2026-03-15T00:00:05Z"}
