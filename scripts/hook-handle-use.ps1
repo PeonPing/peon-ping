@@ -110,13 +110,15 @@ $packPath = Join-Path $packsDir $packName
 if (-not (Test-Path $packPath)) {
     Write-Log "error: pack not found pack=$packName"
     # List available packs
-    $available = Get-ChildItem -Path $packsDir -Directory -ErrorAction SilentlyContinue | 
+    $available = Get-ChildItem -Path $packsDir -Directory -ErrorAction SilentlyContinue |
                  Select-Object -ExpandProperty Name
-    
+
     if (-not $available) {
+        if ($cliMode) { Write-Host "[X] No packs installed"; exit 1 }
         Write-Response -Continue $false -Message "[X] No packs installed"
     } else {
         $packList = $available -join ', '
+        if ($cliMode) { Write-Host "[X] Pack '$packName' not found`n`nAvailable packs: $packList"; exit 1 }
         Write-Response -Continue $false -Message "[X] Pack '$packName' not found`n`nAvailable packs: $packList"
     }
     exit 0
