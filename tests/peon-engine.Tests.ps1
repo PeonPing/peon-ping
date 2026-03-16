@@ -169,6 +169,8 @@ Describe "Harness: Remove-PeonTestEnvironment" {
 # ============================================================
 # Functional Smoke Tests -- peon.ps1 via Invoke-PeonHook
 # ============================================================
+# These smoke tests validate harness infrastructure, not engine contracts.
+# The engine scenarios below test the same events with stricter assertions.
 
 Describe "Invoke-PeonHook: SessionStart plays a sound" {
     BeforeAll {
@@ -706,12 +708,8 @@ Describe "State: Scenario 15 - Session TTL expiry cleans old sessions" {
         $sessionPacks = $state.session_packs
         if ($sessionPacks) {
             # Check as PSCustomObject (ConvertFrom-Json returns PSCustomObject, not hashtable)
-            $hasOldSession = $false
-            if ($sessionPacks -is [PSCustomObject]) {
-                $hasOldSession = $null -ne ($sessionPacks.PSObject.Properties | Where-Object { $_.Name -eq "old-session-xyz" })
-            } elseif ($sessionPacks -is [hashtable]) {
-                $hasOldSession = $sessionPacks.ContainsKey("old-session-xyz")
-            }
+            # ConvertFrom-Json always returns PSCustomObject (never hashtable) in PowerShell 5.1+
+            $hasOldSession = $null -ne ($sessionPacks.PSObject.Properties | Where-Object { $_.Name -eq "old-session-xyz" })
             $hasOldSession | Should -BeFalse
         }
     }

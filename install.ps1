@@ -558,7 +558,11 @@ if ($Command) {
                         $pathRules += [PSCustomObject]@{ pattern = $bindPattern; pack = $packName }
                     }
 
-                    $cfgObj.path_rules = $pathRules
+                    if ($cfgObj.PSObject.Properties['path_rules']) {
+                        $cfgObj.path_rules = $pathRules
+                    } else {
+                        $cfgObj | Add-Member -NotePropertyName 'path_rules' -NotePropertyValue $pathRules
+                    }
                     $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
                     Write-Host "peon-ping: bound $packName to $bindPattern"
                     if (-not ($ExtraArgs -contains "--pattern") -and -not ($ExtraArgs -match "^--pattern=")) {
@@ -607,7 +611,11 @@ if ($Command) {
                     # Try exact match
                     $newRules = @($pathRules | Where-Object { $_.pattern -ne $target })
                     if ($newRules.Count -lt $pathRules.Count) {
-                        $cfgObj.path_rules = $newRules
+                        if ($cfgObj.PSObject.Properties['path_rules']) {
+                            $cfgObj.path_rules = $newRules
+                        } else {
+                            $cfgObj | Add-Member -NotePropertyName 'path_rules' -NotePropertyValue $newRules
+                        }
                         $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
                         Write-Host "peon-ping: unbound $target"
                         return
