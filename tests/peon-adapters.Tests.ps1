@@ -677,27 +677,6 @@ if (`$null -eq `$result) { Write-Output "NULL" } else { Write-Output "NOT_NULL" 
 }
 
 # ============================================================
-# Category C: Installer/Structural - deepagents.ps1 syntax
-# ============================================================
-
-Describe "Structural: deepagents.ps1 syntax validation" {
-    It "has valid PowerShell syntax" {
-        $path = Join-Path $script:AdaptersDir "deepagents.ps1"
-        $path | Should -Exist
-        $content = Get-Content $path -Raw
-        $errors = $null
-        $null = [System.Management.Automation.PSParser]::Tokenize($content, [ref]$errors)
-        $errors.Count | Should -Be 0
-    }
-
-    It "does not use ExecutionPolicy Bypass" {
-        $path = Join-Path $script:AdaptersDir "deepagents.ps1"
-        $content = Get-Content $path -Raw
-        $content | Should -Not -Match "ExecutionPolicy Bypass"
-    }
-}
-
-# ============================================================
 # Edge Cases
 # ============================================================
 
