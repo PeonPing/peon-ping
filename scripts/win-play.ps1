@@ -5,13 +5,18 @@ param(
     [double]$vol
 )
 
+# Diagnostic logging: set PEON_DEBUG=1 to surface silent failure diagnostics on stderr
+$peonDebug = $env:PEON_DEBUG -eq "1"
+
 # WAV files: use SoundPlayer (works correctly in hidden/detached processes)
 if ($path -match "\.wav$") {
     try {
         $sp = New-Object System.Media.SoundPlayer $path
         $sp.PlaySync()
         $sp.Dispose()
-    } catch {}
+    } catch {
+        if ($peonDebug) { Write-Warning "peon-ping: WAV playback failed for '$path': $_" }
+    }
     exit 0
 }
 
@@ -56,5 +61,6 @@ if ($vlc) {
     exit 0
 }
 
-# No CLI player found — exit silently
+# No CLI player found
+if ($peonDebug) { Write-Warning "peon-ping: no audio player found for '$path' (tried ffplay, mpv, vlc)" }
 exit 0
