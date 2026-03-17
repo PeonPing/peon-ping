@@ -3752,6 +3752,8 @@ assert isinstance(state, dict), 'State should be a dict'
   end_ms=$(($(date +%s%N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))") / 1000000))
   [ "$PEON_EXIT" -eq 0 ]
   afplay_was_called
+  # Verify no retry delay was incurred (should complete well under 300ms extra)
+  [ $((end_ms - start_ms)) -lt 3000 ]
   # State file should now exist (written by the hook)
   [ -f "$TEST_DIR/.state.json" ]
   /usr/bin/python3 -c "import json; s = json.load(open('$TEST_DIR/.state.json')); assert isinstance(s, dict)"
