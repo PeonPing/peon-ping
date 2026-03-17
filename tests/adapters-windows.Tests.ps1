@@ -27,12 +27,20 @@ BeforeAll {
         $ast = [System.Management.Automation.Language.Parser]::ParseFile(
             $FilePath, [ref]$tokens, [ref]$errors
         )
+        if ($errors) {
+            throw "Parse errors in ${FilePath}: $($errors -join '; ')"
+        }
         $funcAst = $ast.FindAll({
             param($node)
             $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
             $node.Name -eq $FunctionName
         }, $true)
         return $funcAst
+    }
+
+    function Get-ParamNames {
+        param([System.Management.Automation.Language.FunctionDefinitionAst]$FuncAst)
+        @($FuncAst.Body.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
     }
 }
 
@@ -340,8 +348,7 @@ Describe "Category B: Amp Adapter" {
     }
 
     It "Emit-Event accepts EventName and ThreadId parameters" {
-        $params = $script:ampEmitEvent[0].Body.ParamBlock.Parameters
-        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames = Get-ParamNames $script:ampEmitEvent[0]
         $paramNames | Should -Contain "EventName"
         $paramNames | Should -Contain "ThreadId"
     }
@@ -419,8 +426,7 @@ Describe "Category B: Antigravity Adapter" {
     }
 
     It "Emit-Event accepts EventName and Guid parameters" {
-        $params = $script:antigravityEmitEvent[0].Body.ParamBlock.Parameters
-        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames = Get-ParamNames $script:antigravityEmitEvent[0]
         $paramNames | Should -Contain "EventName"
         $paramNames | Should -Contain "Guid"
     }
@@ -497,8 +503,7 @@ Describe "Category B: Kimi Adapter" {
     }
 
     It "Emit-Event accepts EventName, SessionId, and Cwd parameters" {
-        $params = $script:kimiEmitEvent[0].Body.ParamBlock.Parameters
-        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames = Get-ParamNames $script:kimiEmitEvent[0]
         $paramNames | Should -Contain "EventName"
         $paramNames | Should -Contain "SessionId"
         $paramNames | Should -Contain "Cwd"
@@ -516,8 +521,7 @@ Describe "Category B: Kimi Adapter" {
     }
 
     It "Process-WireLine accepts Line, Uuid, and Cwd parameters" {
-        $params = $script:kimiProcessWireLine[0].Body.ParamBlock.Parameters
-        $paramNames = @($params | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames = Get-ParamNames $script:kimiProcessWireLine[0]
         $paramNames | Should -Contain "Line"
         $paramNames | Should -Contain "Uuid"
         $paramNames | Should -Contain "Cwd"
