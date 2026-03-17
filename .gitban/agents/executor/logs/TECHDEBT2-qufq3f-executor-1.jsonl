@@ -1,0 +1,5 @@
+{"event":"init","timestamp":"2026-03-17T18:24:01Z","role":"executor","sprint":"TECHDEBT2","card_id":"qufq3f","cycle":1}
+{"event":"read-card","timestamp":"2026-03-17T18:24:01Z","data":{"card_id":"qufq3f"}}
+{"event":"code-change","timestamp":"2026-03-17T18:24:01Z","data":{"files":["peon.sh","tests/peon.bats"]}}
+{"event":"commit","timestamp":"2026-03-17T18:24:01Z","data":{"hash":"0957def","message":"chore(qufq3f): narrow _read_state retry scope and add timing assertion"}}
+{"event":"summary","timestamp":"2026-03-17T18:24:01Z","data":{"total_events":4,"status":"complete"}}
