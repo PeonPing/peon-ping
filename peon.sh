@@ -192,7 +192,7 @@ def _read_state(path):
                 return json.load(f)
         except FileNotFoundError:
             return {}
-        except Exception:
+        except (json.JSONDecodeError, OSError):
             if attempt < len(delays):
                 time.sleep(delays[attempt])
     return {}
