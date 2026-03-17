@@ -43,7 +43,7 @@ try {
         $reader.Close()
         if ($raw) { $inputJson = $raw | ConvertFrom-Json }
     }
-} catch {}
+} catch { if ($env:PEON_DEBUG) { Write-Warning "peon-ping: [copilot] ConvertFrom-Json failed: $_" } }
 if (-not $inputJson) { $inputJson = [PSCustomObject]@{} }
 
 # Extract common fields
