@@ -67,17 +67,22 @@ for m in pattern.finditer(content):
             before = content[start:i]
             close_line = content[:i].count("\n") + 1
 
+            # Track whether this " is a hazard site
+            is_hazard = False
+
             # Hazard: block ends at [" — means someone wrote data["key"]
             if before.rstrip().endswith("["):
                 hazards.append(
                     "  line {}: python3 -c block broken by [\" (dict subscript with double quote)".format(close_line)
                 )
+                is_hazard = True
 
             # Hazard: block ends at .get(" — means someone wrote d.get("key")
             if before.rstrip().endswith(".get("):
                 hazards.append(
                     "  line {}: python3 -c block broken by .get(\" (method call with double quote)".format(close_line)
                 )
+                is_hazard = True
 
             # Also check: after this closing ", does the rest of the line
             # suggest more Python code that should have been inside the block?
@@ -97,8 +102,14 @@ for m in pattern.finditer(content):
                     hazards.append(
                         "  line {}: python3 -c block has suspicious \"]  after close quote".format(close_line)
                     )
+                    is_hazard = True
 
-            break
+            if is_hazard:
+                # Continue scanning for more hazards in this block
+                start = i + 1
+            else:
+                # Clean closing " — end of python3 -c block
+                break
         i += 1
 
 if hazards:

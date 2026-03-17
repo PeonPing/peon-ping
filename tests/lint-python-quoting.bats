@@ -104,11 +104,24 @@ NOPYEOF
   local files=()
   while IFS= read -r f; do
     files+=("$f")
-  done < <(grep -rl 'python3 -c' "$REPO_ROOT" --include='*.sh' | grep -v node_modules | grep -v '.git/' | grep -v 'lint-python-quoting.sh')
+  done < <(grep -rl 'python3 -c' "$REPO_ROOT" --include='*.sh' --exclude-dir=tests --exclude-dir=node_modules --exclude-dir=.git | grep -v 'lint-python-quoting.sh')
 
   [ "${#files[@]}" -gt 0 ]  # sanity: at least peon.sh should match
   run bash "$LINT_SCRIPT" "${files[@]}"
   [ "$status" -eq 0 ]
+}
+
+@test "lint reports all hazards in a single python3 -c block" {
+  local tmpfile="$BATS_TMPDIR/multi-hazard.sh"
+  cat > "$tmpfile" << 'BADEOF'
+#!/usr/bin/env bash
+result=$(python3 -c "import json; d=json.loads('{}'); print(d["a"], d.get("b", 0))")
+BADEOF
+  run bash "$LINT_SCRIPT" "$tmpfile"
+  [ "$status" -eq 1 ]
+  # Should report both the [" and .get(" hazards
+  [[ "$output" == *'["'* ]]
+  [[ "$output" == *'.get("'* ]]
 }
 
 @test "lint handles missing file gracefully" {
