@@ -1,0 +1,5 @@
+{"event":"init","timestamp":"2026-03-17T23:42:34Z","role":"executor","sprint":"TECHDEBT2","card_id":"65ghip","cycle":1}
+{"event":"code-change","timestamp":"2026-03-17T23:42:34Z","data":{"files":["tests/adapters-windows.Tests.ps1"]}}
+{"event":"test-run","timestamp":"2026-03-17T23:42:34Z","data":{"file":"tests/adapters-windows.Tests.ps1","passed":279,"failed":0}}
+{"event":"commit","timestamp":"2026-03-17T23:42:34Z","data":{"hash":"61c6e63"}}
+{"event":"summary","timestamp":"2026-03-17T23:42:34Z","data":{"total_events":4,"status":"complete"}}
