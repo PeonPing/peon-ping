@@ -1,6 +1,0 @@
-{"event":"init","ts":"2026-03-15T23:57:26Z","card":"xk4ymm","sprint":"WINTEST"}
-{"event":"read-card","ts":"2026-03-16T00:01:58Z","card_id":"xk4ymm"}
-{"event":"code-change","ts":"2026-03-16T00:01:58Z","files":["tests/windows-setup.ps1"]}
-{"event":"test-run","ts":"2026-03-16T00:01:58Z","file":"tests/adapters-windows.Tests.ps1","passed":204,"failed":0}
-{"event":"test-run","ts":"2026-03-16T00:01:58Z","file":"tests/peon-engine.Tests.ps1","passed":46,"failed":0}
-{"event":"summary","ts":"2026-03-16T00:01:59Z","status":"complete"}

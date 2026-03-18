@@ -1,9 +1,0 @@
-{"event":"init","role":"reviewer","sprint_tag":"WINTEST","card_id":"frjune","cycle":1,"timestamp":"2026-03-15T23:00:00Z"}
-{"event":"read-diff","data":{"commit":"1126ba9"},"timestamp":"2026-03-15T23:00:10Z"}
-{"event":"read-card","data":{"card_id":"frjune"},"timestamp":"2026-03-15T23:00:15Z"}
-{"event":"read-file","data":{"file":"tests/peon-packs.Tests.ps1"},"timestamp":"2026-03-15T23:00:20Z"}
-{"event":"read-file","data":{"file":"tests/windows-setup.ps1"},"timestamp":"2026-03-15T23:00:25Z"}
-{"event":"search-cards","data":{"query":"path_rules"},"timestamp":"2026-03-15T23:01:00Z"}
-{"event":"write-review","data":{"verdict":"APPROVAL","blockers":0,"backlog_items":3},"timestamp":"2026-03-15T23:02:00Z"}
-{"event":"card-status-change","data":{"new_status":"in_progress","note":"already in_progress"},"timestamp":"2026-03-15T23:02:05Z"}
-{"event":"summary","role":"reviewer","sprint_tag":"WINTEST","card_id":"frjune","cycle":1,"verdict":"APPROVAL","blockers":0,"backlog_items":3,"timestamp":"2026-03-15T23:02:10Z"}

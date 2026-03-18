@@ -1,7 +1,0 @@
-{"event":"init","role":"executor","sprint_tag":"TECHDEBT2","card_id":"9gi8ut","cycle":1,"ts":"2026-03-18T00:00:00Z"}
-{"event":"read-card","card_id":"9gi8ut","ts":"2026-03-18T00:01:00Z"}
-{"event":"code-change","files":["tests/cli-config-write.Tests.ps1"],"ts":"2026-03-18T00:10:00Z"}
-{"event":"test-run","file":"tests/cli-config-write.Tests.ps1","passed":20,"failed":0,"ts":"2026-03-18T00:12:00Z"}
-{"event":"test-run","file":"tests/adapters-windows.Tests.ps1","passed":236,"failed":0,"note":"regression check","ts":"2026-03-18T00:13:00Z"}
-{"event":"commit","hash":"7e54ae8","message":"test(9gi8ut): add behavioral Pester tests for CLI config-write commands","ts":"2026-03-18T00:14:00Z"}
-{"event":"summary","tests_added":20,"tests_passed":20,"regressions":0,"ts":"2026-03-18T00:15:00Z"}

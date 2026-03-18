@@ -1,5 +1,0 @@
-{"ts":"2026-03-18T08:10:35Z","event":"init","role":"router","sprint":"TECHDEBT2","card":"augpn7","cycle":1}
-{"ts":"2026-03-18T08:10:35Z","event":"read-review","file":".gitban/agents/reviewer/inbox/TECHDEBT2-augpn7-reviewer-1.md","verdict":"APPROVAL"}
-{"ts":"2026-03-18T08:10:35Z","event":"write-executor-inbox","file":".gitban/agents/executor/inbox/TECHDEBT2-augpn7-executor-1.md"}
-{"ts":"2026-03-18T08:10:35Z","event":"card-update","action":"append"}
-{"ts":"2026-03-18T08:10:35Z","event":"summary","verdict":"APPROVAL","blockers":0,"backlog_items":0,"executor_files":1,"planner_files":0}
