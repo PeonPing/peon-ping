@@ -68,8 +68,8 @@ Describe "session_override + path_rules interaction" {
 
     It "session_override mode falls through to pathRulePack when no session assignment exists" {
         # When rotationMode is session_override and session has no pack,
-        # the code should check $pathRulePack before Get-ActivePack $config
-        $script:PackSelectionBlock | Should -Match 'if \(\$pathRulePack\) \{ \$pathRulePack \} else \{ Get-ActivePack \$config'
+        # the code should check $pathRulePack before $defaultPack
+        $script:PackSelectionBlock | Should -Match 'if \(\$pathRulePack\) \{ \$pathRulePack \} else \{ \$defaultPack \}'
     }
 
     It "path_rules evaluation runs before session_override check" {
@@ -89,7 +89,7 @@ Describe "session_override + path_rules interaction" {
     It "falls through to path_rules when session pack directory is missing" {
         # When session pack candidate directory doesn't exist, code removes
         # the session entry and falls through to pathRulePack or default
-        $script:PackSelectionBlock | Should -Match 'Pack missing, fall through to path_rules or default'
+        $script:PackSelectionBlock | Should -Match 'Pack missing, fall through hierarchy: path_rules > default_pack'
     }
 
     It "pathRulePack wins over rotation and default_pack when not in session_override mode" {
@@ -99,10 +99,10 @@ Describe "session_override + path_rules interaction" {
 }
 
 # ============================================================
-# session_override fallback uses Get-ActivePack (B2 regression guard)
+# session_override fallback uses $defaultPack (config parity guard)
 # ============================================================
 
-Describe "session_override fallback uses Get-ActivePack" {
+Describe "session_override fallback uses defaultPack" {
     BeforeAll {
         # Extract the session_override block from embedded hook
         $pickMatch = [regex]::Match(
@@ -113,9 +113,7 @@ Describe "session_override fallback uses Get-ActivePack" {
         $script:PackSelectionBlock = $pickMatch.Value
     }
 
-    It "no session_override fallback path uses raw config.active_pack" {
-        # All fallback paths in session_override should use Get-ActivePack $config,
-        # not $config.active_pack directly, to ensure default_pack is respected
+    It "session_override fallback paths use pathRulePack-or-defaultPack pattern" {
         # Extract only the session_override block
         $soMatch = [regex]::Match(
             $script:PackSelectionBlock,
@@ -124,19 +122,8 @@ Describe "session_override fallback uses Get-ActivePack" {
         $soMatch.Success | Should -BeTrue -Because "session_override block should exist"
         $soBlock = $soMatch.Value
 
-        # Verify no direct $config.active_pack usage in the session_override block
-        $soBlock | Should -Not -Match '\$config\.active_pack' -Because "session_override fallbacks must use Get-ActivePack, not raw config.active_pack"
-    }
-
-    It "session_override fallback paths call Get-ActivePack" {
-        $soMatch = [regex]::Match(
-            $script:PackSelectionBlock,
-            '(?ms)if \(\$rotationMode -eq "agentskill".*?(?=\} elseif \(\$pathRulePack\))'
-        )
-        $soBlock = $soMatch.Value
-
-        # All "else" branches in session_override should use Get-ActivePack
-        $soBlock | Should -Match 'Get-ActivePack \$config' -Because "fallback must go through Get-ActivePack for default_pack support"
+        # All fallback paths should use the pathRulePack-or-defaultPack ternary
+        $soBlock | Should -Match 'if \(\$pathRulePack\) \{ \$pathRulePack \} else \{ \$defaultPack \}'
     }
 }
 
