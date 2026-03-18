@@ -1,0 +1,6 @@
+{"event":"init","role":"router","sprint_tag":"TECHDEBT2","card_id":"tnd98r","cycle":1,"timestamp":"2026-03-18T00:00:00Z"}
+{"event":"read-review","file":".gitban/agents/reviewer/inbox/TECHDEBT2-tnd98r-reviewer-1.md","verdict":"REJECTION","blockers":3,"backlog_items":1}
+{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/TECHDEBT2-tnd98r-executor-1.md"}
+{"event":"write-planner-inbox","file":".gitban/agents/planner/inbox/TECHDEBT2-tnd98r-planner-1.md"}
+{"event":"card-update","action":"append","detail":"Review routing log appended to card tnd98r"}
+{"event":"summary","role":"router","sprint_tag":"TECHDEBT2","card_id":"tnd98r","cycle":1,"verdict":"REJECTION","executor_items":3,"planner_items":1}

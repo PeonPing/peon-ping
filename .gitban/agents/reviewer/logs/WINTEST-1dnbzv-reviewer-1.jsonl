@@ -1,0 +1,29 @@
+{"timestamp":"2026-03-15T23:32:11Z","operation":"init","role":"reviewer","sprint":"WINTEST","card_id":"1dnbzv","cycle":1}
+{"timestamp":"2026-03-15T23:32:14Z","operation":"event","label":"read-diff","metadata":{"commit":"91d1774"}}
+{"timestamp":"2026-03-15T23:32:14Z","operation":"event","label":"read-card","metadata":{"card_id":"1dnbzv"}}
+{"timestamp":"2026-03-15T23:32:21Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"WINTEST\" && export AGENT_CARD_ID=\"1dnbzv\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"91d1774\"}' && agent_log_event \"read-card\" '{\"card_id\":\"1dnbzv\"}'"}
+{"timestamp":"2026-03-15T23:32:22Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git show fa135b7^2:tests/adapters-windows.Tests.ps1 | wc -l"}
+{"timestamp":"2026-03-15T23:32:25Z","operation":"hook_cmd","command":"grep -n \"session_override\\|agentskill\" scripts/hook-handle-use.ps1"}
+{"timestamp":"2026-03-15T23:32:41Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git diff fa135b7^1..fa135b7^2 -- tests/adapters-windows.Tests.ps1 | grep '^-' | grep -v '^---' | wc -l"}
+{"timestamp":"2026-03-15T23:32:42Z","operation":"hook_cmd","command":"git show 3f622ac:tests/peon-engine.Tests.ps1 | wc -l"}
+{"timestamp":"2026-03-15T23:32:44Z","operation":"hook_cmd","command":"git show 30661cd:tests/peon-engine.Tests.ps1 | wc -l"}
+{"timestamp":"2026-03-15T23:32:50Z","operation":"hook_cmd","command":"git show 3f622ac:scripts/hook-handle-use.ps1 | grep -n \"session_override\\|agentskill\""}
+{"timestamp":"2026-03-15T23:33:08Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git diff fa135b7^1..fa135b7^2 -- tests/adapters-windows.Tests.ps1 | grep '^-' | grep -v '^---' | grep -iE 'Describe|It ' | head -30"}
+{"timestamp":"2026-03-15T23:33:12Z","operation":"hook_cmd","command":"git show 3f622ac:tests/peon-engine.Tests.ps1 | tail -n +279 | head -50"}
+{"timestamp":"2026-03-15T23:33:13Z","operation":"hook_cmd","command":"git show 30661cd:tests/peon-engine.Tests.ps1 | tail -5"}
+{"timestamp":"2026-03-15T23:33:16Z","operation":"hook_cmd","command":"grep -n \"\\-\\-gain\" scripts/win-play.ps1"}
+{"timestamp":"2026-03-15T23:33:28Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git diff fa135b7^1..fa135b7^2 -- tests/adapters-windows.Tests.ps1 | grep '^-' | grep -v '^---' | grep -iE 'Describe|It ' | tail -20"}
+{"timestamp":"2026-03-15T23:33:31Z","operation":"hook_cmd","command":"git log --oneline --all -- tests/peon-engine.Tests.ps1 | head -10"}
+{"timestamp":"2026-03-15T23:33:33Z","operation":"hook_cmd","command":"wc -l tests/peon-engine.Tests.ps1"}
+{"timestamp":"2026-03-15T23:33:49Z","operation":"hook_cmd","command":"git diff 3f622ac^1...3f622ac^2 -- .github/"}
+{"timestamp":"2026-03-15T23:33:53Z","operation":"init","role":"reviewer","sprint":"WINTEST","card_id":"1dnbzv","cycle":1}
+{"timestamp":"2026-03-15T23:33:55Z","operation":"hook_cmd","command":"git diff HEAD -- tests/peon-engine.Tests.ps1 | head -30"}
+{"timestamp":"2026-03-15T23:33:55Z","operation":"event","label":"read-diff","metadata":{"commit":"91d1774"}}
+{"timestamp":"2026-03-15T23:33:56Z","operation":"event","label":"read-card","metadata":{"card_id":"1dnbzv"}}
+{"timestamp":"2026-03-15T23:33:58Z","operation":"event","label":"write-review","metadata":{"verdict":"APPROVAL"}}
+{"timestamp":"2026-03-15T23:33:59Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":6}
+{"timestamp":"2026-03-15T23:35:02Z","operation":"init","role":"reviewer","sprint":"WINTEST","card_id":"1dnbzv","cycle":1}
+{"timestamp":"2026-03-15T23:35:02Z","operation":"event","label":"card-status-change","metadata":{"new_status":"in_progress","note":"already in_progress, no move needed"}}
+{"timestamp":"2026-03-15T23:35:05Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"WINTEST\" && export AGENT_CARD_ID=\"1dnbzv\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init 2>/dev/null; agent_log_event \"card-status-change\" '{\"new_status\":\"in_progress\",\"note\":\"already in_progress, no move needed\"}'"}
+{"timestamp":"2026-03-15T23:35:09Z","operation":"hook_cmd","command":"git diff 3f622ac..1126ba9 --stat"}
+{"timestamp":"2026-03-15T23:35:18Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git diff HEAD -- tests/adapters-windows.Tests.ps1 | head -50"}

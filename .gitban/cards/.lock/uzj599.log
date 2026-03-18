@@ -1,0 +1,182 @@
+{
+  "validation_template": "feature-api",
+  "card_id": "uzj599",
+  "validation_timestamp": "2026-03-15T22:50:16.481802+00:00",
+  "validation_errors": {
+    "missing_sections": [
+      {
+        "section_name": "API Feature Overview",
+        "message": "Required section '## API Feature Overview' not found"
+      },
+      {
+        "section_name": "API Design & Contract Review",
+        "message": "Required section '## API Design & Contract Review' not found"
+      },
+      {
+        "section_name": "API Development Phases",
+        "message": "Required section '## API Development Phases' not found"
+      },
+      {
+        "section_name": "TDD Implementation Workflow",
+        "message": "Required section '## TDD Implementation Workflow' not found"
+      },
+      {
+        "section_name": "API Validation & Release",
+        "message": "Required section '## API Validation & Release' not found"
+      }
+    ],
+    "missing_checkboxes_count": 3,
+    "missing_checkboxes": [
+      {
+        "text": "**API resource/endpoint** path is clearly defined.",
+        "section": "API Feature Overview",
+        "optional": false,
+        "line_number": 38
+      },
+      {
+        "text": "**API version** is specified and versioning strategy is understood.",
+        "section": "API Feature Overview",
+        "optional": false,
+        "line_number": 39
+      },
+      {
+        "text": "**Client impact** is identified (who will consume this API).",
+        "section": "API Feature Overview",
+        "optional": false,
+        "line_number": 40
+      },
+      {
+        "text": "API design guidelines reviewed (REST conventions, naming, HTTP status codes).",
+        "section": "API Design & Contract Review",
+        "optional": false,
+        "line_number": 48
+      },
+      {
+        "text": "Existing API contracts reviewed for consistency (similar endpoints, patterns).",
+        "section": "API Design & Contract Review",
+        "optional": false,
+        "line_number": 49
+      },
+      {
+        "text": "OpenAPI/Swagger specification template reviewed for documentation format.",
+        "section": "API Design & Contract Review",
+        "optional": false,
+        "line_number": 50
+      },
+      {
+        "text": "Authentication/authorization requirements reviewed (OAuth, API keys, JWT).",
+        "section": "API Design & Contract Review",
+        "optional": false,
+        "line_number": 51
+      },
+      {
+        "text": "Rate limiting and quota policies reviewed for this endpoint.",
+        "section": "API Design & Contract Review",
+        "optional": false,
+        "line_number": 52
+      },
+      {
+        "text": "Versioning strategy reviewed (URL versioning, header versioning, deprecation policy).",
+        "section": "API Design & Contract Review",
+        "optional": false,
+        "line_number": 53
+      },
+      {
+        "text": "OpenAPI/Swagger specification is complete and merged.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 154
+      },
+      {
+        "text": "API contract is reviewed and approved by team/stakeholders.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 155
+      },
+      {
+        "text": "TDD workflow followed: tests written first, then implementation.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 156
+      },
+      {
+        "text": "All integration tests pass (happy path + error cases).",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 157
+      },
+      {
+        "text": "Security requirements validated (authentication, authorization, input validation, rate limiting).",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 158
+      },
+      {
+        "text": "API documentation is complete with request/response examples and error codes.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 159
+      },
+      {
+        "text": "Performance validated against requirements [if applicable].",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 160
+      },
+      {
+        "text": "Client SDKs updated or follow-up cards created.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 161
+      },
+      {
+        "text": "API changelog updated with new endpoints and changes.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 162
+      },
+      {
+        "text": "Monitoring and alerts configured for the new API.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 163
+      },
+      {
+        "text": "API is deployed to production and verified working.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 164
+      },
+      {
+        "text": "Client communication sent (email, Slack, API portal announcement).",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 165
+      }
+    ],
+    "missing_tables": [
+      "Design Aspect|Decision / Requirement|Rationale / Notes",
+      "Phase / Task|Status / Link to Artifact or Card|Universal Check",
+      "Step|Status/Details|Universal Check",
+      "Task|Detail/Link",
+      "Topic|Status / Action Required"
+    ]
+  },
+  "suggestions": [
+    "append_card('uzj599', '* [ ] **API resource/endpoint** path is clearly defined.', heading='API Feature Overview')",
+    "append_card('uzj599', '* [ ] **API version** is specified and versioning strategy is understood.', heading='API Feature Overview')",
+    "append_card('uzj599', '* [ ] **Client impact** is identified (who will consume this API).', heading='API Feature Overview')",
+    "append_card('uzj599', '* [ ] API design guidelines reviewed (REST conventions, naming, HTTP status codes).', heading='API Design & Contract Review')",
+    "append_card('uzj599', '* [ ] Existing API contracts reviewed for consistency (similar endpoints, patterns).', heading='API Design & Contract Review')",
+    "append_card('uzj599', '## API Feature Overview\\n\\n[Add content here]')",
+    "append_card('uzj599', '## API Design & Contract Review\\n\\n[Add content here]')",
+    "append_card('uzj599', '## API Development Phases\\n\\n[Add content here]')"
+  ],
+  "formatted_message": "[VALIDATION ERROR] Card validation failed\n\nTemplate: feature-api\nCard ID: uzj599\nTotal Issues: 31\n\n======================================================================\n\n=== MISSING CHECKBOXES (21) ===\n\nMissing checkbox #1:\n  Expected text: **API resource/endpoint** path is clearly defined.\n  Expected location: Under '## API Feature Overview' section\n\n  FIX: Use append_card() to add:\n  * [ ] **API resource/endpoint** path is clearly defined.\n\nMissing checkbox #2:\n  Expected text: **API version** is specified and versioning strategy is understood.\n  Expected location: Under '## API Feature Overview' section\n\n  FIX: Use append_card() to add:\n  * [ ] **API version** is specified and versioning strategy is understood.\n\nMissing checkbox #3:\n  Expected text: **Client impact** is identified (who will consume this API).\n  Expected location: Under '## API Feature Overview' section\n\n  FIX: Use append_card() to add:\n  * [ ] **Client impact** is identified (who will consume this API).\n\nMissing checkbox #4:\n  Expected text: API design guidelines reviewed (REST conventions, naming, HTTP status codes).\n  Expected location: Under '## API Design & Contract Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] API design guidelines reviewed (REST conventions, naming, HTTP status codes).\n\nMissing checkbox #5:\n  Expected text: Existing API contracts reviewed for consistency (similar endpoints, patterns).\n  Expected location: Under '## API Design & Contract Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] Existing API contracts reviewed for consistency (similar endpoints, patterns).\n\nMissing checkbox #6:\n  Expected text: OpenAPI/Swagger specification template reviewed for documentation format.\n  Expected location: Under '## API Design & Contract Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] OpenAPI/Swagger specification template reviewed for documentation format.\n\nMissing checkbox #7:\n  Expected text: Authentication/authorization requirements reviewed (OAuth, API keys, JWT).\n  Expected location: Under '## API Design & Contract Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] Authentication/authorization requirements reviewed (OAuth, API keys, JWT).\n\nMissing checkbox #8:\n  Expected text: Rate limiting and quota policies reviewed for this endpoint.\n  Expected location: Under '## API Design & Contract Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] Rate limiting and quota policies reviewed for this endpoint.\n\nMissing checkbox #9:\n  Expected text: Versioning strategy reviewed (URL versioning, header versioning, deprecation policy).\n  Expected location: Under '## API Design & Contract Review' section\n\n  FIX: Use append_card() to add:\n  * [ ] Versioning strategy reviewed (URL versioning, header versioning, deprecation policy).\n\nMissing checkbox #10:\n  Expected text: OpenAPI/Swagger specification is complete and merged.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] OpenAPI/Swagger specification is complete and merged.\n\nMissing checkbox #11:\n  Expected text: API contract is reviewed and approved by team/stakeholders.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] API contract is reviewed and approved by team/stakeholders.\n\nMissing checkbox #12:\n  Expected text: TDD workflow followed: tests written first, then implementation.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] TDD workflow followed: tests written first, then implementation.\n\nMissing checkbox #13:\n  Expected text: All integration tests pass (happy path + error cases).\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] All integration tests pass (happy path + error cases).\n\nMissing checkbox #14:\n  Expected text: Security requirements validated (authentication, authorization, input validation, rate limiting).\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Security requirements validated (authentication, authorization, input validation, rate limiting).\n\nMissing checkbox #15:\n  Expected text: API documentation is complete with request/response examples and error codes.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] API documentation is complete with request/response examples and error codes.\n\nMissing checkbox #16:\n  Expected text: Performance validated against requirements [if applicable].\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Performance validated against requirements [if applicable].\n\nMissing checkbox #17:\n  Expected text: Client SDKs updated or follow-up cards created.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Client SDKs updated or follow-up cards created.\n\nMissing checkbox #18:\n  Expected text: API changelog updated with new endpoints and changes.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] API changelog updated with new endpoints and changes.\n\nMissing checkbox #19:\n  Expected text: Monitoring and alerts configured for the new API.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Monitoring and alerts configured for the new API.\n\nMissing checkbox #20:\n  Expected text: API is deployed to production and verified working.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] API is deployed to production and verified working.\n\nMissing checkbox #21:\n  Expected text: Client communication sent (email, Slack, API portal announcement).\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Client communication sent (email, Slack, API portal announcement).\n\n======================================================================\n\n=== MISSING SECTIONS (5) ===\n\nMissing section #1:\n  Expected heading: ## API Feature Overview\n\n  FIX: Use append_card() to add:\n  ## API Feature Overview\n\nMissing section #2:\n  Expected heading: ## API Design & Contract Review\n\n  FIX: Use append_card() to add:\n  ## API Design & Contract Review\n\nMissing section #3:\n  Expected heading: ## API Development Phases\n\n  FIX: Use append_card() to add:\n  ## API Development Phases\n\nMissing section #4:\n  Expected heading: ## TDD Implementation Workflow\n\n  FIX: Use append_card() to add:\n  ## TDD Implementation Workflow\n\nMissing section #5:\n  Expected heading: ## API Validation & Release\n\n  FIX: Use append_card() to add:\n  ## API Validation & Release\n\n======================================================================\n\n=== MISSING TABLES (5) ===\n\nMissing table #1:\n  Expected headers: Design Aspect|Decision / Requirement|Rationale / Notes\n\nMissing table #2:\n  Expected headers: Phase / Task|Status / Link to Artifact or Card|Universal Check\n\nMissing table #3:\n  Expected headers: Step|Status/Details|Universal Check\n\nMissing table #4:\n  Expected headers: Task|Detail/Link\n\nMissing table #5:\n  Expected headers: Topic|Status / Action Required\n\n======================================================================\n\nACTION REQUIRED:\n1. Read current content: read_card('uzj599')\n2. Add missing checkboxes:\n   append_card('uzj599', '* [ ] **API resource/endpoint** path is clearly defined.', heading='API Feature Overview')\n   append_card('uzj599', '* [ ] **API version** is specified and versioning strategy is understood.', heading='API Feature Overview')\n   append_card('uzj599', '* [ ] **Client impact** is identified (who will consume this API).', heading='API Feature Overview')\n   ... and 18 more\n3. Add missing sections using append_card('uzj599', '## Section Name')\n4. Retry promotion: move_to_todo('uzj599')\n",
+  "next_steps": [
+    "1. Read validation errors above",
+    "2. Read current content: read_card('uzj599')",
+    "3. Fix content using suggested commands",
+    "4. Retry promotion: move_to_todo('uzj599')"
+  ]
+}

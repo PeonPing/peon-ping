@@ -1,0 +1,6 @@
+{"type":"init","timestamp":"2026-03-14T21:00:12Z","role":"executor","sprint":"SMARTPACK","card":"z0c9fd","cycle":1}
+{"type":"event","timestamp":"2026-03-14T21:00:12Z","label":"read-card","meta":{"card_id":"z0c9fd"}}
+{"type":"event","timestamp":"2026-03-14T21:00:12Z","label":"baseline-tests","meta":{"passed":198,"failed":0}}
+{"type":"event","timestamp":"2026-03-14T21:00:12Z","label":"code-change","meta":{"files":["install.ps1","tests/adapters-windows.Tests.ps1"]}}
+{"type":"event","timestamp":"2026-03-14T21:00:12Z","label":"test-run","meta":{"file":"tests/adapters-windows.Tests.ps1","passed":198,"failed":0}}
+{"type":"summary","timestamp":"2026-03-14T21:00:12Z","commands":0,"failures":0,"wall_seconds":0}
