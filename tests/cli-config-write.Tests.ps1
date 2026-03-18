@@ -101,6 +101,7 @@ BeforeAll {
         if ($Arg1) { $argList += @("-Arg1", $Arg1) }
         if ($Arg2) { $argList += @("-Arg2", $Arg2) }
         $result = & pwsh @argList 2>&1
+        $script:LastPeonExitCode = $LASTEXITCODE
         return $result
     }
 
@@ -127,6 +128,7 @@ Describe "CLI --pause command" {
         $before.enabled | Should -Be $true
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--pause"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $false
@@ -135,17 +137,20 @@ Describe "CLI --pause command" {
     It "is idempotent when already paused" {
         # First pause
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--pause"
+        $script:LastPeonExitCode | Should -Be 0
         $cfg1 = Get-TestConfig $script:env.ConfigPath
         $cfg1.enabled | Should -Be $false
 
         # Second pause (should still be false, no error)
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--pause"
+        $script:LastPeonExitCode | Should -Be 0
         $cfg2 = Get-TestConfig $script:env.ConfigPath
         $cfg2.enabled | Should -Be $false
     }
 
     It "--mute alias also writes enabled=false" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--mute"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $false
@@ -169,6 +174,7 @@ Describe "CLI --resume command" {
         $before.enabled | Should -Be $false
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--resume"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $true
@@ -177,17 +183,20 @@ Describe "CLI --resume command" {
     It "is idempotent when already enabled" {
         # Resume from disabled
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--resume"
+        $script:LastPeonExitCode | Should -Be 0
         $cfg1 = Get-TestConfig $script:env.ConfigPath
         $cfg1.enabled | Should -Be $true
 
         # Resume again
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--resume"
+        $script:LastPeonExitCode | Should -Be 0
         $cfg2 = Get-TestConfig $script:env.ConfigPath
         $cfg2.enabled | Should -Be $true
     }
 
     It "--unmute alias also writes enabled=true" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--unmute"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $true
@@ -207,6 +216,7 @@ Describe "CLI --toggle command" {
         $script:env = New-TestHookEnv -ConfigOverrides @{ enabled = $true }
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--toggle"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $false
@@ -216,6 +226,7 @@ Describe "CLI --toggle command" {
         $script:env = New-TestHookEnv -ConfigOverrides @{ enabled = $false }
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--toggle"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $true
@@ -225,7 +236,9 @@ Describe "CLI --toggle command" {
         $script:env = New-TestHookEnv -ConfigOverrides @{ enabled = $true }
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--toggle"
+        $script:LastPeonExitCode | Should -Be 0
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--toggle"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $true
@@ -246,6 +259,7 @@ Describe "CLI --volume command" {
 
     It "sets volume to specified value" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--volume" -Arg1 "0.8"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.volume | Should -Be 0.8
@@ -253,6 +267,7 @@ Describe "CLI --volume command" {
 
     It "clamps volume to 1.0 maximum" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--volume" -Arg1 "1.5"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.volume | Should -Be 1.0
@@ -260,6 +275,7 @@ Describe "CLI --volume command" {
 
     It "clamps volume to 0.0 minimum" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--volume" -Arg1 "-0.5"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.volume | Should -Be 0.0
@@ -267,6 +283,7 @@ Describe "CLI --volume command" {
 
     It "preserves other config keys when changing volume" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--volume" -Arg1 "0.3"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.volume | Should -Be 0.3
@@ -289,6 +306,7 @@ Describe "CLI skip-write and idempotency" {
 
     It "--pause does not corrupt config when already paused" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--pause"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $false
@@ -300,6 +318,7 @@ Describe "CLI skip-write and idempotency" {
         $script:env = New-TestHookEnv -ConfigOverrides @{ enabled = $true }
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--resume"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $true
@@ -308,9 +327,13 @@ Describe "CLI skip-write and idempotency" {
 
     It "config remains valid JSON after multiple writes" {
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--resume"
+        $script:LastPeonExitCode | Should -Be 0
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--pause"
+        $script:LastPeonExitCode | Should -Be 0
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--toggle"
+        $script:LastPeonExitCode | Should -Be 0
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--toggle"
+        $script:LastPeonExitCode | Should -Be 0
 
         $raw = Get-Content $script:env.ConfigPath -Raw
         { $raw | ConvertFrom-Json } | Should -Not -Throw
@@ -335,6 +358,7 @@ Describe "CLI config write preserves non-target keys" {
         }
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--pause"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $false
@@ -351,6 +375,7 @@ Describe "CLI config write preserves non-target keys" {
         }
 
         Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--toggle"
+        $script:LastPeonExitCode | Should -Be 0
 
         $after = Get-TestConfig $script:env.ConfigPath
         $after.enabled | Should -Be $false
