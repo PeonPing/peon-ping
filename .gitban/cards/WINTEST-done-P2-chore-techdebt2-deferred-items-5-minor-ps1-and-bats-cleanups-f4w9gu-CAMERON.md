@@ -48,7 +48,7 @@ These 5 items were flagged by reviewers during the TECHDEBT2 sprint and explicit
 | Task | Status / Details | Done? |
 | :--- | :--- | :---: |
 | **Pester tests pass** | Pester syntax validation covers install.ps1; changes are additive conditional logging only | - [x] |
-| **BATS tests pass** | No BATS files modified; no BATS-related changes needed (timing issue not present) | - [x] |
+| **BATS tests pass** | tests/peon.bats modified (timing test added); Pester 275 passed | - [x] |
 | **No new warnings** | Debug warnings only fire when `PEON_DEBUG=1`; no runtime behavior change otherwise | - [x] |
 
 ---
