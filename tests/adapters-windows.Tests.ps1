@@ -1733,61 +1733,6 @@ Describe "install.ps1 E2E: Pack Download Flow" {
 }
 
 # ============================================================
-# path_rules: Runtime Matching Engine (mirrors BATS path_rules tests)
-# ============================================================
-
-Describe "path_rules: Runtime Matching Engine" {
-    BeforeAll {
-        $script:peonHookContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
-    }
-
-    # --- Matching engine structural tests ---
-
-    It "evaluates path_rules against event cwd" {
-        $script:peonHookContent | Should -Match 'eventCwd.*-like.*\$pat'
-    }
-
-    It "checks that matched pack directory exists before selecting" {
-        $script:peonHookContent | Should -Match 'pathRulePack = \$candidate'
-        $script:peonHookContent | Should -Match 'Test-Path \$candidateDir -PathType Container'
-    }
-
-    It "first matching rule wins (breaks on first match)" {
-        # The foreach loop should break after finding the first match
-        $script:peonHookContent | Should -Match 'pathRulePack = \$candidate'
-        $script:peonHookContent | Should -Match 'break'
-    }
-
-    It "missing pack falls through (only sets pathRulePack when pack dir exists)" {
-        $script:peonHookContent | Should -Match 'Test-Path \$candidateDir -PathType Container'
-    }
-
-    It "path_rules beats pack_rotation in hierarchy" {
-        # pathRulePack is checked before pack_rotation
-        $script:peonHookContent | Should -Match 'elseif \(\$pathRulePack\)'
-        $script:peonHookContent | Should -Match '\$activePack = \$pathRulePack'
-    }
-
-    It "empty path_rules array is a no-op (uses default_pack)" {
-        # The foreach simply does nothing when path_rules is empty
-        $script:peonHookContent | Should -Match 'foreach \(\$rule in \$config\.path_rules\)'
-    }
-
-    It "session_override beats path_rules in hierarchy" {
-        # session_override/agentskill check happens in the if block, path_rules in elseif
-        $script:peonHookContent | Should -Match 'agentskill.*session_override'
-    }
-
-    It "no cwd skips path_rules matching" {
-        $script:peonHookContent | Should -Match 'if \(\$eventCwd'
-    }
-
-    It "uses Get-ActivePack for default pack resolution" {
-        $script:peonHookContent | Should -Match 'Get-ActivePack \$config'
-    }
-}
-
-# ============================================================
 # path_rules: CLI Commands (bind / unbind / bindings)
 # ============================================================
 

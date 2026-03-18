@@ -75,8 +75,8 @@ Describe "session_override + path_rules interaction" {
 
     It "session_override mode falls through to pathRulePack when no session assignment exists" {
         # When rotationMode is session_override and session has no pack,
-        # the code should check $pathRulePack before Get-ActivePack
-        $script:PackSelectionBlock | Should -Match 'if \(\$pathRulePack\) \{ \$pathRulePack \} else \{ Get-ActivePack'
+        # the code should check $pathRulePack before $defaultPack
+        $script:PackSelectionBlock | Should -Match 'if \(\$pathRulePack\) \{ \$pathRulePack \} else \{ \$defaultPack \}'
     }
 
     It "path_rules evaluation runs before session_override check" {
@@ -96,7 +96,7 @@ Describe "session_override + path_rules interaction" {
     It "falls through to path_rules when session pack directory is missing" {
         # When session pack candidate directory doesn't exist, code removes
         # the session entry and falls through to pathRulePack
-        $script:PackSelectionBlock | Should -Match 'Pack missing, fall through to path_rules'
+        $script:PackSelectionBlock | Should -Match 'Pack missing, fall through hierarchy: path_rules > default_pack'
     }
 
     It "pathRulePack wins over rotation and default_pack when not in session_override mode" {
