@@ -278,3 +278,34 @@
 {"timestamp": "2026-03-18T00:24:39.984183Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
 {"timestamp": "2026-03-18T00:24:39.985183Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
 {"timestamp": "2026-03-18T00:24:39.988183Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 6ecnfv", "operation": "create_card_success", "card_id": "6ecnfv"}
+{"timestamp": "2026-03-18T01:01:42.915932Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Extend PEON_DEBUG diagnostics to embedded peon.ps1 early-exit catch blocks and add behavioral test coverage", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-18T01:01:42.916932Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-18T01:01:42.918931Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-18T01:01:42.920929Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: c1sfba", "operation": "create_card_success", "card_id": "c1sfba"}
+{"timestamp": "2026-03-18T01:02:08.917227Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Remove unreachable pathRulePack check in install.ps1 pack_rotation branch", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-18T01:02:08.918226Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-18T01:02:08.919225Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-18T01:02:08.921228Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: qkkals", "operation": "create_card_success", "card_id": "qkkals"}
+{"timestamp": "2026-03-18T02:12:19.050356Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden install.ps1 volume regex to handle optional trailing comma in JSON", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-18T02:12:19.051356Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-18T02:12:19.053355Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-18T02:12:19.055355Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: jxi8xn", "operation": "create_card_success", "card_id": "jxi8xn"}
+{"timestamp": "2026-03-18T02:15:20.877931Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: sprint-techdebt2-20260318, card_ids=None, all_done=True, handle=None, preview=False"}
+{"timestamp": "2026-03-18T10:20:21.304250Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-18T10:20:21.309251Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 13 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-18T10:20:21.309251Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-18T10:20:21.309251Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-18T10:20:38.900627Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: sprint-smartpack-20260314, card_ids=['i0u93q', '3b0gx7'], all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-18T10:20:44.582865Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: stale-backlog-cleanup-20260318, card_ids=['dsmh31', 'exg19y', 'ji2847', 'inexon', 'csedqi', '5efwxz', 'laimst', 'lyq5ta', 'z5xm5k', 'gtb6dm'], all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-18T10:20:49.601556Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-18T10:20:49.604556Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 1 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-18T10:20:49.604556Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-18T10:20:49.605556Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-18T10:23:55.346207Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: TECHDEBT2 deferred items — 5 minor PS1 and BATS cleanups", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-18T10:23:55.347208Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-18T10:23:55.351208Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-18T10:23:55.353207Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: f4w9gu", "operation": "create_card_success", "card_id": "f4w9gu"}
+{"timestamp": "2026-03-18T10:46:07.703972Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden install.ps1 volume regex replacement to avoid trailing comma on last JSON key", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-18T10:46:07.704969Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-18T10:46:07.706967Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-18T10:46:07.708969Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: cb0gpg", "operation": "create_card_success", "card_id": "cb0gpg"}
