@@ -834,7 +834,9 @@ function Write-StateAtomic {
     $dir = Split-Path $Path -Parent
     if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     $tmp = "$Path.$PID.tmp"
+    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
     try {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
         $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
         if ($PSVersionTable.PSVersion.Major -ge 7) {
             # PS 7+ / .NET Core: Move-Item -Force performs atomic overwrite (no delete gap).
@@ -846,6 +848,8 @@ function Write-StateAtomic {
         }
     } catch {
         Remove-Item $tmp -ErrorAction SilentlyContinue
+    } finally {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
     }
 }
 
