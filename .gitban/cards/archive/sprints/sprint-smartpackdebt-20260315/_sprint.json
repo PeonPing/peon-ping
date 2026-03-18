@@ -1,0 +1,28 @@
+{
+  "sprint_id": "sprint-smartpackdebt-20260315",
+  "sprint_name": "SMARTPACKDEBT",
+  "sprint_folder": "sprint-smartpackdebt-20260315",
+  "created_at": "2026-03-15T05:21:25.171449",
+  "start_date": null,
+  "end_date": "2026-03-15",
+  "archived_at": "2026-03-15T05:21:25.171449",
+  "card_ids": [
+    "szep8x"
+  ],
+  "metrics": {
+    "total_cards": 5,
+    "by_priority": {
+      "P0": 1,
+      "P1": 1,
+      "P2": 3
+    },
+    "by_type": {
+      "feature": 1,
+      "chore": 4
+    },
+    "by_handle": {
+      "Unassigned": 1,
+      "CAMERON": 4
+    }
+  }
+}

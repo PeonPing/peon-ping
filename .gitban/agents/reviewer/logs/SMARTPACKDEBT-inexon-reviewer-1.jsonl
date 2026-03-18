@@ -1,0 +1,11 @@
+{"timestamp":"2026-03-15T10:56:48Z","operation":"init","role":"reviewer","sprint":"SMARTPACKDEBT","card_id":"inexon","cycle":1}
+{"timestamp":"2026-03-15T10:56:48Z","operation":"event","label":"read-diff","metadata":{"commit":"4126d41152221fd6db1a3fadb6fbf2e4b2c99024"}}
+{"timestamp":"2026-03-15T10:56:48Z","operation":"event","label":"read-card","metadata":{"card_id":"inexon"}}
+{"timestamp":"2026-03-15T10:56:48Z","operation":"event","label":"write-review","metadata":{"verdict":"REJECTION"}}
+{"timestamp":"2026-03-15T10:56:49Z","operation":"hook_cmd","command":"export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"SMARTPACKDEBT\" && export AGENT_CARD_ID=\"inexon\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"4126d41152221fd6db1a3fadb6fbf2e4b2c99024\"}' && agent_log_event \"read-card\" '{\"card_id\":\"inexon\"}' && agent_log_event \"write-review\" '{\"verdict\":\"REJECTION\"}'"}
+{"timestamp":"2026-03-15T10:56:50Z","operation":"hook_cmd","command":"cat \"C:/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/logs/SMARTPACKDEBT-ji2847-reviewer-1.jsonl\""}
+{"timestamp":"2026-03-15T10:57:59Z","operation":"hook_cmd","command":"ls /c/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/logs/"}
+{"timestamp":"2026-03-15T10:58:50Z","operation":"hook_cmd","command":"ls scripts/agent-log.sh 2>/dev/null || echo \"NOT FOUND\""}
+{"timestamp":"2026-03-15T10:58:54Z","operation":"hook_cmd","command":"git log -1 --format=%H"}
+{"timestamp":"2026-03-15T10:58:55Z","operation":"hook_cmd","command":"ls /c/Users/Cameron/Projects/peon-ping/.gitban/agents/executor/inbox/ 2>/dev/null; echo \"---\"; ls /c/Users/Cameron/Projects/peon-ping/.gitban/agents/planner/inbox/ 2>/dev/null"}
+{"timestamp":"2026-03-15T10:58:56Z","operation":"hook_cmd","command":"ls scripts/agent-log.sh 2>/dev/null && ls -d .gitban/agents/executor/inbox .gitban/agents/planner/inbox .gitban/agents/router/logs 2>/dev/null; echo \"---\"; mkdir -p .gitban/agents/executor/inbox .gitban/agents/planner/inbox .gitban/agents/router/logs 2>/dev/null; echo \"DIRS_READY\""}
