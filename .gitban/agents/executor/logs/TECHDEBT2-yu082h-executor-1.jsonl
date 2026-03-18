@@ -1,0 +1,6 @@
+{"timestamp":"2026-03-18T06:31:34Z","operation":"init","role":"executor","sprint":"TECHDEBT2","card_id":"yu082h","cycle":1}
+{"timestamp":"2026-03-18T06:31:35Z","operation":"event","label":"read-card","metadata":{"card_id":"yu082h"}}
+{"timestamp":"2026-03-18T06:31:35Z","operation":"event","label":"code-change","metadata":{"files":["install.ps1","tests/adapters-windows.Tests.ps1"]}}
+{"timestamp":"2026-03-18T06:31:35Z","operation":"event","label":"test-run","metadata":{"file":"tests/adapters-windows.Tests.ps1","passed":237,"failed":0}}
+{"timestamp":"2026-03-18T06:31:35Z","operation":"event","label":"commit","metadata":{"hash":"f913505","message":"chore(yu082h): add InvariantCulture locale guard to Write-StateAtomic"}}
+{"timestamp":"2026-03-18T06:31:35Z","operation":"summary","commands":1,"failures":0}

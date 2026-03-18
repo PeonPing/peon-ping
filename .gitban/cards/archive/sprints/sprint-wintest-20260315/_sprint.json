@@ -1,0 +1,39 @@
+{
+  "sprint_id": "sprint-wintest-20260315",
+  "sprint_name": "WINTEST",
+  "sprint_folder": "sprint-wintest-20260315",
+  "created_at": "2026-03-15T18:23:07.813418",
+  "start_date": null,
+  "end_date": "2026-03-15",
+  "archived_at": "2026-03-15T18:23:07.813418",
+  "card_ids": [
+    "i0u93q",
+    "3b0gx7",
+    "j30alo",
+    "q52ygy",
+    "1dnbzv",
+    "xk4ymm",
+    "x5cpil",
+    "lxhqpf",
+    "jwh5zl",
+    "frjune"
+  ],
+  "metrics": {
+    "total_cards": 10,
+    "by_priority": {
+      "P0": 4,
+      "P2": 1,
+      "P1": 5
+    },
+    "by_type": {
+      "bug": 1,
+      "chore": 3,
+      "feature": 1,
+      "test": 5
+    },
+    "by_handle": {
+      "CAMERON": 9,
+      "Unassigned": 1
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{"ts":"2026-03-15T00:00:00Z","role":"router","sprint":"WINTEST","card":"xk4ymm","cycle":1,"event":"read-review","data":{"file":".gitban/agents/reviewer/inbox/WINTEST-xk4ymm-reviewer-1.md","verdict":"APPROVAL"}}
+{"ts":"2026-03-15T00:00:01Z","role":"router","sprint":"WINTEST","card":"xk4ymm","cycle":1,"event":"write-executor-inbox","data":{"file":".gitban/agents/executor/inbox/WINTEST-xk4ymm-executor-1.md"}}
+{"ts":"2026-03-15T00:00:02Z","role":"router","sprint":"WINTEST","card":"xk4ymm","cycle":1,"event":"card-update","data":{"action":"append"}}
+{"ts":"2026-03-15T00:00:03Z","role":"router","sprint":"WINTEST","card":"xk4ymm","cycle":1,"event":"summary","data":{"verdict":"APPROVAL","blockers":0,"backlog_items":0,"executor_files":1,"planner_files":0}}

@@ -1,0 +1,5 @@
+{"event":"init","role":"router","sprint":"WINTEST","card":"1dnbzv","cycle":1,"ts":"2026-03-15T23:40:26Z"}
+{"event":"read-review","file":".gitban/agents/reviewer/inbox/WINTEST-1dnbzv-reviewer-1.md","verdict":"APPROVAL","ts":"2026-03-15T23:40:26Z"}
+{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/WINTEST-1dnbzv-executor-1.md","ts":"2026-03-15T23:40:26Z"}
+{"event":"card-update","action":"append","card":"1dnbzv","ts":"2026-03-15T23:40:26Z"}
+{"event":"summary","verdict":"APPROVAL","blockers":0,"closeout_items":2,"planner_cards":0,"ts":"2026-03-15T23:40:26Z"}
