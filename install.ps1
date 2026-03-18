@@ -340,6 +340,9 @@ if (-not $Command) {
     $safetyTimer.Start()
 }
 
+# Diagnostic logging: set PEON_DEBUG=1 to surface silent failure diagnostics on stderr
+$peonDebug = $env:PEON_DEBUG -eq "1"
+
 # Raw config read; repair is done at install/update time, so hook only needs plain read.
 function Get-PeonConfigRaw {
     param([string]$Path)
@@ -933,7 +936,9 @@ switch ($hookEvent) {
 # Save state
 try {
     Write-StateAtomic -State $state -Path $StatePath
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: state write failed: $_" }
+}
 
 if (-not $category) { exit 0 }
 
@@ -941,7 +946,9 @@ if (-not $category) { exit 0 }
 try {
     $catEnabled = $config.categories.$category
     if ($catEnabled -eq $false) { exit 0 }
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: category check failed for '$category': $_" }
+}
 
 # --- Pick a sound ---
 $activePack = Get-ActivePack $config
@@ -1029,7 +1036,9 @@ try {
 $catSounds = $null
 try {
     $catSounds = $manifest.categories.$category.sounds
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: sound lookup failed for category '$category': $_" }
+}
 if (-not $catSounds -or $catSounds.Count -eq 0) { exit 0 }
 
 # Anti-repeat: avoid last played sound
@@ -1067,7 +1076,9 @@ if ($iconCandidate) {
 $state[$lastKey] = $soundFile
 try {
     Write-StateAtomic -State $state -Path $StatePath
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: state write failed (last played): $_" }
+}
 
 # --- Delegate audio to win-play.ps1 in a detached process ---
 $volume = $config.volume
@@ -1076,6 +1087,8 @@ if (-not $volume) { $volume = 0.5 }
 $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
 if (Test-Path $winPlayScript) {
     Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
+} else {
+    if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
 }
 
 exit 0
