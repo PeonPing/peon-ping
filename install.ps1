@@ -499,15 +499,23 @@ if ($Command) {
                                 New-Item -ItemType Directory -Path $sDir -Force | Out-Null
                                 Invoke-WebRequest -Uri "$packBase/openpeon.json" -OutFile (Join-Path $pDir "openpeon.json") -UseBasicParsing -ErrorAction Stop
                                 $mf = Get-Content (Join-Path $pDir "openpeon.json") -Raw | ConvertFrom-Json
+                                $total = 0
+                                $downloaded = 0
+                                foreach ($catN in $mf.categories.PSObject.Properties.Name) {
+                                    $total += $mf.categories.$catN.sounds.Count
+                                }
                                 foreach ($catN in $mf.categories.PSObject.Properties.Name) {
                                     foreach ($snd in $mf.categories.$catN.sounds) {
                                         $sf = Split-Path $snd.file -Leaf
                                         $sp = Join-Path $sDir $sf
+                                        $downloaded++
                                         if (-not (Test-Path $sp)) {
+                                            Write-Host "`r[$packName] $downloaded/$total downloading..." -NoNewline
                                             Invoke-WebRequest -Uri "$packBase/sounds/$sf" -OutFile $sp -UseBasicParsing -ErrorAction SilentlyContinue
                                         }
                                     }
                                 }
+                                Write-Host "`r[$packName] $total/$total done.          "
                                 # Refresh available list
                                 $available = Get-ChildItem -Path $packsDir -Directory | Where-Object {
                                     (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
@@ -804,10 +812,14 @@ function Write-StateAtomic {
     $tmp = "$Path.$PID.tmp"
     try {
         $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
-        # [System.IO.File]::Move with overwrite requires .NET Core (PS 7+).
-        # For PS 5.1 compat: delete target then move (atomic on NTFS same-volume).
-        if (Test-Path $Path) { [System.IO.File]::Delete($Path) }
-        [System.IO.File]::Move($tmp, $Path)
+        if ($PSVersionTable.PSVersion.Major -ge 7) {
+            # PS 7+ / .NET Core: Move-Item -Force performs atomic overwrite (no delete gap).
+            Move-Item -Path $tmp -Destination $Path -Force
+        } else {
+            # PS 5.1: delete target then move (atomic on NTFS same-volume, sub-ms gap).
+            if (Test-Path $Path) { [System.IO.File]::Delete($Path) }
+            [System.IO.File]::Move($tmp, $Path)
+        }
     } catch {
         Remove-Item $tmp -ErrorAction SilentlyContinue
     }
@@ -815,6 +827,14 @@ function Write-StateAtomic {
 
 function Read-StateWithRetry {
     param([string]$Path)
+    # Clean up orphaned .tmp files left by safety timer [Environment]::Exit(1),
+    # which skips finally blocks and may leave partial writes behind.
+    $dir = Split-Path $Path -Parent
+    if ($dir -and (Test-Path $dir)) {
+        $base = Split-Path $Path -Leaf
+        Get-ChildItem -Path $dir -Filter "$base.*.tmp" -ErrorAction SilentlyContinue |
+            ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+    }
     $delays = @(50, 100, 200)
     for ($i = 0; $i -le $delays.Count; $i++) {
         try {
@@ -1558,11 +1578,15 @@ if ($Updating) {
     # Recommend ffmpeg for MP3/OGG support if ffplay is not on PATH
     if (-not (Get-Command ffplay -ErrorAction SilentlyContinue)) {
         Write-Host "  Tip: For MP3/OGG sound support, install ffmpeg:" -ForegroundColor Yellow
-        Write-Host "    winget install ffmpeg" -ForegroundColor DarkGray
+        Write-Host '    choco install ffmpeg          (recommended - adds ffplay to PATH)' -ForegroundColor DarkGray
+        Write-Host '    winget install ffmpeg          (Gyan build - may not add ffplay to PATH)' -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host '  If ffplay is still not found after winget install, add the ffmpeg bin' -ForegroundColor DarkGray
+        Write-Host '  folder to your PATH manually (e.g. C:\ffmpeg\bin) or use choco instead.' -ForegroundColor DarkGray
         Write-Host ""
     }
     Write-Host "  To install specific packs: .\install.ps1 -Packs peon,glados,peasant" -ForegroundColor DarkGray
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
     Write-Host "  To uninstall: powershell -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
 }
-Write-Host ""```
+Write-Host ""

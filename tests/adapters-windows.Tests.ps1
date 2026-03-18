@@ -38,6 +38,20 @@ Describe "PowerShell Syntax Validation" {
     }
 }
 
+Describe "Core Script Syntax Validation" {
+    It "<name> has valid PowerShell syntax" -ForEach @(
+        @{ name = "install.ps1" },
+        @{ name = "scripts/win-play.ps1" }
+    ) {
+        $path = Join-Path $script:RepoRoot $name
+        $path | Should -Exist
+        $content = Get-Content $path -Raw
+        $errors = $null
+        $null = [System.Management.Automation.PSParser]::Tokenize($content, [ref]$errors)
+        $errors.Count | Should -Be 0 -Because "Parse errors: $($errors | ForEach-Object { "$($_.Token.StartLine):$($_.Message)" })"
+    }
+}
+
 # ============================================================
 # Security: no ExecutionPolicy Bypass
 # ============================================================
@@ -934,6 +948,21 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'Write-StateAtomic'
     }
 
+    It "Write-StateAtomic uses Move-Item -Force on PS 7+ for atomic overwrite" {
+        $script:peonHookContent | Should -Match 'PSVersionTable\.PSVersion\.Major -ge 7'
+        $script:peonHookContent | Should -Match 'Move-Item -Path \$tmp -Destination \$Path -Force'
+    }
+
+    It "Write-StateAtomic preserves PS 5.1 delete-then-move fallback" {
+        $script:peonHookContent | Should -Match '\[System\.IO\.File\]::Delete\(\$Path\)'
+        $script:peonHookContent | Should -Match '\[System\.IO\.File\]::Move\(\$tmp, \$Path\)'
+    }
+
+    It "Read-StateWithRetry cleans up orphaned .tmp files on startup" {
+        $script:peonHookContent | Should -Match 'Get-ChildItem.*\.tmp.*ErrorAction SilentlyContinue'
+        $script:peonHookContent | Should -Match 'orphaned \.tmp files'
+    }
+
     It "reads stdin JSON via StreamReader (UTF-8 BOM-safe)" {
         $script:peonHookContent | Should -Match 'OpenStandardInput'
         $script:peonHookContent | Should -Match 'StreamReader'
@@ -1034,6 +1063,267 @@ Describe "install.ps1 Default Config" {
     It "prints ffmpeg recommendation if ffplay not found" {
         $script:installContent | Should -Match 'ffplay'
         $script:installContent | Should -Match 'winget install ffmpeg'
+    }
+
+    It "recommends choco as preferred ffmpeg install method" {
+        $script:installContent | Should -Match 'choco install ffmpeg'
+    }
+
+    It "warns about winget ffplay PATH issue" {
+        $script:installContent | Should -Match 'may not add ffplay to PATH'
+    }
+}
+
+# ============================================================
+# path_rules: Runtime Matching Engine (mirrors BATS path_rules tests)
+# ============================================================
+
+Describe "path_rules: Runtime Matching Engine" {
+    BeforeAll {
+        $script:peonHookContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+    }
+
+    # --- Matching engine structural tests ---
+
+    It "evaluates path_rules against event cwd" {
+        $script:peonHookContent | Should -Match 'eventCwd.*-like.*\$pat'
+    }
+
+    It "checks that matched pack directory exists before selecting" {
+        $script:peonHookContent | Should -Match 'pathRulePack = \$candidate'
+        $script:peonHookContent | Should -Match 'Test-Path \$candidateDir -PathType Container'
+    }
+
+    It "first matching rule wins (breaks on first match)" {
+        # The foreach loop should break after finding the first match
+        $script:peonHookContent | Should -Match 'pathRulePack = \$candidate'
+        $script:peonHookContent | Should -Match 'break'
+    }
+
+    It "missing pack falls through (only sets pathRulePack when pack dir exists)" {
+        $script:peonHookContent | Should -Match 'Test-Path \$candidateDir -PathType Container'
+    }
+
+    It "path_rules beats pack_rotation in hierarchy" {
+        # pathRulePack is checked before pack_rotation
+        $script:peonHookContent | Should -Match 'elseif \(\$pathRulePack\)'
+        $script:peonHookContent | Should -Match '\$activePack = \$pathRulePack'
+    }
+
+    It "empty path_rules array is a no-op (uses default_pack)" {
+        # The foreach simply does nothing when path_rules is empty
+        $script:peonHookContent | Should -Match 'foreach \(\$rule in \$config\.path_rules\)'
+    }
+
+    It "session_override beats path_rules in hierarchy" {
+        # session_override/agentskill check happens in the if block, path_rules in elseif
+        $script:peonHookContent | Should -Match 'agentskill.*session_override'
+    }
+
+    It "no cwd skips path_rules matching" {
+        $script:peonHookContent | Should -Match 'if \(\$eventCwd'
+    }
+
+    It "uses Get-ActivePack for default pack resolution" {
+        $script:peonHookContent | Should -Match 'Get-ActivePack \$config'
+    }
+}
+
+# ============================================================
+# path_rules: CLI Commands (bind / unbind / bindings)
+# ============================================================
+
+Describe "path_rules: CLI Commands - Structural" {
+    BeforeAll {
+        $script:peonHookContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+    }
+
+    It "bind subcommand exists in --packs switch" {
+        $script:peonHookContent | Should -Match '"bind"\s*\{'
+    }
+
+    It "unbind subcommand exists in --packs switch" {
+        $script:peonHookContent | Should -Match '"unbind"\s*\{'
+    }
+
+    It "bindings subcommand exists in --packs switch" {
+        $script:peonHookContent | Should -Match '"bindings"\s*\{'
+    }
+
+    It "bind validates pack exists before binding" {
+        $script:peonHookContent | Should -Match 'packName -notin \$available'
+    }
+
+    It "bind supports --pattern flag" {
+        $script:peonHookContent | Should -Match '"--pattern"'
+        $script:peonHookContent | Should -Match 'bindPattern'
+    }
+
+    It "bind supports --install flag" {
+        $script:peonHookContent | Should -Match '"--install"'
+        $script:peonHookContent | Should -Match 'bindInstall'
+    }
+
+    It "bind writes path_rules to config.json" {
+        $script:peonHookContent | Should -Match 'cfgObj\.path_rules = \$pathRules'
+        $script:peonHookContent | Should -Match 'ConvertTo-Json.*Set-Content'
+    }
+
+    It "bind updates existing rule for same pattern (upsert)" {
+        $script:peonHookContent | Should -Match '\.pattern -eq \$bindPattern'
+    }
+
+    It "unbind removes rule by exact pattern match" {
+        $script:peonHookContent | Should -Match '\.pattern -ne \$target'
+    }
+
+    It "unbind suggests --pattern when cwd has matching rules" {
+        $script:peonHookContent | Should -Match 'Use --pattern to remove a specific rule'
+    }
+
+    It "bindings marks active rule with asterisk" {
+        $script:peonHookContent | Should -Match '\$marker.*-like.*\$rule\.pattern'
+    }
+
+    It "bindings shows message when no rules configured" {
+        $script:peonHookContent | Should -Match 'No pack bindings configured'
+    }
+
+    It "help text includes bind/unbind/bindings" {
+        $script:peonHookContent | Should -Match '--packs bind'
+        $script:peonHookContent | Should -Match '--packs unbind'
+        $script:peonHookContent | Should -Match '--packs bindings'
+    }
+}
+
+# ============================================================
+# path_rules: CLI Commands - Functional (B6: true E2E tests)
+# ============================================================
+
+Describe "path_rules: CLI Commands - Functional" {
+    BeforeAll {
+        # Extract the embedded hook script from install.ps1 (the here-string between @' and '@)
+        $installContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+        $startMarker = "`$hookScript = @'"
+        $endMarker = "'@"
+        $startIdx = $installContent.IndexOf($startMarker)
+        $hookStart = $installContent.IndexOf("`n", $startIdx) + 1
+        $hookEnd = $installContent.IndexOf("`n'@", $hookStart)
+        $script:hookScriptContent = $installContent.Substring($hookStart, $hookEnd - $hookStart)
+    }
+
+    BeforeEach {
+        # Create isolated test environment
+        $script:testDir = Join-Path $env:TEMP "peon-test-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+        New-Item -ItemType Directory -Path $script:testDir -Force | Out-Null
+        $script:packsDir = Join-Path $script:testDir "packs"
+
+        # Create mock packs with sounds
+        foreach ($p in @("peon", "sc_kerrigan")) {
+            $pDir = Join-Path $script:packsDir "$p\sounds"
+            New-Item -ItemType Directory -Path $pDir -Force | Out-Null
+            # Create a dummy sound file and manifest
+            Set-Content (Join-Path $pDir "hello.wav") "mock"
+            $manifest = @{
+                display_name = $p
+                categories = @{
+                    "task.complete" = @{
+                        sounds = @(@{ file = "sounds/hello.wav"; label = "hello" })
+                    }
+                }
+            }
+            $manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $script:packsDir "$p\openpeon.json") -Encoding UTF8
+        }
+
+        # Create config
+        $script:configPath = Join-Path $script:testDir "config.json"
+        @{
+            default_pack = "peon"
+            volume = 0.5
+            enabled = $true
+            categories = @{}
+            path_rules = @()
+        } | ConvertTo-Json -Depth 5 | Set-Content $script:configPath -Encoding UTF8
+
+        # Write the extracted hook script as peon.ps1 in the test dir
+        $script:peonPs1 = Join-Path $script:testDir "peon.ps1"
+        Set-Content $script:peonPs1 -Value $script:hookScriptContent -Encoding UTF8
+    }
+
+    AfterEach {
+        Remove-Item $script:testDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It "packs bind sets path_rules entry" {
+        $result = & powershell.exe -NoProfile -Command "Set-Location '$script:testDir'; & '$script:peonPs1' --packs bind peon 2>&1"
+        ($result -join "`n") | Should -Match "bound peon to"
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $cfg.path_rules[0].pack | Should -Be "peon"
+    }
+
+    It "packs bind with --pattern stores custom pattern" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/myproject/*' 2>&1"
+        ($result -join "`n") | Should -Match "bound sc_kerrigan to \*/myproject/\*"
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules[0].pattern | Should -Be "*/myproject/*"
+    }
+
+    It "packs bind updates existing rule for same pattern" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/proj/*' 2>&1" | Out-Null
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $cfg.path_rules[0].pack | Should -Be "sc_kerrigan"
+    }
+
+    It "packs bind validates pack exists" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind nonexistent 2>&1"
+        ($result -join "`n") | Should -Match "not found"
+    }
+
+    It "packs unbind removes rule" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/test/*' 2>&1" | Out-Null
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs unbind --pattern '*/test/*' 2>&1"
+        ($result -join "`n") | Should -Match "unbound"
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 0
+    }
+
+    It "packs unbind with --pattern removes specific pattern" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj-a/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/proj-b/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs unbind --pattern '*/proj-a/*' 2>&1" | Out-Null
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $cfg.path_rules[0].pack | Should -Be "sc_kerrigan"
+    }
+
+    It "packs unbind no matching rule prints message" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/other/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs unbind --pattern '*/nonexistent/*' 2>&1"
+        ($result -join "`n") | Should -Match "No binding found"
+    }
+
+    It "packs bindings lists rules" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj-a/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/proj-b/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bindings 2>&1"
+        ($result -join "`n") | Should -Match '\*/proj-a/\* -> peon'
+        ($result -join "`n") | Should -Match '\*/proj-b/\* -> sc_kerrigan'
+    }
+
+    It "packs bindings empty prints message" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bindings 2>&1"
+        ($result -join "`n") | Should -Match "No pack bindings configured"
+    }
+
+    It "status shows path rules count" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "path rules: 1 configured"
     }
 }
 
