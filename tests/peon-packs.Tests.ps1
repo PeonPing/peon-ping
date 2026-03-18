@@ -138,12 +138,17 @@ Describe "session_override fallback uses Get-ActivePack" {
 
 Describe "Get-ActivePack parity" {
     BeforeAll {
-        $raw = Get-Content $script:InstallPs1 -Raw
-        # Extract both Get-ActivePack definitions
-        $matches = [regex]::Matches($raw, '(?ms)^function Get-ActivePack\(\$config\)\s*\{.*?\n\}')
-        if ($matches.Count -lt 2) { throw "Expected 2 Get-ActivePack definitions, found $($matches.Count)" }
-        $script:InstallerDef = $matches[0].Value
-        $script:HookDef = $matches[1].Value
+        # Installer's Get-ActivePack is in scripts/install-utils.ps1 (extracted by augpn7)
+        $utilsPath = Join-Path (Join-Path $script:RepoRoot "scripts") "install-utils.ps1"
+        $utilsRaw = Get-Content $utilsPath -Raw
+        $utilsMatch = [regex]::Match($utilsRaw, '(?ms)^function Get-ActivePack\(\$config\)\s*\{.*?\n\}')
+        if (-not $utilsMatch.Success) { throw "Get-ActivePack not found in install-utils.ps1" }
+        $script:InstallerDef = $utilsMatch.Value
+
+        # Embedded hook's Get-ActivePack is in the here-string inside install.ps1
+        $hookMatch = [regex]::Match($script:EmbeddedHook, '(?ms)^function Get-ActivePack\(\$config\)\s*\{.*?\n\}')
+        if (-not $hookMatch.Success) { throw "Get-ActivePack not found in embedded hook" }
+        $script:HookDef = $hookMatch.Value
     }
 
     It "installer and embedded hook have identical Get-ActivePack implementations" {
