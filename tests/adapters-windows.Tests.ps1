@@ -953,6 +953,129 @@ Describe "Embedded peon.ps1 Hook Script" {
 }
 
 # ============================================================
+# install-utils.ps1: Behavioral validation tests
+# Dot-sources the shared module and exercises real functions.
+# ============================================================
+
+Describe "install-utils.ps1 Behavioral Validation" {
+    BeforeAll {
+        . (Join-Path (Join-Path $script:RepoRoot "scripts") "install-utils.ps1")
+    }
+
+    # --- Test-SafePackName ---
+
+    It "Test-SafePackName accepts alphanumeric with dots, hyphens, underscores" {
+        Test-SafePackName "peon"         | Should -BeTrue
+        Test-SafePackName "sc_firebat"   | Should -BeTrue
+        Test-SafePackName "peon-cz"      | Should -BeTrue
+        Test-SafePackName "pack.v2"      | Should -BeTrue
+    }
+
+    It "Test-SafePackName rejects slashes and special chars" {
+        Test-SafePackName "../evil"      | Should -BeFalse
+        Test-SafePackName "foo/bar"      | Should -BeFalse
+        Test-SafePackName "pa ck"        | Should -BeFalse
+        Test-SafePackName ""             | Should -BeFalse
+    }
+
+    # --- Test-SafeSourceRepo ---
+
+    It "Test-SafeSourceRepo accepts org/repo format" {
+        Test-SafeSourceRepo "PeonPing/og-packs" | Should -BeTrue
+        Test-SafeSourceRepo "user/repo.v2"      | Should -BeTrue
+    }
+
+    It "Test-SafeSourceRepo rejects invalid formats" {
+        Test-SafeSourceRepo "noslash"           | Should -BeFalse
+        Test-SafeSourceRepo "a/b/c"             | Should -BeFalse
+        Test-SafeSourceRepo "../evil/repo"      | Should -BeFalse
+        Test-SafeSourceRepo ""                  | Should -BeFalse
+    }
+
+    # --- Test-SafeSourceRef ---
+
+    It "Test-SafeSourceRef accepts valid git refs" {
+        Test-SafeSourceRef "v1.0.0"       | Should -BeTrue
+        Test-SafeSourceRef "main"         | Should -BeTrue
+        Test-SafeSourceRef "feature/test" | Should -BeTrue
+    }
+
+    It "Test-SafeSourceRef rejects path traversal and leading slash" {
+        Test-SafeSourceRef "../evil"  | Should -BeFalse
+        Test-SafeSourceRef "/abs"     | Should -BeFalse
+        Test-SafeSourceRef "a..b"     | Should -BeFalse
+        Test-SafeSourceRef ""         | Should -BeFalse
+    }
+
+    # --- Test-SafeSourcePath ---
+
+    It "Test-SafeSourcePath accepts valid paths" {
+        Test-SafeSourcePath "packs/peon"   | Should -BeTrue
+        Test-SafeSourcePath "simple"       | Should -BeTrue
+    }
+
+    It "Test-SafeSourcePath rejects path traversal and leading slash" {
+        Test-SafeSourcePath "../escape"  | Should -BeFalse
+        Test-SafeSourcePath "/absolute"  | Should -BeFalse
+        Test-SafeSourcePath "a..b"       | Should -BeFalse
+        Test-SafeSourcePath ""           | Should -BeFalse
+    }
+
+    # --- Test-SafeFilename ---
+
+    It "Test-SafeFilename accepts safe filenames" {
+        Test-SafeFilename "sound.wav"      | Should -BeTrue
+        Test-SafeFilename "peon_ready.mp3" | Should -BeTrue
+    }
+
+    It "Test-SafeFilename rejects slashes and special chars" {
+        Test-SafeFilename "../etc/passwd"  | Should -BeFalse
+        Test-SafeFilename "dir/file.wav"   | Should -BeFalse
+        Test-SafeFilename ""               | Should -BeFalse
+    }
+
+    # --- Get-PeonConfigRaw (locale repair) ---
+
+    It "Get-PeonConfigRaw repairs comma decimal separator" {
+        $tmp = Join-Path $TestDrive "config-comma.json"
+        '{"volume": 0,5, "enabled": true}' | Set-Content $tmp
+        $result = Get-PeonConfigRaw -Path $tmp
+        $result | Should -Match '"volume": 0\.5'
+    }
+
+    It "Get-PeonConfigRaw repairs missing volume value" {
+        $tmp = Join-Path $TestDrive "config-missing-vol.json"
+        "{`"volume`":`n  `"pack_rotation_mode`": `"sequential`"}" | Set-Content $tmp
+        $result = Get-PeonConfigRaw -Path $tmp
+        $result | Should -Match '"volume": 0\.5'
+    }
+
+    It "Get-PeonConfigRaw passes clean config through unchanged" {
+        $tmp = Join-Path $TestDrive "config-clean.json"
+        '{"volume": 0.5, "enabled": true}' | Set-Content $tmp
+        $result = Get-PeonConfigRaw -Path $tmp
+        $result | Should -Match '"volume": 0\.5'
+    }
+
+    # --- Get-ActivePack (fallback chain) ---
+
+    It "Get-ActivePack returns default_pack when set" {
+        $cfg = [PSCustomObject]@{ default_pack = "glados"; active_pack = "peon" }
+        Get-ActivePack $cfg | Should -Be "glados"
+    }
+
+    It "Get-ActivePack falls back to active_pack" {
+        $cfg = [PSCustomObject]@{ active_pack = "murloc" }
+        Get-ActivePack $cfg | Should -Be "murloc"
+    }
+
+    It "Get-ActivePack falls back to peon when neither is set" {
+        $cfg = [PSCustomObject]@{ enabled = $true }
+        Get-ActivePack $cfg | Should -Be "peon"
+    }
+}
+
+# ============================================================
 # install.ps1 embedded hook: config defaults
 # (mirrors BATS: default config creation tests)
 # ============================================================
@@ -994,7 +1117,8 @@ Describe "install.ps1 Default Config" {
 
     It "repairs locale-damaged volume decimals (e.g. 0,5 -> 0.5)" {
         $script:installContent | Should -Match 'Get-PeonConfigRaw'
-        $script:installContent | Should -Match '\\d\),\(\\d'
+        $utilsContent = Get-Content (Join-Path (Join-Path $script:RepoRoot "scripts") "install-utils.ps1") -Raw
+        $utilsContent | Should -Match '\\d\),\(\\d'
     }
 
     It "installs skills" {
@@ -1027,8 +1151,13 @@ Describe "install.ps1 Default Config" {
         $script:installContent | Should -Match 'Test-SafeFilename'
     }
 
+    It "dot-sources install-utils.ps1 for validation functions" {
+        $script:installContent | Should -Match 'install-utils\.ps1'
+    }
+
     It "blocks path traversal in source ref and path" {
-        $script:installContent | Should -Match '\.\.'
+        $utilsContent = Get-Content (Join-Path (Join-Path $script:RepoRoot "scripts") "install-utils.ps1") -Raw
+        $utilsContent | Should -Match '\\\.\\\.'
     }
 
     It "prints ffmpeg recommendation if ffplay not found" {
