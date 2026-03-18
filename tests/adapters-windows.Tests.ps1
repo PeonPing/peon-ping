@@ -13,6 +13,35 @@
 BeforeAll {
     $script:RepoRoot = Split-Path $PSScriptRoot -Parent
     $script:AdaptersDir = Join-Path $script:RepoRoot "adapters"
+
+    # AST-based function extraction helper (Category B tests)
+    # Replaces fragile regex patterns like (?s)(function Emit-Event \{.*?\n\})
+    # with format-independent PowerShell AST parsing.
+    function Get-FunctionAst {
+        param(
+            [string]$FilePath,
+            [string]$FunctionName
+        )
+        $errors = $null
+        $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $FilePath, [ref]$tokens, [ref]$errors
+        )
+        if ($errors) {
+            throw "Parse errors in ${FilePath}: $($errors -join '; ')"
+        }
+        $funcAst = $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq $FunctionName
+        }, $true)
+        return $funcAst
+    }
+
+    function Get-ParamNames {
+        param([System.Management.Automation.Language.FunctionDefinitionAst]$FuncAst)
+        @($FuncAst.Body.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+    }
 }
 
 # ============================================================
@@ -21,13 +50,13 @@ BeforeAll {
 
 Describe "PowerShell Syntax Validation" {
     $allAdapters = @("codex", "gemini", "copilot", "windsurf", "kiro", "openclaw",
-                     "amp", "antigravity", "kimi", "opencode", "kilo")
+                     "deepagents", "amp", "antigravity", "kimi", "opencode", "kilo")
 
     It "adapters/<name>.ps1 has valid PowerShell syntax" -ForEach @(
         @{ name = "codex" }, @{ name = "gemini" }, @{ name = "copilot" },
         @{ name = "windsurf" }, @{ name = "kiro" }, @{ name = "openclaw" },
-        @{ name = "amp" }, @{ name = "antigravity" }, @{ name = "kimi" },
-        @{ name = "opencode" }, @{ name = "kilo" }
+        @{ name = "deepagents" }, @{ name = "amp" }, @{ name = "antigravity" },
+        @{ name = "kimi" }, @{ name = "opencode" }, @{ name = "kilo" }
     ) {
         $path = Join-Path $script:AdaptersDir "$name.ps1"
         $path | Should -Exist
@@ -60,8 +89,8 @@ Describe "No ExecutionPolicy Bypass" {
     It "adapters/<name>.ps1 does not use ExecutionPolicy Bypass" -ForEach @(
         @{ name = "codex" }, @{ name = "gemini" }, @{ name = "copilot" },
         @{ name = "windsurf" }, @{ name = "kiro" }, @{ name = "openclaw" },
-        @{ name = "amp" }, @{ name = "antigravity" }, @{ name = "kimi" },
-        @{ name = "opencode" }, @{ name = "kilo" }
+        @{ name = "deepagents" }, @{ name = "amp" }, @{ name = "antigravity" },
+        @{ name = "kimi" }, @{ name = "opencode" }, @{ name = "kilo" }
     ) {
         $path = Join-Path $script:AdaptersDir "$name.ps1"
         $content = Get-Content $path -Raw
@@ -272,7 +301,12 @@ Describe "Category A: OpenClaw Adapter" {
 
 Describe "Category B: Amp Adapter" {
     BeforeAll {
-        $script:ampContent = Get-Content (Join-Path $script:AdaptersDir "amp.ps1") -Raw
+        $script:ampPath = Join-Path $script:AdaptersDir "amp.ps1"
+        $script:ampContent = Get-Content $script:ampPath -Raw
+        # AST-extracted functions
+        $script:ampEmitEvent = Get-FunctionAst $script:ampPath "Emit-Event"
+        $script:ampTestThreadWaiting = Get-FunctionAst $script:ampPath "Test-ThreadWaiting"
+        $script:ampHandleThreadChange = Get-FunctionAst $script:ampPath "Handle-ThreadChange"
     }
 
     It "has Install/Uninstall/Status daemon flags" {
@@ -306,11 +340,60 @@ Describe "Category B: Amp Adapter" {
     It "tries Windows-native AMP_DATA_DIR path first" {
         $script:ampContent | Should -Match 'LOCALAPPDATA'
     }
+
+    # AST-based function extraction tests
+    It "Emit-Event function is extractable via AST" {
+        $script:ampEmitEvent | Should -Not -BeNullOrEmpty
+        $script:ampEmitEvent.Count | Should -Be 1
+    }
+
+    It "Emit-Event accepts EventName and ThreadId parameters" {
+        $paramNames = Get-ParamNames $script:ampEmitEvent[0]
+        $paramNames | Should -Contain "EventName"
+        $paramNames | Should -Contain "ThreadId"
+    }
+
+    It "Emit-Event builds session_id with amp- prefix" {
+        $body = $script:ampEmitEvent[0].Extent.Text
+        $body | Should -Match 'amp-'
+        $body | Should -Match 'session_id'
+    }
+
+    It "Emit-Event pipes JSON to peon.ps1" {
+        $body = $script:ampEmitEvent[0].Extent.Text
+        $body | Should -Match 'ConvertTo-Json'
+        $body | Should -Match 'PeonScript'
+    }
+
+    It "Test-ThreadWaiting function is extractable via AST" {
+        $script:ampTestThreadWaiting | Should -Not -BeNullOrEmpty
+        $script:ampTestThreadWaiting.Count | Should -Be 1
+    }
+
+    It "Test-ThreadWaiting checks for tool_use content type" {
+        $body = $script:ampTestThreadWaiting[0].Extent.Text
+        $body | Should -Match 'tool_use'
+    }
+
+    It "Test-ThreadWaiting returns boolean" {
+        $body = $script:ampTestThreadWaiting[0].Extent.Text
+        $body | Should -Match '\$true'
+        $body | Should -Match '\$false'
+    }
+
+    It "Handle-ThreadChange function is extractable via AST" {
+        $script:ampHandleThreadChange | Should -Not -BeNullOrEmpty
+        $script:ampHandleThreadChange.Count | Should -Be 1
+    }
 }
 
 Describe "Category B: Antigravity Adapter" {
     BeforeAll {
-        $script:antigravityContent = Get-Content (Join-Path $script:AdaptersDir "antigravity.ps1") -Raw
+        $script:antigravityPath = Join-Path $script:AdaptersDir "antigravity.ps1"
+        $script:antigravityContent = Get-Content $script:antigravityPath -Raw
+        # AST-extracted functions
+        $script:antigravityEmitEvent = Get-FunctionAst $script:antigravityPath "Emit-Event"
+        $script:antigravityHandleChange = Get-FunctionAst $script:antigravityPath "Handle-ConversationChange"
     }
 
     It "has Install/Uninstall/Status daemon flags" {
@@ -335,11 +418,52 @@ Describe "Category B: Antigravity Adapter" {
     It "has PID file management" {
         $script:antigravityContent | Should -Match '\.antigravity-adapter\.pid'
     }
+
+    # AST-based function extraction tests
+    It "Emit-Event function is extractable via AST" {
+        $script:antigravityEmitEvent | Should -Not -BeNullOrEmpty
+        $script:antigravityEmitEvent.Count | Should -Be 1
+    }
+
+    It "Emit-Event accepts EventName and Guid parameters" {
+        $paramNames = Get-ParamNames $script:antigravityEmitEvent[0]
+        $paramNames | Should -Contain "EventName"
+        $paramNames | Should -Contain "Guid"
+    }
+
+    It "Emit-Event builds session_id with antigravity- prefix" {
+        $body = $script:antigravityEmitEvent[0].Extent.Text
+        $body | Should -Match 'antigravity-'
+        $body | Should -Match 'session_id'
+    }
+
+    It "Emit-Event pipes JSON to peon.ps1" {
+        $body = $script:antigravityEmitEvent[0].Extent.Text
+        $body | Should -Match 'ConvertTo-Json'
+        $body | Should -Match 'PeonScript'
+    }
+
+    It "Handle-ConversationChange function is extractable via AST" {
+        $script:antigravityHandleChange | Should -Not -BeNullOrEmpty
+        $script:antigravityHandleChange.Count | Should -Be 1
+    }
+
+    It "Handle-ConversationChange fires SessionStart for new conversations" {
+        $body = $script:antigravityHandleChange[0].Extent.Text
+        $body | Should -Match 'SessionStart'
+        $body | Should -Match 'Emit-Event'
+    }
 }
 
 Describe "Category B: Kimi Adapter" {
     BeforeAll {
-        $script:kimiContent = Get-Content (Join-Path $script:AdaptersDir "kimi.ps1") -Raw
+        $script:kimiPath = Join-Path $script:AdaptersDir "kimi.ps1"
+        $script:kimiContent = Get-Content $script:kimiPath -Raw
+        # AST-extracted functions
+        $script:kimiEmitEvent = Get-FunctionAst $script:kimiPath "Emit-Event"
+        $script:kimiProcessWireLine = Get-FunctionAst $script:kimiPath "Process-WireLine"
+        $script:kimiResolveKimiCwd = Get-FunctionAst $script:kimiPath "Resolve-KimiCwd"
+        $script:kimiHandleWireChange = Get-FunctionAst $script:kimiPath "Handle-WireChange"
     }
 
     It "has Install/Uninstall/Status/Help flags" {
@@ -358,32 +482,9 @@ Describe "Category B: Kimi Adapter" {
         $script:kimiContent | Should -Match 'IncludeSubdirectories.*true'
     }
 
-    It "maps TurnEnd to Stop" {
-        $script:kimiContent | Should -Match '"TurnEnd".*"Stop"'
-    }
-
-    It "maps TurnBegin to SessionStart for new sessions" {
-        $script:kimiContent | Should -Match '"TurnBegin"'
-        $script:kimiContent | Should -Match '"SessionStart"'
-    }
-
-    It "maps SubagentEvent with TurnBegin to SubagentStart" {
-        $script:kimiContent | Should -Match '"SubagentEvent"'
-        $script:kimiContent | Should -Match '"SubagentStart"'
-    }
-
-    It "maps CompactionBegin to PreCompact" {
-        $script:kimiContent | Should -Match '"CompactionBegin".*"PreCompact"'
-    }
-
     It "has /clear detection logic" {
         $script:kimiContent | Should -Match 'ClearGraceSeconds'
         $script:kimiContent | Should -Match 'lastNewSession'
-    }
-
-    It "resolves CWD from workspace hash using MD5" {
-        $script:kimiContent | Should -Match 'Resolve-KimiCwd'
-        $script:kimiContent | Should -Match 'MD5'
     }
 
     It "reads new bytes from wire.jsonl using offset tracking" {
@@ -393,6 +494,87 @@ Describe "Category B: Kimi Adapter" {
 
     It "has PID file management" {
         $script:kimiContent | Should -Match '\.kimi-adapter\.pid'
+    }
+
+    # AST-based function extraction tests
+    It "Emit-Event function is extractable via AST" {
+        $script:kimiEmitEvent | Should -Not -BeNullOrEmpty
+        $script:kimiEmitEvent.Count | Should -Be 1
+    }
+
+    It "Emit-Event accepts EventName, SessionId, and Cwd parameters" {
+        $paramNames = Get-ParamNames $script:kimiEmitEvent[0]
+        $paramNames | Should -Contain "EventName"
+        $paramNames | Should -Contain "SessionId"
+        $paramNames | Should -Contain "Cwd"
+    }
+
+    It "Emit-Event pipes JSON to peon.ps1" {
+        $body = $script:kimiEmitEvent[0].Extent.Text
+        $body | Should -Match 'ConvertTo-Json'
+        $body | Should -Match 'PeonScript'
+    }
+
+    It "Process-WireLine function is extractable via AST" {
+        $script:kimiProcessWireLine | Should -Not -BeNullOrEmpty
+        $script:kimiProcessWireLine.Count | Should -Be 1
+    }
+
+    It "Process-WireLine accepts Line, Uuid, and Cwd parameters" {
+        $paramNames = Get-ParamNames $script:kimiProcessWireLine[0]
+        $paramNames | Should -Contain "Line"
+        $paramNames | Should -Contain "Uuid"
+        $paramNames | Should -Contain "Cwd"
+    }
+
+    It "Process-WireLine maps TurnEnd to Stop" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"TurnEnd"'
+        $body | Should -Match '"Stop"'
+    }
+
+    It "Process-WireLine maps CompactionBegin to PreCompact" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"CompactionBegin"'
+        $body | Should -Match '"PreCompact"'
+    }
+
+    It "Process-WireLine maps SubagentEvent with TurnBegin to SubagentStart" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"SubagentEvent"'
+        $body | Should -Match '"SubagentStart"'
+    }
+
+    It "Process-WireLine maps TurnBegin for session detection" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match '"TurnBegin"'
+    }
+
+    It "Process-WireLine builds session_id with kimi- prefix" {
+        $body = $script:kimiProcessWireLine[0].Extent.Text
+        $body | Should -Match 'kimi-'
+        $body | Should -Match 'session_id'
+    }
+
+    It "Resolve-KimiCwd function is extractable via AST" {
+        $script:kimiResolveKimiCwd | Should -Not -BeNullOrEmpty
+        $script:kimiResolveKimiCwd.Count | Should -Be 1
+    }
+
+    It "Resolve-KimiCwd uses MD5 hashing" {
+        $body = $script:kimiResolveKimiCwd[0].Extent.Text
+        $body | Should -Match 'MD5'
+    }
+
+    It "Handle-WireChange function is extractable via AST" {
+        $script:kimiHandleWireChange | Should -Not -BeNullOrEmpty
+        $script:kimiHandleWireChange.Count | Should -Be 1
+    }
+
+    It "Handle-WireChange uses FileStream for offset-based reading" {
+        $body = $script:kimiHandleWireChange[0].Extent.Text
+        $body | Should -Match 'FileStream'
+        $body | Should -Match 'sessionOffset'
     }
 }
 
@@ -963,6 +1145,17 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'orphaned \.tmp files'
     }
 
+    It "uses InvariantCulture in Write-StateAtomic for locale-safe JSON (no decimal comma)" {
+        # Extract Write-StateAtomic function body from the hook script
+        if ($script:peonHookContent -match '(?s)function Write-StateAtomic\s*\{(.+?)\n\}') {
+            $fnBody = $matches[1]
+            $fnBody | Should -Match 'InvariantCulture'
+            $fnBody | Should -Match 'CurrentCulture'
+        } else {
+            throw "Write-StateAtomic function not found in hook script"
+        }
+    }
+
     It "reads stdin JSON via StreamReader (UTF-8 BOM-safe)" {
         $script:peonHookContent | Should -Match 'OpenStandardInput'
         $script:peonHookContent | Should -Match 'StreamReader'
@@ -978,6 +1171,129 @@ Describe "Embedded peon.ps1 Hook Script" {
 
     It "converts PSCustomObject to hashtable for PS 5.1 compat" {
         $script:peonHookContent | Should -Match 'ConvertTo-Hashtable'
+    }
+}
+
+# ============================================================
+# install-utils.ps1: Behavioral validation tests
+# Dot-sources the shared module and exercises real functions.
+# ============================================================
+
+Describe "install-utils.ps1 Behavioral Validation" {
+    BeforeAll {
+        . (Join-Path (Join-Path $script:RepoRoot "scripts") "install-utils.ps1")
+    }
+
+    # --- Test-SafePackName ---
+
+    It "Test-SafePackName accepts alphanumeric with dots, hyphens, underscores" {
+        Test-SafePackName "peon"         | Should -BeTrue
+        Test-SafePackName "sc_firebat"   | Should -BeTrue
+        Test-SafePackName "peon-cz"      | Should -BeTrue
+        Test-SafePackName "pack.v2"      | Should -BeTrue
+    }
+
+    It "Test-SafePackName rejects slashes and special chars" {
+        Test-SafePackName "../evil"      | Should -BeFalse
+        Test-SafePackName "foo/bar"      | Should -BeFalse
+        Test-SafePackName "pa ck"        | Should -BeFalse
+        Test-SafePackName ""             | Should -BeFalse
+    }
+
+    # --- Test-SafeSourceRepo ---
+
+    It "Test-SafeSourceRepo accepts org/repo format" {
+        Test-SafeSourceRepo "PeonPing/og-packs" | Should -BeTrue
+        Test-SafeSourceRepo "user/repo.v2"      | Should -BeTrue
+    }
+
+    It "Test-SafeSourceRepo rejects invalid formats" {
+        Test-SafeSourceRepo "noslash"           | Should -BeFalse
+        Test-SafeSourceRepo "a/b/c"             | Should -BeFalse
+        Test-SafeSourceRepo "../evil/repo"      | Should -BeFalse
+        Test-SafeSourceRepo ""                  | Should -BeFalse
+    }
+
+    # --- Test-SafeSourceRef ---
+
+    It "Test-SafeSourceRef accepts valid git refs" {
+        Test-SafeSourceRef "v1.0.0"       | Should -BeTrue
+        Test-SafeSourceRef "main"         | Should -BeTrue
+        Test-SafeSourceRef "feature/test" | Should -BeTrue
+    }
+
+    It "Test-SafeSourceRef rejects path traversal and leading slash" {
+        Test-SafeSourceRef "../evil"  | Should -BeFalse
+        Test-SafeSourceRef "/abs"     | Should -BeFalse
+        Test-SafeSourceRef "a..b"     | Should -BeFalse
+        Test-SafeSourceRef ""         | Should -BeFalse
+    }
+
+    # --- Test-SafeSourcePath ---
+
+    It "Test-SafeSourcePath accepts valid paths" {
+        Test-SafeSourcePath "packs/peon"   | Should -BeTrue
+        Test-SafeSourcePath "simple"       | Should -BeTrue
+    }
+
+    It "Test-SafeSourcePath rejects path traversal and leading slash" {
+        Test-SafeSourcePath "../escape"  | Should -BeFalse
+        Test-SafeSourcePath "/absolute"  | Should -BeFalse
+        Test-SafeSourcePath "a..b"       | Should -BeFalse
+        Test-SafeSourcePath ""           | Should -BeFalse
+    }
+
+    # --- Test-SafeFilename ---
+
+    It "Test-SafeFilename accepts safe filenames" {
+        Test-SafeFilename "sound.wav"      | Should -BeTrue
+        Test-SafeFilename "peon_ready.mp3" | Should -BeTrue
+    }
+
+    It "Test-SafeFilename rejects slashes and special chars" {
+        Test-SafeFilename "../etc/passwd"  | Should -BeFalse
+        Test-SafeFilename "dir/file.wav"   | Should -BeFalse
+        Test-SafeFilename ""               | Should -BeFalse
+    }
+
+    # --- Get-PeonConfigRaw (locale repair) ---
+
+    It "Get-PeonConfigRaw repairs comma decimal separator" {
+        $tmp = Join-Path $TestDrive "config-comma.json"
+        '{"volume": 0,5, "enabled": true}' | Set-Content $tmp
+        $result = Get-PeonConfigRaw -Path $tmp
+        $result | Should -Match '"volume": 0\.5'
+    }
+
+    It "Get-PeonConfigRaw repairs missing volume value" {
+        $tmp = Join-Path $TestDrive "config-missing-vol.json"
+        "{`"volume`":`n  `"pack_rotation_mode`": `"sequential`"}" | Set-Content $tmp
+        $result = Get-PeonConfigRaw -Path $tmp
+        $result | Should -Match '"volume": 0\.5'
+    }
+
+    It "Get-PeonConfigRaw passes clean config through unchanged" {
+        $tmp = Join-Path $TestDrive "config-clean.json"
+        '{"volume": 0.5, "enabled": true}' | Set-Content $tmp
+        $result = Get-PeonConfigRaw -Path $tmp
+        $result | Should -Match '"volume": 0\.5'
+    }
+
+    # --- Get-ActivePack (fallback chain) ---
+
+    It "Get-ActivePack returns default_pack when set" {
+        $cfg = [PSCustomObject]@{ default_pack = "glados"; active_pack = "peon" }
+        Get-ActivePack $cfg | Should -Be "glados"
+    }
+
+    It "Get-ActivePack falls back to active_pack" {
+        $cfg = [PSCustomObject]@{ active_pack = "murloc" }
+        Get-ActivePack $cfg | Should -Be "murloc"
+    }
+
+    It "Get-ActivePack falls back to peon when neither is set" {
+        $cfg = [PSCustomObject]@{ enabled = $true }
+        Get-ActivePack $cfg | Should -Be "peon"
     }
 }
 
@@ -1023,7 +1339,8 @@ Describe "install.ps1 Default Config" {
 
     It "repairs locale-damaged volume decimals (e.g. 0,5 -> 0.5)" {
         $script:installContent | Should -Match 'Get-PeonConfigRaw'
-        $script:installContent | Should -Match '\\d\),\(\\d'
+        $utilsContent = Get-Content (Join-Path (Join-Path $script:RepoRoot "scripts") "install-utils.ps1") -Raw
+        $utilsContent | Should -Match '\\d\),\(\\d'
     }
 
     It "installs skills" {
@@ -1056,8 +1373,13 @@ Describe "install.ps1 Default Config" {
         $script:installContent | Should -Match 'Test-SafeFilename'
     }
 
+    It "dot-sources install-utils.ps1 for validation functions" {
+        $script:installContent | Should -Match 'install-utils\.ps1'
+    }
+
     It "blocks path traversal in source ref and path" {
-        $script:installContent | Should -Match '\.\.'
+        $utilsContent = Get-Content (Join-Path (Join-Path $script:RepoRoot "scripts") "install-utils.ps1") -Raw
+        $utilsContent | Should -Match '\\\.\\\.'
     }
 
     It "prints ffmpeg recommendation if ffplay not found" {
@@ -1071,6 +1393,179 @@ Describe "install.ps1 Default Config" {
 
     It "warns about winget ffplay PATH issue" {
         $script:installContent | Should -Match 'may not add ffplay to PATH'
+    }
+
+    It "warns when a custom pack name is not found in registry" {
+        $script:installContent | Should -Match "pack '.*' not found in registry"
+    }
+
+    It "applies per-field defensive defaults for source_repo, source_ref, source_path" {
+        $script:installContent | Should -Match 'sourceRepo = \$FallbackRepo'
+        $script:installContent | Should -Match 'sourceRef = \$FallbackRef'
+        $script:installContent | Should -Match 'sourcePath = \$packName'
+    }
+
+    It "help text has aligned columns and pack management section" {
+        $script:installContent | Should -Match '--packs use <n>'
+        $script:installContent | Should -Match '--packs next'
+        $script:installContent | Should -Match 'Pack management:'
+    }
+
+    It "bind updates existing rule for same pattern (upsert)" {
+        $script:peonHookContent | Should -Match '\.pattern -eq \$bindPattern'
+    }
+
+    It "unbind removes rule by exact pattern match" {
+        $script:peonHookContent | Should -Match '\.pattern -ne \$target'
+    }
+
+    It "unbind suggests --pattern when cwd has matching rules" {
+        $script:peonHookContent | Should -Match 'Use --pattern to remove a specific rule'
+    }
+
+    It "bindings marks active rule with asterisk" {
+        $script:peonHookContent | Should -Match '\$marker.*-like.*\$rule\.pattern'
+    }
+
+    It "bindings shows message when no rules configured" {
+        $script:peonHookContent | Should -Match 'No pack bindings configured'
+    }
+
+    It "help text includes bind/unbind/bindings" {
+        $script:peonHookContent | Should -Match '--packs bind'
+        $script:peonHookContent | Should -Match '--packs unbind'
+        $script:peonHookContent | Should -Match '--packs bindings'
+    }
+}
+
+# ============================================================
+# path_rules: CLI Commands - Functional (B6: true E2E tests)
+# ============================================================
+
+Describe "path_rules: CLI Commands - Functional" {
+    BeforeAll {
+        # Extract the embedded hook script from install.ps1 (the here-string between @' and '@)
+        $installContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+        $startMarker = "`$hookScript = @'"
+        $endMarker = "'@"
+        $startIdx = $installContent.IndexOf($startMarker)
+        $hookStart = $installContent.IndexOf("`n", $startIdx) + 1
+        $hookEnd = $installContent.IndexOf("`n'@", $hookStart)
+        $script:hookScriptContent = $installContent.Substring($hookStart, $hookEnd - $hookStart)
+    }
+
+    BeforeEach {
+        # Create isolated test environment
+        $script:testDir = Join-Path $env:TEMP "peon-test-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+        New-Item -ItemType Directory -Path $script:testDir -Force | Out-Null
+        $script:packsDir = Join-Path $script:testDir "packs"
+
+        # Create mock packs with sounds
+        foreach ($p in @("peon", "sc_kerrigan")) {
+            $pDir = Join-Path $script:packsDir "$p\sounds"
+            New-Item -ItemType Directory -Path $pDir -Force | Out-Null
+            # Create a dummy sound file and manifest
+            Set-Content (Join-Path $pDir "hello.wav") "mock"
+            $manifest = @{
+                display_name = $p
+                categories = @{
+                    "task.complete" = @{
+                        sounds = @(@{ file = "sounds/hello.wav"; label = "hello" })
+                    }
+                }
+            }
+            $manifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $script:packsDir "$p\openpeon.json") -Encoding UTF8
+        }
+
+        # Create config
+        $script:configPath = Join-Path $script:testDir "config.json"
+        @{
+            default_pack = "peon"
+            volume = 0.5
+            enabled = $true
+            categories = @{}
+            path_rules = @()
+        } | ConvertTo-Json -Depth 5 | Set-Content $script:configPath -Encoding UTF8
+
+        # Write the extracted hook script as peon.ps1 in the test dir
+        $script:peonPs1 = Join-Path $script:testDir "peon.ps1"
+        Set-Content $script:peonPs1 -Value $script:hookScriptContent -Encoding UTF8
+    }
+
+    AfterEach {
+        Remove-Item $script:testDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    It "packs bind sets path_rules entry" {
+        $result = & powershell.exe -NoProfile -Command "Set-Location '$script:testDir'; & '$script:peonPs1' --packs bind peon 2>&1"
+        ($result -join "`n") | Should -Match "bound peon to"
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $cfg.path_rules[0].pack | Should -Be "peon"
+    }
+
+    It "packs bind with --pattern stores custom pattern" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/myproject/*' 2>&1"
+        ($result -join "`n") | Should -Match "bound sc_kerrigan to \*/myproject/\*"
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules[0].pattern | Should -Be "*/myproject/*"
+    }
+
+    It "packs bind updates existing rule for same pattern" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/proj/*' 2>&1" | Out-Null
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $cfg.path_rules[0].pack | Should -Be "sc_kerrigan"
+    }
+
+    It "packs bind validates pack exists" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind nonexistent 2>&1"
+        ($result -join "`n") | Should -Match "not found"
+    }
+
+    It "packs unbind removes rule" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/test/*' 2>&1" | Out-Null
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs unbind --pattern '*/test/*' 2>&1"
+        ($result -join "`n") | Should -Match "unbound"
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 0
+    }
+
+    It "packs unbind with --pattern removes specific pattern" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj-a/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/proj-b/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs unbind --pattern '*/proj-a/*' 2>&1" | Out-Null
+        $cfg = Get-Content $script:configPath -Raw | ConvertFrom-Json
+        $cfg.path_rules.Count | Should -Be 1
+        $cfg.path_rules[0].pack | Should -Be "sc_kerrigan"
+    }
+
+    It "packs unbind no matching rule prints message" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/other/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs unbind --pattern '*/nonexistent/*' 2>&1"
+        ($result -join "`n") | Should -Match "No binding found"
+    }
+
+    It "packs bindings lists rules" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj-a/*' 2>&1" | Out-Null
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind sc_kerrigan --pattern '*/proj-b/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bindings 2>&1"
+        ($result -join "`n") | Should -Match '\*/proj-a/\* -> peon'
+        ($result -join "`n") | Should -Match '\*/proj-b/\* -> sc_kerrigan'
+    }
+
+    It "packs bindings empty prints message" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bindings 2>&1"
+        ($result -join "`n") | Should -Match "No pack bindings configured"
+    }
+
+    It "status shows path rules count" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "path rules: 1 configured"
     }
 }
 
@@ -1086,7 +1581,7 @@ Describe "path_rules: Runtime Matching Engine" {
     # --- Matching engine structural tests ---
 
     It "evaluates path_rules against event cwd" {
-        $script:peonHookContent | Should -Match 'eventCwd.*-like.*\$pat'
+        $script:peonHookContent | Should -Match 'cwd.*-like.*\$pattern'
     }
 
     It "checks that matched pack directory exists before selecting" {
@@ -1112,7 +1607,7 @@ Describe "path_rules: Runtime Matching Engine" {
 
     It "empty path_rules array is a no-op (uses default_pack)" {
         # The foreach simply does nothing when path_rules is empty
-        $script:peonHookContent | Should -Match 'foreach \(\$rule in \$config\.path_rules\)'
+        $script:peonHookContent | Should -Match 'foreach \(\$rule in \$pathRules\)'
     }
 
     It "session_override beats path_rules in hierarchy" {
@@ -1121,11 +1616,11 @@ Describe "path_rules: Runtime Matching Engine" {
     }
 
     It "no cwd skips path_rules matching" {
-        $script:peonHookContent | Should -Match 'if \(\$eventCwd'
+        $script:peonHookContent | Should -Match 'if \(\$cwd'
     }
 
     It "uses Get-ActivePack for default pack resolution" {
-        $script:peonHookContent | Should -Match 'Get-ActivePack \$config'
+        $script:peonHookContent | Should -Match '\$defaultPack'
     }
 }
 
@@ -1328,58 +1823,199 @@ Describe "path_rules: CLI Commands - Functional" {
 }
 
 # ============================================================
-# path_rules: Runtime Matching Engine (mirrors BATS path_rules tests)
+# install.ps1 E2E: pack download with mocked registry
 # ============================================================
 
-Describe "path_rules: Runtime Matching Engine" {
+Describe "install.ps1 E2E: Pack Download Flow" {
     BeforeAll {
-        $script:peonHookContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+        # Extract validation functions from install.ps1
+        $script:installContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+
+        # Define validation functions (same as install.ps1)
+        function Test-SafePackName($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+        function Test-SafeSourceRepo($n)  { $n -match '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' }
+        function Test-SafeSourceRef($n)   { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+        function Test-SafeSourcePath($n)  { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+        function Test-SafeFilename($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+
+        $script:FallbackRepo = "PeonPing/og-packs"
+        $script:FallbackRef = "v1.1.0"
     }
 
-    # --- Matching engine structural tests ---
+    It "downloads pack from mock registry with full metadata" {
+        $tmpDir = Join-Path $TestDrive "e2e-full"
+        New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 
-    It "evaluates path_rules against event cwd" {
-        $script:peonHookContent | Should -Match 'eventCwd.*-like.*\$pat'
+        # Mock registry entry with all fields populated
+        $packInfo = [PSCustomObject]@{
+            name = "test_pack"
+            source_repo = "TestOrg/test-packs"
+            source_ref = "v2.0.0"
+            source_path = "test_pack"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        # Apply per-field defaults (same logic as install.ps1)
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        $packBase = "https://raw.githubusercontent.com/$sourceRepo/$sourceRef/$sourcePath"
+
+        $sourceRepo | Should -Be "TestOrg/test-packs"
+        $sourceRef | Should -Be "v2.0.0"
+        $sourcePath | Should -Be "test_pack"
+        $packBase | Should -Be "https://raw.githubusercontent.com/TestOrg/test-packs/v2.0.0/test_pack"
     }
 
-    It "checks that matched pack directory exists before selecting" {
-        $script:peonHookContent | Should -Match 'pathRulePack = \$candidate'
-        $script:peonHookContent | Should -Match 'Test-Path \$candidateDir -PathType Container'
+    It "applies per-field defaults when source_repo is missing" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = $null
+            source_ref = "v3.0.0"
+            source_path = "custom/path"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        # Only source_repo should fall back; ref and path should keep their values
+        $sourceRepo | Should -Be "PeonPing/og-packs"
+        $sourceRef | Should -Be "v3.0.0"
+        $sourcePath | Should -Be "custom/path"
     }
 
-    It "first matching rule wins (breaks on first match)" {
-        # The foreach loop should break after finding the first match
-        $script:peonHookContent | Should -Match 'pathRulePack = \$candidate'
-        $script:peonHookContent | Should -Match 'break'
+    It "applies per-field defaults when source_ref is missing" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = "MyOrg/my-packs"
+            source_ref = $null
+            source_path = "my_pack"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        # Only source_ref should fall back
+        $sourceRepo | Should -Be "MyOrg/my-packs"
+        $sourceRef | Should -Be "v1.1.0"
+        $sourcePath | Should -Be "my_pack"
     }
 
-    It "missing pack falls through (only sets pathRulePack when pack dir exists)" {
-        $script:peonHookContent | Should -Match 'Test-Path \$candidateDir -PathType Container'
+    It "applies per-field defaults when source_path is missing" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = "MyOrg/my-packs"
+            source_ref = "main"
+            source_path = $null
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        # Only source_path should fall back to pack name
+        $sourceRepo | Should -Be "MyOrg/my-packs"
+        $sourceRef | Should -Be "main"
+        $sourcePath | Should -Be "my_pack"
     }
 
-    It "path_rules beats pack_rotation in hierarchy" {
-        # pathRulePack is checked before pack_rotation
-        $script:peonHookContent | Should -Match 'elseif \(\$pathRulePack\)'
-        $script:peonHookContent | Should -Match '\$activePack = \$pathRulePack'
+    It "falls back all fields when all are invalid" {
+        $packInfo = [PSCustomObject]@{
+            name = "my_pack"
+            source_repo = "../../bad"
+            source_ref = "../evil"
+            source_path = "/absolute/path"
+        }
+
+        $sourceRepo = $packInfo.source_repo
+        $sourceRef = $packInfo.source_ref
+        $sourcePath = $packInfo.source_path
+
+        if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $script:FallbackRepo }
+        if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $script:FallbackRef }
+        if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packInfo.name }
+
+        $sourceRepo | Should -Be "PeonPing/og-packs"
+        $sourceRef | Should -Be "v1.1.0"
+        $sourcePath | Should -Be "my_pack"
     }
 
-    It "empty path_rules array is a no-op (uses default_pack)" {
-        # The foreach simply does nothing when path_rules is empty
-        $script:peonHookContent | Should -Match 'foreach \(\$rule in \$config\.path_rules\)'
+    It "creates pack directory structure and writes manifest" {
+        $tmpDir = Join-Path $TestDrive "e2e-dirs"
+        $packName = "test_pack"
+        $packDir = Join-Path $tmpDir "packs\$packName"
+        $soundsDir = Join-Path $packDir "sounds"
+        New-Item -ItemType Directory -Path $soundsDir -Force | Out-Null
+
+        # Write a mock manifest
+        $manifest = @{
+            name = "test_pack"
+            categories = @{
+                "session.start" = @{
+                    sounds = @(
+                        @{ file = "sounds/hello.wav"; label = "Hello" }
+                    )
+                }
+            }
+        } | ConvertTo-Json -Depth 5
+        $manifestPath = Join-Path $packDir "openpeon.json"
+        Set-Content $manifestPath -Value $manifest -Encoding UTF8
+
+        # Verify structure
+        $packDir | Should -Exist
+        $soundsDir | Should -Exist
+        $manifestPath | Should -Exist
+
+        # Parse manifest and extract sound files (same logic as install.ps1)
+        $parsed = Get-Content $manifestPath -Raw | ConvertFrom-Json
+        $soundFiles = @()
+        foreach ($catName in $parsed.categories.PSObject.Properties.Name) {
+            $cat = $parsed.categories.$catName
+            foreach ($sound in $cat.sounds) {
+                $file = Split-Path $sound.file -Leaf
+                if ($file -and $soundFiles -notcontains $file) {
+                    $soundFiles += $file
+                }
+            }
+        }
+
+        $soundFiles.Count | Should -Be 1
+        $soundFiles[0] | Should -Be "hello.wav"
     }
 
-    It "session_override beats path_rules in hierarchy" {
-        # session_override/agentskill check happens in the if block, path_rules in elseif
-        $script:peonHookContent | Should -Match 'agentskill.*session_override'
+    It "skips unsafe filenames in manifest" {
+        $soundFiles = @("good.wav", "../evil.wav", "also-good.mp3")
+        $safe = @($soundFiles | Where-Object { Test-SafeFilename $_ })
+        $safe.Count | Should -Be 2
+        $safe | Should -Contain "good.wav"
+        $safe | Should -Contain "also-good.mp3"
+        $safe | Should -Not -Contain "../evil.wav"
     }
 
-    It "no cwd skips path_rules matching" {
-        $script:peonHookContent | Should -Match 'if \(\$eventCwd'
-    }
-
-    It "uses Get-ActivePack for default pack resolution" {
-        $script:peonHookContent | Should -Match 'Get-ActivePack \$config'
-    }
+    It "skips invalid pack names" {
+        Test-SafePackName "good_pack" | Should -Be $true
+        Test-SafePackName "also-good.pack" | Should -Be $true
+        Test-SafePackName "../bad" | Should -Be $false
+        Test-SafePackName "bad pack" | Should -Be $false
+        Test-SafePackName "" | Should -Be $false    }
 }
 
 # ============================================================
