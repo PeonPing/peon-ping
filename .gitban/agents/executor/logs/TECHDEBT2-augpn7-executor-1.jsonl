@@ -1,0 +1,4 @@
+{"ts":"2026-03-18T07:54:38Z","event":"init","data":{"role":"executor","sprint":"TECHDEBT2","card":"augpn7","cycle":1}}
+{"ts":"2026-03-18T07:54:38Z","event":"code-change","data":{"files":["scripts/install-utils.ps1","install.ps1","tests/adapters-windows.Tests.ps1"]}}
+{"ts":"2026-03-18T07:54:38Z","event":"test-run","data":{"file":"tests/adapters-windows.Tests.ps1","passed":253,"failed":0}}
+{"ts":"2026-03-18T07:54:38Z","event":"summary","data":{"status":"complete"}}
