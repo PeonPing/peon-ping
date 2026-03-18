@@ -5,22 +5,15 @@
 # - Get-ActivePack fallback chain (default_pack -> active_pack -> "peon")
 # - session_override + path_rules interaction in pack resolution
 # - path_rules fallback when session pack is missing
+# - session_override fallback paths use Get-ActivePack (not raw config)
 
 BeforeAll {
+    # Use shared test harness for hook extraction (B3: DRY compliance)
+    . $PSScriptRoot/windows-setup.ps1
+
     $script:RepoRoot = Split-Path $PSScriptRoot -Parent
     $script:InstallPs1 = Join-Path $script:RepoRoot "install.ps1"
-
-    # Extract the embedded peon.ps1 here-string from install.ps1.
-    # The here-string starts after "$hookScript = @'" and ends at "'@".
-    $raw = Get-Content $script:InstallPs1 -Raw
-    $startMarker = "`$hookScript = @'"
-    $endMarker = "'@"
-    $startIdx = $raw.IndexOf($startMarker)
-    if ($startIdx -lt 0) { throw "Could not find hookScript start marker in install.ps1" }
-    $startIdx = $raw.IndexOf("`n", $startIdx) + 1
-    $endIdx = $raw.IndexOf("`n$endMarker", $startIdx)
-    if ($endIdx -lt 0) { throw "Could not find hookScript end marker in install.ps1" }
-    $script:EmbeddedHook = $raw.Substring($startIdx, $endIdx - $startIdx)
+    $script:EmbeddedHook = Extract-PeonHookScript -InstallPath $script:InstallPs1
 }
 
 # ============================================================
@@ -75,8 +68,8 @@ Describe "session_override + path_rules interaction" {
 
     It "session_override mode falls through to pathRulePack when no session assignment exists" {
         # When rotationMode is session_override and session has no pack,
-        # the code should check $pathRulePack before $defaultPack
-        $script:PackSelectionBlock | Should -Match 'if \(\$pathRulePack\) \{ \$pathRulePack \} else \{ \$defaultPack \}'
+        # the code should check $pathRulePack before Get-ActivePack $config
+        $script:PackSelectionBlock | Should -Match 'if \(\$pathRulePack\) \{ \$pathRulePack \} else \{ Get-ActivePack \$config'
     }
 
     It "path_rules evaluation runs before session_override check" {
@@ -95,13 +88,55 @@ Describe "session_override + path_rules interaction" {
 
     It "falls through to path_rules when session pack directory is missing" {
         # When session pack candidate directory doesn't exist, code removes
-        # the session entry and falls through to pathRulePack
-        $script:PackSelectionBlock | Should -Match 'Pack missing, fall through hierarchy: path_rules > default_pack'
+        # the session entry and falls through to pathRulePack or default
+        $script:PackSelectionBlock | Should -Match 'Pack missing, fall through to path_rules or default'
     }
 
     It "pathRulePack wins over rotation and default_pack when not in session_override mode" {
         $script:PackSelectionBlock | Should -Match 'elseif \(\$pathRulePack\)'
         $script:PackSelectionBlock | Should -Match 'Path rule wins over rotation and default'
+    }
+}
+
+# ============================================================
+# session_override fallback uses Get-ActivePack (B2 regression guard)
+# ============================================================
+
+Describe "session_override fallback uses Get-ActivePack" {
+    BeforeAll {
+        # Extract the session_override block from embedded hook
+        $pickMatch = [regex]::Match(
+            $script:EmbeddedHook,
+            '(?ms)# --- Pick a sound ---.*?(?=\$packDir\s*=)'
+        )
+        if (-not $pickMatch.Success) { throw "Could not extract pack selection block" }
+        $script:PackSelectionBlock = $pickMatch.Value
+    }
+
+    It "no session_override fallback path uses raw config.active_pack" {
+        # All fallback paths in session_override should use Get-ActivePack $config,
+        # not $config.active_pack directly, to ensure default_pack is respected
+        # Extract only the session_override block
+        $soMatch = [regex]::Match(
+            $script:PackSelectionBlock,
+            '(?ms)if \(\$rotationMode -eq "agentskill".*?(?=\} elseif \(\$pathRulePack\))'
+        )
+        $soMatch.Success | Should -BeTrue -Because "session_override block should exist"
+        $soBlock = $soMatch.Value
+
+        # Verify no direct $config.active_pack usage in the session_override block
+        $soBlock | Should -Not -Match '\$config\.active_pack' -Because "session_override fallbacks must use Get-ActivePack, not raw config.active_pack"
+    }
+
+    It "session_override fallback paths call Get-ActivePack" {
+        $soMatch = [regex]::Match(
+            $script:PackSelectionBlock,
+            '(?ms)if \(\$rotationMode -eq "agentskill".*?(?=\} elseif \(\$pathRulePack\))'
+        )
+        $soBlock = $soMatch.Value
+
+        # All "else" branches in session_override should use Get-ActivePack
+        $soBlock | Should -Match 'Get-ActivePack \$config' -Because "fallback must go through Get-ActivePack for default_pack support"
     }
 }
 
