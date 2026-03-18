@@ -48,7 +48,7 @@ versions:
         description: The right sound pack plays for the right project
           automatically, without manual per-session overrides. Config naming
           reflects the actual override hierarchy clearly.
-        status: in_progress
+        status: done
         docs_ref: docs/plans/2026-02-19-path-rules-design.md
         success_criteria:
           - path_rules glob matching selects pack based on cwd
@@ -110,7 +110,7 @@ versions:
               bash+Python only. Native Windows users have no way to manage
               path_rules without manually editing config.json. Need PowerShell
               equivalents in install.ps1 or a standalone peon.cmd wrapper.
-            status: todo
+            status: done
             priority: high
         upstream_version:
       m2:
