@@ -1,5 +1,0 @@
-{"event":"init","timestamp":"2026-03-17T23:40:00Z","role":"executor","sprint":"TECHDEBT2","card_id":"um5fz2","cycle":1}
-{"event":"code-change","timestamp":"2026-03-17T23:40:00Z","data":{"files":["adapters/windsurf.ps1","adapters/gemini.ps1","adapters/deepagents.ps1","adapters/copilot.ps1","adapters/kimi.ps1","adapters/kiro.ps1"]}}
-{"event":"test-run","timestamp":"2026-03-17T23:40:00Z","data":{"file":"tests/adapters-windows.Tests.ps1","passed":279,"failed":0}}
-{"event":"commit","timestamp":"2026-03-17T23:40:00Z","data":{"hash":"bcd71ba","message":"chore(um5fz2): add PEON_DEBUG diagnostic logging to 6 adapter .ps1 catch blocks"}}
-{"event":"summary","timestamp":"2026-03-17T23:40:00Z","data":{"total_events":4,"status":"complete"}}

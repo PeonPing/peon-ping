@@ -1,7 +1,0 @@
-{"timestamp":"2026-03-14T21:08:18Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"z0c9fd","cycle":1}
-{"timestamp":"2026-03-14T21:09:57Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"z0c9fd","cycle":1}
-{"timestamp":"2026-03-14T21:09:57Z","operation":"event","label":"read-diff","metadata":{"commit":"0a67a57"}}
-{"timestamp":"2026-03-14T21:09:57Z","operation":"event","label":"read-card","metadata":{"card_id":"z0c9fd"}}
-{"timestamp":"2026-03-14T21:09:57Z","operation":"event","label":"write-review","metadata":{"verdict":"APPROVAL"}}
-{"timestamp":"2026-03-14T21:09:57Z","operation":"event","label":"card-status-change","metadata":{"new_status":"in_progress"}}
-{"timestamp":"2026-03-14T21:09:57Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":0}

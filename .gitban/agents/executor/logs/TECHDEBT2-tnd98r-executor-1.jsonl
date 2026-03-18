@@ -1,6 +1,0 @@
-{"timestamp":"2026-03-18T06:24:38Z","operation":"init","role":"executor","sprint":"TECHDEBT2","card_id":"tnd98r","cycle":1}
-{"timestamp":"2026-03-18T06:30:30Z","operation":"init","role":"executor","sprint":"TECHDEBT2","card_id":"tnd98r","cycle":1}
-{"timestamp":"2026-03-18T06:30:30Z","operation":"event","label":"read-card","metadata":{"card_id":"tnd98r"}}
-{"timestamp":"2026-03-18T06:30:30Z","operation":"event","label":"code-change","metadata":{"files":["tests/peon-packs.Tests.ps1"]}}
-{"timestamp":"2026-03-18T06:30:30Z","operation":"event","label":"test-run","metadata":{"file":"tests/peon-packs.Tests.ps1","passed":11,"failed":0}}
-{"timestamp":"2026-03-18T06:30:31Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

@@ -1,5 +1,0 @@
-{"timestamp":"2026-03-14T01:13:19Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"c8vcdx","cycle":1}
-{"timestamp":"2026-03-14T01:15:06Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"c8vcdx","cycle":1}
-{"timestamp":"2026-03-14T01:15:07Z","operation":"event","label":"read-diff","metadata":{"commit":"624e7e1"}}
-{"timestamp":"2026-03-14T01:15:07Z","operation":"event","label":"read-card","metadata":{"card_id":"c8vcdx"}}
-{"timestamp":"2026-03-14T01:15:07Z","operation":"event","label":"read-adr","metadata":{"file":"docs/plans/2026-02-19-path-rules-design.md"}}

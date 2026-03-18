@@ -1,4 +1,0 @@
-{"event":"read-review","ts":"2026-03-18T00:00:00Z","data":{"file":".gitban/agents/reviewer/inbox/TECHDEBT2-yu082h-reviewer-1.md","verdict":"APPROVAL"}}
-{"event":"write-executor-inbox","ts":"2026-03-18T00:00:00Z","data":{"file":".gitban/agents/executor/inbox/TECHDEBT2-yu082h-executor-1.md"}}
-{"event":"card-update","ts":"2026-03-18T00:00:00Z","data":{"action":"append"}}
-{"event":"summary","ts":"2026-03-18T00:00:00Z","data":{"verdict":"APPROVAL","blockers":0,"backlog_items":0,"executor_files":1,"planner_files":0}}

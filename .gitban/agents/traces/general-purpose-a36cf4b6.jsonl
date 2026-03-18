@@ -1,5 +1,0 @@
-{"ts":"2026-03-15T23:46:28Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.gitban\\agents\\planner\\inbox\\WINTEST-frjune-planner-1.md"},"agent_id":"a36cf4b6","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:28Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__search_cards,mcp__gitban__create_card,mcp__gitban__list_cards","max_results":"3"},"agent_id":"a36cf4b6","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:33Z","tool":"mcp__gitban__search_cards","input":{"query":"path_rules"},"agent_id":"a36cf4b6","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:34Z","tool":"mcp__gitban__search_cards","input":{"query":"pack selection"},"agent_id":"a36cf4b6","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:35Z","tool":"mcp__gitban__search_cards","input":{"query":"frjune"},"agent_id":"a36cf4b6","agent_type":"general-purpose"}
