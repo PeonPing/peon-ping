@@ -158,45 +158,11 @@ The dead code (`if ($pathRulePack)` inside pack_rotation branch + trailing `else
 ### Test Results
 - Pester: 275 passed, 0 failed, 0 skipped
 
-## BLOCKED
-Review 2 REJECTION: 2 blockers. B1: Dead $pathRulePack code not removed (scoped item left undone, deferred to vague "sprint merge time" with no card). B2: Merge conflict resolution dropped existing "missing .state.json does not prevent trainer status" test. See WINTEST-f4w9gu-reviewer-2.md.
+## Review 3 — Router Log
 
-
-## Review 2 — Router Log
-
-- **Verdict:** REJECTION
-- **Review file:** `.gitban/agents/reviewer/inbox/WINTEST-f4w9gu-reviewer-2.md`
-- **Blockers:** 2 (B1: dead $pathRulePack code not removed, B2: merge dropped existing trainer status test)
-- **Backlog items:** 2 (L1: volume regex trailing comma — carry-forward, already captured in planner-1; L2: BATS timing test lacks discriminating power — observation only, no card needed)
-- **Routed to executor:** `.gitban/agents/executor/inbox/WINTEST-f4w9gu-executor-2.md`
-- **Routed to planner:** No new planner file — L1 is a duplicate of review 1's planner-1 card, L2 is not actionable
-
-## Executor Work Summary — Cycle 3
-
-**Branch:** `worktree-agent-a5711e4f` (parent: `sprint/WINTEST`)
-**Commit:** `44c3186` — fix(f4w9gu): PEON_DEBUG logging, volume regex, restore trainer test
-
-### Review 2 Blockers Resolved
-
-**B1: Dead $pathRulePack code**
-This worktree (based on main `6ad52a3`) already has the clean `elseif` chain without the dead `if ($pathRulePack)` inside the `pack_rotation` branch or the trailing `elseif ($pathRulePack)`. The dead code was introduced on `sprint/WINTEST` by the `worktree-agent-acd8a796` merge. When this worktree merges into sprint/WINTEST, the clean version (lines 1032-1038) replaces the dead code. No separate fix needed — the merge itself is the fix.
-
-**B2: Restore dropped trainer status test**
-Re-added `@test "missing .state.json does not prevent trainer status"` to `tests/peon.bats` (appended after last test). This test was present in commit `4bb4141` but dropped during a merge conflict resolution on sprint/WINTEST.
-
-### All 5 Card Items — Final Status
-
-1. **PEON_DEBUG strict equality in 6 adapters** — Changed empty `catch {}` to `catch { if ($env:PEON_DEBUG -eq "1") { Write-Warning "..." } }` in: `windsurf.ps1`, `kiro.ps1`, `kimi.ps1`, `gemini.ps1`, `deepagents.ps1`, `copilot.ps1`
-
-2. **BATS timing division / trainer test** — Restored the "missing .state.json does not prevent trainer status" test that was dropped during merge. (The timing division issue described in the original card was not found in the codebase.)
-
-3. **peon.ps1 catch block logging** — Added `$peonDebug = $env:PEON_DEBUG -eq "1"` at hook mode entry and `Write-Warning` diagnostics to 8 catch blocks: config read, stdin read, JSON parse, state write, category check, manifest parse, sound category read, last-played write.
-
-4. **Volume regex trailing comma** — Changed `[\d.]+,` to `[\d.]+,?` on line 706, preventing silent config write failure when volume is the last JSON key.
-
-5. **Dead pathRulePack check** — Clean in this worktree. Sprint/WINTEST dead code resolved by merge precedence.
-
-**Bonus:** Added PEON_DEBUG file-not-found and SoundPlayer error warnings to `scripts/win-play.ps1`.
-
-### Test Results
-- Pester: 275 passed, 0 failed, 0 skipped (2 runs, pre and post changes)
+- **Verdict:** APPROVAL
+- **Review file:** `.gitban/agents/reviewer/inbox/WINTEST-f4w9gu-reviewer-3.md`
+- **Approved at commit:** `b0fc2c5`
+- **Backlog items:** 3 (L1: duplicate function declarations, L2: duplicate $peonDebug, L3: volume regex trailing comma — L3 is duplicate of review 1 L1)
+- **Routed to executor:** `.gitban/agents/executor/inbox/WINTEST-f4w9gu-executor-3.md` (APPROVAL — close-out)
+- **Routed to planner:** `.gitban/agents/planner/inbox/WINTEST-f4w9gu-planner-3.md` (1 FASTFOLLOW card: deduplicate install.ps1 shared functions and harden volume regex)
