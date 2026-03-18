@@ -3740,3 +3740,19 @@ state = json.load(open('$TEST_DIR/.state.json'))
 assert isinstance(state, dict), 'State should be a dict'
 "
 }
+
+@test "missing .state.json does not prevent trainer status" {
+  # Enable trainer in config
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['trainer'] = {'enabled': True, 'exercises': {'pushups': 100}}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  rm -f "$TEST_DIR/.state.json"
+  export PEON_TEST=1
+  # trainer status should work even without .state.json
+  run bash "$PEON_SH" trainer status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"trainer status"* ]]
+}

@@ -39,7 +39,9 @@ try {
         $reader.Close()
         if ($raw) { $inputJson = $raw | ConvertFrom-Json }
     }
-} catch {}
+} catch {
+    if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping kiro adapter: stdin/JSON parse failed: $_" }
+}
 if (-not $inputJson) { exit 0 }
 
 $hookEvent = $inputJson.hook_event_name

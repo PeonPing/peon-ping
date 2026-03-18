@@ -34,7 +34,9 @@ try {
         $null = $reader.ReadToEnd()
         $reader.Close()
     }
-} catch {}
+} catch {
+    if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping windsurf adapter: stdin read failed: $_" }
+}
 
 # Map Windsurf hook events to peon.ps1 PascalCase events
 $mapped = $null

@@ -37,7 +37,9 @@ try {
         $reader.Close()
         if ($raw) { $parsed = $raw | ConvertFrom-Json }
     }
-} catch {}
+} catch {
+    if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping deepagents adapter: stdin/JSON parse failed: $_" }
+}
 if (-not $parsed) { exit 0 }
 
 $daEvent = $parsed.event
