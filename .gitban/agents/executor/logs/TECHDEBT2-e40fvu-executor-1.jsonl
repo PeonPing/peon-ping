@@ -1,0 +1,7 @@
+{"event":"init","role":"executor","sprint_tag":"TECHDEBT2","card_id":"e40fvu","cycle":1,"ts":"2026-03-18T06:32:44Z"}
+{"event":"read-card","card_id":"e40fvu","ts":"2026-03-18T06:32:44Z"}
+{"event":"code-change","files":["scripts/win-play.ps1","install.ps1","tests/peon-debug.Tests.ps1"],"ts":"2026-03-18T06:32:44Z"}
+{"event":"test-run","file":"tests/peon-debug.Tests.ps1","passed":14,"failed":0,"ts":"2026-03-18T06:32:44Z"}
+{"event":"test-run","file":"tests/adapters-windows.Tests.ps1","passed":236,"failed":0,"ts":"2026-03-18T06:32:44Z"}
+{"event":"commit","hash":"d4ab7f9","message":"test(e40fvu): add Pester tests for PEON_DEBUG warning stream output","ts":"2026-03-18T06:32:44Z"}
+{"event":"summary","total_tests_new":14,"total_tests_regression":236,"all_passed":true,"ts":"2026-03-18T06:32:44Z"}
