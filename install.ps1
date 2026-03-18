@@ -703,7 +703,7 @@ if ($Command) {
                 $vol = [math]::Round([math]::Max(0.0, [math]::Min(1.0, [double]::Parse($Arg1.Trim(), [System.Globalization.CultureInfo]::InvariantCulture))), 2)
                 $volStr = $vol.ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 $raw = Get-Content $ConfigPath -Raw
-                $updated = $raw -replace '"volume"\s*:\s*[\d.]+,', "`"volume`": $volStr,"
+                $updated = $raw -replace '"volume"\s*:\s*[\d.]+,?', "`"volume`": $volStr,"
                 if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
                 Write-Host "peon-ping: volume set to $vol" -ForegroundColor Green
             } else {
@@ -733,6 +733,7 @@ if ($Command) {
 }
 
 # --- Hook mode (called by Claude Code via stdin JSON) ---
+$peonDebug = $env:PEON_DEBUG -eq "1"
 $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath = Join-Path $InstallDir "config.json"
 $StatePath = Join-Path $InstallDir ".state.json"
@@ -741,6 +742,7 @@ $StatePath = Join-Path $InstallDir ".state.json"
 try {
     $config = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
 } catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to read config: $_" }
     exit 0
 }
 
@@ -755,6 +757,7 @@ try {
     $hookInput = $reader.ReadToEnd()
     $reader.Close()
 } catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to read stdin: $_" }
     exit 0
 }
 
@@ -763,6 +766,7 @@ if (-not $hookInput) { exit 0 }
 try {
     $event = $hookInput | ConvertFrom-Json
 } catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to parse hook JSON: $_" }
     exit 0
 }
 
@@ -953,7 +957,9 @@ switch ($hookEvent) {
 # Save state
 try {
     Write-StateAtomic -State $state -Path $StatePath
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to write state: $_" }
+}
 
 if (-not $category) { exit 0 }
 
@@ -961,7 +967,9 @@ if (-not $category) { exit 0 }
 try {
     $catEnabled = $config.categories.$category
     if ($catEnabled -eq $false) { exit 0 }
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to check category '$category': $_" }
+}
 
 # --- Pick a sound ---
 $activePack = Get-ActivePack $config
@@ -1043,13 +1051,18 @@ if (-not (Test-Path $manifestPath)) { exit 0 }
 
 try {
     $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-} catch { exit 0 }
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to parse manifest '$manifestPath': $_" }
+    exit 0
+}
 
 # Get sounds for this category
 $catSounds = $null
 try {
     $catSounds = $manifest.categories.$category.sounds
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to read sounds for category '$category': $_" }
+}
 if (-not $catSounds -or $catSounds.Count -eq 0) { exit 0 }
 
 # Anti-repeat: avoid last played sound
@@ -1087,7 +1100,9 @@ if ($iconCandidate) {
 $state[$lastKey] = $soundFile
 try {
     Write-StateAtomic -State $state -Path $StatePath
-} catch {}
+} catch {
+    if ($peonDebug) { Write-Warning "peon-ping: failed to save last-played state: $_" }
+}
 
 # --- Delegate audio to win-play.ps1 in a detached process ---
 $volume = $config.volume
