@@ -1,0 +1,6 @@
+{"ts":"2026-03-18T08:06:53Z","event":"init","data":{"role":"reviewer","sprint":"TECHDEBT2","card":"augpn7","cycle":1}}
+{"ts":"2026-03-18T08:06:53Z","event":"read-diff","data":{"commit":"371c945"}}
+{"ts":"2026-03-18T08:06:53Z","event":"read-card","data":{"card_id":"augpn7"}}
+{"ts":"2026-03-18T08:07:59Z","event":"write-review","data":{"verdict":"APPROVAL"}}
+{"ts":"2026-03-18T08:07:59Z","event":"card-status-change","data":{"new_status":"in_progress"}}
+{"ts":"2026-03-18T08:08:00Z","event":"summary","data":{"status":"complete"}}
