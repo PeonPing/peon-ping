@@ -114,7 +114,7 @@ Describe "Harness: New-PeonTestEnvironment" {
         $env2 = New-PeonTestEnvironment -StateOverrides @{ last_stop_time = "2026-01-01T00:00:00Z" }
         try {
             $state = Get-PeonState -TestDir $env2.TestDir
-            $state.last_stop_time | Should -Be "2026-01-01T00:00:00Z"
+            [datetime]$state.last_stop_time | Should -Be ([datetime]"2026-01-01T00:00:00Z")
         } finally {
             Remove-PeonTestEnvironment -TestDir $env2.TestDir
         }
