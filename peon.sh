@@ -3332,8 +3332,11 @@ elif event == 'SessionEnd':
     print('EVENT=' + q(event))
     print('PEON_EXIT=true')
     sys.exit(0)
+elif event in ('PreToolUse', 'PostToolUse'):
+    # Tool use events indicate Claude is actively working — clear needs_approval tab color
+    status = 'working'
 else:
-    # Unknown event (e.g. PreToolUse, PostToolUse, plan mode events) — no sound, but maintain tab title
+    # Unknown event (plan mode, etc.) — no sound, but maintain tab title
     print('PROJECT=' + q(project or ''))
     print('STATUS=working')
     print('MARKER=')
