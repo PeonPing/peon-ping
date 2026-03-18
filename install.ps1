@@ -802,7 +802,9 @@ function Write-StateAtomic {
     $dir = Split-Path $Path -Parent
     if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     $tmp = "$Path.$PID.tmp"
+    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
     try {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
         $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
         # [System.IO.File]::Move with overwrite requires .NET Core (PS 7+).
         # For PS 5.1 compat: delete target then move (atomic on NTFS same-volume).
@@ -810,6 +812,8 @@ function Write-StateAtomic {
         [System.IO.File]::Move($tmp, $Path)
     } catch {
         Remove-Item $tmp -ErrorAction SilentlyContinue
+    } finally {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
     }
 }
 

@@ -934,6 +934,17 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'Write-StateAtomic'
     }
 
+    It "uses InvariantCulture in Write-StateAtomic for locale-safe JSON (no decimal comma)" {
+        # Extract Write-StateAtomic function body from the hook script
+        if ($script:peonHookContent -match '(?s)function Write-StateAtomic\s*\{(.+?)\n\}') {
+            $fnBody = $matches[1]
+            $fnBody | Should -Match 'InvariantCulture'
+            $fnBody | Should -Match 'CurrentCulture'
+        } else {
+            throw "Write-StateAtomic function not found in hook script"
+        }
+    }
+
     It "reads stdin JSON via StreamReader (UTF-8 BOM-safe)" {
         $script:peonHookContent | Should -Match 'OpenStandardInput'
         $script:peonHookContent | Should -Match 'StreamReader'
