@@ -1,5 +1,0 @@
-{"event":"read-review","ts":"2026-03-15","data":{"file":".gitban/agents/reviewer/inbox/WINTEST-q52ygy-reviewer-1.md","verdict":"APPROVAL"}}
-{"event":"write-executor-inbox","ts":"2026-03-15","data":{"file":".gitban/agents/executor/inbox/WINTEST-q52ygy-executor-1.md"}}
-{"event":"write-planner-inbox","ts":"2026-03-15","data":{"file":".gitban/agents/planner/inbox/WINTEST-q52ygy-planner-1.md"}}
-{"event":"card-update","ts":"2026-03-15","data":{"action":"append"}}
-{"event":"summary","ts":"2026-03-15","data":{"verdict":"APPROVAL","executor_items":2,"planner_cards":1,"planner_items":2}}

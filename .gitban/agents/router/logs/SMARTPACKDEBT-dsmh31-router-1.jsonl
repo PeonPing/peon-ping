@@ -1,9 +1,0 @@
-{"timestamp":"2026-03-15T10:30:18Z","operation":"init","role":"router","sprint":"SMARTPACKDEBT","card_id":"dsmh31","cycle":1}
-{"timestamp":"2026-03-15T10:30:18Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/SMARTPACKDEBT-dsmh31-reviewer-1.md","verdict":"APPROVAL"}}
-{"timestamp":"2026-03-15T10:30:18Z","operation":"hook_cmd","command":"export AGENT_LOG_DIR=\".gitban/agents/router/logs\" && export AGENT_ROLE=\"router\" && export AGENT_SPRINT_TAG=\"SMARTPACKDEBT\" && export AGENT_CARD_ID=\"dsmh31\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-review\" '{\"file\":\".gitban/agents/reviewer/inbox/SMARTPACKDEBT-dsmh31-reviewer-1.md\",\"verdict\":\"APPROVAL\"}'"}
-{"timestamp":"2026-03-15T10:31:29Z","operation":"init","role":"router","sprint":"SMARTPACKDEBT","card_id":"dsmh31","cycle":1}
-{"timestamp":"2026-03-15T10:31:29Z","operation":"event","label":"read-review","metadata":{"file":"SMARTPACKDEBT-dsmh31-reviewer-1.md","verdict":"APPROVAL"}}
-{"timestamp":"2026-03-15T10:31:29Z","operation":"event","label":"write-executor-inbox","metadata":{"file":"SMARTPACKDEBT-dsmh31-executor-1.md"}}
-{"timestamp":"2026-03-15T10:31:29Z","operation":"event","label":"write-planner-inbox","metadata":{"file":"SMARTPACKDEBT-dsmh31-planner-1.md"}}
-{"timestamp":"2026-03-15T10:31:29Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
-{"timestamp":"2026-03-15T10:31:29Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

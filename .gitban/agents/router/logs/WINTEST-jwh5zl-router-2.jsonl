@@ -1,5 +1,0 @@
-{"event":"init","role":"router","sprint":"WINTEST","card":"jwh5zl","cycle":2,"ts":"2026-03-15T00:00:00Z"}
-{"event":"read-review","file":".gitban/agents/reviewer/inbox/WINTEST-jwh5zl-reviewer-2.md","verdict":"APPROVAL","ts":"2026-03-15T00:00:00Z"}
-{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/WINTEST-jwh5zl-executor-2.md","ts":"2026-03-15T00:00:00Z"}
-{"event":"card-update","action":"append","ts":"2026-03-15T00:00:00Z"}
-{"event":"summary","role":"router","sprint":"WINTEST","card":"jwh5zl","cycle":2,"verdict":"APPROVAL","executor_files":1,"planner_files":0,"ts":"2026-03-15T00:00:00Z"}

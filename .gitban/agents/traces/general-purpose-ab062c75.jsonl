@@ -1,5 +1,0 @@
-{"ts":"2026-03-15T23:46:27Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.gitban\\agents\\planner\\inbox\\WINTEST-jwh5zl-planner-1.md"},"agent_id":"ab062c75","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:32Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__search_cards,mcp__gitban__create_card","max_results":"2"},"agent_id":"ab062c75","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:37Z","tool":"mcp__gitban__search_cards","input":{"query":"peon-security assertion precision"},"agent_id":"ab062c75","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:38Z","tool":"mcp__gitban__search_cards","input":{"query":"VLC gain"},"agent_id":"ab062c75","agent_type":"general-purpose"}
-{"ts":"2026-03-15T23:46:38Z","tool":"mcp__gitban__search_cards","input":{"query":"exit code hook-handle-use"},"agent_id":"ab062c75","agent_type":"general-purpose"}
