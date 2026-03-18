@@ -98,6 +98,12 @@ detect_meeting() {
         local sources
         sources=$(wpctl status 2>/dev/null | grep -A50 "Audio/Source" | grep "RUNNING") || true
         [ -n "$sources" ] && return 0
+      elif command -v pactl &>/dev/null; then
+        # pactl: any source-output that isn't a peak detector means mic is in use
+        local total peak
+        total=$(pactl list source-outputs 2>/dev/null | grep -c 'Source Output #') || true
+        peak=$(pactl list source-outputs 2>/dev/null | grep -c 'media\.name = "Peak detect"') || true
+        [ "${total:-0}" -gt "${peak:-0}" ] && return 0
       fi
       return 1
       ;;

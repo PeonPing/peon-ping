@@ -535,7 +535,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Amp** | Adapter | `bash adapters/amp.sh` / `powershell adapters/amp.ps1` ([setup](#amp-setup)) |
 | **Gemini CLI** | Adapter | Add hooks pointing to `adapters/gemini.sh` (or `.ps1` on Windows) ([setup](#gemini-cli-setup)) |
 | **GitHub Copilot** | Adapter | Add hooks to `.github/hooks/hooks.json` pointing to `adapters/copilot.sh` (or `.ps1`) ([setup](#github-copilot-setup)) |
-| **OpenAI Codex** | Adapter | Add `notify` in `~/.codex/config.toml` pointing to `adapters/codex.sh` (or `.ps1`) |
+| **OpenAI Codex** | Adapter | Install the peon-ping runtime first, then add `notify` in `~/.codex/config.toml` pointing to `adapters/codex.sh` (or `.ps1`) ([setup](#openai-codex-setup)) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
 | **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
 | **Kilo CLI** | Adapter | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1` ([setup](#kilo-cli-setup)) |
@@ -548,6 +548,36 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **DeepAgents** | Adapter | `bash adapters/deepagents.sh` / `powershell adapters/deepagents.ps1` ([setup](#deepagents-setup)) |
 
 > **Windows:** All adapters have native PowerShell (`.ps1`) versions. The Windows installer (`install.ps1`) copies them to `~/.claude/hooks/peon-ping/adapters/`. Filesystem watchers (Amp, Antigravity, Kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait — no extra dependencies needed.
+
+### OpenAI Codex setup
+
+Codex support uses an adapter and is not auto-registered by `peon-ping-setup`.
+
+The Codex adapter expects the peon-ping runtime to exist at `~/.claude/hooks/peon-ping/`, even if you only use Codex and do not use Claude Code.
+
+**Setup:**
+
+1. Install the peon-ping runtime first:
+
+   ```bash
+   bash "$(brew --prefix peon-ping)"/libexec/install.sh --no-rc
+   ```
+
+   Or with the standard installer:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --no-rc
+   ```
+
+2. Add this to `~/.codex/config.toml`:
+
+   ```toml
+   notify = ["bash", "~/.claude/hooks/peon-ping/adapters/codex.sh"]
+   ```
+
+3. Restart Codex.
+
+If you installed with Homebrew, the runtime files are managed under `~/.claude/hooks/peon-ping/`, and the Codex adapter forwards Codex notify events into that shared runtime.
 
 ### Amp setup
 
@@ -1103,4 +1133,3 @@ Sound packs are downloaded from the [OpenPeon registry](https://github.com/PeonP
 
 - Venmo: [@garysheng](https://venmo.com/garysheng)
 - Community Token (DYOR / have fun): Someone created a $PEON token on Base — we receive TX fees which help fund development. [`0xf4ba744229afb64e2571eef89aacec2f524e8ba3`](https://dexscreener.com/base/0xf4bA744229aFB64E2571eef89AaceC2F524e8bA3)
-
