@@ -154,7 +154,7 @@ function Resolve-KimiCwd {
                 return $path
             }
         }
-    } catch { if ($env:PEON_DEBUG) { Write-Warning "peon-ping: [kimi] Resolve-KimiCwd failed: $_" } }
+    } catch { if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping: [kimi] Resolve-KimiCwd failed: $_" } }
     return $PWD.Path
 }
 

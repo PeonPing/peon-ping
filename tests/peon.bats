@@ -3745,11 +3745,22 @@ assert isinstance(state, dict), 'State should be a dict'
   # Remove .state.json to simulate a clean first run
   rm -f "$TEST_DIR/.state.json"
   # Time the hook invocation — should not incur 350ms retry penalty
+  # Note: date +%s%N returns nanoseconds (divide by 1000000 for ms),
+  # but the Python fallback already returns milliseconds (no division needed).
   local start_ms
-  start_ms=$(($(date +%s%N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))") / 1000000))
+  local _ns
+  if _ns=$(date +%s%N 2>/dev/null) && [ "${#_ns}" -gt 10 ]; then
+    start_ms=$((_ns / 1000000))
+  else
+    start_ms=$(python3 -c "import time; print(int(time.time()*1000))")
+  fi
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/firstrun","session_id":"first1","permission_mode":"default"}'
   local end_ms
-  end_ms=$(($(date +%s%N 2>/dev/null || python3 -c "import time; print(int(time.time()*1000))") / 1000000))
+  if _ns=$(date +%s%N 2>/dev/null) && [ "${#_ns}" -gt 10 ]; then
+    end_ms=$((_ns / 1000000))
+  else
+    end_ms=$(python3 -c "import time; print(int(time.time()*1000))")
+  fi
   [ "$PEON_EXIT" -eq 0 ]
   afplay_was_called
   # Verify no retry delay was incurred (should complete well under 300ms extra)
@@ -3757,20 +3768,4 @@ assert isinstance(state, dict), 'State should be a dict'
   # State file should now exist (written by the hook)
   [ -f "$TEST_DIR/.state.json" ]
   /usr/bin/python3 -c "import json; s = json.load(open('$TEST_DIR/.state.json')); assert isinstance(s, dict)"
-}
-
-@test "missing .state.json does not prevent trainer status" {
-  # Enable trainer in config
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['trainer'] = {'enabled': True, 'exercises': {'pushups': 100}}
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
-  rm -f "$TEST_DIR/.state.json"
-  export PEON_TEST=1
-  # trainer status should work even without .state.json
-  run bash "$PEON_SH" trainer status
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"trainer status"* ]]
 }

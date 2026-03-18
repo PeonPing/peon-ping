@@ -1,0 +1,280 @@
+{"timestamp": "2026-03-13T15:42:15.558281Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-13T15:42:15.560280Z", "level": "INFO", "logger": "gitban.tools", "message": "No cards found", "operation": "get_gitban_stats_no_cards"}
+{"timestamp": "2026-03-13T18:23:45.924246Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: M1 Smart Pack Selection sprint", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-13T18:23:45.960244Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-13T18:23:45.990245Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=False", "operation": "template_validation"}
+{"timestamp": "2026-03-13T18:23:45.996245Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created as draft (advisory validation failure): 0xybwm", "operation": "create_card_success", "card_id": "0xybwm"}
+{"timestamp": "2026-03-13T18:24:37.199626Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 1: Config key renames and migration", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-13T18:24:37.200626Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-13T18:24:37.202628Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-13T18:24:37.205625Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-13T18:24:37.208627Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: aodz7v", "operation": "create_card_success", "card_id": "aodz7v"}
+{"timestamp": "2026-03-13T18:25:17.303499Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 2A: Path rules matching engine", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-13T18:25:17.304502Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-13T18:25:17.304502Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-13T18:25:17.306501Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-13T18:25:17.308498Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 0vvvnb", "operation": "create_card_success", "card_id": "0vvvnb"}
+{"timestamp": "2026-03-13T18:25:59.246110Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 2B: Path rules CLI and status output", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-13T18:25:59.246110Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-13T18:25:59.247111Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-13T18:25:59.249111Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-13T18:25:59.252112Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: c8vcdx", "operation": "create_card_success", "card_id": "c8vcdx"}
+{"timestamp": "2026-03-13T18:26:31.667445Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 3: Smart Pack Selection documentation", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-13T18:26:31.667445Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-13T18:26:31.667445Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for documentation (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-13T18:26:31.670444Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for documentation: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-13T18:26:31.672444Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: janrlf", "operation": "create_card_success", "card_id": "janrlf"}
+{"timestamp": "2026-03-13T18:54:11.739264Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Extract Get-ActivePack helper to DRY pack resolution", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-13T18:54:11.740264Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for refactor (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-13T18:54:11.744263Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for refactor: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-13T18:54:11.747264Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: z0c9fd", "operation": "create_card_success", "card_id": "z0c9fd"}
+{"timestamp": "2026-03-13T22:37:21.761386Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Windows peon.ps1 synchronous audio blocks hooks", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-13T22:37:21.764388Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feedback (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-13T22:37:21.767388Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feedback: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-13T22:37:21.770246Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: vywkg7", "operation": "create_card_success", "card_id": "vywkg7"}
+{"timestamp": "2026-03-14T02:02:32.103668Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: M0 Windows Reliability sprint", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T02:02:32.109667Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T02:02:32.129667Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T02:02:32.131667Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 5fdxw4", "operation": "create_card_success", "card_id": "5fdxw4"}
+{"timestamp": "2026-03-14T02:03:30.492656Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 1: async audio delegation and MediaPlayer removal", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T02:03:30.493655Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-14T02:03:30.493655Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T02:03:30.507655Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T02:03:30.509656Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: d5wz2f", "operation": "create_card_success", "card_id": "d5wz2f"}
+{"timestamp": "2026-03-14T02:04:44.051181Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 2: atomic state writes on both platforms", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T02:04:44.051181Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-14T02:04:44.051181Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T02:04:44.055182Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T02:04:44.057179Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: kydihy", "operation": "create_card_success", "card_id": "kydihy"}
+{"timestamp": "2026-03-14T02:25:47.399543Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Add diagnostic logging for silent audio failures", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T02:25:47.400544Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T02:25:47.401544Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T02:25:47.404546Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: z5xm5k", "operation": "create_card_success", "card_id": "z5xm5k"}
+{"timestamp": "2026-03-14T02:41:55.694640Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: DRY up peon.sh state helpers and optimize first-run read path", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T02:41:55.694640Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for refactor (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T02:41:55.697640Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for refactor: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T02:41:55.699640Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: lyq5ta", "operation": "create_card_success", "card_id": "lyq5ta"}
+{"timestamp": "2026-03-14T02:43:56.634067Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: HOOKBUG-windows-reliability, card_ids=None, all_done=True, handle=None, preview=False"}
+{"timestamp": "2026-03-14T15:14:22.482308Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Upgrade Write-StateAtomic to true atomic overwrite when PS 5.1 is dropped", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T15:14:22.487309Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T15:14:22.491308Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T15:14:22.494309Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 26yooi", "operation": "create_card_success", "card_id": "26yooi"}
+{"timestamp": "2026-03-14T15:14:32.761561Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden Windows atomic state I/O edge cases", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T15:14:32.761561Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T15:14:32.763562Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T15:14:32.765563Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: exg19y", "operation": "create_card_success", "card_id": "exg19y"}
+{"timestamp": "2026-03-14T15:14:36.937655Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Improve ffmpeg/ffplay install guidance on Windows", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T15:14:36.938656Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T15:14:36.939655Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T15:14:36.941656Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: ji2847", "operation": "create_card_success", "card_id": "ji2847"}
+{"timestamp": "2026-03-14T15:15:37.007265Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: SMARTPACK, card_ids=None, all_done=True, handle=None, preview=False"}
+{"timestamp": "2026-03-14T15:16:26.885688Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: SMARTPACK, card_ids=['0xybwm'], all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-14T20:40:34.094280Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: adhoc, card_ids=0xybwm, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-14T20:41:31.995527Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Windows path rules CLI parity", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T20:41:32.003675Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T20:41:32.005675Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T20:41:32.008675Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 9pjhy5", "operation": "create_card_success", "card_id": "9pjhy5"}
+{"timestamp": "2026-03-14T22:42:40.871512Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Windows CLI install.ps1 bind/unbind quality improvements", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-14T22:42:40.877512Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-14T22:42:40.880513Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-14T22:42:40.884514Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: inexon", "operation": "create_card_success", "card_id": "inexon"}
+{"timestamp": "2026-03-15T02:38:06.693621Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-15T02:38:06.696623Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 7 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-15T02:38:06.697622Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-15T02:38:06.697622Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-15T02:40:11.029835Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: SMARTPACK, card_ids=9pjhy5, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-15T02:57:22.604230Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: fix CI test 261 and 567 failures", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T02:57:22.615227Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for bug (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T02:57:22.628227Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for bug: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T02:57:22.631227Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: i0u93q", "operation": "create_card_success", "card_id": "i0u93q"}
+{"timestamp": "2026-03-15T03:15:14.280644Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Sweep stale active_pack references in test fixtures", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T03:15:14.280644Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T03:15:14.282643Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T03:15:14.284648Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 3b0gx7", "operation": "create_card_success", "card_id": "3b0gx7"}
+{"timestamp": "2026-03-15T03:15:31.688648Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Audit peon.sh Python blocks for bash double-quoting hazards", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T03:15:31.688648Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T03:15:31.691648Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T03:15:31.693648Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: dsmh31", "operation": "create_card_success", "card_id": "dsmh31"}
+{"timestamp": "2026-03-15T04:00:35.017553Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: SMARTPACK tech debt sprint", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T04:00:35.018553Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T04:00:35.022553Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T04:00:35.024553Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: szep8x", "operation": "create_card_success", "card_id": "szep8x"}
+{"timestamp": "2026-03-15T04:33:15.755965Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Add CI lint check for python3 bash quoting hazards", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T04:33:15.755965Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T04:33:15.757965Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T04:33:15.760520Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: csedqi", "operation": "create_card_success", "card_id": "csedqi"}
+{"timestamp": "2026-03-15T05:01:30.821076Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Update-PeonConfig skip-write optimization", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T05:01:30.822077Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T05:01:30.823077Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T05:01:30.826077Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 5efwxz", "operation": "create_card_success", "card_id": "5efwxz"}
+{"timestamp": "2026-03-15T05:01:46.233364Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Add functional Pester tests for state I/O helpers", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T05:01:46.233364Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T05:01:46.236366Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T05:01:46.239365Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: gtb6dm", "operation": "create_card_success", "card_id": "gtb6dm"}
+{"timestamp": "2026-03-15T05:19:34.633342Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden install flag E2E test registry fallbacks and help text", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T05:19:34.633342Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T05:19:34.635342Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T05:19:34.638343Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: laimst", "operation": "create_card_success", "card_id": "laimst"}
+{"timestamp": "2026-03-15T05:20:35.485017Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: SMARTPACKDEBT, card_ids=['dsmh31', 'exg19y', 'ji2847', 'inexon'], all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-15T05:21:25.166447Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: SMARTPACKDEBT, card_ids=['szep8x'], all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-15T14:13:51.668742Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: WINTEST functional Pester test suite sprint", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:13:51.673743Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:13:51.678743Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=False", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:13:51.683744Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created as draft (advisory validation failure): j30alo", "operation": "create_card_success", "card_id": "j30alo"}
+{"timestamp": "2026-03-15T14:15:40.334498Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 1: shared Pester test harness and helpers", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:15:40.335495Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-15T14:15:40.335495Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:15:40.338988Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:15:40.340505Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: q52ygy", "operation": "create_card_success", "card_id": "q52ygy"}
+{"timestamp": "2026-03-15T14:17:08.053131Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 2A: peon.ps1 event routing config and state tests", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:17:08.053131Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-15T14:17:08.053131Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:17:08.057135Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:17:08.058135Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 1dnbzv", "operation": "create_card_success", "card_id": "1dnbzv"}
+{"timestamp": "2026-03-15T14:19:13.936929Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 2B: adapter translation functional tests", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:19:13.936929Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-15T14:19:13.936929Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:19:13.940926Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:19:13.941927Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: lxhqpf", "operation": "create_card_success", "card_id": "lxhqpf"}
+{"timestamp": "2026-03-15T14:20:57.034657Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 2C: hook-handle-use and win-play security tests", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:20:57.034657Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-15T14:20:57.034657Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:20:57.037656Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:20:57.039657Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: jwh5zl", "operation": "create_card_success", "card_id": "jwh5zl"}
+{"timestamp": "2026-03-15T14:22:32.711054Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 2D: pack selection and rotation functional tests", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:22:32.711054Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-15T14:22:32.711054Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:22:32.715055Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:22:32.719055Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: frjune", "operation": "create_card_success", "card_id": "frjune"}
+{"timestamp": "2026-03-15T14:23:44.939154Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 3: CI workflow update and test suite integration", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:23:44.939154Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-15T14:23:44.939154Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:23:44.942158Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=False", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:23:44.948155Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created as draft (advisory validation failure): yfsfs9", "operation": "create_card_success", "card_id": "yfsfs9"}
+{"timestamp": "2026-03-15T14:24:11.857028Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: adhoc, card_ids=yfsfs9, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-15T14:24:41.826709Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 3: CI workflow and test suite integration", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T14:24:41.826709Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-15T14:24:41.826709Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T14:24:41.828834Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T14:24:41.830835Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: x5cpil", "operation": "create_card_success", "card_id": "x5cpil"}
+{"timestamp": "2026-03-15T16:03:06.192649Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden windows-setup.ps1 config serialization and extraction regex", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T16:03:06.196649Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T16:03:06.199648Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T16:03:06.202648Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: xk4ymm", "operation": "create_card_success", "card_id": "xk4ymm"}
+{"timestamp": "2026-03-15T16:50:16.456803Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: port path_rules to peon.ps1 Windows engine", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T16:50:16.460802Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T16:50:16.479802Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=False", "operation": "template_validation"}
+{"timestamp": "2026-03-15T16:50:16.482803Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created as draft (advisory validation failure): uzj599", "operation": "create_card_success", "card_id": "uzj599"}
+{"timestamp": "2026-03-15T16:50:56.962363Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: adhoc, card_ids=uzj599, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-15T16:51:17.648651Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: port path_rules to peon.ps1 and add tests", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T16:51:17.648651Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T16:51:17.650649Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=False", "operation": "template_validation"}
+{"timestamp": "2026-03-15T16:51:17.672652Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created as draft (advisory validation failure): wqlobl", "operation": "create_card_success", "card_id": "wqlobl"}
+{"timestamp": "2026-03-15T16:51:25.786082Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: adhoc, card_ids=wqlobl, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-15T16:54:24.147105Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: fix ConvertTo-Hashtable array corruption in peon.ps1", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T16:54:24.147105Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for bug (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T16:54:24.152101Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for bug: valid=False", "operation": "template_validation"}
+{"timestamp": "2026-03-15T16:54:24.155101Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created as draft (advisory validation failure): 8ny6qr", "operation": "create_card_success", "card_id": "8ny6qr"}
+{"timestamp": "2026-03-15T17:44:16.110651Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Tighten peon-security.Tests.ps1 assertion precision", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T17:44:16.115653Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T17:44:16.120654Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T17:44:16.122650Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: n5uqeo", "operation": "create_card_success", "card_id": "n5uqeo"}
+{"timestamp": "2026-03-15T17:44:17.230598Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Port path_rules to peon.ps1 and add pack selection test scenarios 4-7", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T17:44:17.231598Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T17:44:17.232599Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T17:44:17.234602Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: rd6fu4", "operation": "create_card_success", "card_id": "rd6fu4"}
+{"timestamp": "2026-03-15T17:44:44.990043Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Remove duplicate deepagents structural tests from peon-adapters", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T17:44:44.990043Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T17:44:44.999042Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T17:44:45.100042Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: d3c6b0", "operation": "create_card_success", "card_id": "d3c6b0"}
+{"timestamp": "2026-03-15T17:44:55.398308Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden Category B function extraction with PowerShell AST parser", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T17:44:55.398815Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T17:44:55.399824Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T17:44:55.402822Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: jzn4sz", "operation": "create_card_success", "card_id": "jzn4sz"}
+{"timestamp": "2026-03-15T18:19:42.092107Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: adhoc, card_ids=gtb6dm, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-15T18:23:07.775419Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: WINTEST, card_ids=None, all_done=True, handle=None, preview=False"}
+{"timestamp": "2026-03-15T22:38:02.660591Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-15T22:38:02.662588Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 11 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-15T22:38:02.662588Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-15T22:38:02.663587Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-15T23:05:19.503280Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: WINTEST tech debt cleanup sprint", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-15T23:05:19.510278Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-15T23:05:19.518275Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-15T23:05:19.520281Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: qxiu4i", "operation": "create_card_success", "card_id": "qxiu4i"}
+{"timestamp": "2026-03-15T23:39:45.668747Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-15T23:39:45.680752Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 12 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-15T23:39:45.680752Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-15T23:39:45.680752Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-15T23:48:12.420482Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-15T23:48:12.422482Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 12 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-15T23:48:12.422482Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-15T23:48:12.422482Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-16T10:53:36.746066Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: WINTEST fast-follow sprint — tech debt cleanup", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T10:53:36.755068Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T10:53:36.758066Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T10:53:36.760066Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 3lhwgr", "operation": "create_card_success", "card_id": "3lhwgr"}
+{"timestamp": "2026-03-16T11:09:00.153927Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-16T11:09:00.155926Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 12 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-16T11:09:00.155926Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-16T11:09:00.155926Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-16T11:09:45.990410Z", "level": "INFO", "logger": "gitban.tools", "message": "Getting gitban stats", "operation": "get_gitban_stats_start"}
+{"timestamp": "2026-03-16T11:09:45.992411Z", "level": "INFO", "logger": "gitban.tools", "message": "Found 12 cards", "operation": "get_gitban_stats_cards_found"}
+{"timestamp": "2026-03-16T11:09:45.992411Z", "level": "INFO", "logger": "gitban.tools", "message": "Building result without git operations", "operation": "get_gitban_stats_no_subprocess"}
+{"timestamp": "2026-03-16T11:09:45.992411Z", "level": "INFO", "logger": "gitban.tools", "message": "Gitban stats completed", "operation": "get_gitban_stats_success"}
+{"timestamp": "2026-03-16T13:18:36.180698Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: WINTEST-fastfollow-superseded, card_ids=3lhwgr, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-16T13:19:39.560652Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: TECHDEBT sprint — cross-platform tech debt cleanup", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T13:19:39.572650Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T13:19:39.588649Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T13:19:39.591648Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: rlxvi7", "operation": "create_card_success", "card_id": "rlxvi7"}
+{"timestamp": "2026-03-16T14:15:27.224742Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Improve lint-python-quoting hazard reporting and test scope", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T14:15:27.224742Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T14:15:27.226742Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T14:15:27.228742Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: zwho9i", "operation": "create_card_success", "card_id": "zwho9i"}
+{"timestamp": "2026-03-16T14:15:29.247153Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Clean up state helper test timing and narrow retry exception scope", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T14:15:29.248154Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T14:15:29.249154Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T14:15:29.251154Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: qufq3f", "operation": "create_card_success", "card_id": "qufq3f"}
+{"timestamp": "2026-03-16T14:49:03.350580Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden PS 5.1 locale handling in Write-StateAtomic and improve test harness reliability", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T14:49:03.351581Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T14:49:03.352580Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T14:49:03.354580Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: yu082h", "operation": "create_card_success", "card_id": "yu082h"}
+{"timestamp": "2026-03-16T14:49:10.513529Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Align default_pack config parity and add session_override path_rules test", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T14:49:10.513529Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T14:49:10.514528Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T14:49:10.516529Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: tnd98r", "operation": "create_card_success", "card_id": "tnd98r"}
+{"timestamp": "2026-03-16T14:49:50.228810Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Harden Get-FunctionAst parse-error assertion and DRY up parameter extraction", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T14:49:50.228810Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T14:49:50.230810Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T14:49:50.232805Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 65ghip", "operation": "create_card_success", "card_id": "65ghip"}
+{"timestamp": "2026-03-16T15:10:06.793717Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Add behavioral test coverage for CLI config-write commands", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T15:10:06.794714Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T15:10:06.796713Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T15:10:06.798714Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 9gi8ut", "operation": "create_card_success", "card_id": "9gi8ut"}
+{"timestamp": "2026-03-16T15:10:12.869614Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Add Pester test coverage for PEON_DEBUG warning stream output", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T15:10:12.870615Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for test (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T15:10:12.872614Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for test: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T15:10:12.875616Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: e40fvu", "operation": "create_card_success", "card_id": "e40fvu"}
+{"timestamp": "2026-03-16T15:10:26.458505Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Refactor install.ps1 validation into dot-sourceable module for testability", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-16T15:10:26.458505Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for refactor (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-16T15:10:26.462506Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for refactor: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-16T15:10:26.464505Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: augpn7", "operation": "create_card_success", "card_id": "augpn7"}
+{"timestamp": "2026-03-16T15:12:42.633528Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: sprint-techdebt-20260316, card_ids=None, all_done=True, handle=None, preview=False"}
+{"timestamp": "2026-03-17T12:08:55.996661Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: adhoc, card_ids=26yooi, all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-17T12:17:41.850756Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: TECHDEBT2 sprint — reviewer fastfollow tech debt cleanup", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-17T12:17:41.852755Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for feature (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-17T12:17:41.856753Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for feature: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-17T12:17:41.859753Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 8ngq1j", "operation": "create_card_success", "card_id": "8ngq1j"}
+{"timestamp": "2026-03-17T12:18:10.207795Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: step 1D: add PEON_DEBUG diagnostic logging to adapter ps1 empty catch blocks", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-17T12:18:10.208794Z", "level": "WARNING", "logger": "gitban.tools", "message": "Windows-unsafe characters in title: [':']. Auto-stripping unsafe characters from title."}
+{"timestamp": "2026-03-17T12:18:10.208794Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-17T12:18:10.210795Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-17T12:18:10.212795Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: um5fz2", "operation": "create_card_success", "card_id": "um5fz2"}
+{"timestamp": "2026-03-17T12:19:30.222954Z", "level": "INFO", "logger": "gitban.tools", "message": "Starting archive_cards: TECHDEBT-stale-cleanup, card_ids=['rlxvi7', '5efwxz', 'laimst', 'z5xm5k'], all_done=False, handle=None, preview=False"}
+{"timestamp": "2026-03-18T00:24:36.613214Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Fix BATS test Python fallback timing division bug", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-18T00:24:36.617214Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-18T00:24:36.620212Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-18T00:24:36.623214Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 8f4pv0", "operation": "create_card_success", "card_id": "8f4pv0"}
+{"timestamp": "2026-03-18T00:24:39.983183Z", "level": "INFO", "logger": "gitban.tools", "message": "Creating card: Align PEON_DEBUG check pattern to strict equality across all ps1 files", "tool": "create_card", "operation": "create_card_start"}
+{"timestamp": "2026-03-18T00:24:39.984183Z", "level": "INFO", "logger": "gitban.tools", "message": "Template enforcement enabled for chore (mode=advisory)", "operation": "template_enforcement_check"}
+{"timestamp": "2026-03-18T00:24:39.985183Z", "level": "INFO", "logger": "gitban.tools", "message": "Template validation result for chore: valid=True", "operation": "template_validation"}
+{"timestamp": "2026-03-18T00:24:39.988183Z", "level": "INFO", "logger": "gitban.tools", "message": "Card created successfully: 6ecnfv", "operation": "create_card_success", "card_id": "6ecnfv"}

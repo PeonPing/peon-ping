@@ -37,7 +37,7 @@ try {
         $reader.Close()
         if ($raw) { $inputJson = $raw | ConvertFrom-Json }
     }
-} catch { if ($env:PEON_DEBUG) { Write-Warning "peon-ping: [gemini] ConvertFrom-Json failed: $_" } }
+} catch { if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping: [gemini] ConvertFrom-Json failed: $_" } }
 if (-not $inputJson) { $inputJson = [PSCustomObject]@{} }
 
 # Extract common fields

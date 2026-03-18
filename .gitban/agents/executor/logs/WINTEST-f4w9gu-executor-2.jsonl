@@ -1,0 +1,4 @@
+{"event":"init","ts":"2026-03-18T16:57:57Z","role":"executor","sprint":"WINTEST","card":"f4w9gu","cycle":2}
+{"event":"code-change","ts":"2026-03-18T16:57:57Z","data":{"files":["adapters/copilot.ps1","adapters/deepagents.ps1","adapters/gemini.ps1","adapters/kimi.ps1","adapters/kiro.ps1","adapters/windsurf.ps1","install.ps1","tests/peon.bats"]}}
+{"event":"test-run","ts":"2026-03-18T16:57:57Z","data":{"file":"tests/adapters-windows.Tests.ps1","passed":275,"failed":0}}
+{"event":"summary","ts":"2026-03-18T16:57:57Z"}
