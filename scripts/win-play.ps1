@@ -5,10 +5,8 @@ param(
     [double]$vol
 )
 
-if (-not (Test-Path $path)) {
-    if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping win-play: file not found: $path" }
-    exit 0
-}
+# Diagnostic logging: set PEON_DEBUG=1 to surface silent failure diagnostics on stderr
+$peonDebug = $env:PEON_DEBUG -eq "1"
 
 # WAV files: use SoundPlayer (works correctly in hidden/detached processes)
 if ($path -match "\.wav$") {
@@ -17,7 +15,7 @@ if ($path -match "\.wav$") {
         $sp.PlaySync()
         $sp.Dispose()
     } catch {
-        if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping win-play: SoundPlayer failed for '$path': $_" }
+        if ($peonDebug) { Write-Warning "peon-ping: WAV playback failed for '$path': $_" }
     }
     exit 0
 }
@@ -64,5 +62,5 @@ if ($vlc) {
 }
 
 # No CLI player found
-if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping win-play: no audio player found (tried ffplay, mpv, vlc)" }
+if ($peonDebug) { Write-Warning "peon-ping: no audio player found for '$path' (tried ffplay, mpv, vlc)" }
 exit 0

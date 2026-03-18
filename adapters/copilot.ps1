@@ -43,9 +43,7 @@ try {
         $reader.Close()
         if ($raw) { $inputJson = $raw | ConvertFrom-Json }
     }
-} catch {
-    if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping copilot adapter: stdin/JSON parse failed: $_" }
-}
+} catch { if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping: [copilot] ConvertFrom-Json failed: $_" } }
 if (-not $inputJson) { $inputJson = [PSCustomObject]@{} }
 
 # Extract common fields
