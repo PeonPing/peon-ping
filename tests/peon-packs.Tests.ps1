@@ -99,18 +99,23 @@ Describe "session_override + path_rules interaction" {
 }
 
 # ============================================================
-# session_override fallback uses $defaultPack (config parity guard)
+# session_override fallback uses Get-ActivePack (config parity guard)
 # ============================================================
 
-Describe "session_override fallback uses defaultPack" {
+Describe "session_override fallback uses Get-ActivePack" {
     BeforeAll {
-        # Extract the session_override block from embedded hook
+        # Extract the pack selection block from embedded hook
         $pickMatch = [regex]::Match(
             $script:EmbeddedHook,
             '(?ms)# --- Pick a sound ---.*?(?=\$packDir\s*=)'
         )
         if (-not $pickMatch.Success) { throw "Could not extract pack selection block" }
         $script:PackSelectionBlock = $pickMatch.Value
+    }
+
+    It "defaultPack is set via Get-ActivePack (not raw config.active_pack)" {
+        # $defaultPack must use Get-ActivePack to respect default_pack config key
+        $script:PackSelectionBlock | Should -Match '\$defaultPack = Get-ActivePack \$config'
     }
 
     It "session_override fallback paths use pathRulePack-or-defaultPack pattern" {

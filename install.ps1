@@ -1019,7 +1019,7 @@ if ($cwd -and $pathRules) {
         }
     }
 }
-$defaultPack = if ($config.active_pack) { $config.active_pack } else { "peon" }
+$defaultPack = Get-ActivePack $config
 
 if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
     # Explicit per-session assignments (from skill)
