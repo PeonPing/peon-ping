@@ -729,15 +729,17 @@ Describe "win-play.ps1 Audio Backend" {
         $script:winPlayContent | Should -Match '\[double\]\$vol'
     }
 
-    It "uses SoundPlayer for WAV files" {
+    It "uses MediaPlayer for WAV files with volume control" {
         $script:winPlayContent | Should -Match '\.wav\$'
-        $script:winPlayContent | Should -Match 'System\.Media\.SoundPlayer'
-        $script:winPlayContent | Should -Match 'PlaySync'
+        $script:winPlayContent | Should -Match 'PresentationCore'
+        $script:winPlayContent | Should -Match 'System\.Windows\.Media\.MediaPlayer'
+        $script:winPlayContent | Should -Match '\$player\.Volume = \$vol'
     }
 
-    It "contains zero references to MediaPlayer or PresentationCore" {
-        $script:winPlayContent | Should -Not -Match 'System\.Windows\.Media\.MediaPlayer'
-        $script:winPlayContent | Should -Not -Match 'PresentationCore'
+    It "uses MediaPlayer event subscription for playback duration" {
+        $script:winPlayContent | Should -Match 'Register-ObjectEvent'
+        $script:winPlayContent | Should -Match 'MediaOpened'
+        $script:winPlayContent | Should -Match 'NaturalDuration'
     }
 
     It "uses ffplay as first CLI player choice" {
@@ -774,8 +776,8 @@ Describe "win-play.ps1 Audio Backend" {
         $script:winPlayContent | Should -Match 'exit 0'
     }
 
-    It "disposes SoundPlayer after playback" {
-        $script:winPlayContent | Should -Match '\$sp\.Dispose\(\)'
+    It "closes MediaPlayer after playback" {
+        $script:winPlayContent | Should -Match '\$player\.Close\(\)'
     }
 }
 

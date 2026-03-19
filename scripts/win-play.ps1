@@ -8,12 +8,47 @@ param(
 # Diagnostic logging: set PEON_DEBUG=1 to surface silent failure diagnostics on stderr
 $peonDebug = $env:PEON_DEBUG -eq "1"
 
-# WAV files: use SoundPlayer (works correctly in hidden/detached processes)
+# WAV files: use MediaPlayer with volume control
+# (MediaPlayer is WPF/PresentationCore — safe in this detached process, not in the hook itself)
 if ($path -match "\.wav$") {
     try {
-        $sp = New-Object System.Media.SoundPlayer $path
-        $sp.PlaySync()
-        $sp.Dispose()
+        Add-Type -AssemblyName PresentationCore
+        $player = [System.Windows.Media.MediaPlayer]::new()
+        $player.Volume = $vol
+
+        Register-ObjectEvent -InputObject $player -EventName MediaOpened -SourceIdentifier MediaOpened | Out-Null
+        Register-ObjectEvent -InputObject $player -EventName MediaFailed -SourceIdentifier MediaFailed | Out-Null
+        $player.Open([uri]::new($path))
+        $player.Play()
+
+        # Pump WPF dispatcher so MediaOpened/MediaFailed events fire in this console process
+        $deadline = [datetime]::UtcNow.AddSeconds(5)
+        $failed = $false
+        while ([datetime]::UtcNow -lt $deadline) {
+            [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke(
+                [System.Windows.Threading.DispatcherPriority]::Background,
+                [Action]{ }
+            )
+            $failEvt = Get-Event -SourceIdentifier MediaFailed -ErrorAction SilentlyContinue
+            if ($failEvt) {
+                $failed = $true
+                if ($peonDebug) { Write-Warning "peon-ping: WAV playback failed for '$path': $($failEvt.SourceEventArgs.ErrorException)" }
+                break
+            }
+            $evt = Get-Event -SourceIdentifier MediaOpened -ErrorAction SilentlyContinue
+            if ($evt) { break }
+            Start-Sleep -Milliseconds 50
+        }
+
+        # Wait for playback to finish (only if opened successfully)
+        if (-not $failed -and $player.NaturalDuration.HasTimeSpan) {
+            $secs = $player.NaturalDuration.TimeSpan.TotalSeconds
+            Start-Sleep -Seconds ([math]::Ceiling($secs))
+        }
+
+        Unregister-Event -SourceIdentifier MediaOpened -ErrorAction SilentlyContinue
+        Unregister-Event -SourceIdentifier MediaFailed -ErrorAction SilentlyContinue
+        $player.Close()
     } catch {
         if ($peonDebug) { Write-Warning "peon-ping: WAV playback failed for '$path': $_" }
     }
@@ -21,7 +56,7 @@ if ($path -match "\.wav$") {
 }
 
 # Non-WAV formats (mp3, ogg, etc.): CLI player priority chain
-# ffplay -> mpv -> vlc (no MediaPlayer — it deadlocks in headless PowerShell)
+# ffplay -> mpv -> vlc (MediaPlayer only handles WAV above; CLI players for other formats)
 
 # ffplay: volume 0-100 integer scale
 $ffplay = Get-Command ffplay -ErrorAction SilentlyContinue
