@@ -592,6 +592,36 @@ _resolve_session_tty() {
   export PEON_SESSION_TTY
 }
 
+# --- Ghostty active terminal match (best-effort) ---
+# Ghostty exposes focused terminal metadata via AppleScript. We use it to avoid
+# suppressing notifications for every Ghostty window/tab just because the app is
+# frontmost. Title match is strongest; cwd is a fallback heuristic.
+_ghostty_terminal_is_current() {
+  local active_info active_name active_cwd
+  active_info=$(osascript -e 'tell application "Ghostty"
+    try
+      set win to front window
+      set tab_ to selected tab of win
+      set term to focused terminal of tab_
+      return (name of term) & "	" & (working directory of term)
+    on error
+      return ""
+    end try
+  end tell' 2>/dev/null || true)
+  [ -z "$active_info" ] && return 0
+
+  active_name=${active_info%%$'	'*}
+  active_cwd=${active_info#*$'	'}
+  active_name=$(printf '%s' "$active_name" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  active_cwd=$(printf '%s' "$active_cwd" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+  [ -n "${TITLE:-}" ] && [ "$active_name" = "$TITLE" ] && return 0
+  [ -n "${PROJECT:-}" ] && [ "$active_name" = "$PROJECT" ] && return 0
+  [ -n "${CWD:-}" ] && [ "$active_cwd" = "$CWD" ] && return 0
+
+  return 1
+}
+
 # --- Platform-aware notification ---
 # Args: msg, title, color (red/blue/yellow)
 send_notification() {
@@ -688,7 +718,8 @@ terminal_is_focused() {
           done
           return 1  # Different tab/pane is active in all windows — notify
           ;;
-        Terminal|Warp|Alacritty|kitty|WezTerm|Ghostty|ghostty) return 0 ;;
+        Ghostty|ghostty) _ghostty_terminal_is_current ; return $? ;;
+        Terminal|Warp|Alacritty|kitty|WezTerm) return 0 ;;
         *) return 1 ;;
       esac
       ;;
@@ -3579,6 +3610,7 @@ print('PEON_EXIT=false')
 print('EVENT=' + q(event))
 print('VOLUME=' + q(str(volume)))
 print('PROJECT=' + q(project))
+print('CWD=' + q(cwd))
 print('STATUS=' + q(status))
 print('MARKER=' + q(marker))
 print('NOTIFY=' + q(notify))
