@@ -271,6 +271,21 @@ if (Test-Path $winPlaySource) {
     }
 }
 
+$winNotifySource = Join-Path $ScriptDir "scripts\win-notify.ps1"
+$winNotifyTarget = Join-Path $scriptsDir "win-notify.ps1"
+
+if (Test-Path $winNotifySource) {
+    # Local install: copy from repo
+    Copy-Item -Path $winNotifySource -Destination $winNotifyTarget -Force
+} else {
+    # One-liner install: download from GitHub
+    try {
+        Invoke-WebRequest -Uri "$RepoBase/scripts/win-notify.ps1" -OutFile $winNotifyTarget -UseBasicParsing -ErrorAction Stop
+    } catch {
+        Write-Host "  Warning: Could not download win-notify.ps1" -ForegroundColor Yellow
+    }
+}
+
 # Install hook-handle-use scripts (for /peon-ping-use command)
 $hookHandleUsePs1Source = Join-Path $ScriptDir "scripts\hook-handle-use.ps1"
 $hookHandleUsePs1Target = Join-Path $scriptsDir "hook-handle-use.ps1"
@@ -946,6 +961,11 @@ $sessionId = if ($event.session_id) { $event.session_id } elseif ($event.convers
 # Extract cwd from event (used by path_rules for directory-based pack selection)
 $cwd = if ($event.cwd) { $event.cwd } else { "" }
 
+# Derive project name from cwd (used in desktop notification titles)
+$project = if ($cwd) { Split-Path $cwd -Leaf } else { "" }
+if (-not $project) { $project = "claude" }
+$project = $project -replace '[^a-zA-Z0-9 ._-]', ''
+
 # Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
 function ConvertTo-Hashtable {
     param([Parameter(ValueFromPipeline)]$obj)
@@ -1060,6 +1080,10 @@ if ($sessionPacksClean.Count -ne $sessionPacks.Count) {
 # --- Map Claude Code hook event -> CESP manifest category ---
 $category = $null
 $ntype = $event.notification_type
+$notify = $false
+$notifyColor = ""
+$notifyMsg = ""
+$notifyStatus = ""
 
 switch ($hookEvent) {
     "SessionStart" {
@@ -1072,6 +1096,11 @@ switch ($hookEvent) {
         $lastStop = if ($state.ContainsKey("last_stop_time")) { $state["last_stop_time"] } else { 0 }
         if (($now - $lastStop) -lt 5) {
             $category = $null
+        } else {
+            $notify = $true
+            $notifyColor = "blue"
+            $notifyMsg = $project
+            $notifyStatus = "done"
         }
         $state["last_stop_time"] = $now
     }
@@ -1080,8 +1109,18 @@ switch ($hookEvent) {
             # PermissionRequest event handles the sound, skip here
             $category = $null
         } elseif ($ntype -eq "idle_prompt") {
-            # Stop event already played the sound
+            # Notification only — no sound (matches peon.sh idle_prompt behavior)
             $category = $null
+            $notify = $true
+            $notifyColor = "yellow"
+            $notifyMsg = $project
+            $notifyStatus = "done"
+        } elseif ($ntype -eq "elicitation_dialog") {
+            $category = "input.required"
+            $notify = $true
+            $notifyColor = "blue"
+            $notifyMsg = $project
+            $notifyStatus = "question"
         } else {
             # Other notification types (e.g., tool results) map to task.complete
             $category = "task.complete"
@@ -1089,6 +1128,17 @@ switch ($hookEvent) {
     }
     "PermissionRequest" {
         $category = "input.required"
+        $notify = $true
+        $notifyColor = "red"
+        $notifyMsg = $project
+        $notifyStatus = "needs approval"
+    }
+    "PreCompact" {
+        $category = "resource.limit"
+        $notify = $true
+        $notifyColor = "red"
+        $notifyMsg = $project
+        $notifyStatus = "context limit"
     }
     "UserPromptSubmit" {
         # Detect rapid prompts for "annoyed" easter egg
@@ -1124,16 +1174,21 @@ try {
     if ($peonDebug) { Write-Warning "peon-ping: state write failed: $_" }
 }
 
-if (-not $category) { exit 0 }
+$skipSound = (-not $category)
+if ($skipSound -and -not $notify) { exit 0 }
 
-# Check if category is enabled
-try {
-    $catEnabled = $config.categories.$category
-    if ($catEnabled -eq $false) { exit 0 }
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: category check failed for '$category': $_" }
+# Check if category is enabled (only relevant when we have a category to play)
+if (-not $skipSound) {
+    try {
+        $catEnabled = $config.categories.$category
+        if ($catEnabled -eq $false -and -not $notify) { exit 0 }
+        if ($catEnabled -eq $false) { $skipSound = $true }
+    } catch {
+        if ($peonDebug) { Write-Warning "peon-ping: category check failed for '$category': $_" }
+    }
 }
 
+if (-not $skipSound) {
 # --- Pick a sound ---
 $activePack = Get-ActivePack $config
 
@@ -1282,6 +1337,25 @@ if (Test-Path $winPlayScript) {
     Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
 } else {
     if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
+}
+
+} # end if (-not $skipSound)
+
+# --- Desktop notification dispatch ---
+$desktopNotif = $config.desktop_notifications
+if ($null -eq $desktopNotif) { $desktopNotif = $true }
+
+if ($notify -and $desktopNotif) {
+    $winNotifyScript = Join-Path $InstallDir "scripts\win-notify.ps1"
+    if (Test-Path $winNotifyScript) {
+        $marker = [char]0x25CF  # ●
+        $notifTitle = "$marker $project`: $notifyStatus"
+        $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
+        $notifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
+                       "-body", $notifyMsg, "-title", $notifTitle, "-dismissSeconds", $dismissSecs)
+        if ($iconPath) { $notifArgs += @("-iconPath", $iconPath) }
+        Start-Process -FilePath "powershell.exe" -ArgumentList $notifArgs -WindowStyle Hidden
+    }
 }
 
 exit 0
