@@ -1,0 +1,7 @@
+{"timestamp":"2026-03-20T21:41:07Z","operation":"init","role":"executor","sprint":"WINTEST","card_id":"cb0gpg","cycle":1}
+{"timestamp":"2026-03-20T21:41:07Z","operation":"event","label":"read-card","metadata":{"card_id":"cb0gpg"}}
+{"timestamp":"2026-03-20T21:47:02Z","operation":"init","role":"executor","sprint":"WINTEST","card_id":"cb0gpg","cycle":1}
+{"timestamp":"2026-03-20T21:47:02Z","operation":"event","label":"read-card","metadata":{"card_id":"cb0gpg"}}
+{"timestamp":"2026-03-20T21:47:02Z","operation":"event","label":"code-change","metadata":{"files":["install.ps1"]}}
+{"timestamp":"2026-03-20T21:47:02Z","operation":"event","label":"test-run","metadata":{"file":"adapters-windows.Tests.ps1","passed":275,"failed":0}}
+{"timestamp":"2026-03-20T21:47:03Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":0}
