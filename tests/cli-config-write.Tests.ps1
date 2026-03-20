@@ -290,6 +290,22 @@ Describe "CLI --volume command" {
         $after.enabled | Should -Be $true
         $after.default_pack | Should -Be "peon"
     }
+
+    It "produces valid JSON when volume is the last key (no trailing comma)" {
+        # Write a minimal config where volume is the last key — no trailing comma
+        $manualJson = '{ "enabled": true, "default_pack": "peon", "volume": 0.5 }'
+        Set-Content -Path $script:env.ConfigPath -Value $manualJson -Encoding UTF8
+
+        Invoke-PeonCommand -HookPath $script:env.HookPath -Command "--volume" -Arg1 "0.7"
+        $script:LastPeonExitCode | Should -Be 0
+
+        # Must parse as valid JSON (would fail on trailing comma: "volume": 0.7,})
+        $raw = Get-Content $script:env.ConfigPath -Raw
+        $raw | Should -Not -Match '"volume":\s*[\d.]+,\s*\}'
+        $after = $raw | ConvertFrom-Json
+        $after.volume | Should -Be 0.7
+        $after.enabled | Should -Be $true
+    }
 }
 
 # ============================================================
