@@ -2,23 +2,24 @@
   "sprint_id": "sprint-wintest-20260320",
   "sprint_name": "WINTEST",
   "sprint_folder": "sprint-wintest-20260320",
-  "created_at": "2026-03-20T15:37:25.737063",
+  "created_at": "2026-03-20T16:51:52.458239",
   "start_date": null,
   "end_date": "2026-03-20",
-  "archived_at": "2026-03-20T15:37:25.737063",
+  "archived_at": "2026-03-20T16:51:52.458239",
   "card_ids": [
-    "f4w9gu"
+    "cb0gpg",
+    "od5a0c"
   ],
   "metrics": {
-    "total_cards": 1,
+    "total_cards": 3,
     "by_priority": {
-      "P2": 1
+      "P2": 3
     },
     "by_type": {
-      "chore": 1
+      "chore": 3
     },
     "by_handle": {
-      "CAMERON": 1
+      "CAMERON": 3
     }
   }
 }

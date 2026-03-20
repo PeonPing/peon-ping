@@ -24,7 +24,7 @@
 | **3. Make Changes** | Changed regex from `[\d.]+,` to `[\d.]+(,?)` with `$1` backreference in replacement | - [x] Changes are implemented. |
 | **4. Test/Verify** | Tested 4 cases (inline/multiline x with/without comma) -- all produce valid JSON. 275 Pester tests pass. | - [x] Changes are tested/verified. |
 | **5. Update Documentation** | N/A -- internal fix, no user-facing doc changes | - [x] Documentation is updated [if applicable]. |
-| **6. Review/Merge** | PR review and merge | - [ ] Changes are reviewed and merged. |
+| **6. Review/Merge** | PR review and merge | - [x] Changes are reviewed and merged. |
 
 #### Work Notes
 
@@ -68,9 +68,9 @@ $json = '{ "volume": 0.8, "pack": "peon" }'  # not last key, has comma
 
 - [x] All planned changes are implemented.
 - [x] Changes are tested/verified (tests pass, configs work, etc.).
-* [ ] Documentation is updated (CHANGELOG, README, etc.) if applicable.
+- [x] Documentation is updated (CHANGELOG, README, etc.) if applicable.
 - [x] Changes are reviewed (self-review or peer review as appropriate).
-* [ ] Pull request is merged or changes are committed.
+- [x] Pull request is merged or changes are committed.
 - [x] Follow-up tickets created for related work identified during execution.
 
 
