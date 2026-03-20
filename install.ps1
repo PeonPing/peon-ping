@@ -16,7 +16,15 @@ $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
 $ErrorActionPreference = "Stop"
 
 # --- Input validation & config helpers (dot-sourced from scripts/install-utils.ps1) ---
-. (Join-Path (Join-Path $ScriptDir "scripts") "install-utils.ps1")
+if (-not $PSScriptRoot) {
+    # IEX code path: $PSScriptRoot is empty, so download the utils from GitHub
+    $tmpUtils = Join-Path ([System.IO.Path]::GetTempPath()) "peon-install-utils.ps1"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PeonPing/peon-ping/main/scripts/install-utils.ps1" -OutFile $tmpUtils -UseBasicParsing
+    . $tmpUtils
+    Remove-Item $tmpUtils -ErrorAction SilentlyContinue
+} else {
+    . (Join-Path (Join-Path $ScriptDir "scripts") "install-utils.ps1")
+}
 
 # --- Fallback pack list (used when registry is unreachable) ---
 $FallbackPacks = @("acolyte_de", "acolyte_ru", "aoe2", "aom_greek", "brewmaster_ru", "dota2_axe", "duke_nukem", "glados", "hd2_helldiver", "molag_bal", "murloc", "ocarina_of_time", "peon", "peon_cz", "peon_de", "peon_es", "peon_fr", "peon_pl", "peon_ru", "peasant", "peasant_cz", "peasant_es", "peasant_fr", "peasant_ru", "ra2_kirov", "ra2_soviet_engineer", "ra_soviet", "rick", "sc_battlecruiser", "sc_firebat", "sc_kerrigan", "sc_medic", "sc_scv", "sc_tank", "sc_terran", "sc_vessel", "sheogorath", "sopranos", "tf2_engineer", "wc2_peasant")
