@@ -1116,6 +1116,13 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match '"next"'
     }
 
+    It "Install-PackFromRegistry allows empty source_path for repo-root packs" {
+        # Regression: empty source_path ("") is valid for packs at repo root.
+        # The validation must use $null check, not -not (which treats "" as falsy).
+        $script:peonHookContent | Should -Match '\$null -eq \$srcPath'
+        $script:peonHookContent | Should -Not -Match '-not \$srcPath'
+    }
+
     It "supports --volume CLI command with clamping" {
         $script:peonHookContent | Should -Match '--volume'
         $script:peonHookContent | Should -Match 'Max.*0\.0.*Min.*1\.0'

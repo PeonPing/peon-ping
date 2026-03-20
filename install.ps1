@@ -352,11 +352,11 @@ function Install-PackFromRegistry {
     $srcRepo = $packInfo.source_repo
     $srcRef = $packInfo.source_ref
     $srcPath = $packInfo.source_path
-    if (-not $srcRepo -or -not $srcRef -or -not $srcPath) {
+    if (-not $srcRepo -or -not $srcRef -or ($null -eq $srcPath)) {
         Write-Host "Error: incomplete registry entry for '$PackName'." -ForegroundColor Red
         return $false
     }
-    $packBase = "https://raw.githubusercontent.com/$srcRepo/$srcRef/$srcPath"
+    $packBase = if ($srcPath) { "https://raw.githubusercontent.com/$srcRepo/$srcRef/$srcPath" } else { "https://raw.githubusercontent.com/$srcRepo/$srcRef" }
     $pDir = Join-Path $PacksDir $PackName
     $sDir = Join-Path $pDir "sounds"
     New-Item -ItemType Directory -Path $sDir -Force | Out-Null
