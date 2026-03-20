@@ -40,6 +40,12 @@ if ($path -match "\.wav$") {
             Start-Sleep -Milliseconds 50
         }
 
+        # Timeout: neither MediaOpened nor MediaFailed fired — treat as failure
+        if (-not $failed -and -not $evt) {
+            $failed = $true
+            if ($peonDebug) { Write-Warning "peon-ping: WAV playback failed for '$path': timed out waiting for media events" }
+        }
+
         # Wait for playback to finish (only if opened successfully)
         if (-not $failed -and $player.NaturalDuration.HasTimeSpan) {
             $secs = $player.NaturalDuration.TimeSpan.TotalSeconds
