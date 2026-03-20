@@ -15,8 +15,31 @@ $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
 
 $ErrorActionPreference = "Stop"
 
-# --- Input validation & config helpers (dot-sourced from scripts/install-utils.ps1) ---
-. (Join-Path (Join-Path $ScriptDir "scripts") "install-utils.ps1")
+# --- Input validation (mirrors install.sh safety checks) ---
+function Test-SafePackName($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+function Test-SafeSourceRepo($n)  { $n -match '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' }
+function Test-SafeSourceRef($n)   { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+function Test-SafeSourcePath($n)  { $n -match '^[A-Za-z0-9._/-]+$' -and $n -notmatch '\.\.' -and $n[0] -ne '/' }
+function Test-SafeFilename($n)    { $n -match '^[A-Za-z0-9._-]+$' }
+
+# Returns raw config JSON with locale-damaged decimals fixed (e.g. "volume": 0,5 -> 0.5).
+# Also repairs missing volume value (e.g. "volume":\n "pack_rotation_mode" from a failed write).
+# Use before ConvertFrom-Json so config parses on systems where decimal separator is comma.
+function Get-PeonConfigRaw {
+    param([string]$Path)
+    $raw = Get-Content $Path -Raw
+    $raw = $raw -replace '"volume"\s*:\s*(\d),(\d+)', '"volume": $1.$2'
+    $raw = $raw -replace '"volume"\s*:\s*\r?\n(\s*)"', '"volume": 0.5,$1"'
+    return $raw
+}
+
+# Resolve the active pack from config using the default_pack -> active_pack -> "peon" fallback chain.
+# Accepts any object with optional default_pack and/or active_pack properties.
+function Get-ActivePack($config) {
+    if ($config.default_pack) { return $config.default_pack }
+    if ($config.active_pack) { return $config.active_pack }
+    return "peon"
+}
 
 # --- Fallback pack list (used when registry is unreachable) ---
 $FallbackPacks = @("acolyte_de", "acolyte_ru", "aoe2", "aom_greek", "brewmaster_ru", "dota2_axe", "duke_nukem", "glados", "hd2_helldiver", "molag_bal", "murloc", "ocarina_of_time", "peon", "peon_cz", "peon_de", "peon_es", "peon_fr", "peon_pl", "peon_ru", "peasant", "peasant_cz", "peasant_es", "peasant_fr", "peasant_ru", "ra2_kirov", "ra2_soviet_engineer", "ra_soviet", "rick", "sc_battlecruiser", "sc_firebat", "sc_kerrigan", "sc_medic", "sc_scv", "sc_tank", "sc_terran", "sc_vessel", "sheogorath", "sopranos", "tf2_engineer", "wc2_peasant")
@@ -85,14 +108,7 @@ if ($Packs -and $Packs.Count -gt 0) {
         $customPackNames = $Packs.ToString() -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     }
     $packsToInstall = $registry.packs | Where-Object { $_.name -in $customPackNames }
-    $foundNames = @($packsToInstall | ForEach-Object { $_.name })
-    $notFound = @($customPackNames | Where-Object { $_ -notin $foundNames })
-    if ($notFound.Count -gt 0) {
-        foreach ($missing in $notFound) {
-            Write-Host "  Warning: pack '$missing' not found in registry" -ForegroundColor Yellow
-        }
-    }
-    Write-Host "  Installing custom packs: $($foundNames -join ', ')" -ForegroundColor Cyan
+    Write-Host "  Installing custom packs: $($customPackNames -join ', ')" -ForegroundColor Cyan
 } elseif ($All) {
     $packsToInstall = $registry.packs
     Write-Host "  Installing ALL $($packsToInstall.Count) packs..." -ForegroundColor Cyan
@@ -124,10 +140,15 @@ foreach ($packInfo in $packsToInstall) {
     $sourceRef = $packInfo.source_ref
     $sourcePath = $packInfo.source_path
 
-    # Validate source metadata; apply per-field defensive defaults
-    if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = $FallbackRepo }
-    if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = $FallbackRef }
-    if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = $packName }
+    # Validate source metadata; fall back to default repo if invalid
+    if (-not $sourceRepo -or -not (Test-SafeSourceRepo $sourceRepo)) { $sourceRepo = "" }
+    if (-not $sourceRef -or -not (Test-SafeSourceRef $sourceRef)) { $sourceRef = "" }
+    if (-not $sourcePath -or -not (Test-SafeSourcePath $sourcePath)) { $sourcePath = "" }
+    if (-not $sourceRepo -or -not $sourceRef -or -not $sourcePath) {
+        $sourceRepo = $FallbackRepo
+        $sourceRef = $FallbackRef
+        $sourcePath = $packName
+    }
 
     $packBase = "https://raw.githubusercontent.com/$sourceRepo/$sourceRef/$sourcePath"
 
@@ -318,9 +339,6 @@ if (-not $Command) {
     Register-ObjectEvent -InputObject $safetyTimer -EventName Elapsed -Action { [Environment]::Exit(1) } | Out-Null
     $safetyTimer.Start()
 }
-
-# Diagnostic logging: set PEON_DEBUG=1 to surface silent failure diagnostics on stderr
-$peonDebug = $env:PEON_DEBUG -eq "1"
 
 # Raw config read; repair is done at install/update time, so hook only needs plain read.
 function Get-PeonConfigRaw {
@@ -540,11 +558,7 @@ if ($Command) {
                         $pathRules += [PSCustomObject]@{ pattern = $bindPattern; pack = $packName }
                     }
 
-                    if ($cfgObj.PSObject.Properties['path_rules']) {
-                        $cfgObj.path_rules = $pathRules
-                    } else {
-                        $cfgObj | Add-Member -NotePropertyName 'path_rules' -NotePropertyValue $pathRules
-                    }
+                    $cfgObj.path_rules = $pathRules
                     $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
                     Write-Host "peon-ping: bound $packName to $bindPattern"
                     if (-not ($ExtraArgs -contains "--pattern") -and -not ($ExtraArgs -match "^--pattern=")) {
@@ -593,11 +607,7 @@ if ($Command) {
                     # Try exact match
                     $newRules = @($pathRules | Where-Object { $_.pattern -ne $target })
                     if ($newRules.Count -lt $pathRules.Count) {
-                        if ($cfgObj.PSObject.Properties['path_rules']) {
-                            $cfgObj.path_rules = $newRules
-                        } else {
-                            $cfgObj | Add-Member -NotePropertyName 'path_rules' -NotePropertyValue $newRules
-                        }
+                        $cfgObj.path_rules = $newRules
                         $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
                         Write-Host "peon-ping: unbound $target"
                         return
@@ -693,7 +703,7 @@ if ($Command) {
                 $vol = [math]::Round([math]::Max(0.0, [math]::Min(1.0, [double]::Parse($Arg1.Trim(), [System.Globalization.CultureInfo]::InvariantCulture))), 2)
                 $volStr = $vol.ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 $raw = Get-Content $ConfigPath -Raw
-                $updated = $raw -replace '"volume"\s*:\s*[\d.]+,?', "`"volume`": $volStr,"
+                $updated = $raw -replace '"volume"\s*:\s*[\d.]+(,?)', "`"volume`": $volStr`$1"
                 if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
                 Write-Host "peon-ping: volume set to $vol" -ForegroundColor Green
             } else {
@@ -703,23 +713,19 @@ if ($Command) {
         }
         "^--help$" {
             Write-Host "peon-ping commands:" -ForegroundColor Cyan
-            Write-Host "  --toggle          Toggle enabled/paused"
-            Write-Host "  --pause           Pause sounds"
-            Write-Host "  --resume          Resume sounds"
-            Write-Host "  --mute            Alias for --pause"
-            Write-Host "  --unmute          Alias for --resume"
-            Write-Host "  --status          Show current status"
-            Write-Host "  --volume N        Set volume (0.0-1.0)"
-            Write-Host "  --help            Show this help"
-            Write-Host ""
-            Write-Host "Pack management:" -ForegroundColor Cyan
-            Write-Host "  --packs           List available sound packs"
-            Write-Host "  --packs use <n>   Switch to a specific pack"
-            Write-Host "  --packs next      Cycle to the next pack"
-            Write-Host "  --packs bind      Bind a pack to current directory"
-            Write-Host "  --packs unbind    Remove a pack binding"
-            Write-Host "  --packs bindings  List all pack bindings"
-            Write-Host "  --pack [name]     Switch pack (or cycle)"
+            Write-Host "  --toggle       Toggle enabled/paused"
+            Write-Host "  --pause        Pause sounds"
+            Write-Host "  --resume       Resume sounds"
+            Write-Host "  --mute         Alias for --pause"
+            Write-Host "  --unmute       Alias for --resume"
+            Write-Host "  --status       Show current status"
+            Write-Host "  --packs        List available sound packs"
+            Write-Host "  --packs bind   Bind a pack to current directory"
+            Write-Host "  --packs unbind Remove a pack binding"
+            Write-Host "  --packs bindings List all pack bindings"
+            Write-Host "  --pack [name]  Switch pack (or cycle)"
+            Write-Host "  --volume N     Set volume (0.0-1.0)"
+            Write-Host "  --help         Show this help"
             return
         }
     }
@@ -727,7 +733,6 @@ if ($Command) {
 }
 
 # --- Hook mode (called by Claude Code via stdin JSON) ---
-$peonDebug = $env:PEON_DEBUG -eq "1"
 $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath = Join-Path $InstallDir "config.json"
 $StatePath = Join-Path $InstallDir ".state.json"
@@ -736,7 +741,6 @@ $StatePath = Join-Path $InstallDir ".state.json"
 try {
     $config = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
 } catch {
-    if ($peonDebug) { Write-Warning "peon-ping: config read failed: $_" }
     exit 0
 }
 
@@ -751,7 +755,6 @@ try {
     $hookInput = $reader.ReadToEnd()
     $reader.Close()
 } catch {
-    if ($peonDebug) { Write-Warning "peon-ping: stdin read failed: $_" }
     exit 0
 }
 
@@ -760,7 +763,6 @@ if (-not $hookInput) { exit 0 }
 try {
     $event = $hookInput | ConvertFrom-Json
 } catch {
-    if ($peonDebug) { Write-Warning "peon-ping: hook JSON parse failed: $_" }
     exit 0
 }
 
@@ -785,19 +787,12 @@ $hookEvent = if ($cursorMap.ContainsKey($rawEvent)) { $cursorMap[$rawEvent] } el
 # Extract session ID (Claude Code: session_id, Cursor: conversation_id)
 $sessionId = if ($event.session_id) { $event.session_id } elseif ($event.conversation_id) { $event.conversation_id } else { "default" }
 
-# Extract cwd from event (used by path_rules for directory-based pack selection)
-$cwd = if ($event.cwd) { $event.cwd } else { "" }
-
 # Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
 function ConvertTo-Hashtable {
     param([Parameter(ValueFromPipeline)]$obj)
-    if ($null -eq $obj) { return $obj }
     if ($obj -is [hashtable]) { return $obj }
-    # Check value types before PSCustomObject — PS 5.1 pipeline wraps primitives
-    # in PSObject, making them match [PSCustomObject] when received via ValueFromPipeline.
-    if ($obj -is [System.ValueType] -or $obj -is [string]) { return $obj }
-    if ($obj -is [System.Collections.IEnumerable]) {
-        return ,@($obj | ForEach-Object { ConvertTo-Hashtable $_ })
+    if ($obj -is [System.Collections.IEnumerable] -and $obj -isnot [string]) {
+        return @($obj | ForEach-Object { ConvertTo-Hashtable $_ })
     }
     if ($obj -is [PSCustomObject]) {
         $ht = @{}
@@ -815,9 +810,7 @@ function Write-StateAtomic {
     $dir = Split-Path $Path -Parent
     if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     $tmp = "$Path.$PID.tmp"
-    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
     try {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
         $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
         if ($PSVersionTable.PSVersion.Major -ge 7) {
             # PS 7+ / .NET Core: Move-Item -Force performs atomic overwrite (no delete gap).
@@ -829,8 +822,6 @@ function Write-StateAtomic {
         }
     } catch {
         Remove-Item $tmp -ErrorAction SilentlyContinue
-    } finally {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
     }
 }
 
@@ -962,9 +953,7 @@ switch ($hookEvent) {
 # Save state
 try {
     Write-StateAtomic -State $state -Path $StatePath
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: state write failed: $_" }
-}
+} catch {}
 
 if (-not $category) { exit 0 }
 
@@ -972,9 +961,7 @@ if (-not $category) { exit 0 }
 try {
     $catEnabled = $config.categories.$category
     if ($catEnabled -eq $false) { exit 0 }
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: category check failed for '$category': $_" }
-}
+} catch {}
 
 # --- Pick a sound ---
 $activePack = Get-ActivePack $config
@@ -984,14 +971,14 @@ $rotationMode = $config.pack_rotation_mode
 if (-not $rotationMode) { $rotationMode = "random" }
 
 # --- Path rules: first glob match wins (layer 3 in override hierarchy) ---
-# Beats rotation and default_pack; loses to session_override and local config.
+# Beats rotation and default_pack; loses to session_override.
 $pathRulePack = $null
-$pathRules = $config.path_rules
-if ($cwd -and $pathRules) {
-    foreach ($rule in $pathRules) {
-        $pattern = $rule.pattern
+$eventCwd = $event.cwd
+if ($eventCwd -and $config.path_rules) {
+    foreach ($rule in $config.path_rules) {
+        $pat = $rule.pattern
         $candidate = $rule.pack
-        if ($pattern -and $candidate -and ($cwd -like $pattern)) {
+        if ($pat -and $candidate -and ($eventCwd -like $pat)) {
             $candidateDir = Join-Path $InstallDir "packs\$candidate"
             if (Test-Path $candidateDir -PathType Container) {
                 $pathRulePack = $candidate
@@ -1000,7 +987,6 @@ if ($cwd -and $pathRules) {
         }
     }
 }
-$defaultPack = Get-ActivePack $config
 
 if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
     # Explicit per-session assignments (from skill)
@@ -1022,8 +1008,8 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
             $state.session_packs = $sessionPacks
             $stateDirty = $true
         } else {
-            # Pack missing, fall through hierarchy: path_rules > default_pack
-            $activePack = if ($pathRulePack) { $pathRulePack } else { $defaultPack }
+            # Pack missing, fall through to path_rules or default
+            $activePack = if ($pathRulePack) { $pathRulePack } else { Get-ActivePack $config }
             $sessionPacks.Remove($sessionId)
             $state.session_packs = $sessionPacks
             $stateDirty = $true
@@ -1037,10 +1023,10 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
             if ($candidate -and (Test-Path $candidateDir -PathType Container)) {
                 $activePack = $candidate
             } else {
-                $activePack = if ($pathRulePack) { $pathRulePack } else { $defaultPack }
+                $activePack = if ($pathRulePack) { $pathRulePack } else { Get-ActivePack $config }
             }
         } else {
-            $activePack = if ($pathRulePack) { $pathRulePack } else { $defaultPack }
+            $activePack = if ($pathRulePack) { $pathRulePack } else { Get-ActivePack $config }
         }
     }
 } elseif ($pathRulePack) {
@@ -1057,18 +1043,13 @@ if (-not (Test-Path $manifestPath)) { exit 0 }
 
 try {
     $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: manifest parse failed for '$manifestPath': $_" }
-    exit 0
-}
+} catch { exit 0 }
 
 # Get sounds for this category
 $catSounds = $null
 try {
     $catSounds = $manifest.categories.$category.sounds
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: sound lookup failed for category '$category': $_" }
-}
+} catch {}
 if (-not $catSounds -or $catSounds.Count -eq 0) { exit 0 }
 
 # Anti-repeat: avoid last played sound
@@ -1106,9 +1087,7 @@ if ($iconCandidate) {
 $state[$lastKey] = $soundFile
 try {
     Write-StateAtomic -State $state -Path $StatePath
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: state write failed (last played): $_" }
-}
+} catch {}
 
 # --- Delegate audio to win-play.ps1 in a detached process ---
 $volume = $config.volume
@@ -1117,8 +1096,6 @@ if (-not $volume) { $volume = 0.5 }
 $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
 if (Test-Path $winPlayScript) {
     Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
-} else {
-    if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
 }
 
 exit 0
@@ -1578,10 +1555,10 @@ if ($Updating) {
 } else {
     Write-Host "=== peon-ping installed! ===" -ForegroundColor Green
     Write-Host ""
-    try {
+    $activePack = try {
         $cfg = Get-PeonConfigRaw $configPath | ConvertFrom-Json
-        $activePack = Get-ActivePack $cfg
-    } catch { $activePack = "peon" }
+        Get-ActivePack $cfg
+    } catch { "peon" }
     Write-Host "  Active pack: $activePack" -ForegroundColor Cyan
     Write-Host "  Volume: 0.5" -ForegroundColor Cyan
     Write-Host ""
