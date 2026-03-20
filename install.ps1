@@ -727,7 +727,6 @@ if ($Command) {
 }
 
 # --- Hook mode (called by Claude Code via stdin JSON) ---
-$peonDebug = $env:PEON_DEBUG -eq "1"
 $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath = Join-Path $InstallDir "config.json"
 $StatePath = Join-Path $InstallDir ".state.json"
