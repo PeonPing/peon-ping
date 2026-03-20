@@ -346,6 +346,47 @@ EOF
   teardown_install_env
 }
 
+@test "install: preserves multi-line command values when appending hooks" {
+  setup_install_env
+  mkdir -p "$INSTALL_HOME/.rovodev"
+  cat > "$INSTALL_HOME/.rovodev/config.yml" <<'EOF'
+eventHooks:
+  logFile: /Users/testuser/.rovodev/event_hooks.log
+  events:
+  - name: on_tool_permission
+    commands:
+    - command: osascript -e 'display notification "Rovo Dev CLI needs permission to
+        use tools to continue." with title "Rovo Dev CLI"'
+  - name: on_complete
+    commands:
+    - command: osascript -e 'display notification "on_complete" with title "Rovo Dev
+        CLI"'
+  - name: on_error
+    commands:
+    - command: osascript -e 'display notification "on_error" with title "Rovo Dev
+        CLI"'
+EOF
+  bash "$CLONE_DIR/install.sh"
+  local cfg="$INSTALL_HOME/.rovodev/config.yml"
+  # Multi-line osascript commands must remain intact (continuation lines not split)
+  grep -q 'use tools to continue." with title "Rovo Dev CLI"' "$cfg"
+  # The peon-ping command must appear AFTER the continuation line, not before it
+  local perm_cmd_line
+  perm_cmd_line=$(grep -n 'rovodev.sh on_tool_permission' "$cfg" | head -1 | cut -d: -f1)
+  local continuation_line
+  continuation_line=$(grep -n 'use tools to continue' "$cfg" | head -1 | cut -d: -f1)
+  [ "$perm_cmd_line" -gt "$continuation_line" ]
+  # rovodev.sh commands added for all events
+  grep -q "rovodev.sh on_complete" "$cfg"
+  grep -q "rovodev.sh on_error" "$cfg"
+  grep -q "rovodev.sh on_tool_permission" "$cfg"
+  # No duplicate events
+  [ "$(grep -c '\- name: on_complete' "$cfg")" -eq 1 ]
+  [ "$(grep -c '\- name: on_error' "$cfg")" -eq 1 ]
+  [ "$(grep -c '\- name: on_tool_permission' "$cfg")" -eq 1 ]
+  teardown_install_env
+}
+
 @test "install: detects config.yaml extension" {
   setup_install_env
   mkdir -p "$INSTALL_HOME/.rovodev"
