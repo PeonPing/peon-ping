@@ -1,3 +1,11 @@
+## v2.16.0 (2026-03-20)
+
+### Added
+- **Windows WAV volume control** — replaced `SoundPlayer` (which ignores volume) with `MediaPlayer` (WPF/PresentationCore) in `win-play.ps1`. Volume is now respected for WAV playback on Windows. Uses `MediaOpened`/`MediaFailed` event subscription with dispatcher pump for reliable playback duration tracking. (#381)
+
+### Fixed
+- **RovoDev hook installer: multi-line YAML command values** — installer now correctly handles `- command:` entries whose values span multiple YAML continuation lines (e.g., multi-line `osascript` strings). The new hook entry is inserted after the full continuation block, preventing corruption of existing config. (#384)
+
 ## Unreleased
 
 ### Added
