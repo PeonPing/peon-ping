@@ -1351,8 +1351,12 @@ if ($notify -and $desktopNotif) {
         $marker = [char]0x25CF  # ●
         $notifTitle = "$marker $project`: $notifyStatus"
         $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
+        # Resolve parent PID (the IDE/terminal that spawned Claude Code) for click-to-focus
+        $parentPid = 0
+        try { $parentPid = (Get-Process -Id $PID).Parent.Id } catch { $parentPid = 0 }
         $notifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
-                       "-body", $notifyMsg, "-title", $notifTitle, "-dismissSeconds", $dismissSecs)
+                       "-body", $notifyMsg, "-title", $notifTitle, "-dismissSeconds", $dismissSecs,
+                       "-parentPid", $parentPid)
         if ($iconPath) { $notifArgs += @("-iconPath", $iconPath) }
         Start-Process -FilePath "powershell.exe" -ArgumentList $notifArgs -WindowStyle Hidden
     }
