@@ -139,7 +139,7 @@ Independent Controls:
 peon pause / resume / mute / unmute / status
 peon volume [0.0-1.0]
 peon rotation [random|round-robin|session_override]
-peon packs list / use / install / next / remove / bind / unbind / bindings
+peon packs list / use / install / next / remove / bind / unbind / bindings / community / search
 peon notifications on / off / test
 peon mobile ntfy <topic>
 peon relay --daemon

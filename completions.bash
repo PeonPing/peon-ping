@@ -15,7 +15,7 @@ _peon_completions() {
     case "$subcmd" in
       packs)
         if [ "$cword" -eq 2 ]; then
-          COMPREPLY=( $(compgen -W "list use next install install-local remove rotation bind unbind bindings" -- "$cur") )
+          COMPREPLY=( $(compgen -W "list use next install install-local remove rotation bind unbind bindings community search" -- "$cur") )
         elif [ "$cword" -eq 3 ] && [ "$prev" = "rotation" ]; then
           COMPREPLY=( $(compgen -W "list add remove clear" -- "$cur") )
         elif [ "$cword" -eq 4 ] && [ "${words[2]}" = "rotation" ] && { [ "$prev" = "add" ] || [ "$prev" = "remove" ]; }; then

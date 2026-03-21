@@ -16,7 +16,15 @@ $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
 $ErrorActionPreference = "Stop"
 
 # --- Input validation & config helpers (dot-sourced from scripts/install-utils.ps1) ---
-. (Join-Path (Join-Path $ScriptDir "scripts") "install-utils.ps1")
+if (-not $PSScriptRoot) {
+    # IEX code path: $PSScriptRoot is empty, so download the utils from GitHub
+    $tmpUtils = Join-Path ([System.IO.Path]::GetTempPath()) "peon-install-utils.ps1"
+    Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PeonPing/peon-ping/main/scripts/install-utils.ps1" -OutFile $tmpUtils -UseBasicParsing
+    . $tmpUtils
+    Remove-Item $tmpUtils -ErrorAction SilentlyContinue
+} else {
+    . (Join-Path (Join-Path $ScriptDir "scripts") "install-utils.ps1")
+}
 
 # --- Fallback pack list (used when registry is unreachable) ---
 $FallbackPacks = @("acolyte_de", "acolyte_ru", "aoe2", "aom_greek", "brewmaster_ru", "dota2_axe", "duke_nukem", "glados", "hd2_helldiver", "molag_bal", "murloc", "ocarina_of_time", "peon", "peon_cz", "peon_de", "peon_es", "peon_fr", "peon_pl", "peon_ru", "peasant", "peasant_cz", "peasant_es", "peasant_fr", "peasant_ru", "ra2_kirov", "ra2_soviet_engineer", "ra_soviet", "rick", "sc_battlecruiser", "sc_firebat", "sc_kerrigan", "sc_medic", "sc_scv", "sc_tank", "sc_terran", "sc_vessel", "sheogorath", "sopranos", "tf2_engineer", "wc2_peasant")
@@ -263,6 +271,21 @@ if (Test-Path $winPlaySource) {
     }
 }
 
+$winNotifySource = Join-Path $ScriptDir "scripts\win-notify.ps1"
+$winNotifyTarget = Join-Path $scriptsDir "win-notify.ps1"
+
+if (Test-Path $winNotifySource) {
+    # Local install: copy from repo
+    Copy-Item -Path $winNotifySource -Destination $winNotifyTarget -Force
+} else {
+    # One-liner install: download from GitHub
+    try {
+        Invoke-WebRequest -Uri "$RepoBase/scripts/win-notify.ps1" -OutFile $winNotifyTarget -UseBasicParsing -ErrorAction Stop
+    } catch {
+        Write-Host "  Warning: Could not download win-notify.ps1" -ForegroundColor Yellow
+    }
+}
+
 # Install hook-handle-use scripts (for /peon-ping-use command)
 $hookHandleUsePs1Source = Join-Path $ScriptDir "scripts\hook-handle-use.ps1"
 $hookHandleUsePs1Target = Join-Path $scriptsDir "hook-handle-use.ps1"
@@ -334,6 +357,57 @@ function Get-ActivePack($config) {
     if ($config.default_pack) { return $config.default_pack }
     if ($config.active_pack) { return $config.active_pack }
     return "peon"
+}
+
+# Install a pack from the registry by name. Returns $true on success, $false on failure.
+function Install-PackFromRegistry {
+    param([string]$PackName, [string]$PacksDir)
+    $regUrl = "https://peonping.github.io/registry/index.json"
+    try {
+        $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
+        $reg = $regResp.Content | ConvertFrom-Json
+    } catch {
+        Write-Host "Error: could not fetch registry." -ForegroundColor Red
+        return $false
+    }
+    $packInfo = $reg.packs | Where-Object { $_.name -eq $PackName }
+    if (-not $packInfo) { return $false }
+    $srcRepo = $packInfo.source_repo
+    $srcRef = $packInfo.source_ref
+    $srcPath = $packInfo.source_path
+    if (-not $srcRepo -or -not $srcRef -or ($null -eq $srcPath)) {
+        Write-Host "Error: incomplete registry entry for '$PackName'." -ForegroundColor Red
+        return $false
+    }
+    $packBase = if ($srcPath) { "https://raw.githubusercontent.com/$srcRepo/$srcRef/$srcPath" } else { "https://raw.githubusercontent.com/$srcRepo/$srcRef" }
+    $pDir = Join-Path $PacksDir $PackName
+    $sDir = Join-Path $pDir "sounds"
+    New-Item -ItemType Directory -Path $sDir -Force | Out-Null
+    try {
+        Invoke-WebRequest -Uri "$packBase/openpeon.json" -OutFile (Join-Path $pDir "openpeon.json") -UseBasicParsing -ErrorAction Stop
+    } catch {
+        Write-Host "Error: could not download manifest for '$PackName'." -ForegroundColor Red
+        return $false
+    }
+    $mf = Get-Content (Join-Path $pDir "openpeon.json") -Raw | ConvertFrom-Json
+    $total = 0
+    $downloaded = 0
+    foreach ($catN in $mf.categories.PSObject.Properties.Name) {
+        $total += $mf.categories.$catN.sounds.Count
+    }
+    foreach ($catN in $mf.categories.PSObject.Properties.Name) {
+        foreach ($snd in $mf.categories.$catN.sounds) {
+            $sf = Split-Path $snd.file -Leaf
+            $sp = Join-Path $sDir $sf
+            $downloaded++
+            if (-not (Test-Path $sp)) {
+                Write-Host "`r[$PackName] $downloaded/$total downloading..." -NoNewline
+                Invoke-WebRequest -Uri "$packBase/sounds/$sf" -OutFile $sp -UseBasicParsing -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    Write-Host "`r[$PackName] $total/$total done.          "
+    return $true
 }
 
 # --- CLI commands ---
@@ -416,14 +490,20 @@ if ($Command) {
                     }
                     $newPack = $Arg2
                     if ($newPack -notin $available) {
-                        Write-Host "Pack '$newPack' not found. Available: $($available -join ', ')" -ForegroundColor Red
-                        return
+                        Write-Host "Pack '$newPack' not installed locally. Fetching from registry..." -ForegroundColor Yellow
+                        $ok = Install-PackFromRegistry -PackName $newPack -PacksDir $packsDir
+                        if (-not $ok) {
+                            Write-Host "Pack '$newPack' not found in registry." -ForegroundColor Red
+                            return
+                        }
+                        Write-Host "peon-ping: installed and switched to '$newPack'" -ForegroundColor Green
+                    } else {
+                        Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
                     }
                     $raw = Get-Content $ConfigPath -Raw
                     $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
                     $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
                     if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
-                    Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
                     return
                 }
                 "next" {
@@ -637,6 +717,101 @@ if ($Command) {
                     }
                     return
                 }
+                "community" {
+                    $regUrl = "https://peonping.github.io/registry/index.json"
+                    try {
+                        $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
+                        $reg = $regResp.Content | ConvertFrom-Json
+                    } catch {
+                        Write-Host "Error: could not fetch registry." -ForegroundColor Red
+                        return
+                    }
+                    $packs = $reg.packs
+                    Write-Host ""
+                    Write-Host "  Registry packs ($($packs.Count) available)" -ForegroundColor Cyan
+                    Write-Host ""
+                    $grouped = @{}
+                    foreach ($p in $packs) {
+                        $tier = if ($p.trust_tier) { $p.trust_tier } else { "unknown" }
+                        if (-not $grouped.ContainsKey($tier)) { $grouped[$tier] = @() }
+                        $grouped[$tier] += $p
+                    }
+                    $maxName = ($packs | ForEach-Object { $_.name.Length } | Measure-Object -Maximum).Maximum
+                    $nameWidth = [Math]::Max($maxName + 2, 24)
+                    # Show official first, then community, then others
+                    $tierOrder = @("official") + @($grouped.Keys | Where-Object { $_ -ne "official" } | Sort-Object)
+                    foreach ($tier in $tierOrder) {
+                        if (-not $grouped.ContainsKey($tier)) { continue }
+                        $tierPacks = @($grouped[$tier] | Sort-Object { $_.name })
+                        $tierLabel = (Get-Culture).TextInfo.ToTitleCase($tier)
+                        $installedInTier = @($tierPacks | Where-Object { $_.name -in $available }).Count
+                        $tierInfo = "$($tierPacks.Count) packs"
+                        if ($installedInTier -gt 0) { $tierInfo += ", $installedInTier installed" }
+                        Write-Host "  --- $tierLabel ($tierInfo) ---" -ForegroundColor DarkGray
+                        foreach ($p in $tierPacks) {
+                            $isInstalled = $p.name -in $available
+                            $soundStr = if ($p.sound_count) { "$($p.sound_count)".PadLeft(4) } else { "   ?" }
+                            $displayName = if ($p.display_name) { $p.display_name } else { "" }
+                            if ($isInstalled) {
+                                Write-Host "  $([char]0x2713) " -NoNewline -ForegroundColor Green
+                            } else {
+                                Write-Host "    " -NoNewline
+                            }
+                            Write-Host ($p.name.PadRight($nameWidth)) -NoNewline -ForegroundColor White
+                            Write-Host "$soundStr sounds" -NoNewline -ForegroundColor DarkGray
+                            if ($displayName) {
+                                Write-Host "   $displayName" -NoNewline -ForegroundColor DarkGray
+                            }
+                            Write-Host ""
+                        }
+                        Write-Host ""
+                    }
+                    return
+                }
+                "search" {
+                    if (-not $Arg2) {
+                        Write-Host "Usage: peon packs search <query>" -ForegroundColor Yellow
+                        return
+                    }
+                    $query = $Arg2.ToLower()
+                    $regUrl = "https://peonping.github.io/registry/index.json"
+                    try {
+                        $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
+                        $reg = $regResp.Content | ConvertFrom-Json
+                    } catch {
+                        Write-Host "Error: could not fetch registry." -ForegroundColor Red
+                        return
+                    }
+                    $matches = @($reg.packs | Where-Object { $_.name.ToLower().Contains($query) })
+                    if ($matches.Count -eq 0) {
+                        Write-Host "No packs matching '$Arg2'." -ForegroundColor Yellow
+                        return
+                    }
+                    Write-Host ""
+                    Write-Host "  Search results for '$Arg2' ($($matches.Count) found)" -ForegroundColor Cyan
+                    Write-Host ""
+                    $maxName = ($matches | ForEach-Object { $_.name.Length } | Measure-Object -Maximum).Maximum
+                    $nameWidth = [Math]::Max($maxName + 2, 24)
+                    foreach ($p in ($matches | Sort-Object { $_.name })) {
+                        $isInstalled = $p.name -in $available
+                        $tier = if ($p.trust_tier) { $p.trust_tier } else { "unknown" }
+                        $soundStr = if ($p.sound_count) { "$($p.sound_count)".PadLeft(4) } else { "   ?" }
+                        $displayName = if ($p.display_name) { $p.display_name } else { "" }
+                        if ($isInstalled) {
+                            Write-Host "  $([char]0x2713) " -NoNewline -ForegroundColor Green
+                        } else {
+                            Write-Host "    " -NoNewline
+                        }
+                        Write-Host ($p.name.PadRight($nameWidth)) -NoNewline -ForegroundColor White
+                        Write-Host "$soundStr sounds" -NoNewline -ForegroundColor DarkGray
+                        if ($displayName) {
+                            Write-Host "   $displayName" -NoNewline -ForegroundColor DarkGray
+                        }
+                        Write-Host "  " -NoNewline
+                        Write-Host "[$tier]" -ForegroundColor DarkGray
+                    }
+                    return
+                }
                 default {
                     # "list" or no subcommand - show available packs
                     Write-Host "Available packs:" -ForegroundColor Cyan
@@ -703,23 +878,25 @@ if ($Command) {
         }
         "^--help$" {
             Write-Host "peon-ping commands:" -ForegroundColor Cyan
-            Write-Host "  --toggle          Toggle enabled/paused"
-            Write-Host "  --pause           Pause sounds"
-            Write-Host "  --resume          Resume sounds"
-            Write-Host "  --mute            Alias for --pause"
-            Write-Host "  --unmute          Alias for --resume"
-            Write-Host "  --status          Show current status"
-            Write-Host "  --volume N        Set volume (0.0-1.0)"
-            Write-Host "  --help            Show this help"
+            Write-Host "  --toggle              Toggle enabled/paused"
+            Write-Host "  --pause               Pause sounds"
+            Write-Host "  --resume              Resume sounds"
+            Write-Host "  --mute                Alias for --pause"
+            Write-Host "  --unmute              Alias for --resume"
+            Write-Host "  --status              Show current status"
+            Write-Host "  --volume N            Set volume (0.0-1.0)"
+            Write-Host "  --help                Show this help"
             Write-Host ""
             Write-Host "Pack management:" -ForegroundColor Cyan
-            Write-Host "  --packs           List available sound packs"
-            Write-Host "  --packs use <n>   Switch to a specific pack"
-            Write-Host "  --packs next      Cycle to the next pack"
-            Write-Host "  --packs bind      Bind a pack to current directory"
-            Write-Host "  --packs unbind    Remove a pack binding"
-            Write-Host "  --packs bindings  List all pack bindings"
-            Write-Host "  --pack [name]     Switch pack (or cycle)"
+            Write-Host "  --packs               List installed sound packs"
+            Write-Host "  --packs use <name>    Switch to pack (auto-installs from registry)"
+            Write-Host "  --packs next          Cycle to the next pack"
+            Write-Host "  --packs community     List all packs from registry"
+            Write-Host "  --packs search <q>    Search registry packs by name"
+            Write-Host "  --packs bind          Bind a pack to current directory"
+            Write-Host "  --packs unbind        Remove a pack binding"
+            Write-Host "  --packs bindings      List all pack bindings"
+            Write-Host "  --pack [name]         Switch pack (or cycle)"
             return
         }
     }
@@ -735,7 +912,6 @@ $StatePath = Join-Path $InstallDir ".state.json"
 try {
     $config = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
 } catch {
-    if ($peonDebug) { Write-Warning "peon-ping: config read failed: $_" }
     exit 0
 }
 
@@ -750,7 +926,6 @@ try {
     $hookInput = $reader.ReadToEnd()
     $reader.Close()
 } catch {
-    if ($peonDebug) { Write-Warning "peon-ping: stdin read failed: $_" }
     exit 0
 }
 
@@ -759,7 +934,6 @@ if (-not $hookInput) { exit 0 }
 try {
     $event = $hookInput | ConvertFrom-Json
 } catch {
-    if ($peonDebug) { Write-Warning "peon-ping: hook JSON parse failed: $_" }
     exit 0
 }
 
@@ -786,6 +960,11 @@ $sessionId = if ($event.session_id) { $event.session_id } elseif ($event.convers
 
 # Extract cwd from event (used by path_rules for directory-based pack selection)
 $cwd = if ($event.cwd) { $event.cwd } else { "" }
+
+# Derive project name from cwd (used in desktop notification titles)
+$project = if ($cwd) { Split-Path $cwd -Leaf } else { "" }
+if (-not $project) { $project = "claude" }
+$project = $project -replace '[^a-zA-Z0-9 ._-]', ''
 
 # Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
 function ConvertTo-Hashtable {
@@ -901,6 +1080,10 @@ if ($sessionPacksClean.Count -ne $sessionPacks.Count) {
 # --- Map Claude Code hook event -> CESP manifest category ---
 $category = $null
 $ntype = $event.notification_type
+$notify = $false
+$notifyColor = ""
+$notifyMsg = ""
+$notifyStatus = ""
 
 switch ($hookEvent) {
     "SessionStart" {
@@ -913,6 +1096,11 @@ switch ($hookEvent) {
         $lastStop = if ($state.ContainsKey("last_stop_time")) { $state["last_stop_time"] } else { 0 }
         if (($now - $lastStop) -lt 5) {
             $category = $null
+        } else {
+            $notify = $true
+            $notifyColor = "blue"
+            $notifyMsg = $project
+            $notifyStatus = "done"
         }
         $state["last_stop_time"] = $now
     }
@@ -921,8 +1109,18 @@ switch ($hookEvent) {
             # PermissionRequest event handles the sound, skip here
             $category = $null
         } elseif ($ntype -eq "idle_prompt") {
-            # Stop event already played the sound
+            # Notification only — no sound (matches peon.sh idle_prompt behavior)
             $category = $null
+            $notify = $true
+            $notifyColor = "yellow"
+            $notifyMsg = $project
+            $notifyStatus = "done"
+        } elseif ($ntype -eq "elicitation_dialog") {
+            $category = "input.required"
+            $notify = $true
+            $notifyColor = "blue"
+            $notifyMsg = $project
+            $notifyStatus = "question"
         } else {
             # Other notification types (e.g., tool results) map to task.complete
             $category = "task.complete"
@@ -930,6 +1128,17 @@ switch ($hookEvent) {
     }
     "PermissionRequest" {
         $category = "input.required"
+        $notify = $true
+        $notifyColor = "red"
+        $notifyMsg = $project
+        $notifyStatus = "needs approval"
+    }
+    "PreCompact" {
+        $category = "resource.limit"
+        $notify = $true
+        $notifyColor = "red"
+        $notifyMsg = $project
+        $notifyStatus = "context limit"
     }
     "UserPromptSubmit" {
         # Detect rapid prompts for "annoyed" easter egg
@@ -965,16 +1174,21 @@ try {
     if ($peonDebug) { Write-Warning "peon-ping: state write failed: $_" }
 }
 
-if (-not $category) { exit 0 }
+$skipSound = (-not $category)
+if ($skipSound -and -not $notify) { exit 0 }
 
-# Check if category is enabled
-try {
-    $catEnabled = $config.categories.$category
-    if ($catEnabled -eq $false) { exit 0 }
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: category check failed for '$category': $_" }
+# Check if category is enabled (only relevant when we have a category to play)
+if (-not $skipSound) {
+    try {
+        $catEnabled = $config.categories.$category
+        if ($catEnabled -eq $false -and -not $notify) { exit 0 }
+        if ($catEnabled -eq $false) { $skipSound = $true }
+    } catch {
+        if ($peonDebug) { Write-Warning "peon-ping: category check failed for '$category': $_" }
+    }
 }
 
+if (-not $skipSound) {
 # --- Pick a sound ---
 $activePack = Get-ActivePack $config
 
@@ -1046,8 +1260,16 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
     # Path rule wins over rotation and default
     $activePack = $pathRulePack
 } elseif ($config.pack_rotation -and $config.pack_rotation.Count -gt 0) {
-    # Automatic rotation
-    $activePack = $config.pack_rotation | Get-Random
+    if ($pathRulePack) {
+        # Path rule beats rotation
+        $activePack = $pathRulePack
+    } else {
+        # Automatic rotation
+        $activePack = $config.pack_rotation | Get-Random
+    }
+} elseif ($pathRulePack) {
+    # Path rule beats default_pack
+    $activePack = $pathRulePack
 }
 
 $packDir = Join-Path $InstallDir "packs\$activePack"
@@ -1056,10 +1278,7 @@ if (-not (Test-Path $manifestPath)) { exit 0 }
 
 try {
     $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-} catch {
-    if ($peonDebug) { Write-Warning "peon-ping: manifest parse failed for '$manifestPath': $_" }
-    exit 0
-}
+} catch { exit 0 }
 
 # Get sounds for this category
 $catSounds = $null
@@ -1118,6 +1337,25 @@ if (Test-Path $winPlayScript) {
     Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
 } else {
     if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
+}
+
+} # end if (-not $skipSound)
+
+# --- Desktop notification dispatch ---
+$desktopNotif = $config.desktop_notifications
+if ($null -eq $desktopNotif) { $desktopNotif = $true }
+
+if ($notify -and $desktopNotif) {
+    $winNotifyScript = Join-Path $InstallDir "scripts\win-notify.ps1"
+    if (Test-Path $winNotifyScript) {
+        $marker = [char]0x25CF  # ●
+        $notifTitle = "$marker $project`: $notifyStatus"
+        $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
+        $notifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
+                       "-body", $notifyMsg, "-title", $notifTitle, "-dismissSeconds", $dismissSecs)
+        if ($iconPath) { $notifArgs += @("-iconPath", $iconPath) }
+        Start-Process -FilePath "powershell.exe" -ArgumentList $notifArgs -WindowStyle Hidden
+    }
 }
 
 exit 0

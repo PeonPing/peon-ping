@@ -124,7 +124,21 @@ else:
         elif in_events and current_event and stripped.startswith('- command:'):
             if cmd_indent is None:
                 cmd_indent = len(line) - len(stripped)
-            event_map[current_event]['last_cmd_idx'] = i
+            cmd_line_indent = len(line) - len(stripped)
+            # Scan past YAML continuation lines (more deeply indented than the
+            # '- command:' key and not starting a new YAML key at the same or
+            # lesser indent).  This handles multi-line command values such as
+            # osascript strings that wrap across lines.
+            end = i
+            for j in range(i + 1, len(lines)):
+                cline = lines[j]
+                if not cline or not cline.strip():
+                    break
+                cline_indent = len(cline) - len(cline.lstrip())
+                if cline_indent <= cmd_line_indent:
+                    break
+                end = j
+            event_map[current_event]['last_cmd_idx'] = end
         elif in_events and line and not line.startswith(' ') and not line.startswith('\t'):
             break
 

@@ -243,10 +243,12 @@ peon rotation             # Show current rotation mode
 peon rotation random      # Set rotation mode (random|round-robin|session_override)
 peon packs list           # List installed sound packs
 peon packs list --registry # Browse all available packs in the registry
+peon packs community      # List all registry packs grouped by trust tier (Windows)
+peon packs search <query> # Search registry packs by name (Windows)
 peon packs install <p1,p2> # Install packs from the registry
 peon packs install --all  # Install all packs from the registry
 peon packs install-local <path> # Install a pack from a local directory
-peon packs use <name>     # Switch to a specific pack
+peon packs use <name>     # Switch to a specific pack (auto-installs from registry on Windows)
 peon packs use --install <name>  # Switch to pack, installing from registry if needed
 peon packs next           # Cycle to the next pack
 peon packs remove <p1,p2> # Remove specific packs

@@ -592,6 +592,36 @@ _resolve_session_tty() {
   export PEON_SESSION_TTY
 }
 
+# --- Ghostty active terminal match (best-effort) ---
+# Ghostty exposes focused terminal metadata via AppleScript. We use it to avoid
+# suppressing notifications for every Ghostty window/tab just because the app is
+# frontmost. Title match is strongest; cwd is a fallback heuristic.
+_ghostty_terminal_is_current() {
+  local active_info active_name active_cwd
+  active_info=$(osascript -e 'tell application "Ghostty"
+    try
+      set win to front window
+      set tab_ to selected tab of win
+      set term to focused terminal of tab_
+      return (name of term) & "	" & (working directory of term)
+    on error
+      return ""
+    end try
+  end tell' 2>/dev/null || true)
+  [ -z "$active_info" ] && return 0
+
+  active_name=${active_info%%$'	'*}
+  active_cwd=${active_info#*$'	'}
+  active_name=$(printf '%s' "$active_name" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+  active_cwd=$(printf '%s' "$active_cwd" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+  [ -n "${TITLE:-}" ] && [ "$active_name" = "$TITLE" ] && return 0
+  [ -n "${PROJECT:-}" ] && [ "$active_name" = "$PROJECT" ] && return 0
+  [ -n "${CWD:-}" ] && [ "$active_cwd" = "$CWD" ] && return 0
+
+  return 1
+}
+
 # --- Platform-aware notification ---
 # Args: msg, title, color (red/blue/yellow)
 send_notification() {
@@ -688,7 +718,8 @@ terminal_is_focused() {
           done
           return 1  # Different tab/pane is active in all windows — notify
           ;;
-        Terminal|Warp|Alacritty|kitty|WezTerm|Ghostty|ghostty) return 0 ;;
+        Ghostty|ghostty) _ghostty_terminal_is_current ; return $? ;;
+        Terminal|Warp|Alacritty|kitty|WezTerm) return 0 ;;
         *) return 1 ;;
       esac
       ;;
@@ -1497,7 +1528,12 @@ print('peon-ping: rotation mode set to ' + mode)
           exit 0
         fi
         python3 -c "
-import json, os, glob
+import json, os
+no_color = os.environ.get('NO_COLOR', '')
+CYAN = '' if no_color else '\033[36m'
+GREEN = '' if no_color else '\033[32m'
+DIM = '' if no_color else '\033[90m'
+RST = '' if no_color else '\033[0m'
 config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     _cfg_list = json.load(open(config_path))
@@ -1505,16 +1541,31 @@ try:
 except Exception:
     active = 'peon'
 packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
+entries = []
 for d in sorted(os.listdir(packs_dir)):
     for mname in ('openpeon.json', 'manifest.json'):
         mpath = os.path.join(packs_dir, d, mname)
         if os.path.exists(mpath):
             info = json.load(open(mpath))
-            name = info.get('name', d)
-            display = info.get('display_name', name)
-            marker = ' *' if d == active else ''
-            print(f'  {d:24s} {display}{marker}')
+            display = info.get('display_name', info.get('name', d))
+            sdir = os.path.join(packs_dir, d, 'sounds')
+            count = len(os.listdir(sdir)) if os.path.isdir(sdir) else 0
+            entries.append((d, display, count))
             break
+if not entries:
+    print('  No packs installed.')
+else:
+    max_w = max(len(e[0]) for e in entries) + 2
+    name_w = max(max_w, 24)
+    print()
+    print(f'  {CYAN}Installed packs ({len(entries)}){RST}')
+    print()
+    for d, display, count in entries:
+        marker = f'  {GREEN}<-- active{RST}' if d == active else ''
+        count_str = f'{DIM}{str(count).rjust(4)} sounds{RST}'
+        disp_str = f'   {DIM}{display}{RST}' if display != d else ''
+        print(f'  {d:<{name_w}}{count_str}{disp_str}{marker}')
+    print()
 "
         exit 0 ;;
       use)
@@ -2110,8 +2161,105 @@ else:
           *)
             echo "Usage: peon packs rotation <list|add|remove|clear>" >&2; exit 1 ;;
         esac ;;
+      community)
+        python3 -c "
+import json, os, urllib.request
+no_color = os.environ.get('NO_COLOR', '')
+CYAN = '' if no_color else '\033[36m'
+GREEN = '' if no_color else '\033[32m'
+DIM = '' if no_color else '\033[90m'
+RST = '' if no_color else '\033[0m'
+packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
+installed = set()
+if os.path.isdir(packs_dir):
+    installed = set(os.listdir(packs_dir))
+try:
+    req = urllib.request.urlopen('https://peonping.github.io/registry/index.json', timeout=10)
+    reg = json.loads(req.read().decode())
+except Exception as e:
+    print(f'Error: could not fetch registry: {e}', flush=True)
+    raise SystemExit(1)
+packs = reg.get('packs', [])
+grouped = {}
+for p in packs:
+    tier = p.get('trust_tier', 'unknown')
+    grouped.setdefault(tier, []).append(p)
+max_w = max((len(p['name']) for p in packs), default=20) + 2
+name_w = max(max_w, 24)
+tier_order = ['official'] + sorted(k for k in grouped if k != 'official')
+print()
+print(f'  {CYAN}Registry packs ({len(packs)} available){RST}')
+print()
+for tier in tier_order:
+    if tier not in grouped:
+        continue
+    tier_packs = sorted(grouped[tier], key=lambda p: p['name'])
+    tier_label = tier.capitalize()
+    inst_count = sum(1 for p in tier_packs if p['name'] in installed)
+    info = f'{len(tier_packs)} packs'
+    if inst_count > 0:
+        info += f', {inst_count} installed'
+    print(f'  {DIM}--- {tier_label} ({info}) ---{RST}')
+    for p in tier_packs:
+        is_inst = p['name'] in installed
+        check = f'{GREEN}\u2713{RST} ' if is_inst else '  '
+        scount = p.get('sound_count')
+        count_str = f'{DIM}{str(scount).rjust(4)} sounds{RST}' if scount else f'{DIM}   ? sounds{RST}'
+        dname = p.get('display_name', '')
+        disp_str = f'   {DIM}{dname}{RST}' if dname else ''
+        print(f'  {check}{p[\"name\"]:<{name_w}}{count_str}{disp_str}')
+    print()
+"
+        exit $? ;;
+      search)
+        if [ -z "${3:-}" ]; then
+          echo "Usage: peon packs search <query>" >&2; exit 1
+        fi
+        export PEON_ENV_SEARCH_QUERY="${3}"
+        python3 -c "
+import json, os, urllib.request
+no_color = os.environ.get('NO_COLOR', '')
+CYAN = '' if no_color else '\033[36m'
+GREEN = '' if no_color else '\033[32m'
+DIM = '' if no_color else '\033[90m'
+RST = '' if no_color else '\033[0m'
+query = os.environ.get('PEON_ENV_SEARCH_QUERY', '').lower()
+packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
+installed = set()
+if os.path.isdir(packs_dir):
+    installed = set(os.listdir(packs_dir))
+try:
+    req = urllib.request.urlopen('https://peonping.github.io/registry/index.json', timeout=10)
+    reg = json.loads(req.read().decode())
+except Exception as e:
+    print(f'Error: could not fetch registry: {e}', flush=True)
+    raise SystemExit(1)
+matches = [p for p in reg.get('packs', []) if query in p.get('name', '').lower()]
+if not matches:
+    print(f'No packs matching \"{os.environ.get(\"PEON_ENV_SEARCH_QUERY\", \"\")}\".')
+    raise SystemExit(0)
+matches.sort(key=lambda p: p['name'])
+max_w = max(len(p['name']) for p in matches) + 2
+name_w = max(max_w, 24)
+raw_query = os.environ.get('PEON_ENV_SEARCH_QUERY', '')
+print()
+print(f'  {CYAN}Search results for \"{raw_query}\" ({len(matches)} found){RST}')
+print()
+for p in matches:
+    is_inst = p['name'] in installed
+    check = f'{GREEN}\u2713{RST} ' if is_inst else '  '
+    tier = p.get('trust_tier', 'unknown')
+    scount = p.get('sound_count')
+    count_str = f'{DIM}{str(scount).rjust(4)} sounds{RST}' if scount else f'{DIM}   ? sounds{RST}'
+    dname = p.get('display_name', '')
+    disp_str = f'   {DIM}{dname}{RST}' if dname else ''
+    tier_str = f'  {DIM}[{tier}]{RST}'
+    print(f'  {check}{p[\"name\"]:<{name_w}}{count_str}{disp_str}{tier_str}')
+print()
+"
+        exit $? ;;
       *)
-        echo "Usage: peon packs <list|use|next|install|install-local|remove|rotation|bind|unbind|bindings>" >&2; exit 1 ;;
+        echo "Usage: peon packs <list|use|next|install|install-local|remove|rotation|bind|unbind|bindings|community|search>" >&2; exit 1 ;;
     esac ;;
   mobile)
     case "${2:-}" in
@@ -3579,6 +3727,7 @@ print('PEON_EXIT=false')
 print('EVENT=' + q(event))
 print('VOLUME=' + q(str(volume)))
 print('PROJECT=' + q(project))
+print('CWD=' + q(cwd))
 print('STATUS=' + q(status))
 print('MARKER=' + q(marker))
 print('NOTIFY=' + q(notify))

@@ -195,8 +195,13 @@ case "$PEON_PLATFORM" in
         osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" "$notify_type" >/dev/null 2>&1 &
         local _overlay_pid=$!
         # Shell-level watchdog: kill if JXA terminate timer doesn't fire (macOS regression)
+        # When dismiss_secs=0 (persistent), skip the watchdog — overlay stays until clicked.
         local _max_wait
-        _max_wait=$(python3 -c "print(int(float('${dismiss_secs}'))+5)" 2>/dev/null || echo '9')
+        if [ "${dismiss_secs}" = "0" ]; then
+          _max_wait=86400
+        else
+          _max_wait=$(python3 -c "print(int(float('${dismiss_secs}'))+5)" 2>/dev/null || echo '9')
+        fi
         ( sleep "$_max_wait" && kill "$_overlay_pid" 2>/dev/null ) &
         wait "$_overlay_pid" 2>/dev/null || true
         rm -rf "$slot_dir/slot-$slot"
@@ -375,10 +380,11 @@ TOASTEOF
     ;;
   linux)
     if command -v notify-send &>/dev/null; then
+      # Always use urgency=normal so notification daemons (dunst, mako) honour
+      # --expire-time and do not pin the notification until manually dismissed.
+      # Error sounds are already visually distinct via title/color — no need for
+      # urgency=critical which overrides the user's dismiss-time setting (#378).
       urgency="normal"
-      case "$color" in
-        red) urgency="critical" ;;
-      esac
       icon_flag=""
       if [ -f "$icon_path" ]; then
         icon_flag="--icon=$icon_path"

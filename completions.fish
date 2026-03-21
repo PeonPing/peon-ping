@@ -47,6 +47,8 @@ complete -c peon -n "__peon_using_subcommand packs" -a rotation -d "Manage pack 
 complete -c peon -n "__peon_using_subcommand packs" -a bind -d "Bind a pack to the current directory"
 complete -c peon -n "__peon_using_subcommand packs" -a unbind -d "Remove pack binding for current directory"
 complete -c peon -n "__peon_using_subcommand packs" -a bindings -d "List all directory-to-pack bindings"
+complete -c peon -n "__peon_using_subcommand packs" -a community -d "List all packs from registry"
+complete -c peon -n "__peon_using_subcommand packs" -a search -d "Search registry packs by name"
 
 # packs rotation subcommands
 complete -c peon -n "__peon_packs_subcommand rotation" -a list -d "Show current rotation list and mode"
