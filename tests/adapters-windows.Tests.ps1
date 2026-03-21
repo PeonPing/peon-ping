@@ -70,7 +70,8 @@ Describe "PowerShell Syntax Validation" {
 Describe "Core Script Syntax Validation" {
     It "<name> has valid PowerShell syntax" -ForEach @(
         @{ name = "install.ps1" },
-        @{ name = "scripts/win-play.ps1" }
+        @{ name = "scripts/win-play.ps1" },
+        @{ name = "scripts/win-notify.ps1" }
     ) {
         $path = Join-Path $script:RepoRoot $name
         $path | Should -Exist
@@ -679,6 +680,10 @@ Describe "install.ps1 Adapter Installation" {
         $script:installContent | Should -Match 'ClaudeCodeDetected'
         $script:installContent | Should -Match 'Skipping Claude Code hook registration'
     }
+
+    It "installs win-notify.ps1 alongside win-play.ps1" {
+        $script:installContent | Should -Match 'win-notify\.ps1'
+    }
 }
 
 # ============================================================
@@ -729,15 +734,17 @@ Describe "win-play.ps1 Audio Backend" {
         $script:winPlayContent | Should -Match '\[double\]\$vol'
     }
 
-    It "uses SoundPlayer for WAV files" {
+    It "uses MediaPlayer for WAV files with volume control" {
         $script:winPlayContent | Should -Match '\.wav\$'
-        $script:winPlayContent | Should -Match 'System\.Media\.SoundPlayer'
-        $script:winPlayContent | Should -Match 'PlaySync'
+        $script:winPlayContent | Should -Match 'PresentationCore'
+        $script:winPlayContent | Should -Match 'System\.Windows\.Media\.MediaPlayer'
+        $script:winPlayContent | Should -Match '\$player\.Volume = \$vol'
     }
 
-    It "contains zero references to MediaPlayer or PresentationCore" {
-        $script:winPlayContent | Should -Not -Match 'System\.Windows\.Media\.MediaPlayer'
-        $script:winPlayContent | Should -Not -Match 'PresentationCore'
+    It "uses MediaPlayer event subscription for playback duration" {
+        $script:winPlayContent | Should -Match 'Register-ObjectEvent'
+        $script:winPlayContent | Should -Match 'MediaOpened'
+        $script:winPlayContent | Should -Match 'NaturalDuration'
     }
 
     It "uses ffplay as first CLI player choice" {
@@ -774,8 +781,73 @@ Describe "win-play.ps1 Audio Backend" {
         $script:winPlayContent | Should -Match 'exit 0'
     }
 
-    It "disposes SoundPlayer after playback" {
-        $script:winPlayContent | Should -Match '\$sp\.Dispose\(\)'
+    It "closes MediaPlayer after playback" {
+        $script:winPlayContent | Should -Match '\$player\.Close\(\)'
+    }
+}
+
+# ============================================================
+# win-notify.ps1 Toast Script
+# ============================================================
+
+Describe "win-notify.ps1 Toast Script" {
+    BeforeAll {
+        $script:winNotifyPath = Join-Path (Join-Path $script:RepoRoot "scripts") "win-notify.ps1"
+        $script:winNotifyContent = Get-Content $script:winNotifyPath -Raw
+    }
+
+    It "has valid PowerShell syntax" {
+        $script:winNotifyPath | Should -Exist
+        $errors = $null
+        $null = [System.Management.Automation.PSParser]::Tokenize($script:winNotifyContent, [ref]$errors)
+        $errors.Count | Should -Be 0
+    }
+
+    It "requires body parameter" {
+        $script:winNotifyContent | Should -Match '\[string\]\$body'
+        $script:winNotifyContent | Should -Match 'Mandatory=\$true'
+    }
+
+    It "requires title parameter" {
+        $script:winNotifyContent | Should -Match '\[string\]\$title'
+    }
+
+    It "accepts optional iconPath parameter" {
+        $script:winNotifyContent | Should -Match '\[string\]\$iconPath'
+    }
+
+    It "accepts optional dismissSeconds parameter with default 4" {
+        $script:winNotifyContent | Should -Match '\[int\]\$dismissSeconds'
+        $script:winNotifyContent | Should -Match '= 4'
+    }
+
+    It "uses ToastNotificationManager WinRT API" {
+        $script:winNotifyContent | Should -Match 'Windows\.UI\.Notifications\.ToastNotificationManager'
+    }
+
+    It "escapes XML special characters" {
+        $script:winNotifyContent | Should -Match '&amp;'
+        $script:winNotifyContent | Should -Match '&lt;'
+        $script:winNotifyContent | Should -Match '&gt;'
+        $script:winNotifyContent | Should -Match '&quot;'
+        $script:winNotifyContent | Should -Match '&apos;'
+    }
+
+    It "sets audio silent=true (peon-ping plays its own sounds)" {
+        $script:winNotifyContent | Should -Match 'silent=.*true'
+    }
+
+    It "uses PowerShell APP_ID" {
+        $script:winNotifyContent | Should -Match '1AC14E77-02E7-4E5D-B744-2EB1AE5198B7.*powershell\.exe'
+    }
+
+    It "uses ToastGeneric template" {
+        $script:winNotifyContent | Should -Match 'ToastGeneric'
+    }
+
+    It "wraps in try/catch for silent degradation" {
+        $script:winNotifyContent | Should -Match 'try \{'
+        $script:winNotifyContent | Should -Match 'catch \{'
     }
 }
 
@@ -1070,6 +1142,52 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match '\[Environment\]::Exit\(1\)'
     }
 
+    # --- Desktop Notifications (win-notify.ps1 dispatch) ---
+
+    It "defines notify tracking variable" {
+        $script:peonHookContent | Should -Match '\$notify = \$false'
+    }
+
+    It "sets notify on Stop event (when not debounced)" {
+        $script:peonHookContent | Should -Match '"Stop"\s*\{[\s\S]*?\$notify = \$true[\s\S]*?\$notifyStatus = "done"'
+    }
+
+    It "sets notify on PermissionRequest event" {
+        $script:peonHookContent | Should -Match '"PermissionRequest"\s*\{[\s\S]*?\$notify = \$true[\s\S]*?\$notifyStatus = "needs approval"'
+    }
+
+    It "handles PreCompact event with resource.limit category" {
+        $script:peonHookContent | Should -Match '"PreCompact"\s*\{[\s\S]*?\$category = "resource\.limit"'
+        $script:peonHookContent | Should -Match '"PreCompact"\s*\{[\s\S]*?\$notifyStatus = "context limit"'
+    }
+
+    It "handles idle_prompt as notification-only (no sound)" {
+        $script:peonHookContent | Should -Match 'idle_prompt[\s\S]*?\$category = \$null[\s\S]*?\$notify = \$true'
+    }
+
+    It "handles elicitation_dialog with input.required category" {
+        $script:peonHookContent | Should -Match 'elicitation_dialog[\s\S]*?\$category = "input\.required"[\s\S]*?\$notify = \$true'
+    }
+
+    It "checks desktop_notifications config" {
+        $script:peonHookContent | Should -Match 'desktop_notifications'
+    }
+
+    It "derives project name from cwd via Split-Path" {
+        $script:peonHookContent | Should -Match 'Split-Path \$cwd -Leaf'
+        $script:peonHookContent | Should -Match '\$project'
+    }
+
+    It "delegates to win-notify.ps1 via Start-Process" {
+        $script:peonHookContent | Should -Match 'win-notify\.ps1'
+        $script:peonHookContent | Should -Match 'Start-Process[\s\S]*?\$notifArgs[\s\S]*?WindowStyle Hidden'
+    }
+
+    It "allows notification-only events to pass through (skipSound)" {
+        $script:peonHookContent | Should -Match '\$skipSound = \(-not \$category\)'
+        $script:peonHookContent | Should -Match '\$skipSound -and -not \$notify.*exit 0'
+    }
+
     # --- Audio Delegation (detached process via win-play.ps1) ---
 
     It "contains zero references to MediaPlayer, PresentationCore, SoundPlayer, or System.Windows.Forms" {
@@ -1112,6 +1230,13 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match '--packs'
         $script:peonHookContent | Should -Match '"use"'
         $script:peonHookContent | Should -Match '"next"'
+    }
+
+    It "Install-PackFromRegistry allows empty source_path for repo-root packs" {
+        # Regression: empty source_path ("") is valid for packs at repo root.
+        # The validation must use $null check, not -not (which treats "" as falsy).
+        $script:peonHookContent | Should -Match '\$null -eq \$srcPath'
+        $script:peonHookContent | Should -Not -Match '-not \$srcPath'
     }
 
     It "supports --volume CLI command with clamping" {
@@ -1406,7 +1531,7 @@ Describe "install.ps1 Default Config" {
     }
 
     It "help text has aligned columns and pack management section" {
-        $script:installContent | Should -Match '--packs use <n>'
+        $script:installContent | Should -Match '--packs use <name>'
         $script:installContent | Should -Match '--packs next'
         $script:installContent | Should -Match 'Pack management:'
     }

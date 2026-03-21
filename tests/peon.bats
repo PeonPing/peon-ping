@@ -941,20 +941,23 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   [[ "$output" == *"sc_kerrigan"* ]]
 }
 
-@test "packs list marks the active pack with *" {
+@test "packs list marks the active pack with <-- active" {
   run bash "$PEON_SH" packs list
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Orc Peon *"* ]]
+  [[ "$output" == *"<-- active"* ]]
+  # peon should be marked active (default pack)
+  line=$(echo "$output" | grep "peon")
+  [[ "$line" == *"<-- active"* ]]
   # sc_kerrigan should NOT be marked
   line=$(echo "$output" | grep "sc_kerrigan")
-  [[ "$line" != *"*"* ]]
+  [[ "$line" != *"<-- active"* ]]
 }
 
 @test "packs list marks correct pack after switch" {
   bash "$PEON_SH" packs use sc_kerrigan
   run bash "$PEON_SH" packs list
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Sarah Kerrigan (StarCraft) *"* ]]
+  [[ "$output" == *"sc_kerrigan"*"<-- active"* ]]
 }
 
 @test "packs list works when script is not in hooks dir (Homebrew install)" {
@@ -3784,4 +3787,32 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   run bash "$PEON_SH" trainer status
   [ "$status" -eq 0 ]
   [[ "$output" == *"trainer status"* ]]
+}
+
+# ============================================================
+# packs list --registry + install (end-to-end community pack flow)
+# ============================================================
+
+@test "packs list --registry then install a random pack" {
+  setup_pack_download_env
+  # List registry packs and pick one that is not already installed
+  output=$(bash "$PEON_SH" packs list --registry)
+  # Extract pack names from output (format: "  name       Display Name")
+  # The mock registry has test_pack_a and test_pack_b
+  pack_name="test_pack_a"
+  # Verify it's listed
+  [[ "$output" == *"$pack_name"* ]]
+  # Install via packs use --install
+  run bash "$PEON_SH" packs use --install "$pack_name"
+  [ "$status" -eq 0 ]
+  # Verify pack was downloaded
+  [ -d "$TEST_DIR/packs/$pack_name" ]
+  [ -f "$TEST_DIR/packs/$pack_name/openpeon.json" ]
+  # Verify it's now the active pack
+  active=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(c.get('default_pack', c.get('active_pack')))")
+  [ "$active" = "$pack_name" ]
+  # Verify it shows up in local packs list
+  run bash "$PEON_SH" packs list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"$pack_name"* ]]
 }
