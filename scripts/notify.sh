@@ -285,8 +285,9 @@ APPLESCRIPT
       toast_title="$(_escape_xml "$toast_title")"
       toast_body="$(_escape_xml "$toast_body")"
       # Write toast XML to temp file (avoids bash/powershell escaping issues)
+      # launch="parentPid=0" placeholder for forward compatibility with click-to-focus (Phase 2)
       cat > "${tmpdir_wsl}peon-toast.xml" <<TOASTEOF
-<toast duration="short"><visual><binding template="ToastGeneric"><text>${toast_body}</text><text>${toast_title}</text>${icon_xml}</binding></visual><audio silent="true" /></toast>
+<toast launch="parentPid=0" duration="short"><visual><binding template="ToastGeneric"><text>${toast_body}</text><text>${toast_title}</text>${icon_xml}</binding></visual><audio silent="true" /></toast>
 TOASTEOF
       _run_toast() {
         setsid powershell.exe -NoProfile -NonInteractive -Command '
@@ -417,8 +418,9 @@ TOASTEOF
       toast_title="$(_escape_xml "$toast_title")"
       toast_body="$(_escape_xml "$toast_body")"
       toast_xml_file="${tmpdir}/peon-toast.xml"
+      # launch="parentPid=0" placeholder for forward compatibility with click-to-focus (Phase 2)
       cat > "$toast_xml_file" <<TOASTEOF
-<toast duration="short"><visual><binding template="ToastGeneric"><text>${toast_body}</text><text>${toast_title}</text>${icon_xml}</binding></visual><audio silent="true" /></toast>
+<toast launch="parentPid=0" duration="short"><visual><binding template="ToastGeneric"><text>${toast_body}</text><text>${toast_title}</text>${icon_xml}</binding></visual><audio silent="true" /></toast>
 TOASTEOF
       toast_xml_win=$(cygpath -w "$toast_xml_file")
       _run_toast() {
