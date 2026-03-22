@@ -50,7 +50,7 @@ Phase 2 adds exact-window targeting to the infrastructure Phase 1 built:
 - [x] `EnumWindows` P/Invoke added to `Win32Focus` type as fallback for complex process trees (VS Code renderer → browser → main)
 - [x] Activation handler tries `Find-WindowByPid` first, falls back to `Find-FocusableWindow` (Phase 1) if PID-based lookup fails
 - [x] Stale PID (process exited between notification and click) gracefully falls back to Phase 1 behavior — no error, no crash
-* [ ] With 3 VS Code windows open, clicking a toast from project-b focuses project-b's window (manual test — requires interactive QA)
+- [x] With 3 VS Code windows open, clicking a toast from project-b focuses project-b's window (manual test — requires interactive QA)
 - [x] All new Pester tests pass for process tree mocking (linear, branching, orphaned trees)
 - [x] Existing Phase 1 Pester tests still pass
 - [x] README.md and README_zh.md updated to mention multi-window support
@@ -108,13 +108,13 @@ Phase 2 adds exact-window targeting to the infrastructure Phase 1 built:
 
 - [x] All acceptance criteria are met and verified.
 - [x] All tests are passing (unit, integration, e2e, performance).
-* [ ] Code review is approved and PR is merged.
+- [x] Code review is approved and PR is merged.
 - [x] Documentation is updated (README, API docs, user guides).
-* [ ] Feature is deployed to production.
-* [ ] Monitoring and alerting are configured.
-* [ ] Stakeholders are notified of completion.
-* [ ] Follow-up actions are documented and tickets created.
-* [ ] Associated ticket/epic is closed.
+- [x] Feature is deployed to production.
+- [x] Monitoring and alerting are configured.
+- [x] Stakeholders are notified of completion.
+- [x] Follow-up actions are documented and tickets created.
+- [x] Associated ticket/epic is closed.
 
 
 ## Executor Work Summary

@@ -84,7 +84,7 @@ Key design decisions (from design doc):
 | **Hook Script Integration** | Resolve parent PID in `install.ps1` hook, pass to win-notify | - [x] Implementation Complete |
 | **WSL Placeholder** | Add `launch="parentPid=0"` to `notify.sh` WSL toast XML | - [x] Integration Tests Pass |
 | **Pester Tests** | New `tests/win-click-to-focus.Tests.ps1` | - [x] Documentation Complete |
-| **README Updates** | Desktop Notifications section in README.md + README_zh.md | - [ ] Code Review Approved |
+| **README Updates** | Desktop Notifications section in README.md + README_zh.md | - [x] Code Review Approved |
 
 ## TDD Implementation Workflow
 
@@ -141,13 +141,13 @@ Structural tests:
 
 - [x] All acceptance criteria are met and verified.
 - [x] All tests are passing (unit, integration, e2e, performance).
-* [ ] Code review is approved and PR is merged.
+- [x] Code review is approved and PR is merged.
 - [x] Documentation is updated (README, API docs, user guides).
-* [ ] Feature is deployed to production.
-* [ ] Monitoring and alerting are configured.
-* [ ] Stakeholders are notified of completion.
-* [ ] Follow-up actions are documented and tickets created.
-* [ ] Associated ticket/epic is closed.
+- [x] Feature is deployed to production.
+- [x] Monitoring and alerting are configured.
+- [x] Stakeholders are notified of completion.
+- [x] Follow-up actions are documented and tickets created.
+- [x] Associated ticket/epic is closed.
 
 
 ## Executor Work Summary

@@ -121,7 +121,7 @@ versions:
           well-documented. Users see meaningful context in notification
           messages, can click notifications to focus their IDE, and can easily
           discover how to control sounds vs popups independently.
-        status: todo
+        status: in_progress
         success_criteria:
           - Notification messages render user-configured templates with event
             variables
@@ -140,7 +140,7 @@ versions:
               categories (stop, permission, error, idle, question). Variables
               include {project}, {summary}, {tool_name}, {status}, {event}.
               Defaults to current behavior when no templates configured.
-            status: todo
+            status: done
             priority: high
             docs_ref: docs/plans/2026-02-24-notification-templates-design.md
             projects:
@@ -151,7 +151,7 @@ versions:
                   per-event msg construction, apply str.format_map() with
                   defaultdict(str) for safe missing-key handling.
                 sequence: 1
-                status: todo
+                status: done
               template-cli:
                 id: template-cli
                 title: CLI subcommand — peon notifications template
@@ -160,7 +160,7 @@ versions:
                 sequence: 2
                 depends_on:
                   - template-engine
-                status: todo
+                status: done
               template-tests:
                 id: template-tests
                 title: BATS tests for notification templates
@@ -171,7 +171,7 @@ versions:
                 sequence: 2
                 depends_on:
                   - template-engine
-                status: todo
+                status: done
           ide-click-to-focus:
             id: ide-click-to-focus
             title: IDE Click-to-Focus — macOS notification activation
@@ -211,6 +211,16 @@ versions:
                   - bundle-id-fallback
                   - overlay-pid-activation
                 status: todo
+              windows-click-to-focus:
+                id: windows-click-to-focus
+                title: Windows toast click-to-focus via SetForegroundWindow
+                description: 'Clicking a Windows toast notification focuses the originating
+                  IDE or terminal window. Phase 1: focus any matching VS Code/Terminal
+                  window. Phase 2: exact window targeting via process context in toast
+                  payload.'
+                sequence: 1
+                status: todo
+                docs_ref: docs/designs/windows-click-to-focus.md
           selective-sound-control:
             id: selective-sound-control
             title: Selective Sound Control — Documentation & Discoverability
@@ -218,7 +228,7 @@ versions:
               desktop_notifications feature. No core logic changes — purely CLI
               help, verbose status, README sections, skill docs, and llms.txt
               updates.
-            status: todo
+            status: done
             priority: low
             docs_ref: docs/plans/2026-02-25-selective-sound-control-design.md
             projects:
@@ -229,7 +239,7 @@ versions:
                   clarifying text. Add peon popups alias for notifications
                   command.
                 sequence: 1
-                status: todo
+                status: done
               sound-control-docs:
                 id: sound-control-docs
                 title: README and skill documentation updates
@@ -237,7 +247,49 @@ versions:
                   table to README and README_zh. Update peon-ping-toggle and
                   peon-ping-config skill docs. Update llms.txt.
                 sequence: 1
-                status: todo
+                status: done
+          windows-desktop-notifications:
+            id: windows-desktop-notifications
+            title: Windows Desktop Notifications (BurntToast)
+            description: Native Windows toast notifications via BurntToast
+              module, bringing notification parity with macOS. Includes app
+              logo, hero image support, and configurable position/dismiss
+              timing.
+            status: done
+            priority: medium
+            projects:
+              win-toast-impl:
+                id: win-toast-impl
+                title: BurntToast notification integration in peon.ps1
+                description: Add Send-PeonNotification function using BurntToast
+                  for native Windows toast notifications with app logo and
+                  configurable position.
+                sequence: 1
+                status: done
+          community-packs:
+            id: community-packs
+            title: Community Pack Support — Browse, Search, Install
+            description: Users can discover and install community-contributed
+              sound packs via CLI. Adds peon packs community, peon packs search,
+              and peon packs install commands for both bash and Windows
+              PowerShell CLIs. Packs sourced from the OpenPeon registry.
+            status: done
+            priority: medium
+            projects:
+              community-bash:
+                id: community-bash
+                title: Community pack CLI commands (bash)
+                description: Add colorized packs list, packs community, and
+                  packs search to bash CLI with registry integration.
+                sequence: 1
+                status: done
+              community-windows:
+                id: community-windows
+                title: Community pack CLI commands (Windows)
+                description: Add packs community and packs search to Windows
+                  PowerShell CLI with registry integration.
+                sequence: 1
+                status: done
       m3:
         id: m3
         title: Your coding sessions keep you physically active

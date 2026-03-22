@@ -84,3 +84,8 @@
 {"ts":"2026-03-20T22:51:43Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__archive_cards","max_results":"1"}}
 {"ts":"2026-03-20T22:51:52Z","tool":"mcp__gitban__archive_cards","input":{"archive_name":"WINTEST","card_ids":"['cb0gpg', 'od5a0c']"}}
 {"ts":"2026-03-20T22:52:01Z","tool":"Bash","input":{"command":"git add .gitban/ && git commit -m \"$(cat <<'EOF'\nchore: close out WINTEST sprint \u2014 archive all cards and dispatch log\nEOF\n)\" 2>&1","description":"Commit gitban sprint close-out"}}
+{"ts":"2026-03-20T22:52:11Z","tool":"Bash","input":{"command":"git push -u origin sprint/WINTEST 2>&1","description":"Push sprint branch"}}
+{"ts":"2026-03-20T22:52:16Z","tool":"Bash","input":{"command":"git remote -v 2>&1","description":"Check remotes"}}
+{"ts":"2026-03-20T22:52:26Z","tool":"Bash","input":{"command":"git push -u fork sprint/WINTEST 2>&1","description":"Push to fork remote"}}
+{"ts":"2026-03-20T22:52:43Z","tool":"Bash","input":{"command":"gh pr create --repo PeonPing/peon-ping --head muunkky:sprint/WINTEST --base main --draft --title \"sprint/WINTEST\" --body \"$(cat <<'EOF'\n## Summary\n\n- **cb0gpg**: Hardened `install.ps1` volume regex to...","description":"Create draft PR"}}
+{"ts":"2026-03-20T23:30:04Z","tool":"Bash","input":{"command":"gh pr list --repo PeonPing/peon-ping --state open --author muunkky 2>&1","description":"List open PRs"}}
