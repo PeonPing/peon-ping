@@ -1,7 +1,0 @@
-{"timestamp":"2026-03-15T10:36:39Z","operation":"init","role":"executor","sprint":"SMARTPACKDEBT","card_id":"inexon","cycle":1}
-{"timestamp":"2026-03-15T10:36:40Z","operation":"event","label":"read-card","metadata":{"card_id":"inexon"}}
-{"timestamp":"2026-03-15T10:41:33Z","operation":"init","role":"executor","sprint":"SMARTPACKDEBT","card_id":"inexon","cycle":1}
-{"timestamp":"2026-03-15T10:41:33Z","operation":"event","label":"read-card","metadata":{"card_id":"inexon"}}
-{"timestamp":"2026-03-15T10:41:33Z","operation":"event","label":"code-change","metadata":{"files":["install.ps1","tests/adapters-windows.Tests.ps1"]}}
-{"timestamp":"2026-03-15T10:41:33Z","operation":"event","label":"test-run","metadata":{"file":"tests/adapters-windows.Tests.ps1","passed":222,"failed":0}}
-{"timestamp":"2026-03-15T10:41:33Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":0}
