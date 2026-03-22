@@ -1,7 +1,7 @@
-# Pester 5 tests for Windows toast click-to-focus (Phase 1)
+# Pester 5 tests for Windows toast click-to-focus (Phase 1 + Phase 2)
 # Run: Invoke-Pester -Path tests/win-click-to-focus.Tests.ps1
 #
-# These tests validate:
+# Phase 1 tests validate:
 # - win-notify.ps1 accepts -parentPid parameter
 # - Toast XML contains launch="parentPid=..." attribute
 # - P/Invoke type PeonPing.Win32Focus structure
@@ -11,6 +11,12 @@
 # - Hook script in install.ps1 passes -parentPid in notification args
 # - WSL toast XML in notify.sh includes launch attribute
 # - Graceful no-op when no matching IDE/terminal process found
+#
+# Phase 2 tests validate:
+# - Find-WindowByPid function: process tree walk from parentPid
+# - EnumWindows P/Invoke fallback for complex process trees
+# - Activation handler tries PID-based targeting first, falls back to process-name
+# - Stale PID graceful fallback to Phase 1 behavior
 
 BeforeAll {
     $script:RepoRoot = Split-Path $PSScriptRoot -Parent
@@ -354,5 +360,221 @@ Describe "Existing parameters preserved" {
         )
         $paramNames = @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
         $paramNames | Should -Contain "dismissSeconds"
+    }
+}
+
+# ============================================================
+# Phase 2: Find-WindowByPid function
+# ============================================================
+Describe "Find-WindowByPid function" {
+    It "is defined in win-notify.ps1" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $content | Should -Match 'function\s+Find-WindowByPid'
+    }
+
+    It "accepts a pid parameter" {
+        $errors = $null
+        $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:WinNotifyPath, [ref]$tokens, [ref]$errors
+        )
+        $funcAst = $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq "Find-WindowByPid"
+        }, $true)
+        $funcAst | Should -Not -BeNullOrEmpty
+
+        $paramNames = @($funcAst[0].Body.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames | Should -Contain "pid"
+    }
+
+    It "walks process tree upward using Parent property" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        # Find the Find-WindowByPid function body and verify it walks via Parent
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        $funcContent = $content.Substring($funcStart)
+        $funcContent | Should -Match '\.Parent'
+    }
+
+    It "checks MainWindowHandle when walking process tree" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        $funcContent = $content.Substring($funcStart)
+        $funcContent | Should -Match 'MainWindowHandle'
+    }
+
+    It "returns null when PID is 0 (no parent PID available)" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        $funcContent = $content.Substring($funcStart)
+        # Should have an early return for PID 0
+        $funcContent | Should -Match '\$pid\s*-(?:eq|le)\s*0'
+    }
+
+    It "has a max depth guard to prevent infinite loops" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        $funcContent = $content.Substring($funcStart)
+        # Should have some form of depth/iteration limit
+        $funcContent | Should -Match 'maxDepth|depth|maxWalk|walkLimit|iteration'
+    }
+
+    It "wraps Get-Process in try/catch for stale PID handling" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        # Find the closing brace of the function (next function or end of functions section)
+        $nextFunc = $content.IndexOf("function ", $funcStart + 1)
+        if ($nextFunc -eq -1) { $nextFunc = $content.Length }
+        $funcContent = $content.Substring($funcStart, $nextFunc - $funcStart)
+        $funcContent | Should -Match 'try\s*\{'
+        $funcContent | Should -Match 'catch'
+    }
+
+    It "falls back to EnumWindows when parent walk fails" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        $nextFunc = $content.IndexOf("function ", $funcStart + 1)
+        if ($nextFunc -eq -1) { $nextFunc = $content.Length }
+        $funcContent = $content.Substring($funcStart, $nextFunc - $funcStart)
+        # Should reference the EnumWindows-based fallback
+        $funcContent | Should -Match 'EnumWindows|Get-WindowsByProcessTree'
+    }
+}
+
+# ============================================================
+# Phase 2: EnumWindows P/Invoke fallback
+# ============================================================
+Describe "EnumWindows P/Invoke" {
+    It "imports EnumWindows in Win32Focus type" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $content | Should -Match 'EnumWindows'
+    }
+
+    It "imports IsWindowVisible in Win32Focus type" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $content | Should -Match 'IsWindowVisible'
+    }
+
+    It "defines EnumWindowsProc delegate type" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        # The delegate is needed for the EnumWindows callback
+        $content | Should -Match 'EnumWindowsProc|delegate.*bool'
+    }
+}
+
+# ============================================================
+# Phase 2: Get-WindowsByProcessTree function
+# ============================================================
+Describe "Get-WindowsByProcessTree function" {
+    It "is defined in win-notify.ps1" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $content | Should -Match 'function\s+Get-WindowsByProcessTree'
+    }
+
+    It "accepts a pid parameter" {
+        $errors = $null
+        $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:WinNotifyPath, [ref]$tokens, [ref]$errors
+        )
+        $funcAst = $ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq "Get-WindowsByProcessTree"
+        }, $true)
+        $funcAst | Should -Not -BeNullOrEmpty
+
+        $paramNames = @($funcAst[0].Body.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $paramNames | Should -Contain "pid"
+    }
+
+    It "collects PIDs from process tree (parent chain)" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Get-WindowsByProcessTree")
+        $nextFunc = $content.IndexOf("function ", $funcStart + 1)
+        if ($nextFunc -eq -1) { $nextFunc = $content.Length }
+        $funcContent = $content.Substring($funcStart, $nextFunc - $funcStart)
+        # Should collect PIDs by walking the tree
+        $funcContent | Should -Match 'Parent'
+    }
+
+    It "uses GetWindowThreadProcessId to match windows to PIDs" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Get-WindowsByProcessTree")
+        $nextFunc = $content.IndexOf("function ", $funcStart + 1)
+        if ($nextFunc -eq -1) { $nextFunc = $content.Length }
+        $funcContent = $content.Substring($funcStart, $nextFunc - $funcStart)
+        $funcContent | Should -Match 'GetWindowThreadProcessId'
+    }
+}
+
+# ============================================================
+# Phase 2: Activation handler PID-first fallback chain
+# ============================================================
+Describe "Activation handler tries PID-based targeting first" {
+    It "calls Find-WindowByPid before Find-FocusableWindow in activation handler" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        # In the activation block (after ToastActivated check), Find-WindowByPid
+        # should appear before Find-FocusableWindow
+        $activatedIdx = $content.IndexOf('$activated')
+        $pidFindIdx = $content.IndexOf("Find-WindowByPid", $activatedIdx)
+        $nameFindIdx = $content.IndexOf("Find-FocusableWindow", $activatedIdx)
+        $pidFindIdx | Should -BeGreaterThan $activatedIdx
+        $nameFindIdx | Should -BeGreaterThan $pidFindIdx
+    }
+
+    It "passes parentPid to Find-WindowByPid" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $content | Should -Match 'Find-WindowByPid\s+(-pid\s+)?\$parentPid'
+    }
+
+    It "falls back to Find-FocusableWindow when Find-WindowByPid returns null" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        # After Find-WindowByPid, there should be a fallback to Find-FocusableWindow
+        $activatedIdx = $content.IndexOf('$activated')
+        $afterActivated = $content.Substring($activatedIdx)
+        # The pattern: try PID-based, if null fall back to name-based
+        $afterActivated | Should -Match 'Find-WindowByPid'
+        $afterActivated | Should -Match 'Find-FocusableWindow'
+    }
+}
+
+# ============================================================
+# Phase 2: Stale PID graceful fallback
+# ============================================================
+Describe "Stale PID graceful fallback" {
+    It "Find-WindowByPid handles non-existent PID without throwing" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        $nextFunc = $content.IndexOf("function ", $funcStart + 1)
+        if ($nextFunc -eq -1) { $nextFunc = $content.Length }
+        $funcContent = $content.Substring($funcStart, $nextFunc - $funcStart)
+        # Must use ErrorAction SilentlyContinue or try/catch
+        $funcContent | Should -Match 'SilentlyContinue|catch'
+    }
+
+    It "returns null (not throws) when process has exited" {
+        $content = Get-Content $script:WinNotifyPath -Raw
+        $funcStart = $content.IndexOf("function Find-WindowByPid")
+        $nextFunc = $content.IndexOf("function ", $funcStart + 1)
+        if ($nextFunc -eq -1) { $nextFunc = $content.Length }
+        $funcContent = $content.Substring($funcStart, $nextFunc - $funcStart)
+        # Should return $null on failure
+        $funcContent | Should -Match 'return\s+\$null'
+    }
+}
+
+# ============================================================
+# Phase 2: Script parses without errors (syntax validation)
+# ============================================================
+Describe "win-notify.ps1 syntax validation (Phase 2)" {
+    It "parses without syntax errors after Phase 2 additions" {
+        $errors = $null
+        $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:WinNotifyPath, [ref]$tokens, [ref]$errors
+        )
+        $errors | Should -BeNullOrEmpty
     }
 }
