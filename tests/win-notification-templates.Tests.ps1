@@ -171,9 +171,11 @@ Describe "Template Resolution: All five template keys" {
         $result | Should -Be "PERM:proj"
     }
 
-    It "maps task.error -> error template key" {
-        $content = Get-Content $script:InstallPs1 -Raw
-        $content | Should -Match "'task\.error'\s*=\s*'error'"
+    It "maps PostToolUseFailure (task.error) -> error template key" {
+        $result = Invoke-TemplateResolution -ConfigInput @{
+            notification_templates = @{ error = "ERR:{project}" }
+        } -HookEventName "PostToolUseFailure" -CategoryName "task.error" -ProjectName "proj" -NotifyMsgVal "proj"
+        $result | Should -Be "ERR:proj"
     }
 
     It "maps idle_prompt Notification -> idle template key" {
@@ -236,5 +238,48 @@ Describe "Template Resolution: Variable substitution completeness" {
             }
         } -HookEventName "Stop" -CategoryName "task.complete" -ProjectName "proj" -NotifyMsgVal "proj"
         $result | Should -Be "Stop"
+    }
+}
+
+# ============================================================
+# Guard Parity Tests (Unix/Windows alignment)
+# ============================================================
+# Verify that idle_prompt/elicitation_dialog overrides only fire
+# when $hookEvent -eq 'Notification', matching peon.sh lines 3706-3708.
+
+Describe "Guard Parity: idle_prompt override requires Notification hookEvent" {
+    It "applies idle template when hookEvent is Notification" {
+        $result = Invoke-TemplateResolution -ConfigInput @{
+            notification_templates = @{ idle = "IDLE:{project}" }
+        } -HookEventName "Notification" -CategoryName $null -NotificationType "idle_prompt" -ProjectName "proj" -NotifyMsgVal "proj"
+        $result | Should -Be "IDLE:proj"
+    }
+
+    It "does NOT apply idle template when hookEvent is not Notification" {
+        # Simulate a non-Notification event that somehow has ntype=idle_prompt
+        # (e.g., if event data were malformed). The guard must prevent override.
+        $result = Invoke-TemplateResolution -ConfigInput @{
+            notification_templates = @{ idle = "IDLE:{project}"; stop = "STOP:{project}" }
+        } -HookEventName "Stop" -CategoryName "task.complete" -NotificationType "idle_prompt" -ProjectName "proj" -NotifyMsgVal "proj"
+        # Should resolve via the category map (task.complete -> stop), not idle
+        $result | Should -Be "STOP:proj"
+    }
+}
+
+Describe "Guard Parity: elicitation_dialog override requires Notification hookEvent" {
+    It "applies question template when hookEvent is Notification" {
+        $result = Invoke-TemplateResolution -ConfigInput @{
+            notification_templates = @{ question = "Q:{project}" }
+        } -HookEventName "Notification" -CategoryName "input.required" -NotificationType "elicitation_dialog" -ProjectName "proj" -NotifyMsgVal "proj"
+        $result | Should -Be "Q:proj"
+    }
+
+    It "does NOT apply question template when hookEvent is not Notification" {
+        # Same guard check: non-Notification event with ntype=elicitation_dialog
+        $result = Invoke-TemplateResolution -ConfigInput @{
+            notification_templates = @{ question = "Q:{project}"; stop = "STOP:{project}" }
+        } -HookEventName "Stop" -CategoryName "task.complete" -NotificationType "elicitation_dialog" -ProjectName "proj" -NotifyMsgVal "proj"
+        # Should resolve via category map (task.complete -> stop), not question
+        $result | Should -Be "STOP:proj"
     }
 }
