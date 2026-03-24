@@ -1341,6 +1341,40 @@ if (Test-Path $winPlayScript) {
 
 } # end if (-not $skipSound)
 
+# --- Notification message template resolution ---
+# Mirrors peon.sh Python block (lines 3698-3723): maps event to template key,
+# substitutes {variables} via regex, unknown vars become empty strings.
+if ($notify) {
+    $tplKeyMap = @{ 'task.complete' = 'stop'; 'task.error' = 'error' }
+    $tplKey = if ($category -and $tplKeyMap.ContainsKey($category)) { $tplKeyMap[$category] } else { $null }
+    # Event-specific overrides (matches Unix behavior)
+    if ($hookEvent -eq 'PermissionRequest') { $tplKey = 'permission' }
+    if ($ntype -eq 'idle_prompt') { $tplKey = 'idle' }
+    if ($ntype -eq 'elicitation_dialog') { $tplKey = 'question' }
+
+    $templates = $config.notification_templates
+    if ($tplKey -and $templates -and $templates.$tplKey) {
+        $tpl = $templates.$tplKey
+        $summaryRaw = ''
+        try { $summaryRaw = ($event.transcript_summary -as [string]) } catch {}
+        if (-not $summaryRaw) { $summaryRaw = '' }
+        $summaryRaw = $summaryRaw -replace '^\s+|\s+$', ''
+        if ($summaryRaw.Length -gt 120) { $summaryRaw = $summaryRaw.Substring(0, 120) }
+        $tplVars = @{
+            project   = $project
+            summary   = $summaryRaw
+            tool_name = if ($event.tool_name) { ($event.tool_name -as [string]) } else { '' }
+            status    = $notifyStatus
+            event     = $hookEvent
+        }
+        $notifyMsg = [regex]::Replace($tpl, '\{(\w+)\}', {
+            param($m)
+            $key = $m.Groups[1].Value
+            if ($tplVars.ContainsKey($key)) { $tplVars[$key] } else { '' }
+        })
+    }
+}
+
 # --- Desktop notification dispatch ---
 $desktopNotif = $config.desktop_notifications
 if ($null -eq $desktopNotif) { $desktopNotif = $true }
