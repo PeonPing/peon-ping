@@ -140,7 +140,7 @@ versions:
               categories (stop, permission, error, idle, question). Variables
               include {project}, {summary}, {tool_name}, {status}, {event}.
               Defaults to current behavior when no templates configured.
-            status: todo
+            status: in_progress
             priority: high
             docs_ref: docs/plans/2026-02-24-notification-templates-design.md
             projects:
@@ -151,7 +151,7 @@ versions:
                   per-event msg construction, apply str.format_map() with
                   defaultdict(str) for safe missing-key handling.
                 sequence: 1
-                status: todo
+                status: done
               template-cli:
                 id: template-cli
                 title: CLI subcommand — peon notifications template
@@ -160,7 +160,7 @@ versions:
                 sequence: 2
                 depends_on:
                   - template-engine
-                status: todo
+                status: done
               template-tests:
                 id: template-tests
                 title: BATS tests for notification templates
@@ -171,7 +171,17 @@ versions:
                 sequence: 2
                 depends_on:
                   - template-engine
+                status: done
+              win-template-engine:
+                id: win-template-engine
+                title: Windows template resolution — port to peon.ps1
+                description: Port notification template resolution from peon.sh
+                  Python block to PowerShell in peon.ps1. Regex-based variable
+                  substitution, same 5 template keys and 5 variables. Pester
+                  test coverage.
                 status: todo
+                sequence: 4
+                docs_ref: docs/designs/win-notification-templates.md
           ide-click-to-focus:
             id: ide-click-to-focus
             title: IDE Click-to-Focus — macOS notification activation

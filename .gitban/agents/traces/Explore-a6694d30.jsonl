@@ -1,0 +1,57 @@
+{"ts":"2026-03-24T20:28:16Z","tool":"Bash","input":{"command":"find . -type f -name \"*.sh\" -o -name \"*.ps1\" -o -name \"*.json\" | grep -E \"(peon|config|install)\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:23Z","tool":"Grep","input":{"pattern":"template|notification|notify|desktop|format.*string","output_mode":"files_with_matches","type":"sh"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:24Z","tool":"Grep","input":{"pattern":"template|notification|notify|desktop|format.*string","output_mode":"files_with_matches","type":"ps1"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:26Z","tool":"Bash","input":{"command":"git log --oneline --all | grep -i \"template\\|notification\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:26Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\config.json"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:32Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\peon.sh","limit":"200"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:32Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\scripts\\notify.sh"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:37Z","tool":"Grep","input":{"pattern":"notification_title_script|notification_title_override|project_name","output_mode":"content","context":"5","type":"sh"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:37Z","tool":"Grep","input":{"pattern":"notification_template|notify_message|msg_format|PEON_MSG|message.*format","output_mode":"content","context":"3","type":"sh"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:37Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\peon.sh","offset":"200","limit":"300"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:42Z","tool":"Grep","input":{"pattern":"notification_templates|_tpl_key_map|MSG_TITLE|msg_title","output_mode":"content","context":"10","type":"sh","head_limit":"100"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:42Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\peon.sh","offset":"3690","limit":"150"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:45Z","tool":"Glob","input":{"pattern":"**/*.ps1"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:45Z","tool":"Bash","input":{"command":"grep -n \"notification_template\\|_tpl_key_map\\|format.*map\" \"C:\\Users\\Cameron\\Projects\\peon-ping\\peon.ps1\" 2>/dev/null | head -50"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:52Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\peon.ps1","limit":"200"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:52Z","tool":"Bash","input":{"command":"wc -l \"C:\\Users\\Cameron\\Projects\\peon-ping\\peon.ps1\""},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:28:57Z","tool":"Bash","input":{"command":"ls -la /c/Users/Cameron/Projects/peon-ping/*.ps1 2>/dev/null | head -10"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:00Z","tool":"Bash","input":{"command":"find /c/Users/Cameron/Projects/peon-ping -name \"peon*.ps1\" -o -name \"*peon.ps1\" 2>/dev/null"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:05Z","tool":"Bash","input":{"command":"git log --oneline --all --name-status | grep -i \"peon.ps1\\|windows.*hook\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:05Z","tool":"Bash","input":{"command":"git branch -a | grep -i windows"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:05Z","tool":"Bash","input":{"command":"git log --oneline --all | head -30"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:11Z","tool":"Bash","input":{"command":"git show 5f4a277:peon.ps1 | head -100"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:12Z","tool":"Bash","input":{"command":"git show e25de79:peon.ps1 | grep -i \"notification_template\\|format.*map\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:17Z","tool":"Bash","input":{"command":"git log --oneline --all --pretty=format:\"%h %s\" | grep -i \"windows hook\\|peon.ps1\" | head -10"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:23Z","tool":"Bash","input":{"command":"git show remotes/fork/sprint/WINTRAIN:peon.ps1 2>/dev/null | grep -i \"notification_template\\|_tpl_key_map\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:23Z","tool":"Bash","input":{"command":"git log --all --oneline --grep=\"peon.ps1\" | head -10"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:28Z","tool":"Bash","input":{"command":"git show 8d565bf --stat | grep peon"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:28Z","tool":"Bash","input":{"command":"git show 8d565bf:peon.ps1 2>/dev/null | grep -i \"notification_template\\|_tpl_key_map\" -A 3 -B 3 | head -40"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:36Z","tool":"Read","input":{"file_path":"/c/Users/Cameron/Projects/peon-ping/install.ps1","limit":"200"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:36Z","tool":"Bash","input":{"command":"grep -n \"notification_template\\|_tpl_key_map\\|format.*map\" /c/Users/Cameron/Projects/peon-ping/install.ps1 | head -30"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:46Z","tool":"Bash","input":{"command":"grep -n \"notification_template\\|_tpl\\|format.*map\" /c/Users/Cameron/Projects/peon-ping/install.ps1 | head -50"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:46Z","tool":"Bash","input":{"command":"grep -n \"@\\\"\"  /c/Users/Cameron/Projects/peon-ping/install.ps1 | head -5"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:57Z","tool":"Read","input":{"file_path":"/c/Users/Cameron/Projects/peon-ping/install.ps1","offset":"1802","limit":"500"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:29:57Z","tool":"Bash","input":{"command":"sed -n '1802,2300p' /c/Users/Cameron/Projects/peon-ping/install.ps1 | grep -i \"notification_template\\|_tpl\\|format\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:01Z","tool":"Bash","input":{"command":"wc -l /c/Users/Cameron/Projects/peon-ping/install.ps1"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:01Z","tool":"Bash","input":{"command":"grep -n \"peon-ping hook\\|notification_template\\|_tpl\" /c/Users/Cameron/Projects/peon-ping/install.ps1 | head -50"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:05Z","tool":"Read","input":{"file_path":"/c/Users/Cameron/Projects/peon-ping/install.ps1","offset":"320","limit":"800"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:05Z","tool":"Bash","input":{"command":"sed -n '1000,1500p' /c/Users/Cameron/Projects/peon-ping/install.ps1 | grep -i \"notification_template\\|_tpl\\|format.*map\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:10Z","tool":"Bash","input":{"command":"grep -n \"notification_template\\|_tplKey\" /c/Users/Cameron/Projects/peon-ping/install.ps1"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:10Z","tool":"Bash","input":{"command":"sed -n '324,1800p' /c/Users/Cameron/Projects/peon-ping/install.ps1 | grep -c \"^\""},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:14Z","tool":"Bash","input":{"command":"sed -n '324,1800p' /c/Users/Cameron/Projects/peon-ping/install.ps1 | grep -n \"notification\\|template\\|format\" | head -30"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:14Z","tool":"Bash","input":{"command":"git diff main -- peon.sh | grep -i \"notification_template\" | head -10"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:19Z","tool":"Bash","input":{"command":"git diff main -- peon.sh | grep -C 5 \"notification_template\" | head -80"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:19Z","tool":"Bash","input":{"command":"git show main:peon.sh | grep -i \"notification_template\" | head -10"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:24Z","tool":"Read","input":{"file_path":"/c/Users/Cameron/Projects/peon-ping/peon.sh","offset":"3696","limit":"100"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:24Z","tool":"Bash","input":{"command":"sed -n '3698,3760p' /c/Users/Cameron/Projects/peon-ping/peon.sh"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:29Z","tool":"Bash","input":{"command":"sed -n '3400,3700p' /c/Users/Cameron/Projects/peon-ping/peon.sh | grep -n \"msg\\s*=\\|msg_subtitle\\|MSG\" | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:29Z","tool":"Bash","input":{"command":"sed -n '3550,3650p' /c/Users/Cameron/Projects/peon-ping/peon.sh | head -100"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:33Z","tool":"Bash","input":{"command":"sed -n '3400,3550p' /c/Users/Cameron/Projects/peon-ping/peon.sh"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:38Z","tool":"Bash","input":{"command":"sed -n '3300,3400p' /c/Users/Cameron/Projects/peon-ping/peon.sh"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:44Z","tool":"Bash","input":{"command":"grep -i \"peon notifications\" /c/Users/Cameron/Projects/peon-ping/README.md | head -10"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:44Z","tool":"Bash","input":{"command":"grep -n \"notification_template\\|template\\|MSG\\|message\" /c/Users/Cameron/Projects/peon-ping/README.md | head -40"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:49Z","tool":"Bash","input":{"command":"ls -la /c/Users/Cameron/Projects/peon-ping/.gitban/cards/ 2>/dev/null | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:49Z","tool":"Bash","input":{"command":"find /c/Users/Cameron/Projects/peon-ping/.gitban/cards -name \"*template*\" -o -name \"*notification*\" 2>/dev/null | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:30:56Z","tool":"Bash","input":{"command":"grep -n \"notification_template\\|template.*test\\|test.*template\" /c/Users/Cameron/Projects/peon-ping/tests/*.bats | head -20"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:31:03Z","tool":"Bash","input":{"command":"grep -l \"template\\|notification_template\" /c/Users/Cameron/Projects/peon-ping/tests/*.bats"},"agent_id":"a6694d30","agent_type":"Explore"}
+{"ts":"2026-03-24T20:31:13Z","tool":"Bash","input":{"command":"sed -n '705,770p' /c/Users/Cameron/Projects/peon-ping/tests/mac-overlay.bats"},"agent_id":"a6694d30","agent_type":"Explore"}
