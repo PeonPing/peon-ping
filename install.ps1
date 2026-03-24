@@ -1347,10 +1347,12 @@ if (Test-Path $winPlayScript) {
 if ($notify) {
     $tplKeyMap = @{ 'task.complete' = 'stop'; 'task.error' = 'error' }
     $tplKey = if ($category -and $tplKeyMap.ContainsKey($category)) { $tplKeyMap[$category] } else { $null }
-    # Event-specific overrides (matches Unix behavior)
+    # Event-specific overrides (matches Unix behavior: peon.sh lines 3706-3710)
     if ($hookEvent -eq 'PermissionRequest') { $tplKey = 'permission' }
-    if ($ntype -eq 'idle_prompt') { $tplKey = 'idle' }
-    if ($ntype -eq 'elicitation_dialog') { $tplKey = 'question' }
+    if ($hookEvent -eq 'Notification') {
+        if ($ntype -eq 'idle_prompt') { $tplKey = 'idle' }
+        if ($ntype -eq 'elicitation_dialog') { $tplKey = 'question' }
+    }
 
     $templates = $config.notification_templates
     if ($tplKey -and $templates -and $templates.$tplKey) {
