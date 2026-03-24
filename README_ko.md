@@ -764,4 +764,5 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 
 ## 프로젝트 후원
 
+- Venmo: [@garysheng](https://venmo.com/garysheng)
 - 커뮤니티 토큰 (DYOR / 재미 목적): 누군가 Base에 $PEON 토큰을 만들었습니다 — 거래 수수료가 개발 지원에 사용됩니다. [`0xf4ba744229afb64e2571eef89aacec2f524e8ba3`](https://dexscreener.com/base/0xf4bA744229aFB64E2571eef89AaceC2F524e8bA3)

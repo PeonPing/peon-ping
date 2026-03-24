@@ -1,9 +1,0 @@
-{"timestamp":"2026-03-14T01:02:37Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"0vvvnb","cycle":1}
-{"timestamp":"2026-03-14T01:02:38Z","operation":"event","label":"read-diff","metadata":{"commit":"b818463"}}
-{"timestamp":"2026-03-14T01:02:52Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"0vvvnb","cycle":1}
-{"timestamp":"2026-03-14T01:02:52Z","operation":"event","label":"read-card","metadata":{"card_id":"0vvvnb"}}
-{"timestamp":"2026-03-14T01:04:06Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"0vvvnb","cycle":1}
-{"timestamp":"2026-03-14T01:04:07Z","operation":"event","label":"write-review","metadata":{"verdict":"APPROVAL"}}
-{"timestamp":"2026-03-14T01:04:16Z","operation":"init","role":"reviewer","sprint":"SMARTPACK","card_id":"0vvvnb","cycle":1}
-{"timestamp":"2026-03-14T01:04:17Z","operation":"event","label":"card-status-change","metadata":{"new_status":"in_progress"}}
-{"timestamp":"2026-03-14T01:04:17Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

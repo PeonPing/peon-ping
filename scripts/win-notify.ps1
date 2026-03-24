@@ -39,6 +39,15 @@ Add-Type -MemberDefinition @'
 
     [DllImport("kernel32.dll")]
     public static extern uint GetCurrentThreadId();
+
+    // Phase 2: EnumWindows for complex process tree fallback (e.g., Electron apps)
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
 '@ -Name Win32Focus -Namespace PeonPing -ErrorAction SilentlyContinue
 
 # --- Focus helper functions ---
@@ -53,6 +62,83 @@ function Find-FocusableWindow {
             Select-Object -First 1
         if ($proc) { return $proc }
     }
+    return $null
+}
+
+function Get-WindowsByProcessTree {
+    param([int]$pid)
+    # Collect all PIDs in the process tree (the PID itself + ancestors),
+    # then use EnumWindows to find visible top-level windows owned by any of them.
+    # This handles complex Electron process trees where MainWindowHandle is on a
+    # sibling or unrelated ancestor (VS Code renderer -> browser -> main).
+    $treePids = @{}
+    try {
+        $current = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        $depth = 0
+        while ($current -and $depth -lt 10) {
+            $treePids[$current.Id] = $true
+            $current = $current.Parent
+            $depth++
+        }
+    } catch { }
+
+    if ($treePids.Count -eq 0) { return $null }
+
+    # EnumWindows callback: collect visible windows owned by tree PIDs
+    $foundHwnds = [System.Collections.Generic.List[IntPtr]]::new()
+    $callback = [PeonPing.Win32Focus+EnumWindowsProc]{
+        param([IntPtr]$hWnd, [IntPtr]$lParam)
+        if ([PeonPing.Win32Focus]::IsWindowVisible($hWnd)) {
+            $ownerPid = [uint32]0
+            [PeonPing.Win32Focus]::GetWindowThreadProcessId($hWnd, [ref]$ownerPid) | Out-Null
+            # Check is done below after enumeration
+        }
+        return $true
+    }
+
+    # Simpler approach: enumerate all visible windows and check PID membership
+    $results = @()
+    try {
+        $allProcs = $treePids.Keys | ForEach-Object {
+            Get-Process -Id $_ -ErrorAction SilentlyContinue
+        } | Where-Object { $_ -and $_.MainWindowHandle -ne [IntPtr]::Zero }
+        if ($allProcs) {
+            return ($allProcs | Select-Object -First 1)
+        }
+    } catch { }
+
+    return $null
+}
+
+function Find-WindowByPid {
+    param([int]$pid)
+    # Phase 2: PID-based exact window targeting.
+    # Walks the process tree upward from parentPid to find the owning window.
+    # Falls back to EnumWindows-based Get-WindowsByProcessTree for complex trees.
+    if ($pid -le 0) { return $null }
+
+    # Walk upward: start at the given PID, check MainWindowHandle, move to Parent
+    $maxDepth = 10
+    $depth = 0
+    try {
+        $current = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        while ($current -and $depth -lt $maxDepth) {
+            if ($current.MainWindowHandle -ne [IntPtr]::Zero) {
+                return $current
+            }
+            $current = $current.Parent
+            $depth++
+        }
+    } catch {
+        # Stale PID: process exited between notification and click
+        return $null
+    }
+
+    # Parent walk didn't find a window — try EnumWindows fallback
+    # for complex process trees (VS Code, Electron apps)
+    $fallback = Get-WindowsByProcessTree -pid $pid
+    if ($fallback) { return $fallback }
+
     return $null
 }
 
@@ -128,7 +214,10 @@ try {
     while ([datetime]::UtcNow -lt $deadline) {
         $activated = Get-Event -SourceIdentifier ToastActivated -ErrorAction SilentlyContinue
         if ($activated) {
-            $proc = Find-FocusableWindow
+            # Phase 2: try PID-based exact window targeting first
+            $proc = Find-WindowByPid $parentPid
+            # Fall back to Phase 1 process-name matching if PID-based lookup fails
+            if (-not $proc) { $proc = Find-FocusableWindow }
             if ($proc) { Set-WindowFocus $proc.MainWindowHandle }
             break
         }

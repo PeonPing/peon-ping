@@ -330,7 +330,7 @@ This means you can:
 - **desktop_notifications**: `true`/`false` — toggle desktop notification popups independently from sounds (default: `true`). When disabled, sounds continue playing but visual popups are suppressed. Mobile notifications are unaffected.
 - **notification_style**: `"overlay"` or `"standard"` — controls how desktop notifications appear (default: `"overlay"`)
   - **overlay**: large, visible banners — JXA Cocoa overlay on macOS, Windows Forms popup on WSL/MSYS2. Clicking the overlay focuses your terminal (supports Ghostty, Warp, iTerm2, Zed, Terminal.app). On iTerm2, clicking focuses the correct tab/pane/window — not just the app.
-  - **standard**: system notifications — [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript` on macOS, Windows toast on WSL/MSYS2. When `terminal-notifier` is installed (`brew install terminal-notifier`), clicking a standard notification focuses your terminal automatically (supports Ghostty, Warp, iTerm2, Zed, Terminal.app). On native Windows, clicking a toast notification focuses the IDE or terminal window (supports VS Code, Cursor, Windsurf, Windows Terminal, PowerShell).
+  - **standard**: system notifications — [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript` on macOS, Windows toast on WSL/MSYS2. When `terminal-notifier` is installed (`brew install terminal-notifier`), clicking a standard notification focuses your terminal automatically (supports Ghostty, Warp, iTerm2, Zed, Terminal.app). On native Windows, clicking a toast notification focuses the IDE or terminal window (supports VS Code, Cursor, Windsurf, Windows Terminal, PowerShell). With multiple windows open, the notification targets the exact window that originated the event via PID-based process tree matching.
 - **overlay_theme**: `"jarvis"`, `"glass"`, `"sakura"`, or omit for the default overlay — macOS only (default: none)
   - **jarvis**: circular HUD with rotating arcs, graduation ticks, and progress ring
   - **glass**: glassmorphism panel with accent color bar, progress line, and timestamp
@@ -1133,4 +1133,5 @@ Sound packs are downloaded from the [OpenPeon registry](https://github.com/PeonP
 
 ## Support the project
 
+- Venmo: [@garysheng](https://venmo.com/garysheng)
 - Community Token (DYOR / have fun): Someone created a $PEON token on Base — we receive TX fees which help fund development. [`0xf4ba744229afb64e2571eef89aacec2f524e8ba3`](https://dexscreener.com/base/0xf4bA744229aFB64E2571eef89AaceC2F524e8bA3)

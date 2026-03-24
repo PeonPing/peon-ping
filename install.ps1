@@ -410,6 +410,85 @@ function Install-PackFromRegistry {
     return $true
 }
 
+# Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
+# Defined here (before CLI block) so both CLI commands and hook mode can use it.
+function ConvertTo-Hashtable {
+    param([Parameter(ValueFromPipeline)]$obj)
+    if ($null -eq $obj) { return $obj }
+    if ($obj -is [hashtable]) { return $obj }
+    # Check value types before PSCustomObject — PS 5.1 pipeline wraps primitives
+    # in PSObject, making them match [PSCustomObject] when received via ValueFromPipeline.
+    if ($obj -is [System.ValueType] -or $obj -is [string]) { return $obj }
+    if ($obj -is [System.Collections.IEnumerable]) {
+        return ,@($obj | ForEach-Object { ConvertTo-Hashtable $_ })
+    }
+    if ($obj -is [PSCustomObject]) {
+        $ht = @{}
+        foreach ($prop in $obj.PSObject.Properties) {
+            $ht[$prop.Name] = ConvertTo-Hashtable $prop.Value
+        }
+        return $ht
+    }
+    return $obj
+}
+
+# --- Atomic state I/O helpers ---
+# Defined here (before CLI block) so both CLI commands and hook mode can use them.
+function Write-StateAtomic {
+    param([hashtable]$State, [string]$Path)
+    $dir = Split-Path $Path -Parent
+    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    $tmp = "$Path.$PID.tmp"
+    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+    try {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
+        $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
+        if ($PSVersionTable.PSVersion.Major -ge 7) {
+            # PS 7+ / .NET Core: Move-Item -Force performs atomic overwrite (no delete gap).
+            Move-Item -Path $tmp -Destination $Path -Force
+        } else {
+            # PS 5.1: delete target then move (atomic on NTFS same-volume, sub-ms gap).
+            if (Test-Path $Path) { [System.IO.File]::Delete($Path) }
+            [System.IO.File]::Move($tmp, $Path)
+        }
+    } catch {
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+    } finally {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
+    }
+}
+
+function Read-StateWithRetry {
+    param([string]$Path)
+    # Clean up orphaned .tmp files left by safety timer [Environment]::Exit(1),
+    # which skips finally blocks and may leave partial writes behind.
+    $dir = Split-Path $Path -Parent
+    if ($dir -and (Test-Path $dir)) {
+        $base = Split-Path $Path -Leaf
+        Get-ChildItem -Path $dir -Filter "$base.*.tmp" -ErrorAction SilentlyContinue |
+            ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
+    }
+    $delays = @(50, 100, 200)
+    for ($i = 0; $i -le $delays.Count; $i++) {
+        try {
+            if (Test-Path $Path) {
+                $raw = Get-Content $Path -Raw
+                if ($raw -and $raw.Trim().Length -gt 0) {
+                    $stateObj = $raw | ConvertFrom-Json
+                    $converted = ConvertTo-Hashtable $stateObj
+                    if ($converted -is [hashtable]) { return $converted }
+                }
+            }
+            return @{}
+        } catch {
+            if ($i -lt $delays.Count) {
+                Start-Sleep -Milliseconds $delays[$i]
+            }
+        }
+    }
+    return @{}
+}
+
 # --- CLI commands ---
 if ($Command) {
     $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -897,7 +976,257 @@ if ($Command) {
             Write-Host "  --packs unbind        Remove a pack binding"
             Write-Host "  --packs bindings      List all pack bindings"
             Write-Host "  --pack [name]         Switch pack (or cycle)"
+            Write-Host ""
+            Write-Host "Trainer:" -ForegroundColor Cyan
+            Write-Host "  trainer on            Enable trainer mode"
+            Write-Host "  trainer off           Disable trainer mode"
+            Write-Host "  trainer status        Show today's progress"
+            Write-Host "  trainer log <n> <ex>  Log completed reps"
+            Write-Host "  trainer goal <n>      Set daily goal for all exercises"
+            Write-Host "  trainer goal <ex> <n> Set daily goal for one exercise"
+            Write-Host "  trainer help          Show trainer help"
             return
+        }
+        "^(--trainer|trainer)$" {
+            $StatePath = Join-Path $InstallDir ".state.json"
+            $trainerSub = if ($Arg1) { $Arg1 } else { "help" }
+            switch ($trainerSub) {
+                "on" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    if (-not $cfgObj.trainer) {
+                        $cfgObj | Add-Member -NotePropertyName 'trainer' -NotePropertyValue ([PSCustomObject]@{
+                            enabled = $true
+                            exercises = [PSCustomObject]@{ pushups = 300; squats = 300 }
+                            reminder_interval_minutes = 20
+                            reminder_min_gap_minutes = 5
+                        })
+                    } else {
+                        $cfgObj.trainer.enabled = $true
+                        if (-not $cfgObj.trainer.exercises) {
+                            $cfgObj.trainer | Add-Member -NotePropertyName 'exercises' -NotePropertyValue ([PSCustomObject]@{ pushups = 300; squats = 300 })
+                        }
+                        if (-not $cfgObj.trainer.reminder_interval_minutes) {
+                            $cfgObj.trainer | Add-Member -NotePropertyName 'reminder_interval_minutes' -NotePropertyValue 20
+                        }
+                        if (-not $cfgObj.trainer.reminder_min_gap_minutes) {
+                            $cfgObj.trainer | Add-Member -NotePropertyName 'reminder_min_gap_minutes' -NotePropertyValue 5
+                        }
+                    }
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Write-Host "peon-ping: trainer enabled" -ForegroundColor Green
+                    return
+                }
+                "off" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    if ($cfgObj.trainer) {
+                        $cfgObj.trainer.enabled = $false
+                    } else {
+                        $cfgObj | Add-Member -NotePropertyName 'trainer' -NotePropertyValue ([PSCustomObject]@{
+                            enabled = $false
+                        })
+                    }
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Write-Host "peon-ping: trainer disabled" -ForegroundColor Yellow
+                    return
+                }
+                "status" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $trainerCfg = $cfgObj.trainer
+                    if (-not $trainerCfg -or -not $trainerCfg.enabled) {
+                        Write-Host "peon-ping: trainer not enabled"
+                        Write-Host 'Run "peon trainer on" to enable.'
+                        return
+                    }
+                    $exercises = @{}
+                    if ($trainerCfg.exercises) {
+                        foreach ($prop in $trainerCfg.exercises.PSObject.Properties) {
+                            $exercises[$prop.Name] = [int]$prop.Value
+                        }
+                    } else {
+                        $exercises = @{ pushups = 300; squats = 300 }
+                    }
+
+                    $state = Read-StateWithRetry $StatePath
+                    $trainerState = $state['trainer']
+                    $today = (Get-Date).ToString("yyyy-MM-dd")
+
+                    # Auto-reset if date changed
+                    if (-not $trainerState -or $trainerState['date'] -ne $today) {
+                        $resetReps = @{}
+                        foreach ($ex in $exercises.Keys) { $resetReps[$ex] = 0 }
+                        $trainerState = @{ date = $today; reps = $resetReps; last_reminder_ts = 0 }
+                        $state['trainer'] = $trainerState
+                        Write-StateAtomic -State $state -Path $StatePath
+                    }
+
+                    $reps = $trainerState['reps']
+                    if (-not $reps) { $reps = @{} }
+
+                    Write-Host "peon-ping: trainer status ($today)"
+                    Write-Host ""
+
+                    $barWidth = 16
+                    $fullBlock = [char]0x2588
+                    $lightShade = [char]0x2591
+                    foreach ($ex in ($exercises.Keys | Sort-Object)) {
+                        $goal = $exercises[$ex]
+                        $done = if ($reps[$ex]) { [int]$reps[$ex] } else { 0 }
+                        $pct = if ($goal -gt 0) { [Math]::Min($done / $goal, 1.0) } else { 0 }
+                        $filled = [int]($pct * $barWidth)
+                        $empty = $barWidth - $filled
+                        $bar = ($fullBlock.ToString() * $filled) + ($lightShade.ToString() * $empty)
+                        $pctStr = [int]($pct * 100)
+                        Write-Host "${ex}:  ${bar}  ${done}/${goal}  (${pctStr}%)"
+                    }
+                    return
+                }
+                "log" {
+                    $count = $Arg2
+                    $exercise = if ($ExtraArgs.Count -gt 0) { $ExtraArgs[0] } else { "" }
+                    if (-not $count -or -not $exercise) {
+                        Write-Host "Usage: peon trainer log <count> <exercise>" -ForegroundColor Yellow
+                        Write-Host "Example: peon trainer log 25 pushups" -ForegroundColor Yellow
+                        return
+                    }
+                    # Validate numeric
+                    $countInt = 0
+                    if (-not [int]::TryParse($count, [ref]$countInt) -or $countInt -le 0) {
+                        Write-Host "peon-ping: count must be a positive number" -ForegroundColor Red
+                        return
+                    }
+
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $trainerCfg = $cfgObj.trainer
+                    $exercises = @{}
+                    if ($trainerCfg -and $trainerCfg.exercises) {
+                        foreach ($prop in $trainerCfg.exercises.PSObject.Properties) {
+                            $exercises[$prop.Name] = [int]$prop.Value
+                        }
+                    } else {
+                        $exercises = @{ pushups = 300; squats = 300 }
+                    }
+
+                    if (-not $exercises.ContainsKey($exercise)) {
+                        Write-Host "peon-ping: unknown exercise `"$exercise`"" -ForegroundColor Red
+                        if ($exercises.Count -gt 0) {
+                            Write-Host "Known exercises: $($exercises.Keys -join ', ')" -ForegroundColor Red
+                        }
+                        Write-Host "Add it first: peon trainer goal $exercise <daily-goal>" -ForegroundColor Red
+                        return
+                    }
+
+                    $goal = $exercises[$exercise]
+                    $state = Read-StateWithRetry $StatePath
+                    $trainerState = $state['trainer']
+                    $today = (Get-Date).ToString("yyyy-MM-dd")
+
+                    # Auto-reset if date changed
+                    if (-not $trainerState -or $trainerState['date'] -ne $today) {
+                        $resetReps = @{}
+                        foreach ($ex in $exercises.Keys) { $resetReps[$ex] = 0 }
+                        $trainerState = @{ date = $today; reps = $resetReps; last_reminder_ts = 0 }
+                    }
+
+                    $reps = $trainerState['reps']
+                    if (-not $reps) { $reps = @{} }
+                    $reps[$exercise] = ([int]($reps[$exercise])) + $countInt
+                    $trainerState['reps'] = $reps
+                    $trainerState['date'] = $today
+                    $state['trainer'] = $trainerState
+                    Write-StateAtomic -State $state -Path $StatePath
+
+                    $done = $reps[$exercise]
+                    $pct = if ($goal -gt 0) { [Math]::Min($done / $goal, 1.0) } else { 0 }
+                    $barWidth = 16
+                    $fullBlock = [char]0x2588
+                    $lightShade = [char]0x2591
+                    $filled = [int]($pct * $barWidth)
+                    $empty = $barWidth - $filled
+                    $bar = ($fullBlock.ToString() * $filled) + ($lightShade.ToString() * $empty)
+                    $pctStr = [int]($pct * 100)
+                    Write-Host "peon-ping: logged $countInt $exercise ($done/$goal)" -ForegroundColor Green
+                    Write-Host "  ${bar}  ${pctStr}%"
+                    return
+                }
+                "goal" {
+                    $goalArg1 = $Arg2
+                    $goalArg2 = if ($ExtraArgs.Count -gt 0) { $ExtraArgs[0] } else { "" }
+                    if (-not $goalArg1) {
+                        Write-Host "Usage: peon trainer goal <number>           Set all exercises" -ForegroundColor Yellow
+                        Write-Host "       peon trainer goal <exercise> <number> Set one exercise" -ForegroundColor Yellow
+                        return
+                    }
+
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    if (-not $cfgObj.trainer) {
+                        $cfgObj | Add-Member -NotePropertyName 'trainer' -NotePropertyValue ([PSCustomObject]@{
+                            enabled = $false
+                            exercises = [PSCustomObject]@{ pushups = 300; squats = 300 }
+                        })
+                    }
+                    $exercises = @{}
+                    if ($cfgObj.trainer.exercises) {
+                        foreach ($prop in $cfgObj.trainer.exercises.PSObject.Properties) {
+                            $exercises[$prop.Name] = [int]$prop.Value
+                        }
+                    } else {
+                        $exercises = @{ pushups = 300; squats = 300 }
+                    }
+
+                    if ($goalArg2) {
+                        # goal <exercise> <number>
+                        $exerciseName = $goalArg1
+                        $goalNum = 0
+                        if (-not [int]::TryParse($goalArg2, [ref]$goalNum) -or $goalNum -le 0) {
+                            Write-Host "peon-ping: goal must be a positive number" -ForegroundColor Red
+                            return
+                        }
+                        $isNew = -not $exercises.ContainsKey($exerciseName)
+                        $exercises[$exerciseName] = $goalNum
+                        if ($isNew) {
+                            Write-Host "peon-ping: new exercise added - $exerciseName goal set to $goalNum" -ForegroundColor Green
+                        } else {
+                            Write-Host "peon-ping: $exerciseName goal set to $goalNum" -ForegroundColor Green
+                        }
+                    } else {
+                        # goal <number>
+                        $goalNum = 0
+                        if (-not [int]::TryParse($goalArg1, [ref]$goalNum) -or $goalNum -le 0) {
+                            Write-Host "peon-ping: goal must be a positive number" -ForegroundColor Red
+                            return
+                        }
+                        foreach ($k in @($exercises.Keys)) {
+                            $exercises[$k] = $goalNum
+                        }
+                        Write-Host "peon-ping: all exercise goals set to $goalNum" -ForegroundColor Green
+                    }
+
+                    # Write exercises back to config
+                    $exercisesObj = [PSCustomObject]@{}
+                    foreach ($k in ($exercises.Keys | Sort-Object)) {
+                        $exercisesObj | Add-Member -NotePropertyName $k -NotePropertyValue $exercises[$k]
+                    }
+                    $cfgObj.trainer.exercises = $exercisesObj
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    return
+                }
+                default {
+                    # "help" or unknown subcommand
+                    Write-Host "Usage: peon trainer <command>" -ForegroundColor Cyan
+                    Write-Host ""
+                    Write-Host "Commands:"
+                    Write-Host "  on                   Enable trainer mode"
+                    Write-Host "  off                  Disable trainer mode"
+                    Write-Host "  status               Show today's progress"
+                    Write-Host "  log <count> <exercise>  Log completed reps (e.g. log 25 pushups)"
+                    Write-Host "  goal <number>        Set daily goal for all exercises"
+                    Write-Host "  goal <exercise> <n>  Set daily goal for one exercise"
+                    Write-Host "  help                 Show this help"
+                    Write-Host ""
+                    Write-Host "Exercises: pushups, squats"
+                    return
+                }
+            }
         }
     }
     return
@@ -965,83 +1294,6 @@ $cwd = if ($event.cwd) { $event.cwd } else { "" }
 $project = if ($cwd) { Split-Path $cwd -Leaf } else { "" }
 if (-not $project) { $project = "claude" }
 $project = $project -replace '[^a-zA-Z0-9 ._-]', ''
-
-# Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
-function ConvertTo-Hashtable {
-    param([Parameter(ValueFromPipeline)]$obj)
-    if ($null -eq $obj) { return $obj }
-    if ($obj -is [hashtable]) { return $obj }
-    # Check value types before PSCustomObject — PS 5.1 pipeline wraps primitives
-    # in PSObject, making them match [PSCustomObject] when received via ValueFromPipeline.
-    if ($obj -is [System.ValueType] -or $obj -is [string]) { return $obj }
-    if ($obj -is [System.Collections.IEnumerable]) {
-        return ,@($obj | ForEach-Object { ConvertTo-Hashtable $_ })
-    }
-    if ($obj -is [PSCustomObject]) {
-        $ht = @{}
-        foreach ($prop in $obj.PSObject.Properties) {
-            $ht[$prop.Name] = ConvertTo-Hashtable $prop.Value
-        }
-        return $ht
-    }
-    return $obj
-}
-
-# --- Atomic state I/O helpers ---
-function Write-StateAtomic {
-    param([hashtable]$State, [string]$Path)
-    $dir = Split-Path $Path -Parent
-    if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    $tmp = "$Path.$PID.tmp"
-    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
-    try {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-        $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
-        if ($PSVersionTable.PSVersion.Major -ge 7) {
-            # PS 7+ / .NET Core: Move-Item -Force performs atomic overwrite (no delete gap).
-            Move-Item -Path $tmp -Destination $Path -Force
-        } else {
-            # PS 5.1: delete target then move (atomic on NTFS same-volume, sub-ms gap).
-            if (Test-Path $Path) { [System.IO.File]::Delete($Path) }
-            [System.IO.File]::Move($tmp, $Path)
-        }
-    } catch {
-        Remove-Item $tmp -ErrorAction SilentlyContinue
-    } finally {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
-    }
-}
-
-function Read-StateWithRetry {
-    param([string]$Path)
-    # Clean up orphaned .tmp files left by safety timer [Environment]::Exit(1),
-    # which skips finally blocks and may leave partial writes behind.
-    $dir = Split-Path $Path -Parent
-    if ($dir -and (Test-Path $dir)) {
-        $base = Split-Path $Path -Leaf
-        Get-ChildItem -Path $dir -Filter "$base.*.tmp" -ErrorAction SilentlyContinue |
-            ForEach-Object { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-    }
-    $delays = @(50, 100, 200)
-    for ($i = 0; $i -le $delays.Count; $i++) {
-        try {
-            if (Test-Path $Path) {
-                $raw = Get-Content $Path -Raw
-                if ($raw -and $raw.Trim().Length -gt 0) {
-                    $stateObj = $raw | ConvertFrom-Json
-                    $converted = ConvertTo-Hashtable $stateObj
-                    if ($converted -is [hashtable]) { return $converted }
-                }
-            }
-            return @{}
-        } catch {
-            if ($i -lt $delays.Count) {
-                Start-Sleep -Milliseconds $delays[$i]
-            }
-        }
-    }
-    return @{}
-}
 
 # Read state
 $state = Read-StateWithRetry -Path $StatePath
@@ -1340,6 +1592,136 @@ if (Test-Path $winPlayScript) {
 }
 
 } # end if (-not $skipSound)
+
+# --- Trainer reminder check ---
+$trainerSoundPath = ""
+$trainerMsg = ""
+$trainerCfg = $config.trainer
+if ($trainerCfg -and $trainerCfg.enabled) {
+    $today = (Get-Date).ToString("yyyy-MM-dd")
+    $trainerState = if ($state.ContainsKey("trainer")) { $state["trainer"] } else { @{} }
+    if ($trainerState -isnot [hashtable]) { $trainerState = @{} }
+
+    # Default exercises if not configured
+    $exercises = @{ pushups = 300; squats = 300 }
+    if ($trainerCfg.exercises) {
+        $exercises = ConvertTo-Hashtable $trainerCfg.exercises
+        if ($exercises -isnot [hashtable]) { $exercises = @{ pushups = 300; squats = 300 } }
+    }
+
+    # Date reset: new day resets reps and last_reminder_ts
+    if ($trainerState["date"] -ne $today) {
+        $freshReps = @{}
+        foreach ($ex in $exercises.Keys) { $freshReps[$ex] = 0 }
+        $trainerState = @{ date = $today; reps = $freshReps; last_reminder_ts = 0 }
+    }
+
+    $reps = if ($trainerState.ContainsKey("reps")) { $trainerState["reps"] } else { @{} }
+    if ($reps -isnot [hashtable]) { $reps = @{} }
+
+    # Completion check: skip if all exercises meet or exceed goals
+    $allDone = $true
+    foreach ($ex in $exercises.Keys) {
+        $done = if ($reps.ContainsKey($ex)) { [int]$reps[$ex] } else { 0 }
+        $goal = [int]$exercises[$ex]
+        if ($done -lt $goal) { $allDone = $false; break }
+    }
+
+    if (-not $allDone) {
+        $nowTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $lastTs = if ($trainerState.ContainsKey("last_reminder_ts")) { [long]$trainerState["last_reminder_ts"] } else { 0 }
+        $intervalMin = if ($trainerCfg.reminder_interval_minutes) { [int]$trainerCfg.reminder_interval_minutes } else { 20 }
+        $minGapMin = if ($trainerCfg.reminder_min_gap_minutes) { [int]$trainerCfg.reminder_min_gap_minutes } else { 5 }
+        $elapsed = $nowTs - $lastTs
+        $isSessionStart = ($hookEvent -eq "SessionStart")
+
+        if ($isSessionStart -or ($elapsed -ge ($intervalMin * 60) -and $elapsed -ge ($minGapMin * 60))) {
+            # Pick trainer sound category
+            $trainerDir = Join-Path $InstallDir "trainer"
+            $trainerManifestPath = Join-Path $trainerDir "manifest.json"
+            if (Test-Path $trainerManifestPath) {
+                try {
+                    $tm = Get-Content $trainerManifestPath -Raw | ConvertFrom-Json
+                    if ($isSessionStart) {
+                        $tcat = "trainer.session_start"
+                    } else {
+                        $hour = (Get-Date).Hour
+                        $totalReps = 0; $totalGoal = 0
+                        foreach ($ex in $exercises.Keys) {
+                            $totalReps += if ($reps.ContainsKey($ex)) { [int]$reps[$ex] } else { 0 }
+                            $totalGoal += [int]$exercises[$ex]
+                        }
+                        $pct = if ($totalGoal -gt 0) { $totalReps / $totalGoal } else { 1.0 }
+                        if ($hour -ge 12 -and $pct -lt 0.25) {
+                            $tcat = "trainer.slacking"
+                        } else {
+                            $tcat = "trainer.remind"
+                        }
+                    }
+                    $tSounds = $tm.$tcat
+                    if ($tSounds -and $tSounds.Count -gt 0) {
+                        $tPick = $tSounds | Get-Random
+                        $tFile = Join-Path $trainerDir $tPick.file
+                        if (Test-Path $tFile) {
+                            $trainerSoundPath = $tFile
+                            # Build progress message
+                            $parts = @()
+                            foreach ($ex in $exercises.Keys) {
+                                $done = if ($reps.ContainsKey($ex)) { [int]$reps[$ex] } else { 0 }
+                                $goal = [int]$exercises[$ex]
+                                $parts += "${ex}: ${done}/${goal}"
+                            }
+                            $trainerMsg = $parts -join " | "
+                        }
+                    }
+                } catch {
+                    if ($peonDebug) { Write-Warning "peon-ping: trainer manifest read failed: $_" }
+                }
+            }
+            # Update last_reminder_ts regardless of sound pick success
+            $trainerState["last_reminder_ts"] = $nowTs
+        }
+    }
+
+    # Persist trainer state
+    $state["trainer"] = $trainerState
+    try {
+        Write-StateAtomic -State $state -Path $StatePath
+    } catch {
+        if ($peonDebug) { Write-Warning "peon-ping: state write failed (trainer): $_" }
+    }
+}
+
+# --- Trainer sound sequencing (500ms delay after main sound) ---
+if ($trainerSoundPath) {
+    $volume = $config.volume
+    if (-not $volume) { $volume = 0.5 }
+    $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
+    if (Test-Path $winPlayScript) {
+        $trainerArgs = @("-NoProfile", "-NonInteractive", "-Command",
+            "Start-Sleep -Milliseconds 500; & '$winPlayScript' -path '$trainerSoundPath' -vol $volume")
+        Start-Process -FilePath "powershell.exe" -ArgumentList $trainerArgs -WindowStyle Hidden
+    }
+}
+
+# --- Trainer desktop notification ---
+if ($trainerMsg) {
+    $desktopNotif = $config.desktop_notifications
+    if ($null -eq $desktopNotif) { $desktopNotif = $true }
+    if ($desktopNotif) {
+        $winNotifyScript = Join-Path $InstallDir "scripts\win-notify.ps1"
+        if (Test-Path $winNotifyScript) {
+            $trainerTitle = "Peon Trainer"
+            $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
+            $parentPid = 0
+            try { $parentPid = (Get-Process -Id $PID).Parent.Id } catch { $parentPid = 0 }
+            $trainerNotifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
+                           "-body", $trainerMsg, "-title", $trainerTitle, "-dismissSeconds", $dismissSecs,
+                           "-parentPid", $parentPid)
+            Start-Process -FilePath "powershell.exe" -ArgumentList $trainerNotifArgs -WindowStyle Hidden
+        }
+    }
+}
 
 # --- Desktop notification dispatch ---
 $desktopNotif = $config.desktop_notifications
