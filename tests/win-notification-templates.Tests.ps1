@@ -271,7 +271,12 @@ Describe "Notifications: template rendering - Stop with summary" {
             } | ConvertTo-Json -Depth 5
             $result = Invoke-PeonHook -TestDir $testDir -HookJson $hookJson
             # Check the notify log to see what body was passed
-            Start-Sleep -Milliseconds 500
+            # Poll for notify log (async Start-Process may take longer on CI)
+            $logPath = Join-Path $testDir ".notify-log.txt"
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while (-not (Test-Path $logPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 100
+            }
             $notifyLog = Get-NotifyLog -TestDir $testDir
             $notifyLog | Should -Match "myproject: Fixed the login bug"
         } finally {
@@ -293,7 +298,12 @@ Describe "Notifications: template rendering - Stop without summary" {
                 cwd = "C:\Users\test\myproject"
             } | ConvertTo-Json -Depth 5
             $result = Invoke-PeonHook -TestDir $testDir -HookJson $hookJson
-            Start-Sleep -Milliseconds 500
+            # Poll for notify log (async Start-Process may take longer on CI)
+            $logPath = Join-Path $testDir ".notify-log.txt"
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while (-not (Test-Path $logPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 100
+            }
             $notifyLog = Get-NotifyLog -TestDir $testDir
             $notifyLog | Should -Match "BODY=myproject: \r?\n"
         } finally {
@@ -316,7 +326,12 @@ Describe "Notifications: template rendering - PermissionRequest with tool_name" 
                 tool_name = "bash"
             } | ConvertTo-Json -Depth 5
             $result = Invoke-PeonHook -TestDir $testDir -HookJson $hookJson
-            Start-Sleep -Milliseconds 500
+            # Poll for notify log (async Start-Process may take longer on CI)
+            $logPath = Join-Path $testDir ".notify-log.txt"
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while (-not (Test-Path $logPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 100
+            }
             $notifyLog = Get-NotifyLog -TestDir $testDir
             $notifyLog | Should -Match "myproject needs bash"
         } finally {
@@ -337,7 +352,12 @@ Describe "Notifications: no template falls back to project name" {
                 cwd = "C:\Users\test\myproject"
             } | ConvertTo-Json -Depth 5
             $result = Invoke-PeonHook -TestDir $testDir -HookJson $hookJson
-            Start-Sleep -Milliseconds 500
+            # Poll for notify log (async Start-Process may take longer on CI)
+            $logPath = Join-Path $testDir ".notify-log.txt"
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while (-not (Test-Path $logPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 100
+            }
             $notifyLog = Get-NotifyLog -TestDir $testDir
             $notifyLog | Should -Match "BODY=myproject"
         } finally {
@@ -359,7 +379,12 @@ Describe "Notifications: unknown variable renders as empty string" {
                 cwd = "C:\Users\test\myproject"
             } | ConvertTo-Json -Depth 5
             $result = Invoke-PeonHook -TestDir $testDir -HookJson $hookJson
-            Start-Sleep -Milliseconds 500
+            # Poll for notify log (async Start-Process may take longer on CI)
+            $logPath = Join-Path $testDir ".notify-log.txt"
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while (-not (Test-Path $logPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 100
+            }
             $notifyLog = Get-NotifyLog -TestDir $testDir
             $notifyLog | Should -Match "myproject--end"
         } finally {
@@ -398,7 +423,12 @@ Describe "Notifications: template with all 5 variables" {
                 tool_name = "editor"
             } | ConvertTo-Json -Depth 5
             $result = Invoke-PeonHook -TestDir $testDir -HookJson $hookJson
-            Start-Sleep -Milliseconds 500
+            # Poll for notify log (async Start-Process may take longer on CI)
+            $logPath = Join-Path $testDir ".notify-log.txt"
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while (-not (Test-Path $logPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 100
+            }
             $notifyLog = Get-NotifyLog -TestDir $testDir
             $notifyLog | Should -Match "myproject\|Did stuff\|editor\|done\|Stop"
         } finally {
@@ -423,7 +453,12 @@ Describe "Notifications: multiple templates each render for their event" {
                 cwd = "C:\Users\test\myproject"
             } | ConvertTo-Json -Depth 5
             $result = Invoke-PeonHook -TestDir $testDir -HookJson $hookJson
-            Start-Sleep -Milliseconds 500
+            # Poll for notify log (async Start-Process may take longer on CI)
+            $logPath = Join-Path $testDir ".notify-log.txt"
+            $deadline = [DateTime]::UtcNow.AddSeconds(5)
+            while (-not (Test-Path $logPath) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 100
+            }
             $notifyLog = Get-NotifyLog -TestDir $testDir
             $notifyLog | Should -Match "STOP:myproject"
         } finally {

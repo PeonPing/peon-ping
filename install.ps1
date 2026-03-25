@@ -489,6 +489,63 @@ function Read-StateWithRetry {
     return @{}
 }
 
+function Resolve-NotificationTemplate {
+    param(
+        [object]$Templates,
+        [string]$Category,
+        [string]$Event,
+        [string]$Ntype,
+        [string]$Project,
+        [string]$Summary,
+        [string]$ToolName,
+        [string]$Status,
+        [string]$DefaultMsg
+    )
+
+    # Category-to-key mapping (matches peon.sh template resolution)
+    $keyMap = @{
+        "task.complete" = "stop"
+        "task.error"    = "error"
+    }
+    $tplKey = $keyMap[$Category]
+    if ($Event -eq "Notification") {
+        if ($Ntype -eq "idle_prompt") { $tplKey = "idle" }
+        elseif ($Ntype -eq "elicitation_dialog") { $tplKey = "question" }
+    } elseif ($Event -eq "PermissionRequest") {
+        $tplKey = "permission"
+    }
+
+    if (-not $tplKey -or -not $Templates.$tplKey) {
+        return $DefaultMsg
+    }
+
+    $template = $Templates.$tplKey
+    if (-not $template) { return $DefaultMsg }
+
+    # Truncate summary to 120 chars
+    $safeSummary = if ($Summary) {
+        if ($Summary.Length -gt 120) { $Summary.Substring(0, 120) } else { $Summary }
+    } else { '' }
+
+    $vars = @{
+        project   = $Project
+        summary   = $safeSummary
+        tool_name = $ToolName
+        status    = $Status
+        event     = $Event
+    }
+
+    # Replace known variables via .Replace() (PS 5.1 compatible)
+    $rendered = $template
+    foreach ($vk in $vars.Keys) {
+        $rendered = $rendered.Replace("{$vk}", $vars[$vk])
+    }
+    # Strip any remaining unknown {word} placeholders
+    $rendered = [regex]::Replace($rendered, '\{(\w+)\}', '')
+
+    return $rendered
+}
+
 # --- CLI commands ---
 if ($Command) {
     $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -1873,66 +1930,19 @@ if ($trainerMsg) {
 if ($notify) {
     $tplCfg = $config.notification_templates
     if ($tplCfg) {
-        # Build template key from category/event/ntype
-        $tplKeyMap = @{
-            "task.complete" = "stop"
-            "task.error"    = "error"
-        }
-        $tplKey = $tplKeyMap[$category]
-        if ($hookEvent -eq "Notification") {
-            if ($ntype -eq "idle_prompt") { $tplKey = "idle" }
-            elseif ($ntype -eq "elicitation_dialog") { $tplKey = "question" }
-        } elseif ($hookEvent -eq "PermissionRequest") {
-            $tplKey = "permission"
-        }
-
-        if ($tplKey) {
-            $tplStr = $tplCfg.$tplKey
-            if ($tplStr) {
-                # Extract event variables
-                $tplSummary = if ($event.transcript_summary) {
-                    $s = [string]$event.transcript_summary
-                    if ($s.Length -gt 120) { $s.Substring(0, 120) } else { $s }
-                } else { '' }
-                $tplToolName = if ($event.tool_name) { [string]$event.tool_name } else { '' }
-
-                $tplVars = @{
-                    project   = $project
-                    summary   = $tplSummary
-                    tool_name = $tplToolName
-                    status    = $notifyStatus
-                    event     = $hookEvent
-                }
-
-                # PS 5.1 compatible template variable replacement
-                $rendered = $tplStr
-                foreach ($vk in $tplVars.Keys) {
-                    $rendered = $rendered.Replace("{$vk}", $tplVars[$vk])
-                }
-                # Remove any remaining unknown {word} placeholders
-                $cleanIdx = $rendered.IndexOf("{")
-                while ($cleanIdx -ge 0) {
-                    $closeIdx = $rendered.IndexOf("}", $cleanIdx)
-                    if ($closeIdx -gt $cleanIdx + 1) {
-                        $inner = $rendered.Substring($cleanIdx + 1, $closeIdx - $cleanIdx - 1)
-                        $isWord = $true
-                        foreach ($ch in $inner.ToCharArray()) {
-                            if (-not (($ch -ge 'a' -and $ch -le 'z') -or ($ch -ge 'A' -and $ch -le 'Z') -or ($ch -ge '0' -and $ch -le '9') -or $ch -eq '_')) {
-                                $isWord = $false; break
-                            }
-                        }
-                        if ($isWord) {
-                            $rendered = $rendered.Substring(0, $cleanIdx) + $rendered.Substring($closeIdx + 1)
-                        } else {
-                            $cleanIdx = $rendered.IndexOf("{", $cleanIdx + 1)
-                        }
-                    } else {
-                        $cleanIdx = $rendered.IndexOf("{", $cleanIdx + 1)
-                    }
-                }
-                $notifyMsg = $rendered
-            }
-        }
+        $tplSummary = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+        $tplToolName = if ($event.tool_name) { [string]$event.tool_name } else { '' }
+        $resolved = Resolve-NotificationTemplate `
+            -Templates $tplCfg `
+            -Category $category `
+            -Event $hookEvent `
+            -Ntype $ntype `
+            -Project $project `
+            -Summary $tplSummary `
+            -ToolName $tplToolName `
+            -Status $notifyStatus `
+            -DefaultMsg $notifyMsg
+        $notifyMsg = $resolved
     }
 }
 
