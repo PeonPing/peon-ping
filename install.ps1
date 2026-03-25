@@ -1278,7 +1278,7 @@ $cursorMap = @{
     "stop" = "Stop"
     "preToolUse" = "UserPromptSubmit"
     "postToolUse" = "Stop"
-    "subagentStop" = "Stop"
+    "subagentStop" = "SubagentStop"
     "subagentStart" = "SubagentStart"
     "preCompact" = "PreCompact"
 }
@@ -1416,6 +1416,13 @@ switch ($hookEvent) {
     }
     "SubagentStart" {
         $category = "task.acknowledge"
+    }
+    "SubagentStop" {
+        if ($suppressSubagentComplete) {
+            Write-StateAtomic -State $state -Path $StatePath
+            return
+        }
+        $category = "task.complete"
     }
 }
 
@@ -1898,7 +1905,7 @@ $peonEntry = [PSCustomObject]@{
     hooks = @($peonHook)
 }
 
-$events = @("SessionStart", "SessionEnd", "SubagentStart", "Stop", "Notification", "PermissionRequest", "PostToolUseFailure", "PreCompact")
+$events = @("SessionStart", "SessionEnd", "SubagentStart", "SubagentStop", "Stop", "Notification", "PermissionRequest", "PostToolUseFailure", "PreCompact")
 
 foreach ($evt in $events) {
     $eventHooks = @()

@@ -3075,7 +3075,7 @@ _cursor_event_map = {
     'stop': 'Stop',
     'preToolUse': 'UserPromptSubmit',
     'postToolUse': 'Stop',
-    'subagentStop': 'Stop',
+    'subagentStop': 'SubagentStop',
     'subagentStart': 'SubagentStart',
     'preCompact': 'PreCompact',
 }
@@ -3447,6 +3447,23 @@ elif event == 'PostToolUseFailure':
         print('MARKER=')
         print('PEON_EXIT=true')
         sys.exit(0)
+elif event == 'SubagentStop':
+    # Subagent finished — suppress sound when configured, skip silently
+    if suppress_subagent_complete:
+        write_state(state, state_file)
+        print('PROJECT=' + q(project or ''))
+        print('STATUS=working')
+        print('MARKER=')
+        print('PEON_EXIT=true')
+        sys.exit(0)
+    # When not suppressed, fall through to sound logic as task.complete
+    category = 'task.complete'
+    status = 'done'
+    marker = '\u25cf '
+    notify = '1'
+    notify_color = 'blue'
+    msg = project
+    msg_subtitle = ''
 elif event == 'SubagentStart':
     # Record parent's pack so spawned subagent sessions inherit it, then stay silent
     state['pending_subagent_pack'] = dict(ts=time.time(), pack=active_pack)
