@@ -1,0 +1,11 @@
+{"event":"init","role":"router","sprint":"M2CLOSE","card":"ot0edu","cycle":2,"ts":"2026-03-25T16:57:14Z"}
+{"event":"read-review","file":".gitban/agents/reviewer/inbox/M2CLOSE-ot0edu-reviewer-2.md","verdict":"APPROVAL","ts":"2026-03-25T16:57:14Z"}
+{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/M2CLOSE-ot0edu-executor-2.md","ts":"2026-03-25T16:57:14Z"}
+{"event":"card-update","action":"append","ts":"2026-03-25T16:57:14Z"}
+{"event":"summary","verdict":"APPROVAL","blockers":0,"followups":0,"executor_files":1,"planner_files":0,"ts":"2026-03-25T16:57:14Z"}
+{"timestamp":"2026-03-25T16:57:20Z","operation":"hook_cmd","command":"ls -la \"C:/Users/Cameron/Projects/peon-ping/.gitban/agents/executor/inbox/M2CLOSE-ot0edu-executor-2.md\" \"C:/Users/Cameron/Projects/peon-ping/.gitban/agents/router/logs/M2CLOSE-ot0edu-router-2.jsonl\""}
+{"timestamp":"2026-03-25T16:57:57Z","operation":"hook_cmd","command":"gh run list --limit 5 --json status,conclusion,name,headBranch,createdAt 2>/dev/null || echo \"gh not available or no runs\""}
+{"timestamp":"2026-03-25T16:57:59Z","operation":"hook_cmd","command":"gh pr list --state all --search \"notification\" --json number,title,state,mergedAt --limit 5 2>/dev/null || echo \"no PRs found\""}
+{"timestamp":"2026-03-25T16:58:07Z","operation":"hook_cmd","command":"gh run view --json jobs,conclusion,headBranch $(gh run list --limit 1 --branch main --json databaseId --jq '.[0].databaseId') 2>/dev/null"}
+{"timestamp":"2026-03-25T16:58:14Z","operation":"hook_cmd","command":"gh run view 23551792438 --log --job 68567503239 2>/dev/null | tail -80"}
+{"timestamp":"2026-03-25T16:58:22Z","operation":"hook_cmd","command":"gh run view 23551792438 --log --job 68567503239 2>/dev/null | grep -i \"failed\\|fail\\|\\[-\\]\" | head -20"}

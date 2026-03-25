@@ -1,0 +1,7 @@
+{"timestamp":"2026-03-25T16:54:22Z","operation":"init","role":"reviewer","sprint":"M2CLOSE","card_id":"ot0edu","cycle":2}
+{"timestamp":"2026-03-25T16:54:23Z","operation":"event","label":"read-diff","metadata":{"commit":"7011e78"}}
+{"timestamp":"2026-03-25T16:54:23Z","operation":"event","label":"read-card","metadata":{"card_id":"ot0edu"}}
+{"timestamp":"2026-03-25T16:54:23Z","operation":"event","label":"read-design-doc","metadata":{"file":"docs/designs/win-notification-templates.md"}}
+{"timestamp":"2026-03-25T16:54:23Z","operation":"hook_cmd","command":"cd \"C:/Users/Cameron/Projects/peon-ping\" && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"M2CLOSE\" && export AGENT_CARD_ID=\"ot0edu\" && export AGENT_CYCLE=\"2\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"7011e78\"}' && agent_log_event \"read-card\" '{\"card_id\":\"ot0edu\"}' && agent_log_event \"read-design-doc\" '{\"file\":\"docs/designs/win-notification-templates.md\"}'"}
+{"timestamp":"2026-03-25T16:55:40Z","operation":"hook_cmd","command":"cd \"C:/Users/Cameron/Projects/peon-ping\" && git add -f .gitban/agents/reviewer/inbox/M2CLOSE-ot0edu-reviewer-2.md"}
+{"timestamp":"2026-03-25T16:56:31Z","operation":"hook_cmd","command":"ls \"C:/Users/Cameron/Projects/peon-ping/.gitban/agents/executor/logs/agent-log-helper.sh\""}
