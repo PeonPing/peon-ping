@@ -548,6 +548,28 @@ if ($Command) {
                         Write-Host "peon-ping: path rules: $($rules.Count) configured" -ForegroundColor Cyan
                     }
                 }
+                # Verbose flag: show notification details
+                if ($Arg1 -eq "--verbose") {
+                    $dn = $cfg.desktop_notifications
+                    if ($null -eq $dn) { $dn = $true }
+                    $dnStatus = if ($dn) { "on" } else { "off (sounds still play)" }
+                    Write-Host "peon-ping: desktop notifications $dnStatus" -ForegroundColor Cyan
+
+                    $mn = $cfg.mobile_notify
+                    if ($mn -and $mn.service) {
+                        $mnEnabled = if ($null -eq $mn.enabled) { $true } else { $mn.enabled }
+                        $mnStatus = if ($mnEnabled) { "on ($($mn.service))" } else { "off" }
+                        Write-Host "peon-ping: mobile notifications $mnStatus" -ForegroundColor Cyan
+                    }
+
+                    $tpls = $cfg.notification_templates
+                    if ($tpls -and ($tpls.PSObject.Properties | Measure-Object).Count -gt 0) {
+                        Write-Host "peon-ping: notification templates:" -ForegroundColor Cyan
+                        foreach ($prop in $tpls.PSObject.Properties) {
+                            Write-Host "  $($prop.Name) = `"$($prop.Value)`"" -ForegroundColor Cyan
+                        }
+                    }
+                }
             } catch {
                 Write-Host "Error reading config: $_" -ForegroundColor Red
                 exit 1
@@ -985,7 +1007,127 @@ if ($Command) {
             Write-Host "  trainer goal <n>      Set daily goal for all exercises"
             Write-Host "  trainer goal <ex> <n> Set daily goal for one exercise"
             Write-Host "  trainer help          Show trainer help"
+            Write-Host ""
+            Write-Host "Notifications:" -ForegroundColor Cyan
+            Write-Host "  --notifications on    Enable desktop notifications"
+            Write-Host "  --notifications off   Disable desktop notifications"
+            Write-Host "  --notifications template            Show all templates"
+            Write-Host "  --notifications template <key> <fmt> Set a template"
+            Write-Host "  --notifications template --reset    Clear all templates"
+            Write-Host "  --popups on/off       Alias for --notifications on/off"
             return
+        }
+        "^--(notifications|popups)$" {
+            $notifSub = if ($Arg1) { $Arg1 } else { "help" }
+            switch ($notifSub) {
+                "on" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $cfgObj | Add-Member -NotePropertyName 'desktop_notifications' -NotePropertyValue $true -Force
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Write-Host "peon-ping: desktop notifications on" -ForegroundColor Green
+                    return
+                }
+                "off" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $cfgObj | Add-Member -NotePropertyName 'desktop_notifications' -NotePropertyValue $false -Force
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Write-Host "peon-ping: desktop notifications off" -ForegroundColor Yellow
+                    return
+                }
+                "template" {
+                    $tplKey = $Arg2
+                    $tplVal = if ($ExtraArgs.Count -gt 0) { $ExtraArgs[0] } else { "" }
+                    $validKeys = @("stop", "permission", "error", "idle", "question")
+
+                    if (-not $tplKey) {
+                        # Show all templates
+                        $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                        $tpls = $cfgObj.notification_templates
+                        if (-not $tpls -or ($tpls.PSObject.Properties | Measure-Object).Count -eq 0) {
+                            Write-Host "peon-ping: no notification templates configured (using defaults)" -ForegroundColor Cyan
+                        } else {
+                            foreach ($vk in $validKeys) {
+                                $v = $tpls.$vk
+                                if ($v) {
+                                    Write-Host "peon-ping: template $vk = `"$v`"" -ForegroundColor Cyan
+                                }
+                            }
+                            # Show unknown keys
+                            foreach ($prop in $tpls.PSObject.Properties) {
+                                if ($prop.Name -notin $validKeys -and $prop.Value) {
+                                    Write-Host "peon-ping: template $($prop.Name) = `"$($prop.Value)`" (unknown key)" -ForegroundColor Cyan
+                                }
+                            }
+                        }
+                        return
+                    }
+
+                    if ($tplKey -eq "--reset") {
+                        # Clear all templates
+                        $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                        $members = @($cfgObj.PSObject.Properties | Where-Object { $_.Name -eq 'notification_templates' })
+                        if ($members.Count -gt 0) {
+                            $cfgObj.PSObject.Properties.Remove('notification_templates')
+                        }
+                        $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                        Write-Host "peon-ping: notification templates cleared" -ForegroundColor Cyan
+                        return
+                    }
+
+                    # Validate key
+                    if ($tplKey -notin $validKeys) {
+                        Write-Host "peon-ping: invalid template key `"$tplKey`" - use one of: $($validKeys -join ', ')" -ForegroundColor Red
+                        exit 1
+                    }
+
+                    if (-not $tplVal) {
+                        # Show single template
+                        $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                        $tpls = $cfgObj.notification_templates
+                        $v = if ($tpls) { $tpls.$tplKey } else { $null }
+                        if ($v) {
+                            Write-Host "peon-ping: template $tplKey = `"$v`"" -ForegroundColor Cyan
+                        } else {
+                            Write-Host "peon-ping: template $tplKey not set (default: `"{project}`")" -ForegroundColor Cyan
+                        }
+                        return
+                    }
+
+                    # Set template
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $tpls = if ($cfgObj.notification_templates) {
+                        $tplHash = @{}
+                        foreach ($prop in $cfgObj.notification_templates.PSObject.Properties) {
+                            $tplHash[$prop.Name] = $prop.Value
+                        }
+                        $tplHash
+                    } else { @{} }
+                    $tpls[$tplKey] = $tplVal
+                    $tplObj = [PSCustomObject]@{}
+                    foreach ($k in ($tpls.Keys | Sort-Object)) {
+                        $tplObj | Add-Member -NotePropertyName $k -NotePropertyValue $tpls[$k]
+                    }
+                    $cfgObj | Add-Member -NotePropertyName 'notification_templates' -NotePropertyValue $tplObj -Force
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Write-Host "peon-ping: template $tplKey set to `"$tplVal`"" -ForegroundColor Green
+                    return
+                }
+                default {
+                    Write-Host "Usage: peon --notifications [on|off|template]" -ForegroundColor Cyan
+                    Write-Host ""
+                    Write-Host "Commands:"
+                    Write-Host "  on                            Enable desktop notifications"
+                    Write-Host "  off                           Disable desktop notifications"
+                    Write-Host "  template                      Show all templates"
+                    Write-Host "  template [key] [format]       Set a template"
+                    Write-Host "  template [key]                Show a template"
+                    Write-Host "  template --reset              Clear all templates"
+                    Write-Host ""
+                    Write-Host "Template keys: stop, permission, error, idle, question"
+                    Write-Host "Template variables: {project}, {summary}, {tool_name}, {status}, {event}"
+                    return
+                }
+            }
         }
         "^(--trainer|trainer)$" {
             $StatePath = Join-Path $InstallDir ".state.json"
@@ -1278,7 +1420,7 @@ $cursorMap = @{
     "stop" = "Stop"
     "preToolUse" = "UserPromptSubmit"
     "postToolUse" = "Stop"
-    "subagentStop" = "SubagentStop"
+    "subagentStop" = "Stop"
     "subagentStart" = "SubagentStart"
     "preCompact" = "PreCompact"
 }
@@ -1416,13 +1558,6 @@ switch ($hookEvent) {
     }
     "SubagentStart" {
         $category = "task.acknowledge"
-    }
-    "SubagentStop" {
-        if ($suppressSubagentComplete) {
-            Write-StateAtomic -State $state -Path $StatePath
-            return
-        }
-        $category = "task.complete"
     }
 }
 
@@ -1721,48 +1856,83 @@ if ($trainerMsg) {
             $trainerTitle = "Peon Trainer"
             $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
             $parentPid = 0
-            try { $parentPid = (Get-Process -Id $PID).Parent.Id } catch { $parentPid = 0 }
+            try {
+                $proc = Get-Process -Id $PID
+                if ($proc.Parent) { $parentPid = $proc.Parent.Id }
+            } catch { }
+            if (-not $parentPid) { $parentPid = 0 }
             $trainerNotifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
-                           "-body", $trainerMsg, "-title", $trainerTitle, "-dismissSeconds", $dismissSecs,
-                           "-parentPid", $parentPid)
+                           "-body", "`"$trainerMsg`"", "-title", "`"$trainerTitle`"", "-dismissSeconds", [string]$dismissSecs,
+                           "-parentPid", [string]$parentPid)
             Start-Process -FilePath "powershell.exe" -ArgumentList $trainerNotifArgs -WindowStyle Hidden
         }
     }
 }
 
-# --- Notification message template resolution ---
-# Mirrors peon.sh Python block (lines 3698-3723): maps event to template key,
-# substitutes {variables} via regex, unknown vars become empty strings.
+# --- Notification template resolution ---
 if ($notify) {
-    $tplKeyMap = @{ 'task.complete' = 'stop'; 'task.error' = 'error' }
-    $tplKey = if ($category -and $tplKeyMap.ContainsKey($category)) { $tplKeyMap[$category] } else { $null }
-    # Event-specific overrides (matches Unix behavior: peon.sh lines 3706-3710)
-    if ($hookEvent -eq 'PermissionRequest') { $tplKey = 'permission' }
-    if ($hookEvent -eq 'Notification') {
-        if ($ntype -eq 'idle_prompt') { $tplKey = 'idle' }
-        if ($ntype -eq 'elicitation_dialog') { $tplKey = 'question' }
-    }
-
-    $templates = $config.notification_templates
-    if ($tplKey -and $templates -and $templates.$tplKey) {
-        $tpl = $templates.$tplKey
-        $summaryRaw = ''
-        try { $summaryRaw = ($event.transcript_summary -as [string]) } catch {}
-        if (-not $summaryRaw) { $summaryRaw = '' }
-        $summaryRaw = $summaryRaw -replace '^\s+|\s+$', ''
-        if ($summaryRaw.Length -gt 120) { $summaryRaw = $summaryRaw.Substring(0, 120) }
-        $tplVars = @{
-            project   = $project
-            summary   = $summaryRaw
-            tool_name = if ($event.tool_name) { ($event.tool_name -as [string]) } else { '' }
-            status    = $notifyStatus
-            event     = $hookEvent
+    $tplCfg = $config.notification_templates
+    if ($tplCfg) {
+        # Build template key from category/event/ntype
+        $tplKeyMap = @{
+            "task.complete" = "stop"
+            "task.error"    = "error"
         }
-        $notifyMsg = [regex]::Replace($tpl, '\{(\w+)\}', {
-            param($m)
-            $key = $m.Groups[1].Value
-            if ($tplVars.ContainsKey($key)) { $tplVars[$key] } else { '' }
-        })
+        $tplKey = $tplKeyMap[$category]
+        if ($hookEvent -eq "Notification") {
+            if ($ntype -eq "idle_prompt") { $tplKey = "idle" }
+            elseif ($ntype -eq "elicitation_dialog") { $tplKey = "question" }
+        } elseif ($hookEvent -eq "PermissionRequest") {
+            $tplKey = "permission"
+        }
+
+        if ($tplKey) {
+            $tplStr = $tplCfg.$tplKey
+            if ($tplStr) {
+                # Extract event variables
+                $tplSummary = if ($event.transcript_summary) {
+                    $s = [string]$event.transcript_summary
+                    if ($s.Length -gt 120) { $s.Substring(0, 120) } else { $s }
+                } else { '' }
+                $tplToolName = if ($event.tool_name) { [string]$event.tool_name } else { '' }
+
+                $tplVars = @{
+                    project   = $project
+                    summary   = $tplSummary
+                    tool_name = $tplToolName
+                    status    = $notifyStatus
+                    event     = $hookEvent
+                }
+
+                # PS 5.1 compatible template variable replacement
+                $rendered = $tplStr
+                foreach ($vk in $tplVars.Keys) {
+                    $rendered = $rendered.Replace("{$vk}", $tplVars[$vk])
+                }
+                # Remove any remaining unknown {word} placeholders
+                $cleanIdx = $rendered.IndexOf("{")
+                while ($cleanIdx -ge 0) {
+                    $closeIdx = $rendered.IndexOf("}", $cleanIdx)
+                    if ($closeIdx -gt $cleanIdx + 1) {
+                        $inner = $rendered.Substring($cleanIdx + 1, $closeIdx - $cleanIdx - 1)
+                        $isWord = $true
+                        foreach ($ch in $inner.ToCharArray()) {
+                            if (-not (($ch -ge 'a' -and $ch -le 'z') -or ($ch -ge 'A' -and $ch -le 'Z') -or ($ch -ge '0' -and $ch -le '9') -or $ch -eq '_')) {
+                                $isWord = $false; break
+                            }
+                        }
+                        if ($isWord) {
+                            $rendered = $rendered.Substring(0, $cleanIdx) + $rendered.Substring($closeIdx + 1)
+                        } else {
+                            $cleanIdx = $rendered.IndexOf("{", $cleanIdx + 1)
+                        }
+                    } else {
+                        $cleanIdx = $rendered.IndexOf("{", $cleanIdx + 1)
+                    }
+                }
+                $notifyMsg = $rendered
+            }
+        }
     }
 }
 
@@ -1778,10 +1948,14 @@ if ($notify -and $desktopNotif) {
         $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
         # Resolve parent PID (the IDE/terminal that spawned Claude Code) for click-to-focus
         $parentPid = 0
-        try { $parentPid = (Get-Process -Id $PID).Parent.Id } catch { $parentPid = 0 }
+        try {
+            $proc = Get-Process -Id $PID
+            if ($proc.Parent) { $parentPid = $proc.Parent.Id }
+        } catch { }
+        if (-not $parentPid) { $parentPid = 0 }
         $notifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
-                       "-body", $notifyMsg, "-title", $notifTitle, "-dismissSeconds", $dismissSecs,
-                       "-parentPid", $parentPid)
+                       "-body", "`"$notifyMsg`"", "-title", "`"$notifTitle`"", "-dismissSeconds", [string]$dismissSecs,
+                       "-parentPid", [string]$parentPid)
         if ($iconPath) { $notifArgs += @("-iconPath", $iconPath) }
         Start-Process -FilePath "powershell.exe" -ArgumentList $notifArgs -WindowStyle Hidden
     }
@@ -1905,7 +2079,7 @@ $peonEntry = [PSCustomObject]@{
     hooks = @($peonHook)
 }
 
-$events = @("SessionStart", "SessionEnd", "SubagentStart", "SubagentStop", "Stop", "Notification", "PermissionRequest", "PostToolUseFailure", "PreCompact")
+$events = @("SessionStart", "SessionEnd", "SubagentStart", "Stop", "Notification", "PermissionRequest", "PostToolUseFailure", "PreCompact")
 
 foreach ($evt in $events) {
     $eventHooks = @()
