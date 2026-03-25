@@ -1,0 +1,6 @@
+{"event":"session_start","role":"router","sprint":"WINTRAIN","card":"2twy3o","cycle":1,"ts":"2026-03-22T00:00:00Z"}
+{"event":"read-review","file":".gitban/agents/reviewer/inbox/WINTRAIN-2twy3o-reviewer-1.md","verdict":"APPROVAL"}
+{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/WINTRAIN-2twy3o-executor-1.md"}
+{"event":"write-planner-inbox","file":".gitban/agents/planner/inbox/WINTRAIN-2twy3o-planner-1.md"}
+{"event":"card-update","action":"append","card":"2twy3o"}
+{"event":"session_end","role":"router","sprint":"WINTRAIN","card":"2twy3o","cycle":1}

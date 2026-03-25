@@ -1,0 +1,8 @@
+{"timestamp":"2026-03-14T21:11:43Z","operation":"init","role":"router","sprint":"SMARTPACK","card_id":"z0c9fd","cycle":1}
+{"timestamp":"2026-03-14T21:11:44Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/SMARTPACK-z0c9fd-reviewer-1.md","verdict":"APPROVAL"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"init","role":"router","sprint":"SMARTPACK","card_id":"z0c9fd","cycle":1}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/SMARTPACK-z0c9fd-reviewer-1.md","verdict":"APPROVAL"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"event","label":"write-executor-inbox","metadata":{"file":".gitban/agents/executor/inbox/SMARTPACK-z0c9fd-executor-1.md"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"event","label":"write-planner-inbox","metadata":{"file":".gitban/agents/planner/inbox/SMARTPACK-z0c9fd-planner-1.md"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
+{"timestamp":"2026-03-14T21:12:52Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":0}

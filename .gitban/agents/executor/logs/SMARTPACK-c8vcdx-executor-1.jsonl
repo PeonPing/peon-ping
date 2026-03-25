@@ -1,0 +1,6 @@
+{"timestamp":"2026-03-14T01:08:48Z","operation":"init","role":"executor","sprint":"SMARTPACK","card_id":"c8vcdx","cycle":1}
+{"timestamp":"2026-03-14T01:11:03Z","operation":"init","role":"executor","sprint":"SMARTPACK","card_id":"c8vcdx","cycle":1}
+{"timestamp":"2026-03-14T01:11:03Z","operation":"event","label":"read-card","metadata":{"card_id":"c8vcdx"}}
+{"timestamp":"2026-03-14T01:11:03Z","operation":"event","label":"code-change","metadata":{"files":["peon.sh","tests/peon.bats"]}}
+{"timestamp":"2026-03-14T01:11:04Z","operation":"event","label":"commit","metadata":{"hash":"3bd6d47","message":"feat: show active path rule in peon status output"}}
+{"timestamp":"2026-03-14T01:11:04Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

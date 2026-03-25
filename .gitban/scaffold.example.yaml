@@ -1,0 +1,16 @@
+# .gitban/scaffold.yaml
+# Copy this file to .gitban/scaffold.yaml and uncomment what you want to customize.
+#
+# For full documentation, see:
+#   docs/adr/ADR-037-scaffold-configuration-override-semantics.md
+
+# Variables -- override default values used across skill templates.
+# variables:
+#   git_handle: "CAMERON"    # used by: dispatcher
+#   venv_python_command: ".venv/Scripts/python.exe"    # used by: dispatcher, reviewer, router, sprint-architect, sprintmaster
+#   venv_run_prefix: "bash scripts/venv-python"    # used by: executor
+
+# Overrides -- replace entire shared fragments with your own content.
+# Value can be inline text or a file path (e.g., ./my-profiling.md).
+# overrides:
+#   profiling: ./my-overrides/profiling.md      # used by: executor, planner, reviewer, router

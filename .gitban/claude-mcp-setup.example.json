@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "gitban": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["-u", "-m", "gitban.mcp_server"],
+      "env": {
+        "GITBAN_WORKSPACE_MODE": "dynamic"
+      }
+    }
+  }
+}

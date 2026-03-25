@@ -1,0 +1,5 @@
+{"event":"init","role":"router","sprint":"WINTEST","card":"cb0gpg","cycle":1,"ts":"2026-03-20T00:00:00Z"}
+{"event":"read-review","file":".gitban/agents/reviewer/inbox/WINTEST-cb0gpg-reviewer-1.md","verdict":"REJECTION","ts":"2026-03-20T00:00:01Z"}
+{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/WINTEST-cb0gpg-executor-1.md","ts":"2026-03-20T00:00:02Z"}
+{"event":"card-update","action":"append","ts":"2026-03-20T00:00:03Z"}
+{"event":"summary","items_routed":{"blockers_to_executor":1,"backlog_to_planner":0},"ts":"2026-03-20T00:00:04Z"}

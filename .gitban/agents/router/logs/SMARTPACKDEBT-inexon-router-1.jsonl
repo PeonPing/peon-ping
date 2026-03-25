@@ -1,0 +1,6 @@
+{"event":"init","role":"router","sprint_tag":"SMARTPACKDEBT","card_id":"inexon","cycle":1,"ts":"2026-03-15T00:00:00Z"}
+{"event":"read-review","file":".gitban/agents/reviewer/inbox/SMARTPACKDEBT-inexon-reviewer-1.md","verdict":"REJECTION","ts":"2026-03-15T00:00:01Z"}
+{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/SMARTPACKDEBT-inexon-executor-1.md","ts":"2026-03-15T00:00:02Z"}
+{"event":"write-planner-inbox","file":".gitban/agents/planner/inbox/SMARTPACKDEBT-inexon-planner-1.md","ts":"2026-03-15T00:00:03Z"}
+{"event":"card-update","action":"append","ts":"2026-03-15T00:00:04Z"}
+{"event":"summary","role":"router","sprint_tag":"SMARTPACKDEBT","card_id":"inexon","cycle":1,"verdict":"REJECTION","blockers":6,"backlog_items":2,"executor_files":1,"planner_files":1,"ts":"2026-03-15T00:00:05Z"}

@@ -1,0 +1,9 @@
+{"timestamp":"2026-03-22T23:23:11Z","operation":"init","role":"router","sprint":"WINTRAIN","card_id":"yq8iba","cycle":1}
+{"timestamp":"2026-03-22T23:23:12Z","operation":"hook_cmd","command":"export AGENT_LOG_DIR=\".gitban/agents/router/logs\" && export AGENT_ROLE=\"router\" && export AGENT_SPRINT_TAG=\"WINTRAIN\" && export AGENT_CARD_ID=\"yq8iba\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init 2>&1"}
+{"timestamp":"2026-03-22T23:23:25Z","operation":"hook_cmd","command":"ls -la .gitban/agents/executor/inbox/ .gitban/agents/planner/inbox/ 2>&1"}
+{"timestamp":"2026-03-22T23:24:36Z","operation":"init","role":"router","sprint":"WINTRAIN","card_id":"yq8iba","cycle":1}
+{"timestamp":"2026-03-22T23:24:37Z","operation":"event","label":"read-review","metadata":{"file":"WINTRAIN-yq8iba-reviewer-1.md","verdict":"APPROVAL"}}
+{"timestamp":"2026-03-22T23:24:37Z","operation":"event","label":"write-executor-inbox","metadata":{"file":"WINTRAIN-yq8iba-executor-1.md"}}
+{"timestamp":"2026-03-22T23:24:37Z","operation":"event","label":"write-planner-inbox","metadata":{"file":"WINTRAIN-yq8iba-planner-1.md"}}
+{"timestamp":"2026-03-22T23:24:37Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
+{"timestamp":"2026-03-22T23:24:37Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

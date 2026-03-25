@@ -1,0 +1,454 @@
+schema_version: 1.0.0
+document_version: 1.0.0
+last_updated: '2026-03-13'
+metadata:
+  maintained_by: PeonPing
+  review_frequency: Monthly
+  related_docs:
+    - docs/README.md
+    - docs/plans/
+  tools:
+    roadmap_tracking: roadmap.yaml
+    task_tracking: gitban cards
+    Gitban_mcp: https://github.com/muunkky/gitban-mcp
+changelog:
+  - version: 1.0.0
+    date: '2026-03-13'
+    changes:
+      - Roadmap created from docs/plans design documents
+      - 'M1: Smart Pack Selection — path_rules and config key renames'
+      - 'M2: Rich Notifications — templates, click-to-focus, discoverability'
+      - 'M3: Trainer Mode — Pavel-style daily exercise tracker'
+  - version: 2.16.0
+    date: '2026-03-14'
+    changes:
+      - 'Smart Pack Selection: path_rules glob matching for per-project pack assignment'
+      - 'CLI: peon packs bind/unbind/bindings commands for managing path rules'
+      - 'Config: renamed active_pack to default_pack, agentskill to session_override
+        (with migration)'
+      - 'Status: peon status shows active path rule when one matches cwd'
+      - 'Refactor: extracted Get-ActivePack helper to DRY pack resolution in install.ps1'
+      - 'Docs: pack selection hierarchy, per-project assignment docs in README and
+        README_zh'
+versions:
+  v2:
+    id: v2
+    title: v2 — Personalization & Intelligence
+    description: Transform peon-ping from a one-size-fits-all sound player into
+      a context-aware personal assistant. Users get the right pack for the right
+      project automatically, richer notification content, and a built-in fitness
+      trainer that leverages the hook event stream.
+    status: in_progress
+    start_date: '2026-02-16'
+    target_completion: '2026-06-30'
+    milestones:
+      m1:
+        id: m1
+        title: The right pack plays for the right project automatically
+        description: The right sound pack plays for the right project
+          automatically, without manual per-session overrides. Config naming
+          reflects the actual override hierarchy clearly.
+        status: done
+        docs_ref: docs/plans/2026-02-19-path-rules-design.md
+        success_criteria:
+          - path_rules glob matching selects pack based on cwd
+          - default_pack replaces misleading active_pack key
+          - session_override replaces misleading agentskill mode name
+          - peon update migrates old config keys automatically
+          - peon status shows active path rule when matched
+        features:
+          path-rules:
+            id: path-rules
+            title: Path Rules — Auto-assign packs per project
+            description: 'New path_rules config array that glob-matches cwd to assign
+              sound packs automatically. First match wins. Override hierarchy: session_override
+              > local config > path_rules > pack_rotation > default_pack.'
+            status: done
+            priority: high
+            projects:
+              path-rules-matching:
+                id: path-rules-matching
+                title: Path rules matching logic in Python block
+                description: Add fnmatch-based path_rules evaluation in peon.sh
+                  Python block after config load, before rotation/default. First
+                  matching rule with an installed pack wins.
+                sequence: 1
+                status: done
+              path-rules-status:
+                id: path-rules-status
+                title: Status output and documentation
+                description: Update peon status to show active path rule when
+                  matched. Document path_rules in README, README_zh, help text,
+                  and llms.txt.
+                sequence: 2
+                depends_on:
+                  - path-rules-matching
+                status: done
+          config-renames:
+            id: config-renames
+            title: Config key renames — active_pack and agentskill cleanup
+            description: Rename active_pack to default_pack and agentskill
+              rotation mode to session_override. Migration handled in peon
+              update with runtime fallback reading both old and new keys during
+              transition.
+            status: done
+            priority: medium
+            projects:
+              rename-and-migrate:
+                id: rename-and-migrate
+                title: Rename config keys and add migration
+                description: Rename active_pack to default_pack in config.json
+                  template. Rename agentskill to session_override. Add migration
+                  logic to peon update. Runtime reads new key with old key
+                  fallback.
+                sequence: 1
+                status: done
+          windows-cli:
+            id: windows-cli
+            title: Path rules CLI on native Windows
+            description: peon packs bind/unbind/bindings commands are
+              bash+Python only. Native Windows users have no way to manage
+              path_rules without manually editing config.json. Need PowerShell
+              equivalents in install.ps1 or a standalone peon.cmd wrapper.
+            status: done
+            priority: high
+        upstream_version:
+      m2:
+        id: m2
+        title: Notifications tell you what happened, not just that something
+          happened
+        description: Notifications become informative, actionable, and
+          well-documented. Users see meaningful context in notification
+          messages, can click notifications to focus their IDE, and can easily
+          discover how to control sounds vs popups independently.
+        status: todo
+        success_criteria:
+          - Notification messages render user-configured templates with event
+            variables
+          - Clicking a macOS notification overlay focuses the IDE window
+            (single-window)
+          - Users can easily discover sounds-without-popups via CLI help and
+            README
+          - Three independent toggles (sounds, popups, mobile) clearly
+            documented
+        features:
+          notification-templates:
+            id: notification-templates
+            title: Notification Message Templates
+            description: Configurable notification message content with format
+              string templates per event type. Template keys map to CESP
+              categories (stop, permission, error, idle, question). Variables
+              include {project}, {summary}, {tool_name}, {status}, {event}.
+              Defaults to current behavior when no templates configured. Unix
+              implementation complete — Windows parity work remains.
+            status: in_progress
+            priority: high
+            docs_ref: docs/plans/2026-02-24-notification-templates-design.md
+            projects:
+              template-engine:
+                id: template-engine
+                title: Template resolution engine in Python event parser
+                description: Add notification_templates config key. After
+                  per-event msg construction, apply str.format_map() with
+                  defaultdict(str) for safe missing-key handling.
+                sequence: 1
+                status: done
+              template-cli:
+                id: template-cli
+                title: CLI subcommand — peon notifications template
+                description: Add template get/set/reset to peon notifications
+                  subcommand. Show templates in peon status. Update help text.
+                sequence: 2
+                depends_on:
+                  - template-engine
+                status: done
+              template-tests:
+                id: template-tests
+                title: BATS tests for notification templates
+                description: Test template resolution with {summary},
+                  {tool_name}, unknown variables rendering as empty, fallback to
+                  project name when no template, CLI set/get/reset, and status
+                  display.
+                sequence: 2
+                depends_on:
+                  - template-engine
+                status: done
+              win-template-engine:
+                id: win-template-engine
+                title: Windows parity — template resolution engine in peon.ps1
+                description: Port notification template resolution from peon.sh
+                  Python block to PowerShell in peon.ps1. Regex-based variable
+                  substitution, same 5 template keys and 5 variables. Windows
+                  parity.
+                status: todo
+                sequence: 4
+                docs_ref: docs/designs/win-notification-templates.md
+              win-template-cli:
+                id: win-template-cli
+                title: Windows parity — template CLI subcommand in peon.ps1
+                description: Port peon notifications template get/set/reset CLI
+                  subcommand to peon.ps1. Same UX as Unix. Windows parity.
+                sequence: 5
+                status: todo
+                depends_on:
+                  - win-template-engine
+                docs_ref: docs/designs/win-notification-templates.md
+              win-template-tests:
+                id: win-template-tests
+                title: Windows parity — Pester tests for notification templates
+                description: Pester tests covering template resolution, CLI
+                  get/set/reset, unknown variable handling, and fallback
+                  behavior. Windows parity.
+                sequence: 6
+                status: todo
+                depends_on:
+                  - win-template-engine
+                  - win-template-cli
+                docs_ref: docs/designs/win-notification-templates.md
+          ide-click-to-focus:
+            id: ide-click-to-focus
+            title: IDE Click-to-Focus
+            description: 'Clicking a notification focuses the IDE window. macOS: lsappinfo
+              bundle ID from PID, NSRunningApplication fallback in mac-overlay.js,
+              iTerm2 tab-level focus. Windows: SetForegroundWindow with AttachThreadInput
+              workaround, process-name and PID-based targeting. Both platforms shipped
+              and tested.'
+            status: done
+            priority: medium
+            docs_ref: docs/plans/2026-02-20-ide-click-to-focus-design.md
+            projects:
+              bundle-id-fallback:
+                id: bundle-id-fallback
+                title: Bundle ID from PID fallback in peon.sh
+                description: Add _mac_bundle_id_from_pid() using lsappinfo. In
+                  send_notification(), when bundle_id is empty and ide_pid > 0,
+                  derive bundle_id from the PID.
+                sequence: 1
+                status: done
+              overlay-pid-activation:
+                id: overlay-pid-activation
+                title: PID-based activation in mac-overlay.js
+                description: When bundleId is empty but idePid > 0, use
+                  NSRunningApplication.runningApplicationWithProcessIdentifier_()
+                  to activate the IDE app.
+                sequence: 1
+                status: done
+              click-to-focus-tests:
+                id: click-to-focus-tests
+                title: BATS tests for click-to-focus
+                description: Mock lsappinfo returning bundle ID for a given PID.
+                  Test _mac_bundle_id_from_pid with pid=0 returns empty. Test
+                  overlay ide_pid activation when bundle_id is empty.
+                sequence: 2
+                depends_on:
+                  - bundle-id-fallback
+                  - overlay-pid-activation
+                status: done
+              win-click-to-focus:
+                id: win-click-to-focus
+                title: Windows parity — click-to-focus via SetForegroundWindow
+                  (SHIPPED)
+                description: Toast click activates IDE window via
+                  SetForegroundWindow/process name matching in win-notify.ps1.
+                  Pester tests in win-click-to-focus.Tests.ps1. Already shipped.
+                sequence: 0
+                status: done
+          selective-sound-control:
+            id: selective-sound-control
+            title: Selective Sound Control — Documentation & Discoverability
+            description: Improve discoverability of the existing
+              desktop_notifications feature. No core logic changes — purely CLI
+              help, verbose status, README sections, skill docs, and llms.txt
+              updates.
+            status: todo
+            priority: low
+            docs_ref: docs/plans/2026-02-25-selective-sound-control-design.md
+            projects:
+              verbose-status:
+                id: verbose-status
+                title: Add --verbose flag to peon status
+                description: Added --verbose flag to peon status showing desktop
+                  and mobile notification states with clarifying text. Added
+                  peon popups alias for notifications command. Already shipped.
+                sequence: 1
+                status: done
+              sound-control-docs:
+                id: sound-control-docs
+                title: README and skill documentation updates
+                description: README English done (Common Use Cases, Independent
+                  Controls table). Skills docs done. llms.txt done. README_zh.md
+                  still needs translated sections.
+                sequence: 1
+                status: in_progress
+        docs_ref: docs/prds/PRD-001-m2-close-out-smart-notifications.md
+      m3:
+        id: m3
+        title: Your coding sessions keep you physically active
+        description: The peon IS your personal trainer. Pavel-style daily
+          exercise mode where the Warcraft peon nags you to do 300 pushups and
+          300 squats throughout the day, piggybacking on IDE hook events. No
+          daemon, no cron. Windows implementation shipped (peon.ps1 trainer CLI
+          + hook reminders + Pester tests). Unix/peon.sh implementation remains.
+        status: todo
+        docs_ref: docs/plans/2026-02-16-trainer-mode-design.md
+        success_criteria:
+          - peon trainer on/off/status/log/goal CLI commands work
+          - Hook events trigger trainer reminders at configurable intervals
+          - Daily progress resets at midnight automatically
+          - Slacking detection fires harsher voice lines when behind pace
+          - Trainer sounds play after normal hook sounds with delay
+          - README and help text document trainer mode
+        features:
+          trainer-core:
+            id: trainer-core
+            title: Trainer Core — CLI, state, and config
+            description: Trainer config section in config.json, state management
+              in .state.json with auto-reset on new day, and CLI subcommands
+              (on/off/status/log/goal) in peon.sh case statement. Trainer sounds
+              directory scaffold with manifest.json. Windows parity already
+              shipped in peon.ps1.
+            status: todo
+            priority: high
+            projects:
+              trainer-scaffold:
+                id: trainer-scaffold
+                title: Directory scaffold and config defaults
+                description: Create
+                  trainer/sounds/{remind,log,complete,slacking}/ directories,
+                  manifest.json with placeholder entries, and add trainer
+                  section to config.json defaults.
+                sequence: 1
+                status: todo
+              trainer-cli:
+                id: trainer-cli
+                title: CLI subcommands — on/off/status/log/goal
+                description: Add trainer) case to peon.sh with Python-backed
+                  subcommands for enabling/disabling, showing progress bars,
+                  logging reps, and setting goals. TDD with tests/trainer.bats.
+                sequence: 2
+                depends_on:
+                  - trainer-scaffold
+                status: todo
+              win-trainer-cli:
+                id: win-trainer-cli
+                title: Windows parity — trainer CLI and state management
+                  (SHIPPED)
+                description: peon train on/off/status/log/goal subcommands in
+                  peon.ps1 with state management. Pester tests in
+                  trainer-windows.Tests.ps1. Already shipped.
+                sequence: 0
+                status: done
+          trainer-reminders:
+            id: trainer-reminders
+            title: Trainer Reminders — Hook event integration
+            description: On each hook event, after normal sound routing, check
+              trainer config/state and optionally play a second sound for
+              trainer reminder. Pace-based slacking detection. Skip on
+              SessionStart to avoid stacking. Windows parity already shipped in
+              peon.ps1.
+            status: todo
+            priority: high
+            depends_on:
+              - trainer-core
+            projects:
+              reminder-logic:
+                id: reminder-logic
+                title: Reminder logic in Python hook block
+                description: After main sound selection, check trainer enabled,
+                  date reset, interval elapsed, and pace. Pick from
+                  trainer.remind or trainer.slacking manifest categories. Output
+                  TRAINER_SOUND, TRAINER_VOL, TRAINER_MSG variables.
+                sequence: 1
+                status: todo
+              reminder-playback:
+                id: reminder-playback
+                title: Delayed trainer sound playback in shell
+                description: After main sound playback, if TRAINER_SOUND is set,
+                  play with 1s delay. Desktop notification with progress
+                  summary. Synchronous in test mode.
+                sequence: 2
+                depends_on:
+                  - reminder-logic
+                status: todo
+              win-trainer-reminders:
+                id: win-trainer-reminders
+                title: Windows parity — hook-time trainer reminders (SHIPPED)
+                description: Trainer reminder logic in peon.ps1 hook path. Fires
+                  after main sound with delay. Pester coverage in
+                  trainer-windows.Tests.ps1. Already shipped.
+                sequence: 0
+                status: done
+          trainer-docs:
+            id: trainer-docs
+            title: Trainer Documentation
+            description: Add trainer section to README, README_zh, help text,
+              completions, and llms.txt. Document CLI commands, custom voice
+              lines directory, and configuration.
+            status: todo
+            priority: medium
+            depends_on:
+              - trainer-core
+              - trainer-reminders
+            projects:
+              trainer-docs-all:
+                id: trainer-docs-all
+                title: Help text, README, and completions updates
+                description: Add trainer to peon help output. Add Trainer Mode
+                  section to README and README_zh. Update completions.bash and
+                  completions.fish. Update llms.txt.
+                sequence: 1
+                status: todo
+      m0:
+        id: m0
+        title: Windows hooks never deadlock or lose state
+        description: Eliminate P0 hook reliability bugs on native Windows that
+          make peon-ping unusable. Async audio playback, state file concurrency
+          safety, and deadlock prevention.
+        status: done
+        docs_ref:
+          docs/adr/proposals/ADR-001-async-audio-and-safe-state-on-windows.md
+        success_criteria:
+          - Windows hooks return within 200ms (excluding PowerShell startup)
+          - Zero deadlocks under multi-agent sprint dispatch (20+ agents)
+          - Zero state file corruption under concurrent hook invocations
+          - Audio plays reliably as fire-and-forget on all Stop/SessionStart
+            events
+        features:
+          async-audio:
+            id: async-audio
+            title: Async Audio Playback
+            description: Replace inline synchronous audio in peon.ps1 with
+              Start-Process delegation to scripts/win-play.ps1 as a detached
+              process. Eliminate MediaPlayer WPF deadlock.
+            status: done
+            priority: critical
+            projects:
+              detach-audio:
+                id: detach-audio
+                title: Delegate audio to detached win-play.ps1 process
+                description: Remove inline SoundPlayer.PlaySync() and
+                  MediaPlayer code from peon.ps1. Use Start-Process -WindowStyle
+                  Hidden to spawn win-play.ps1 as fire-and-forget. Add
+                  process-level self-timeout (8s safety net).
+                sequence: 1
+                status: done
+                docs_ref: docs/designs/async-audio-and-safe-state-on-windows.md
+          state-concurrency:
+            id: state-concurrency
+            title: State File Concurrency Safety
+            description: Add atomic write pattern (write-to-temp + rename) and
+              retry-on-lock-failure to .state.json operations in peon.ps1.
+            status: done
+            priority: high
+            depends_on:
+              - async-audio
+            projects:
+              atomic-state:
+                id: atomic-state
+                title: Atomic state file writes with lock retry
+                description: Write .state.json to temp file then rename (atomic
+                  on NTFS). Add retry with backoff on read failures. Degrade
+                  gracefully to empty defaults if state unavailable.
+                sequence: 1
+                status: done
+        upstream_version: 2.15.1
