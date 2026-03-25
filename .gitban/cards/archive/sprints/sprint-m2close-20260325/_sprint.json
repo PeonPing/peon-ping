@@ -1,0 +1,29 @@
+{
+  "sprint_id": "sprint-m2close-20260325",
+  "sprint_name": "Sprint-M2Close-20260325",
+  "sprint_folder": "sprint-m2close-20260325",
+  "created_at": "2026-03-25T10:59:53.988011",
+  "start_date": null,
+  "end_date": "2026-03-25",
+  "archived_at": "2026-03-25T10:59:53.988011",
+  "card_ids": [
+    "a30wtt",
+    "ot0edu",
+    "zekqgl"
+  ],
+  "metrics": {
+    "total_cards": 3,
+    "by_priority": {
+      "P0": 1,
+      "P1": 1,
+      "P2": 1
+    },
+    "by_type": {
+      "feature": 2,
+      "chore": 1
+    },
+    "by_handle": {
+      "CAMERON": 3
+    }
+  }
+}

@@ -9,3 +9,6 @@
 {"timestamp":"2026-03-25T16:58:07Z","operation":"hook_cmd","command":"gh run view --json jobs,conclusion,headBranch $(gh run list --limit 1 --branch main --json databaseId --jq '.[0].databaseId') 2>/dev/null"}
 {"timestamp":"2026-03-25T16:58:14Z","operation":"hook_cmd","command":"gh run view 23551792438 --log --job 68567503239 2>/dev/null | tail -80"}
 {"timestamp":"2026-03-25T16:58:22Z","operation":"hook_cmd","command":"gh run view 23551792438 --log --job 68567503239 2>/dev/null | grep -i \"failed\\|fail\\|\\[-\\]\" | head -20"}
+{"timestamp":"2026-03-25T16:59:06Z","operation":"hook_cmd","command":"cd \"C:\\Users\\Cameron\\Projects\\peon-ping\" && git add -f .gitban/ && git commit -m \"chore: update gitban agent artifacts and close out M2CLOSE cards\" 2>&1 | tail -5"}
+{"timestamp":"2026-03-25T16:59:12Z","operation":"hook_cmd","command":"cd \"C:\\Users\\Cameron\\Projects\\peon-ping\" && .venv/Scripts/python.exe scripts/parse-agent-logs.py --sprint M2CLOSE --phase 1 2>&1 | head -30"}
+{"timestamp":"2026-03-25T16:59:17Z","operation":"hook_cmd","command":"ls \"C:\\Users\\Cameron\\Projects\\peon-ping/.venv/\" 2>/dev/null || ls \"C:\\Users\\Cameron\\Projects\\peon-ping/scripts/parse-agent-logs.py\" 2>/dev/null || echo \"no venv or parser\""}

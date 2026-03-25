@@ -28,10 +28,10 @@
 ### Card Types Needed
 
 * [x] **Features**: 1 feature card (Windows notifications CLI + tests)
-* [ ] **Bugs**: 0
+- [x] **Bugs**: 0
 * [x] **Chores**: 1 chore card (README_zh.md translation)
-* [ ] **Spikes**: 0
-* [ ] **Docs**: 0
+- [x] **Spikes**: 0
+- [x] **Docs**: 0
 
 ### Architectural Approach
 
@@ -63,13 +63,13 @@ The README_zh.md translation is independent and can run in parallel.
 | Phase / Task | Status / Link to Artifact | Universal Check |
 | :--- | :--- | :---: |
 | **Roadmap Integration** | v2/m2, PRD-001 | - [x] Milestone updated with sprint tag |
-| **Take Sprint** | 2026-03-25 | - [ ] Used take_sprint() to claim work |
-| **Mid-Sprint Check** | | - [ ] Reviewed list_cards(group_by_sprint=True) |
-| **Complete Cards** | | - [ ] Cards moved to done status |
-| **Sprint Archive** | | - [ ] Used archive_cards() to bundle work |
-| **Generate Summary** | | - [ ] Used generate_archive_summary() |
-| **Update Changelog** | | - [ ] Used update_changelog() |
-| **Update Roadmap** | Mark v2/m2 done | - [ ] Marked milestone complete |
+| **Take Sprint** | 2026-03-25 | - [x] Used take_sprint() to claim work |
+| **Mid-Sprint Check** | | - [x] Reviewed list_cards(group_by_sprint=True) |
+| **Complete Cards** | | - [x] Cards moved to done status |
+| **Sprint Archive** | | - [x] Used archive_cards() to bundle work |
+| **Generate Summary** | | - [x] Used generate_archive_summary() |
+| **Update Changelog** | | - [x] Used update_changelog() |
+| **Update Roadmap** | Mark v2/m2 done | - [x] Marked milestone complete |
 
 ---
 
@@ -104,11 +104,11 @@ The README_zh.md translation is independent and can run in parallel.
 
 ### Completion Checklist
 
-* [ ] All done cards archived to sprint folder
-* [ ] Sprint summary generated with automatic metrics
-* [ ] Changelog updated with version number and changes
-* [ ] Roadmap milestone marked complete with actual date
-* [ ] Incomplete cards moved to backlog or next sprint
-* [ ] Retrospective notes captured above
-* [ ] Follow-up cards created for technical debt
-* [ ] Sprint closed and celebrated!
+- [x] All done cards archived to sprint folder
+- [x] Sprint summary generated with automatic metrics
+- [x] Changelog updated with version number and changes
+- [x] Roadmap milestone marked complete with actual date
+- [x] Incomplete cards moved to backlog or next sprint
+- [x] Retrospective notes captured above
+- [x] Follow-up cards created for technical debt
+- [x] Sprint closed and celebrated!
