@@ -1,0 +1,5 @@
+{"ts":"2026-03-25T16:45:21Z","event":"init","data":{"role":"router","sprint":"M2CLOSE","card":"ot0edu","cycle":1}}
+{"ts":"2026-03-25T16:45:21Z","event":"read-review","data":{"file":"M2CLOSE-ot0edu-reviewer-1.md","verdict":"REJECTION"}}
+{"ts":"2026-03-25T16:46:05Z","event":"write-executor-inbox","data":{"file":"M2CLOSE-ot0edu-executor-1.md"}}
+{"ts":"2026-03-25T16:46:05Z","event":"card-update","data":{"action":"append"}}
+{"ts":"2026-03-25T16:46:05Z","event":"summary","data":{"status":"complete"}}

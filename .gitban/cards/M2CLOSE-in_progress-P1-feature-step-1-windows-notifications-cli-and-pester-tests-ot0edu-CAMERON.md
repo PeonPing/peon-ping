@@ -216,3 +216,39 @@ Notifications/verbose CLI (6):
 - CI green on Windows runner (can only verify post-merge)
 - Code review, deployment items (for reviewer phase)
 - README_zh.md translation (card scope mentions it in Phase 2 definition of done; this is a documentation task for the sprint close-out)")
+
+
+## BLOCKED
+Review rejection: 2 Pester tests fail on CI due to Start-Process race condition (B1), and template resolution is inlined instead of extracted as a named function per design doc (B2). See M2CLOSE-ot0edu-reviewer-1.md for details.
+
+
+## Review Log
+
+Review 1 verdict: **REJECTION** (2 blockers, 0 follow-up items)
+- Review report: `.gitban/agents/reviewer/inbox/M2CLOSE-ot0edu-reviewer-1.md`
+- Executor instructions: `.gitban/agents/executor/inbox/M2CLOSE-ot0edu-executor-1.md`
+- B1: Replace fixed `Start-Sleep` with polling loop in all 8 hook-mode Pester tests to fix CI race condition
+- B2: Extract `Resolve-NotificationTemplate` as named function per design doc instead of inlining
+
+## Executor Work Summary (Review Cycle 2)
+
+**Commit:** `7011e78` on branch `worktree-agent-af611716`
+
+**B1 fix — Pester race condition (tests/win-notification-templates.Tests.ps1):**
+- Replaced all 8 instances of `Start-Sleep -Milliseconds 500` with a polling loop
+- Loop checks for `.notify-log.txt` every 100ms with a 5-second deadline
+- Fast machines exit in ~200ms; slow CI runners get up to 5 seconds
+- Eliminates non-deterministic test failures from async `Start-Process` notification dispatch
+
+**B2 fix — Extract `Resolve-NotificationTemplate` function (install.ps1):**
+- Extracted the inlined template resolution block (lines 1872-1937) into a named `Resolve-NotificationTemplate` function
+- Function placed alongside other helper functions (after `Read-StateWithRetry`, before CLI commands)
+- Uses `.Replace()` loop for known variables (PS 5.1 compatible) + `[regex]::Replace($rendered, '\{(\w+)\}', '')` for unknown variable cleanup
+- Replaced the 20-line character-by-character loop with the single-line regex call per reviewer guidance
+- Hook flow now calls the function with all required parameters, making the resolution logic independently testable
+- Design doc specifies `-replace` with scriptblock, but `.Replace()` + `[regex]::Replace` is used because the function lives inside a `@'...'@` single-quoted here-string where scriptblock syntax is preserved but variable expansion is not — `.Replace()` avoids any ambiguity
+
+**Test results (all green):**
+- 20/20 notification template tests pass
+- 28/28 trainer tests pass (no regression)
+- 360/360 adapter tests pass (no regression)
