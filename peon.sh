@@ -2764,24 +2764,30 @@ try:
 except Exception:
     cfg = {}
 changed = False
+migrations = []
 if 'active_pack' in cfg and 'default_pack' not in cfg:
     cfg['default_pack'] = cfg.pop('active_pack')
     changed = True
+    migrations.append('active_pack -> default_pack')
 elif 'active_pack' in cfg:
     cfg.pop('active_pack')
     changed = True
+    migrations.append('active_pack removed')
 if cfg.get('pack_rotation_mode') == 'agentskill':
     cfg['pack_rotation_mode'] = 'session_override'
     changed = True
+    migrations.append('agentskill -> session_override')
 if 'debug' not in cfg:
     cfg['debug'] = False
     changed = True
+    migrations.append('debug')
 if 'debug_retention_days' not in cfg:
     cfg['debug_retention_days'] = 7
     changed = True
+    migrations.append('debug_retention_days')
 if changed:
     json.dump(cfg, open(config_path, 'w'), indent=2)
-    print('peon-ping: config migrated (active_pack \u2192 default_pack, agentskill \u2192 session_override)')
+    print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
 " 2>/dev/null || true
     INSTALL_SCRIPT="$PEON_DIR/install.sh"
     if [ -f "$INSTALL_SCRIPT" ]; then

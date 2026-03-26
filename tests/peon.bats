@@ -3299,6 +3299,110 @@ assert cfg.get('pack_rotation_mode') == 'session_override', "mode should be unch
 PYTHON
 }
 
+@test "peon update backfills debug and debug_retention_days config keys" {
+  # Config without debug keys
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "pack_rotation_mode": "random"
+}
+JSON
+  # Run the same migration logic as peon update
+  python3 <<PYTHON
+import json, os
+config_path = '${TEST_DIR}/config.json'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+changed = False
+migrations = []
+if 'active_pack' in cfg and 'default_pack' not in cfg:
+    cfg['default_pack'] = cfg.pop('active_pack')
+    changed = True
+    migrations.append('active_pack -> default_pack')
+elif 'active_pack' in cfg:
+    cfg.pop('active_pack')
+    changed = True
+    migrations.append('active_pack removed')
+if cfg.get('pack_rotation_mode') == 'agentskill':
+    cfg['pack_rotation_mode'] = 'session_override'
+    changed = True
+    migrations.append('agentskill -> session_override')
+if 'debug' not in cfg:
+    cfg['debug'] = False
+    changed = True
+    migrations.append('debug')
+if 'debug_retention_days' not in cfg:
+    cfg['debug_retention_days'] = 7
+    changed = True
+    migrations.append('debug_retention_days')
+if changed:
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+    print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
+PYTHON
+
+  # Verify debug keys were backfilled with correct defaults
+  python3 <<'PYTHON'
+import json, os
+config_path = os.environ['TEST_DIR'] + '/config.json'
+cfg = json.load(open(config_path))
+assert cfg.get('debug') == False, "debug should be False"
+assert cfg.get('debug_retention_days') == 7, "debug_retention_days should be 7"
+assert cfg.get('default_pack') == 'peon', "default_pack should be unchanged"
+PYTHON
+}
+
+@test "peon update backfill does not overwrite existing debug keys" {
+  # Config with debug keys already set
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "debug": true,
+  "debug_retention_days": 14
+}
+JSON
+  python3 <<PYTHON
+import json, os
+config_path = '${TEST_DIR}/config.json'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+changed = False
+if 'active_pack' in cfg and 'default_pack' not in cfg:
+    cfg['default_pack'] = cfg.pop('active_pack')
+    changed = True
+elif 'active_pack' in cfg:
+    cfg.pop('active_pack')
+    changed = True
+if cfg.get('pack_rotation_mode') == 'agentskill':
+    cfg['pack_rotation_mode'] = 'session_override'
+    changed = True
+if 'debug' not in cfg:
+    cfg['debug'] = False
+    changed = True
+if 'debug_retention_days' not in cfg:
+    cfg['debug_retention_days'] = 7
+    changed = True
+if changed:
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+PYTHON
+
+  # Verify existing values were preserved
+  python3 <<'PYTHON'
+import json, os
+config_path = os.environ['TEST_DIR'] + '/config.json'
+cfg = json.load(open(config_path))
+assert cfg.get('debug') == True, "debug should remain True"
+assert cfg.get('debug_retention_days') == 14, "debug_retention_days should remain 14"
+PYTHON
+}
+
 # ============================================================
 # packs install-local
 # ============================================================
