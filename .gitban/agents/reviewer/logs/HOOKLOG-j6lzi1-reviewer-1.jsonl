@@ -1,0 +1,9 @@
+{"timestamp":"2026-03-26T03:42:06Z","operation":"init","role":"reviewer","sprint":"HOOKLOG","card_id":"j6lzi1","cycle":1}
+{"timestamp":"2026-03-26T03:42:06Z","operation":"event","label":"read-diff","metadata":{"commit":"31716ec"}}
+{"timestamp":"2026-03-26T03:42:06Z","operation":"event","label":"read-card","metadata":{"card_id":"j6lzi1"}}
+{"timestamp":"2026-03-26T03:42:06Z","operation":"event","label":"write-review","metadata":{"verdict":"APPROVAL"}}
+{"timestamp":"2026-03-26T03:42:07Z","operation":"hook_cmd","command":"cd \"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\worktrees\\agent-ab81deb1\" && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"HOOKLOG\" && export AGENT_CARD_ID=\"j6lzi1\" && export AGENT_CYCLE=\"1\" && source \"C:/Users/Cameron/Projects/peon-ping/.gitban/hooks/agent-log.sh\" && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"31716ec\"}' && agent_log_event \"read-card\" '{\"card_id\":\"j6lzi1\"}' && agent_log_event \"write-review\" '{\"verdict\":\"APPROVAL\"}' && echo \"done\""}
+{"timestamp":"2026-03-26T03:42:11Z","operation":"hook_cmd","command":"mkdir -p \"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\worktrees\\agent-ab81deb1\\.gitban\\agents\\reviewer\\inbox\""}
+{"timestamp":"2026-03-26T03:42:16Z","operation":"hook_cmd","command":"cd \"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\worktrees\\agent-ab81deb1\" && git show eefe57a:peon.sh | sed -n '3055,3070p'"}
+{"timestamp":"2026-03-26T03:42:29Z","operation":"hook_cmd","command":"ls \"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\worktrees\\agent-ab81deb1\\.gitban\\agents\\reviewer\\inbox\" 2>/dev/null || echo \"DIR_NOT_FOUND\""}
+{"timestamp":"2026-03-26T03:42:34Z","operation":"hook_cmd","command":"mkdir -p \"C:\\Users\\Cameron\\Projects\\peon-ping\\.claude\\worktrees\\agent-ab81deb1\\.gitban\\agents\\reviewer\\inbox\""}
