@@ -2707,7 +2707,7 @@ print('  log data: ' + str(count) + ' ' + unit + ', ' + size_str)
           exit 0
         fi
         # Sort log files by name (date-sorted), cat them all, take last N lines
-        cat $(ls -1 "$LOGS_DIR"/peon-ping-*.log 2>/dev/null | sort) | tail -n "$N"
+        ls -1 "$LOGS_DIR"/peon-ping-*.log 2>/dev/null | sort | xargs cat | tail -n "$N"
         exit 0 ;;
       --session)
         SESSION_ID="${2:-}"
@@ -2720,7 +2720,7 @@ print('  log data: ' + str(count) + ' ' + unit + ', ' + size_str)
           echo "peon-ping: no log file for today ($TODAY)"
           exit 0
         fi
-        grep "session=$SESSION_ID" "$LOG_FILE" || echo "peon-ping: no entries for session=$SESSION_ID"
+        grep -F "session=$SESSION_ID" "$LOG_FILE" || echo "peon-ping: no entries for session=$SESSION_ID"
         exit 0 ;;
       --clear)
         if [ ! -d "$LOGS_DIR" ] || [ -z "$(ls "$LOGS_DIR"/peon-ping-*.log 2>/dev/null)" ]; then
