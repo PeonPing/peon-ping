@@ -712,6 +712,64 @@ peon packs install --all          # 레지스트리의 모든 팩 설치
 
 나만의 팩을 추가하고 싶으신가요? [openpeon.com/create 전체 가이드](https://openpeon.com/create) 또는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
+## 디버깅
+
+사운드가 재생되지 않거나 알림이 표시되지 않을 때, 구조화된 디버그 로그를 통해 훅 호출 중에 정확히 무슨 일이 일어났는지 추적할 수 있습니다.
+
+### 디버그 로그 활성화
+
+```bash
+peon debug on             # 활성화 — 로그가 ~/.claude/hooks/peon-ping/logs/에 기록됩니다
+peon debug off            # 비활성화
+peon debug status         # 상태, 로그 디렉터리, 파일 수, 전체 크기 표시
+```
+
+환경 변수 `PEON_DEBUG=1`을 설정하면 설정을 변경하지 않고도 단일 호출에서 디버그 로그를 활성화할 수 있습니다.
+
+### 로그 확인
+
+```bash
+peon logs                 # 오늘 로그의 마지막 50줄
+peon logs --last 100      # 모든 로그 파일의 마지막 100줄
+peon logs --session <ID>  # 오늘 로그를 세션 ID로 필터
+peon logs --session <ID> --all  # 모든 로그 파일에서 세션 ID 검색
+peon logs --clear         # 모든 로그 파일 삭제 (확인 필요)
+```
+
+### 로그 형식
+
+각 로그 줄은 구조화된 key=value 레코드입니다:
+
+```
+2026-03-26T14:32:01.042 [config] inv=a3f1 loaded=/path/to/config.json volume=0.5 pack=peon enabled=True
+2026-03-26T14:32:01.045 [event] inv=a3f1 hook_event=Stop cesp=task.complete session=abc123
+2026-03-26T14:32:01.048 [sound] inv=a3f1 file=work-work.wav label="Work, work." category=task.complete
+2026-03-26T14:32:01.120 [play] inv=a3f1 player=afplay file=work-work.wav
+2026-03-26T14:32:01.125 [notify] inv=a3f1 title="peon: done" body="Work, work."
+```
+
+- **inv** -- 단일 훅 호출의 모든 단계를 연결하는 고유한 4자리 호출 ID
+- **단계**: `[config]`, `[event]`, `[sound]`, `[play]`, `[notify]` -- 각각 훅 파이프라인의 한 단계를 나타냄
+- 공백이나 특수 문자를 포함하는 값은 따옴표로 감싸집니다
+
+### 일반적인 장애 예시
+
+| 증상 | 로그에서 확인할 내용 |
+|---|---|
+| 사운드가 재생되지 않음 | `[event]` 줄에 `exit=early` 표시 (카테고리 비활성화, 일시 중지 또는 디바운스됨) |
+| 잘못된 팩 | `[config]` 줄에 예상치 못한 `pack=` 값 표시 -- path_rules 또는 로테이션 확인 |
+| 사운드 파일 누락 | `[sound]` 줄에 `error=`와 파일 경로 표시 |
+| 알림 누락 | `[notify]` 줄이 없음 -- 설정의 `desktop_notifications` 확인 |
+
+### 설정 키
+
+| 키 | 기본값 | 설명 |
+|---|---|---|
+| `debug` | `false` | 구조화된 디버그 로그 활성화 |
+| `debug_retention_days` | `7` | N일보다 오래된 로그 자동 삭제 |
+
+로그는 `~/.claude/hooks/peon-ping/logs/peon-ping-YYYY-MM-DD.log`에 저장됩니다 (하루에 하나의 파일). 새로운 날의 로그가 생성될 때 `debug_retention_days`에 따라 오래된 로그가 자동으로 삭제됩니다.
+
 ## 제거
 
 **macOS/Linux:**
