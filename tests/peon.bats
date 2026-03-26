@@ -3999,7 +3999,7 @@ validate_log_fixture() {
     [ -z "$phase" ] && continue
     grep -q "\[$phase\]" "$logfile" || { echo "Missing phase [$phase] in log"; return 1; }
 
-    # Check non-wildcard key=value pairs using Python shlex to handle quoted values
+    # Check non-wildcard key=value pairs using Python regex to handle quoted values
     local kv_part
     kv_part=$(echo "$line" | sed "s/.*\[$phase\] //")
     while IFS= read -r kv; do
