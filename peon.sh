@@ -3514,6 +3514,8 @@ elif event == 'PostToolUseFailure':
         status = 'error'
     else:
         # Non-Bash tool failure — no sound, but maintain tab title
+        log('route', category='none', suppressed=True, reason='non_bash_tool_failure')
+        log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         print('PROJECT=' + q(project or ''))
         print('STATUS=working')
         print('MARKER=')
@@ -3522,6 +3524,8 @@ elif event == 'PostToolUseFailure':
 elif event == 'SubagentStop':
     # Subagent finished — suppress sound when configured, skip silently
     if suppress_subagent_complete:
+        log('route', category='task.complete', suppressed=True, reason='subagent_stop_suppressed')
+        log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         write_state(state, state_file)
         print('PROJECT=' + q(project or ''))
         print('STATUS=working')
@@ -3542,6 +3546,8 @@ elif event == 'SubagentStart':
     state_dirty = True
     write_state(state, state_file)
     # Maintain parent's tab title while subagent runs (no sound)
+    log('route', category='none', suppressed=True, reason='subagent_start')
+    log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
     print('PROJECT=' + q(project or ''))
     print('STATUS=working')
     print('MARKER=')
@@ -3566,6 +3572,8 @@ elif event == 'SessionEnd':
     state['agent_sessions'] = list(agent_sessions)
     state_dirty = True
     write_state(state, state_file)
+    log('route', category='none', suppressed=True, reason='session_end_cleanup')
+    log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
     print('EVENT=' + q(event))
     print('PEON_EXIT=true')
     sys.exit(0)
