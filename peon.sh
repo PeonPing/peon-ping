@@ -2682,139 +2682,6 @@ for i, s in enumerate(sounds):
       fi
     done
     exit 0 ;;
-  debug)
-    case "${2:-}" in
-      on)
-        python3 -c "
-import json, os
-config_path = os.environ.get('PEON_ENV_CONFIG', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-cfg['debug'] = True
-json.dump(cfg, open(config_path, 'w'), indent=2)
-peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
-print('peon-ping: debug logging enabled — logs at ' + peon_dir + '/logs/')
-"
-        exit 0 ;;
-      off)
-        python3 -c "
-import json, os
-config_path = os.environ.get('PEON_ENV_CONFIG', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-cfg['debug'] = False
-json.dump(cfg, open(config_path, 'w'), indent=2)
-print('peon-ping: debug logging disabled')
-"
-        exit 0 ;;
-      status)
-        python3 -c "
-import json, os, glob
-config_path = os.environ.get('PEON_ENV_CONFIG', '')
-peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-enabled = cfg.get('debug', False)
-status = 'enabled' if enabled else 'disabled'
-log_dir = os.path.join(peon_dir, 'logs')
-log_files = glob.glob(os.path.join(log_dir, 'peon-ping-*.log'))
-count = len(log_files)
-total_size = sum(os.path.getsize(f) for f in log_files)
-if total_size >= 1048576:
-    size_str = '{:.1f} MB'.format(total_size / 1048576)
-elif total_size >= 1024:
-    size_str = '{:.1f} KB'.format(total_size / 1024)
-else:
-    size_str = '{} B'.format(total_size)
-unit = 'file' if count == 1 else 'files'
-print('peon-ping: debug logging ' + status)
-print('  log dir:  ' + log_dir + '/')
-print('  log data: ' + str(count) + ' ' + unit + ', ' + size_str)
-"
-        exit 0 ;;
-      *)
-        echo "Usage: peon debug <on|off|status>"
-        exit 0 ;;
-    esac ;;
-  logs)
-    shift
-    LOGS_DIR="$PEON_DIR/logs"
-    case "${1:-}" in
-      --last)
-        N="${2:-50}"
-        if [ ! -d "$LOGS_DIR" ] || [ -z "$(ls "$LOGS_DIR"/peon-ping-*.log 2>/dev/null)" ]; then
-          echo "peon-ping: no log files found in $LOGS_DIR/"
-          exit 0
-        fi
-        # Sort log files by name (date-sorted), cat them all, take last N lines
-        ls -1 "$LOGS_DIR"/peon-ping-*.log 2>/dev/null | sort | xargs cat | tail -n "$N"
-        exit 0 ;;
-      --session)
-        SESSION_ID="${2:-}"
-        if [ -z "$SESSION_ID" ]; then
-          echo "Usage: peon logs --session <ID> [--all]" >&2; exit 1
-        fi
-        SESSION_ALL_FLAG="${3:-}"
-        if [ "$SESSION_ALL_FLAG" = "--all" ]; then
-          # Search across all log files in chronological order
-          if [ ! -d "$LOGS_DIR" ] || [ -z "$(ls "$LOGS_DIR"/peon-ping-*.log 2>/dev/null)" ]; then
-            echo "peon-ping: no log files found in $LOGS_DIR/"
-            exit 0
-          fi
-          MATCHES=$(ls -1 "$LOGS_DIR"/peon-ping-*.log 2>/dev/null | sort | xargs grep -F "session=$SESSION_ID" 2>/dev/null)
-          if [ -z "$MATCHES" ]; then
-            echo "peon-ping: no entries for session=$SESSION_ID across all log files"
-          else
-            # Strip filename prefix from grep output (filename:line → line)
-            echo "$MATCHES" | sed 's/^[^:]*://'
-          fi
-          exit 0
-        fi
-        TODAY=$(date +%Y-%m-%d)
-        LOG_FILE="$LOGS_DIR/peon-ping-${TODAY}.log"
-        if [ ! -f "$LOG_FILE" ]; then
-          echo "peon-ping: no log file for today ($TODAY)"
-          exit 0
-        fi
-        grep -F "session=$SESSION_ID" "$LOG_FILE" || echo "peon-ping: no entries for session=$SESSION_ID"
-        exit 0 ;;
-      --clear)
-        if [ ! -d "$LOGS_DIR" ] || [ -z "$(ls "$LOGS_DIR"/peon-ping-*.log 2>/dev/null)" ]; then
-          echo "peon-ping: no log files to clear"
-          exit 0
-        fi
-        COUNT=$(ls -1 "$LOGS_DIR"/peon-ping-*.log 2>/dev/null | wc -l | tr -d ' ')
-        printf "Delete %s log file(s) in %s? [y/N] " "$COUNT" "$LOGS_DIR"
-        read -r CONFIRM
-        case "$CONFIRM" in
-          y|Y|yes|YES)
-            rm -f "$LOGS_DIR"/peon-ping-*.log
-            echo "peon-ping: cleared $COUNT log file(s)"
-            ;;
-          *)
-            echo "peon-ping: cancelled"
-            ;;
-        esac
-        exit 0 ;;
-      "")
-        # Default: tail today's log, last 50 lines
-        TODAY=$(date +%Y-%m-%d)
-        LOG_FILE="$LOGS_DIR/peon-ping-${TODAY}.log"
-        if [ ! -f "$LOG_FILE" ]; then
-          echo "peon-ping: no log file for today — enable debug logging with 'peon debug on'"
-          exit 0
-        fi
-        tail -n 50 "$LOG_FILE"
-        exit 0 ;;
-      *)
-        echo "Usage: peon logs [--last N] [--session ID [--all]] [--clear]" >&2; exit 1 ;;
-    esac ;;
   update)
     echo "Updating peon-ping..."
     # Migrate config keys (active_pack → default_pack, agentskill → session_override)
@@ -3292,16 +3159,34 @@ print(cfg.get('debug_retention_days', 7))
       --session)
         _sid="${2:-}"
         if [ -z "$_sid" ]; then
-          echo "Usage: peon logs --session <id>" >&2; exit 1
+          echo "Usage: peon logs --session <id> [--all]" >&2; exit 1
         fi
-        if [ -d "$LOG_DIR" ]; then
-          grep -h "session=$_sid" "$LOG_DIR"/peon-ping-*.log 2>/dev/null || echo "peon-ping: no entries for session $_sid"
-        else
-          echo "peon-ping: no logs directory found"
+        _all_flag="${3:-}"
+        if [ "$_all_flag" = "--all" ]; then
+          # Search across all log files in chronological order
+          if [ ! -d "$LOG_DIR" ] || [ -z "$(ls "$LOG_DIR"/peon-ping-*.log 2>/dev/null)" ]; then
+            echo "peon-ping: no log files found"
+            exit 0
+          fi
+          _matches=$(ls -1 "$LOG_DIR"/peon-ping-*.log 2>/dev/null | sort | xargs grep -F "session=$_sid" 2>/dev/null)
+          if [ -z "$_matches" ]; then
+            echo "peon-ping: no entries for session=$_sid across all log files"
+          else
+            echo "$_matches" | sed 's/^[^:]*://'
+          fi
+          exit 0
         fi
+        # Default: search today's log only
+        _today=$(date +%Y-%m-%d)
+        _logfile="$LOG_DIR/peon-ping-${_today}.log"
+        if [ ! -f "$_logfile" ]; then
+          echo "peon-ping: no log file for today ($_today)"
+          exit 0
+        fi
+        grep -F "session=$_sid" "$_logfile" || echo "peon-ping: no entries for session=$_sid"
         exit 0 ;;
       *)
-        echo "Usage: peon logs [--last N | --session <id> | --prune | --clear]" >&2; exit 1 ;;
+        echo "Usage: peon logs [--last N | --session <id> [--all] | --prune | --clear]" >&2; exit 1 ;;
     esac ;;
   --*)
     echo "Unknown option: $1" >&2
