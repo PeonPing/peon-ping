@@ -587,7 +587,9 @@ if ($Command) {
             try {
                 $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
                 $state = if ($cfg.enabled) { "ENABLED" } else { "PAUSED" }
-                Write-Host "peon-ping: $state | pack: $(Get-ActivePack $cfg) | volume: $($cfg.volume)" -ForegroundColor Cyan
+                $versionFile = Join-Path $InstallDir "VERSION"
+                $version = if (Test-Path $versionFile) { (Get-Content $versionFile -Raw).Trim() } else { "unknown" }
+                Write-Host "peon-ping: $state | version $version | pack: $(Get-ActivePack $cfg) | volume: $($cfg.volume)" -ForegroundColor Cyan
                 # Show path_rules info
                 $rules = @()
                 if ($cfg.path_rules) { $rules = @($cfg.path_rules) }
@@ -625,6 +627,15 @@ if ($Command) {
                         foreach ($prop in $tpls.PSObject.Properties) {
                             Write-Host "  $($prop.Name) = `"$($prop.Value)`"" -ForegroundColor Cyan
                         }
+                    }
+
+                    # Debug logging state
+                    $debugEnabled = $env:PEON_DEBUG -eq "1"
+                    $debugStatus = if ($debugEnabled) { "enabled" } else { "disabled" }
+                    Write-Host "peon-ping: debug logging: $debugStatus" -ForegroundColor Cyan
+                    if ($debugEnabled) {
+                        $logDir = Join-Path $InstallDir "logs"
+                        Write-Host "peon-ping: log dir: $logDir" -ForegroundColor Cyan
                     }
                 }
             } catch {

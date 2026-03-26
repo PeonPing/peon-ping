@@ -1226,6 +1226,16 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'PAUSED'
     }
 
+    It "--status shows version from VERSION file" {
+        $script:peonHookContent | Should -Match 'VERSION'
+        $script:peonHookContent | Should -Match 'version'
+    }
+
+    It "--status --verbose shows debug logging state" {
+        $script:peonHookContent | Should -Match 'debug logging'
+        $script:peonHookContent | Should -Match 'PEON_DEBUG'
+    }
+
     It "supports --packs CLI command with use/next/list subcommands" {
         $script:peonHookContent | Should -Match '--packs'
         $script:peonHookContent | Should -Match '"use"'
@@ -1691,6 +1701,16 @@ Describe "path_rules: CLI Commands - Functional" {
         & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
         $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
         ($result -join "`n") | Should -Match "path rules: 1 configured"
+    }
+
+    It "status shows version from VERSION file" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "version"
+    }
+
+    It "status --verbose shows debug logging state" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status --verbose 2>&1"
+        ($result -join "`n") | Should -Match "debug logging: disabled"
     }
 }
 
