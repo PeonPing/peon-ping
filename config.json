@@ -24,6 +24,8 @@
   "session_ttl_days": 7,
   "use_sound_effects_device": true,
   "linux_audio_player": "",
+  "debug": false,
+  "debug_retention_days": 7,
   "headphones_only": false,
   "meeting_detect": false,
   "suppress_sound_when_tab_focused": false,

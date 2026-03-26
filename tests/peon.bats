@@ -3299,6 +3299,110 @@ assert cfg.get('pack_rotation_mode') == 'session_override', "mode should be unch
 PYTHON
 }
 
+@test "peon update backfills debug and debug_retention_days config keys" {
+  # Config without debug keys
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "pack_rotation_mode": "random"
+}
+JSON
+  # Run the same migration logic as peon update
+  python3 <<PYTHON
+import json, os
+config_path = '${TEST_DIR}/config.json'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+changed = False
+migrations = []
+if 'active_pack' in cfg and 'default_pack' not in cfg:
+    cfg['default_pack'] = cfg.pop('active_pack')
+    changed = True
+    migrations.append('active_pack -> default_pack')
+elif 'active_pack' in cfg:
+    cfg.pop('active_pack')
+    changed = True
+    migrations.append('active_pack removed')
+if cfg.get('pack_rotation_mode') == 'agentskill':
+    cfg['pack_rotation_mode'] = 'session_override'
+    changed = True
+    migrations.append('agentskill -> session_override')
+if 'debug' not in cfg:
+    cfg['debug'] = False
+    changed = True
+    migrations.append('debug')
+if 'debug_retention_days' not in cfg:
+    cfg['debug_retention_days'] = 7
+    changed = True
+    migrations.append('debug_retention_days')
+if changed:
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+    print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
+PYTHON
+
+  # Verify debug keys were backfilled with correct defaults
+  python3 <<'PYTHON'
+import json, os
+config_path = os.environ['TEST_DIR'] + '/config.json'
+cfg = json.load(open(config_path))
+assert cfg.get('debug') == False, "debug should be False"
+assert cfg.get('debug_retention_days') == 7, "debug_retention_days should be 7"
+assert cfg.get('default_pack') == 'peon', "default_pack should be unchanged"
+PYTHON
+}
+
+@test "peon update backfill does not overwrite existing debug keys" {
+  # Config with debug keys already set
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "debug": true,
+  "debug_retention_days": 14
+}
+JSON
+  python3 <<PYTHON
+import json, os
+config_path = '${TEST_DIR}/config.json'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+changed = False
+if 'active_pack' in cfg and 'default_pack' not in cfg:
+    cfg['default_pack'] = cfg.pop('active_pack')
+    changed = True
+elif 'active_pack' in cfg:
+    cfg.pop('active_pack')
+    changed = True
+if cfg.get('pack_rotation_mode') == 'agentskill':
+    cfg['pack_rotation_mode'] = 'session_override'
+    changed = True
+if 'debug' not in cfg:
+    cfg['debug'] = False
+    changed = True
+if 'debug_retention_days' not in cfg:
+    cfg['debug_retention_days'] = 7
+    changed = True
+if changed:
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+PYTHON
+
+  # Verify existing values were preserved
+  python3 <<'PYTHON'
+import json, os
+config_path = os.environ['TEST_DIR'] + '/config.json'
+cfg = json.load(open(config_path))
+assert cfg.get('debug') == True, "debug should remain True"
+assert cfg.get('debug_retention_days') == 14, "debug_retention_days should remain 14"
+PYTHON
+}
+
 # ============================================================
 # packs install-local
 # ============================================================
@@ -3815,4 +3919,132 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   run bash "$PEON_SH" packs list
   [ "$status" -eq 0 ]
   [[ "$output" == *"$pack_name"* ]]
+}
+
+# ── debug on/off/status ──────────────────────────────────────────────
+
+@test "debug on sets debug true in config" {
+  run bash "$PEON_SH" debug on
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug logging enabled"* ]]
+  val=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('debug'))")
+  [ "$val" = "True" ]
+}
+
+@test "debug off sets debug false in config" {
+  # Enable first
+  bash "$PEON_SH" debug on >/dev/null 2>&1
+  run bash "$PEON_SH" debug off
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug logging disabled"* ]]
+  val=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('debug'))")
+  [ "$val" = "False" ]
+}
+
+@test "debug status shows disabled when debug is false" {
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"disabled"* ]]
+}
+
+@test "debug status shows enabled when debug is true" {
+  bash "$PEON_SH" debug on >/dev/null 2>&1
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"enabled"* ]]
+}
+
+@test "debug status shows log directory path" {
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"logs/"* ]]
+}
+
+@test "debug status shows log file count and size" {
+  mkdir -p "$TEST_DIR/logs"
+  echo "test log line" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 file"* ]]
+}
+
+@test "debug with no subcommand shows usage" {
+  run bash "$PEON_SH" debug
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"on"* ]]
+  [[ "$output" == *"off"* ]]
+  [[ "$output" == *"status"* ]]
+}
+
+# ── logs ──────────────────────────────────────────────────────────────
+
+@test "logs shows last 50 lines of today's log" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  for i in $(seq 1 60); do
+    echo "line $i" >> "$TEST_DIR/logs/peon-ping-${today}.log"
+  done
+  run bash "$PEON_SH" logs
+  [ "$status" -eq 0 ]
+  # Should show last 50, not first 50
+  [[ "$output" == *"line 60"* ]]
+  [[ "$output" != *"line 1"* ]]
+}
+
+@test "logs shows message when no log files exist" {
+  run bash "$PEON_SH" logs
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no log"* ]] || [[ "$output" == *"No log"* ]]
+}
+
+@test "logs --last N shows last N lines across all files" {
+  mkdir -p "$TEST_DIR/logs"
+  echo "old line 1" > "$TEST_DIR/logs/peon-ping-2026-03-24.log"
+  echo "old line 2" >> "$TEST_DIR/logs/peon-ping-2026-03-24.log"
+  echo "new line 1" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  echo "new line 2" >> "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  run bash "$PEON_SH" logs --last 3
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"new line 2"* ]]
+  [[ "$output" == *"new line 1"* ]]
+  [[ "$output" == *"old line 2"* ]]
+}
+
+@test "logs --session ID filters by session" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  cat > "$TEST_DIR/logs/peon-ping-${today}.log" <<'LOG'
+ts=2026-03-25T10:00:00 inv=aa11 session=abc123 phase=[hook] event=Start
+ts=2026-03-25T10:00:01 inv=bb22 session=def456 phase=[hook] event=Stop
+ts=2026-03-25T10:00:02 inv=cc33 session=abc123 phase=[sound] file=Hello1.wav
+LOG
+  run bash "$PEON_SH" logs --session abc123
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"abc123"* ]]
+  [[ "$output" != *"def456"* ]]
+}
+
+@test "logs --clear deletes all log files" {
+  mkdir -p "$TEST_DIR/logs"
+  echo "data" > "$TEST_DIR/logs/peon-ping-2026-03-24.log"
+  echo "data" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  # Pipe 'y' to confirm
+  run bash -c "echo y | bash '$PEON_SH' logs --clear"
+  [ "$status" -eq 0 ]
+  [ ! -f "$TEST_DIR/logs/peon-ping-2026-03-24.log" ]
+  [ ! -f "$TEST_DIR/logs/peon-ping-2026-03-25.log" ]
+}
+
+# ── help includes debug and logs ─────────────────────────────────────
+
+@test "help lists debug command" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug"* ]]
+}
+
+@test "help lists logs command" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"logs"* ]]
 }

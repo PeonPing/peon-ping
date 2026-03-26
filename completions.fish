@@ -34,6 +34,8 @@ complete -c peon -n __peon_no_subcommand -a packs -d "Manage sound packs"
 complete -c peon -n __peon_no_subcommand -a notifications -d "Control desktop notifications"
 complete -c peon -n __peon_no_subcommand -a mobile -d "Configure mobile push notifications"
 complete -c peon -n __peon_no_subcommand -a relay -d "Start audio relay for devcontainers"
+complete -c peon -n __peon_no_subcommand -a debug -d "Enable/disable debug logging"
+complete -c peon -n __peon_no_subcommand -a logs -d "View debug log files"
 complete -c peon -n __peon_no_subcommand -a help -d "Show help message"
 
 # packs subcommands
@@ -137,3 +139,13 @@ complete -c peon -n "__peon_notif_subcommand position" -a "bottom-center" -d "Bo
 
 # notifications label values
 complete -c peon -n "__peon_notif_subcommand label" -a reset -d "Clear label override"
+
+# debug subcommands
+complete -c peon -n "__peon_using_subcommand debug" -a on -d "Enable debug logging"
+complete -c peon -n "__peon_using_subcommand debug" -a off -d "Disable debug logging"
+complete -c peon -n "__peon_using_subcommand debug" -a status -d "Show debug state and log info"
+
+# logs subcommands
+complete -c peon -n "__peon_using_subcommand logs" -a "--last" -d "Show last N lines across all logs"
+complete -c peon -n "__peon_using_subcommand logs" -a "--session" -d "Filter by session ID"
+complete -c peon -n "__peon_using_subcommand logs" -a "--clear" -d "Delete all log files"
