@@ -3060,8 +3060,12 @@ if _log_enabled:
 
     def _log_quote(v):
         s = str(v)
-        if ' ' in s or '\"' in s or '=' in s or not s:
-            return '\"' + s.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"') + '\"'
+        if ' ' in s or '\"' in s or '=' in s or '\n' in s or '\r' in s or not s:
+            s = s.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"')
+            # Escape newlines/CR after backslash escaping to avoid double-escape.
+            # Preserves the one-line-per-entry log invariant.
+            s = s.replace('\r', '\\\\r').replace('\n', '\\\\n')
+            return '\"' + s + '\"'
         return s
 
     def log(phase, **kw):
@@ -3900,12 +3904,35 @@ eval "$_PEON_PYOUT"
 
 # --- Bash-side debug log function for [play] and [notify] phases ---
 if [ -n "${_PEON_LOG_FILE:-}" ]; then
-  _peon_log() {
-    local phase="$1"; shift
-    local ts
-    ts=$(date '+%Y-%m-%dT%H:%M:%S.000')
-    printf '%s [%s] inv=%s %s\n' "$ts" "$phase" "$_PEON_INV_ID" "$*" >> "$_PEON_LOG_FILE" 2>/dev/null
-  }
+  # Detect millisecond timestamp capability once at definition time.
+  # GNU date (Linux, Git Bash, WSL) supports %N nanoseconds; BSD date (macOS stock) does not.
+  if date '+%Y-%m-%dT%H:%M:%S.%3N' 2>/dev/null | grep -qE '\.[0-9]{3}$'; then
+    _peon_log() {
+      local phase="$1"; shift
+      local ts
+      ts=$(date '+%Y-%m-%dT%H:%M:%S.%3N')
+      printf '%s [%s] inv=%s %s\n' "$ts" "$phase" "$_PEON_INV_ID" "$*" >> "$_PEON_LOG_FILE" 2>/dev/null
+    }
+  else
+    # Fallback: use python3 for ms (already a dependency). If python3 is
+    # unavailable, fall back to .000 (known limitation on stock macOS bash).
+    if command -v python3 >/dev/null 2>&1; then
+      _peon_log() {
+        local phase="$1"; shift
+        local ts
+        ts=$(python3 -c "import datetime as d;n=d.datetime.now();print(n.strftime('%Y-%m-%dT%H:%M:%S.')+f'{n.microsecond//1000:03d}')")
+        printf '%s [%s] inv=%s %s\n' "$ts" "$phase" "$_PEON_INV_ID" "$*" >> "$_PEON_LOG_FILE" 2>/dev/null
+      }
+    else
+      # No ms source available — document as known limitation
+      _peon_log() {
+        local phase="$1"; shift
+        local ts
+        ts=$(date '+%Y-%m-%dT%H:%M:%S.000')
+        printf '%s [%s] inv=%s %s\n' "$ts" "$phase" "$_PEON_INV_ID" "$*" >> "$_PEON_LOG_FILE" 2>/dev/null
+      }
+    fi
+  fi
 else
   _peon_log() { :; }
 fi
