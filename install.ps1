@@ -1229,10 +1229,41 @@ if ($Command) {
                     }
                     return
                 }
+                "^--prune$" {
+                    # Read retention days from config
+                    $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $retention = if ($cfg.debug_retention_days) { [int]$cfg.debug_retention_days } else { 7 }
+                    if (-not (Test-Path $logDir)) {
+                        Write-Host "peon-ping: no logs directory found" -ForegroundColor Yellow
+                        return
+                    }
+                    $logFiles = @(Get-ChildItem -Path $logDir -Filter "peon-ping-*.log" -ErrorAction SilentlyContinue)
+                    $beforeCount = $logFiles.Count
+                    if ($beforeCount -eq 0) {
+                        Write-Host "peon-ping: no log files older than $retention days" -ForegroundColor Yellow
+                        return
+                    }
+                    $cutoff = (Get-Date).AddDays(-$retention).ToString('yyyy-MM-dd')
+                    foreach ($f in $logFiles) {
+                        $datePart = $f.BaseName -replace '^peon-ping-', ''
+                        # Validate date format YYYY-MM-DD
+                        if ($datePart -match '^\d{4}-\d{2}-\d{2}$' -and $datePart -lt $cutoff) {
+                            Remove-Item $f.FullName -Force -ErrorAction SilentlyContinue
+                        }
+                    }
+                    $afterFiles = @(Get-ChildItem -Path $logDir -Filter "peon-ping-*.log" -ErrorAction SilentlyContinue)
+                    $removed = $beforeCount - $afterFiles.Count
+                    if ($removed -gt 0) {
+                        Write-Host "peon-ping: pruned $removed log file(s) older than $retention days" -ForegroundColor Green
+                    } else {
+                        Write-Host "peon-ping: no log files older than $retention days" -ForegroundColor Yellow
+                    }
+                    return
+                }
                 default {
                     # No flag or unrecognized: show last 50 lines of today's log
                     if ($flag -and $flag -match "^--") {
-                        Write-Host "Usage: peon logs [--last N] [--session ID [--all]] [--clear]" -ForegroundColor Yellow
+                        Write-Host "Usage: peon logs [--last N] [--session ID [--all]] [--prune] [--clear]" -ForegroundColor Yellow
                         return
                     }
                     if (-not (Test-Path $logDir)) {
@@ -1304,6 +1335,7 @@ if ($Command) {
             Write-Host "  logs --last N         Show last N lines across all logs"
             Write-Host "  logs --session ID     Filter today's log by session ID"
             Write-Host "  logs --session ID --all  Search all log files for session ID"
+            Write-Host "  logs --prune          Delete logs older than debug_retention_days"
             Write-Host "  logs --clear          Delete all log files"
             return
         }
