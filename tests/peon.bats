@@ -3831,12 +3831,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 
 @test "debug=true creates daily log file with all phase entries for Stop event" {
   # Enable debug logging
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
   [ "$PEON_EXIT" -eq 0 ]
   # logs directory should exist
@@ -3904,12 +3899,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 @test "debug log contains route suppression reason for debounce" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # First Stop event
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -3924,12 +3914,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 @test "debug log emits [exit] on delegate_mode early exit" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # Trigger delegate_mode by sending a PermissionRequest with permission_mode=dangerouslySkipPermissions
   run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s-del","permission_mode":"dangerouslySkipPermissions"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -3945,12 +3930,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 @test "debug log emits [exit] on agent_session early exit" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # First, register session as delegate by sending with permission_mode
   run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s-agent","permission_mode":"dangerouslySkipPermissions"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -3971,12 +3951,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 @test "debug log emits route reason for replay suppression" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # First, send a SessionStart to set the session start time
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s-replay"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -4024,8 +3999,11 @@ validate_log_fixture() {
     [ -z "$phase" ] && continue
     grep -q "\[$phase\]" "$logfile" || { echo "Missing phase [$phase] in log"; return 1; }
 
-    # Check non-wildcard key=value pairs
-    for kv in $(echo "$line" | sed "s/.*\[$phase\] //"); do
+    # Check non-wildcard key=value pairs using Python shlex to handle quoted values
+    local kv_part
+    kv_part=$(echo "$line" | sed "s/.*\[$phase\] //")
+    while IFS= read -r kv; do
+      [ -z "$kv" ] && continue
       local key val
       key="${kv%%=*}"
       val="${kv#*=}"
@@ -4034,38 +4012,29 @@ validate_log_fixture() {
       # For quoted values, strip outer quotes for grep
       val=$(echo "$val" | sed 's/^"//;s/"$//')
       grep "\[$phase\]" "$logfile" | grep -q "$key=" || { echo "Missing $key in [$phase]"; return 1; }
-    done
+    done < <(/usr/bin/python3 -c "
+import re, sys
+line = sys.stdin.read().strip()
+# Parse key=value or key=\"quoted value\" pairs
+for m in re.finditer(r'(\w+)=(\"[^\"]*\"|\S*)', line):
+    print(m.group(0))
+" <<< "$kv_part")
   done < "$expected_file"
   return 0
 }
 
 @test "fixture: stop-normal produces all expected phases" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   validate_log_fixture "stop-normal"
 }
 
 @test "fixture: delegate-mode produces suppressed route" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   validate_log_fixture "delegate-mode"
 }
 
 @test "fixture: cwd-with-spaces logs quoted cwd value" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   validate_log_fixture "cwd-with-spaces"
   local today
   today=$(date '+%Y-%m-%d')
@@ -4077,12 +4046,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 # --- Concurrency test: 5 parallel invocations ---
 
 @test "5 concurrent hook invocations produce non-corrupted log entries with distinct inv IDs" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # Run 5 invocations in parallel
   for i in 1 2 3 4 5; do
     echo '{"hook_event_name":"Stop","cwd":"/tmp/proj'$i'","session_id":"s-conc-'$i'"}' | \
@@ -4169,12 +4133,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 @test "PRD-002: missing audio backend is diagnosable from log output" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-noaudio"}'
   [ "$PEON_EXIT" -eq 0 ]
   local today
@@ -4188,15 +4147,39 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   grep '\[play\]' "$logfile" | grep -q 'backend='
 }
 
+@test "PRD-002: missing audio backend on linux logs play error" {
+  enable_debug_logging
+  # Force linux platform and remove ALL audio backends from PATH so
+  # detect_linux_player fails and play_sound logs [play] error=
+  export PLATFORM=linux
+  # Build a PATH with only python3 and basic utils — no audio players
+  local clean_bin
+  clean_bin="$(mktemp -d)"
+  # Keep only python3 (needed for peon.sh), bash, date, grep, sed, etc.
+  for util in python3 bash date grep sed awk cat wc sort head tail mkdir touch rm printf tr cut; do
+    local util_path
+    util_path=$(command -v "$util" 2>/dev/null) || true
+    [ -n "$util_path" ] && ln -sf "$util_path" "$clean_bin/$util"
+  done
+  local saved_path="$PATH"
+  export PATH="$clean_bin"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-nobackend"}'
+  export PATH="$saved_path"
+  unset PLATFORM
+  [ "$PEON_EXIT" -eq 0 ]
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  [ -f "$logfile" ]
+  # The [play] phase should log the error when no backend is available
+  grep -q '\[play\]' "$logfile"
+  grep '\[play\]' "$logfile" | grep -q 'error='
+}
+
 @test "PRD-002: suppression decisions are diagnosable from log output" {
   # This covers the "timeout" scenario equivalent — debounce/suppression
   # prevents sounds from firing, and the reason is logged.
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # First Stop
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-supp"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -4212,12 +4195,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 @test "PRD-002: state contention is safe with concurrent access" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # Run 3 concurrent invocations to exercise state read/write contention
   for i in 1 2 3; do
     echo '{"hook_event_name":"Stop","cwd":"/tmp/proj","session_id":"s-state-'$i'"}' | \
@@ -4240,12 +4218,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 # --- Step 2B: Bash log helper hardening tests ---
 
 @test "debug log timestamps have real millisecond precision (not hardcoded .000)" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # Run multiple invocations to increase chance of non-zero ms
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-ms1"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -4271,12 +4244,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 @test "debug log _log_quote escapes newlines to preserve one-line-per-entry invariant" {
-  /usr/bin/python3 -c "
-import json
-cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['debug'] = True
-json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
-"
+  enable_debug_logging
   # Send a Stop event — the Python log function will write entries with various values.
   # We verify that NO log line is a bare continuation (i.e., every line matches the
   # timestamp-prefixed format). If _log_quote fails to escape newlines, a multi-line

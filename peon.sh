@@ -474,6 +474,8 @@ play_sound() {
       if [ -n "$player" ]; then
         play_linux_sound "$file" "$vol" "$player"
         save_sound_pid $!
+      else
+        _peon_log play "error=\"no audio backend found\" searched=\"pw-play,paplay,ffplay,mpv,play,aplay\""
       fi
       ;;
     msys2)

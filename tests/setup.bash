@@ -504,3 +504,14 @@ mobile_cmdline() {
     tail -1 "$TEST_DIR/mobile_curl.log"
   fi
 }
+
+# Helper: enable debug logging in the test config
+# Replaces the copy-pasted python3 JSON manipulation boilerplate
+enable_debug_logging() {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+}
