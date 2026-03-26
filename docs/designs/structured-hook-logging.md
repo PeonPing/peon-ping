@@ -619,6 +619,24 @@ has no features or projects defined. After this design doc is accepted:
 3. M4's `docs_ref` should be updated to point to this design doc (the milestone already
    references PRD-002)
 
+## Known Asymmetries
+
+### `paused.expected.txt` fixture is Unix-only
+
+The shared test fixture `tests/fixtures/hook-logging/paused.expected.txt` validates log output
+when the hook is invoked while peon-ping is paused (`enabled: false`). This fixture applies only
+to the Unix (BATS) side.
+
+On Windows, `peon.ps1` exits early when paused — `if (-not $config.enabled) { exit 0 }` fires
+before the logging infrastructure is initialized, so no log file is created. The Pester test
+validates only that the exit code is 0 in the paused case.
+
+This diverges from `peon.sh`, where the Python block runs past the enabled check and logs the
+paused state mid-pipeline (the `[hook] ... paused=true` line appears in the log before the
+script exits). The asymmetry is inherent to the implementation: Python evaluates the full
+decision pipeline and emits log lines along the way, while PowerShell's early-exit guard
+precedes all logging setup.
+
 ## Open Questions
 
 None — all resolved during design.

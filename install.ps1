@@ -1443,7 +1443,7 @@ try {
     $config = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
 } catch {
     $_configError = "$_"
-    # Fall back to minimal defaults so logging can still initialize
+    # Fall back to minimal defaults so the hook can still run (logging requires PEON_DEBUG=1 when config is broken)
     $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7 }
 }
 
