@@ -225,14 +225,7 @@ if (-not $Updating) {
         pack_rotation = @()
         pack_rotation_mode = "random"
     }
-    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
-    try {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-        $config = $config | ConvertTo-Json -Depth 3
-    } finally {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
-    }
-    Set-Content -Path $configPath -Value $config -Encoding UTF8
+    Set-PeonConfig $config $configPath
 }
 
 # --- Normalize config on update (repair invalid/missing volume, locale decimals) ---
@@ -349,6 +342,20 @@ $peonDebug = $env:PEON_DEBUG -eq "1"
 function Get-PeonConfigRaw {
     param([string]$Path)
     return Get-Content $Path -Raw
+}
+
+# Write a config object to a JSON file with culture-safe serialization.
+# Saves and restores CurrentCulture in a try/finally to guarantee no culture leak,
+# preventing locale-damaged decimals (e.g. "volume": 0,5 on European locales).
+function Set-PeonConfig {
+    param($Config, [string]$Path)
+    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+    try {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
+        $Config | ConvertTo-Json -Depth 10 | Set-Content $Path -Encoding UTF8
+    } finally {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
+    }
 }
 
 # Resolve the active pack from config using the default_pack -> active_pack -> "peon" fallback chain.
@@ -783,7 +790,7 @@ if ($Command) {
                     } else {
                         $cfgObj | Add-Member -NotePropertyName 'path_rules' -NotePropertyValue $pathRules
                     }
-                    $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
+                    Set-PeonConfig $cfgObj $ConfigPath
                     Write-Host "peon-ping: bound $packName to $bindPattern"
                     if (-not ($ExtraArgs -contains "--pattern") -and -not ($ExtraArgs -match "^--pattern=")) {
                         $dirName = Split-Path $PWD.Path -Leaf
@@ -836,7 +843,7 @@ if ($Command) {
                         } else {
                             $cfgObj | Add-Member -NotePropertyName 'path_rules' -NotePropertyValue $newRules
                         }
-                        $cfgObj | ConvertTo-Json -Depth 5 | Set-Content $ConfigPath -Encoding UTF8
+                        Set-PeonConfig $cfgObj $ConfigPath
                         Write-Host "peon-ping: unbound $target"
                         return
                     }
@@ -1251,14 +1258,14 @@ if ($Command) {
                 "on" {
                     $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
                     $cfgObj | Add-Member -NotePropertyName 'desktop_notifications' -NotePropertyValue $true -Force
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Set-PeonConfig $cfgObj $ConfigPath
                     Write-Host "peon-ping: desktop notifications on" -ForegroundColor Green
                     return
                 }
                 "off" {
                     $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
                     $cfgObj | Add-Member -NotePropertyName 'desktop_notifications' -NotePropertyValue $false -Force
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Set-PeonConfig $cfgObj $ConfigPath
                     Write-Host "peon-ping: desktop notifications off" -ForegroundColor Yellow
                     return
                 }
@@ -1297,7 +1304,7 @@ if ($Command) {
                         if ($members.Count -gt 0) {
                             $cfgObj.PSObject.Properties.Remove('notification_templates')
                         }
-                        $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                        Set-PeonConfig $cfgObj $ConfigPath
                         Write-Host "peon-ping: notification templates cleared" -ForegroundColor Cyan
                         return
                     }
@@ -1336,7 +1343,7 @@ if ($Command) {
                         $tplObj | Add-Member -NotePropertyName $k -NotePropertyValue $tpls[$k]
                     }
                     $cfgObj | Add-Member -NotePropertyName 'notification_templates' -NotePropertyValue $tplObj -Force
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Set-PeonConfig $cfgObj $ConfigPath
                     Write-Host "peon-ping: template $tplKey set to `"$tplVal`"" -ForegroundColor Green
                     return
                 }
@@ -1382,7 +1389,7 @@ if ($Command) {
                             $cfgObj.trainer | Add-Member -NotePropertyName 'reminder_min_gap_minutes' -NotePropertyValue 5
                         }
                     }
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Set-PeonConfig $cfgObj $ConfigPath
                     Write-Host "peon-ping: trainer enabled" -ForegroundColor Green
                     return
                 }
@@ -1395,7 +1402,7 @@ if ($Command) {
                             enabled = $false
                         })
                     }
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Set-PeonConfig $cfgObj $ConfigPath
                     Write-Host "peon-ping: trainer disabled" -ForegroundColor Yellow
                     return
                 }
@@ -1577,7 +1584,7 @@ if ($Command) {
                         $exercisesObj | Add-Member -NotePropertyName $k -NotePropertyValue $exercises[$k]
                     }
                     $cfgObj.trainer.exercises = $exercisesObj
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    Set-PeonConfig $cfgObj $ConfigPath
                     return
                 }
                 default {
