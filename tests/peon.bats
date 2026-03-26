@@ -3829,7 +3829,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ ! -d "$TEST_DIR/logs" ]
 }
 
-@test "debug=true creates daily log file with phase entries" {
+@test "debug=true creates daily log file with all phase entries for Stop event" {
   # Enable debug logging
   /usr/bin/python3 -c "
 import json
@@ -3846,9 +3846,16 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   today=$(date '+%Y-%m-%d')
   local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
   [ -f "$logfile" ]
-  # Log should contain phase entries
+  # A normal Stop event should log all 9 phases per ADR-002:
+  # [hook], [config], [state], [route], [sound], [play], [notify], [trainer], [exit]
   grep -q '\[hook\]' "$logfile"
   grep -q '\[config\]' "$logfile"
+  grep -q '\[state\]' "$logfile"
+  grep -q '\[route\]' "$logfile"
+  grep -q '\[sound\]' "$logfile"
+  grep -q '\[play\]' "$logfile"
+  grep -q '\[notify\]' "$logfile"
+  grep -q '\[trainer\]' "$logfile"
   grep -q '\[exit\]' "$logfile"
   # All lines should carry an inv= prefix
   grep -v 'inv=' "$logfile" && false || true
@@ -3914,4 +3921,72 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   today=$(date '+%Y-%m-%d')
   local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
   grep -q 'reason=debounce_5s' "$logfile"
+}
+
+@test "debug log emits [exit] on delegate_mode early exit" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Trigger delegate_mode by sending a PermissionRequest with permission_mode=dangerouslySkipPermissions
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s-del","permission_mode":"dangerouslySkipPermissions"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  [ -f "$logfile" ]
+  grep -q 'reason=delegate_mode' "$logfile"
+  grep -q '\[exit\]' "$logfile"
+  # Verify both route and exit appear for this invocation
+  grep 'reason=delegate_mode' "$logfile" | grep -q '\[route\]'
+}
+
+@test "debug log emits [exit] on agent_session early exit" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # First, register session as delegate by sending with permission_mode
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s-agent","permission_mode":"dangerouslySkipPermissions"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  # Now send a normal event for the same session — should hit agent_session path
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-agent"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  grep -q 'reason=agent_session' "$logfile"
+  # The agent_session invocation should also have an [exit] entry
+  # Extract invocation ID from the agent_session route line and verify exit exists for same inv
+  local inv
+  inv=$(grep 'reason=agent_session' "$logfile" | sed 's/.*inv=\([^ ]*\).*/\1/')
+  grep -q "inv=$inv.*\[exit\]" "$logfile"
+}
+
+@test "debug log emits route reason for replay suppression" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # First, send a SessionStart to set the session start time
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s-replay"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  # Immediately send a Stop within 3s — should trigger replay suppression
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-replay"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  grep -q 'reason=replay_suppression' "$logfile"
 }

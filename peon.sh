@@ -3159,11 +3159,13 @@ if perm_mode and perm_mode in agent_modes:
     state['agent_sessions'] = list(agent_sessions)
     state_dirty = True
     log('route', category='none', suppressed=True, reason='delegate_mode')
+    log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
     print('PEON_EXIT=true')
     write_state(state, state_file)
     sys.exit(0)
 elif session_id in agent_sessions:
     log('route', category='none', suppressed=True, reason='agent_session')
+    log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
     print('PEON_EXIT=true')
     sys.exit(0)
 
@@ -3480,6 +3482,8 @@ elif event == 'Notification':
         msg_subtitle = 'Question pending'
     else:
         # Unknown notification type — maintain tab title (e.g. plan mode events)
+        log('route', category='none', suppressed=True, reason='unknown_notification')
+        log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         print('PROJECT=' + q(project or ''))
         print('STATUS=working')
         print('MARKER=')
@@ -3488,6 +3492,8 @@ elif event == 'Notification':
 elif event == 'PermissionRequest':
     # Suppress permission sound/notification for known sub-agent sessions
     if suppress_subagent_complete and session_id in state.get('subagent_sessions', {}):
+        log('route', category='input.required', suppressed=True, reason='subagent_session')
+        log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         write_state(state, state_file)
         print('PEON_EXIT=true')
         sys.exit(0)
@@ -3603,6 +3609,7 @@ if event == 'SessionStart':
     if _ss_cooldown > 0:
         _last_ss = state.get('last_session_start_sound_time', 0)
         if now - _last_ss < _ss_cooldown:
+            log('route', category='session.start', suppressed=True, reason='session_start_cooldown')
             category = ''  # another workspace just greeted — stay quiet
         else:
             state['last_session_start_sound_time'] = now
@@ -3611,6 +3618,7 @@ elif category:
     session_starts = state.get('session_start_times', {})
     start_time = session_starts.get(session_id, 0)
     if start_time and (now - start_time) < 3:
+        log('route', category=category, suppressed=True, reason='replay_suppression')
         category = ''
         notify = ''
 
@@ -3624,7 +3632,8 @@ if category:
     _route_reason = 'paused' if paused else ''
     log('route', category=category, suppressed=bool(paused), reason=_route_reason)
 elif not category:
-    # category may have been cleared by debounce, replay suppression, etc.
+    # No-op: category was cleared by a prior suppression (debounce, replay, cooldown)
+    # that already emitted its own [route] log entry.
     pass
 
 # --- Pick sound (skip if no category or paused) ---
