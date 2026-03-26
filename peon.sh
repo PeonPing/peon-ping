@@ -2941,6 +2941,7 @@ Log management:
   logs                   Show last 50 lines of the most recent log
   logs --last N          Show last N lines of the most recent log
   logs --session <id>    Filter log entries by session ID
+  logs --session <id> --all  Search across all log files
   logs --prune           Delete log files older than debug_retention_days
   logs --clear           Delete all log files
 
@@ -3213,7 +3214,7 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
         exit 0 ;;
       status)
         python3 -c "
-import json
+import json, os, glob
 config_path = '$GLOBAL_CONFIG_PY'
 try:
     cfg = json.load(open(config_path))
@@ -3225,6 +3226,10 @@ print('peon-ping: debug logging ' + ('on' if enabled else 'off'))
 print('peon-ping: log retention: ' + str(retention) + ' days')
 "
         echo "peon-ping: logs directory: $LOG_DIR"
+        if [ -d "$LOG_DIR" ]; then
+          _count=$(find "$LOG_DIR" -name "peon-ping-*.log" 2>/dev/null | wc -l | tr -d ' ')
+          echo "peon-ping: log files: $_count"
+        fi
         exit 0 ;;
       *)
         echo "Usage: peon debug <on|off|status>" >&2; exit 1 ;;
@@ -3260,8 +3265,13 @@ print(cfg.get('debug_retention_days', 7))
         exit 0 ;;
       --clear)
         if [ -d "$LOG_DIR" ]; then
-          rm -f "$LOG_DIR"/peon-ping-*.log
-          echo "peon-ping: all log files deleted"
+          _count=$(find "$LOG_DIR" -name "peon-ping-*.log" 2>/dev/null | wc -l | tr -d ' ')
+          if [ "$_count" -gt 0 ]; then
+            rm -f "$LOG_DIR"/peon-ping-*.log
+            echo "peon-ping: cleared $_count log file(s)"
+          else
+            echo "peon-ping: no log files to clear"
+          fi
         else
           echo "peon-ping: no logs directory found"
         fi
@@ -3285,7 +3295,7 @@ print(cfg.get('debug_retention_days', 7))
           echo "Usage: peon logs --session <id>" >&2; exit 1
         fi
         if [ -d "$LOG_DIR" ]; then
-          grep -h "session_id=$_sid" "$LOG_DIR"/peon-ping-*.log 2>/dev/null || echo "peon-ping: no entries for session $_sid"
+          grep -h "session=$_sid" "$LOG_DIR"/peon-ping-*.log 2>/dev/null || echo "peon-ping: no entries for session $_sid"
         else
           echo "peon-ping: no logs directory found"
         fi
@@ -4233,6 +4243,10 @@ print('ICON_PATH=' + q(icon_path))
 print('TRAINER_SOUND=' + q(trainer_sound))
 print('TRAINER_MSG=' + q(trainer_msg))
 print('TAB_COLOR_RGB=' + q(tab_color_rgb))
+# Auto-prune: emit retention days so bash can prune without spawning another python3
+_auto_debug = cfg.get('debug', False) or os.environ.get('PEON_DEBUG') == '1'
+if _auto_debug:
+    print('PEON_AUTO_PRUNE=' + q(str(cfg.get('debug_retention_days', 7))))
 " <<< "$INPUT" 2>/dev/null)
 eval "$_PEON_PYOUT"
 
@@ -4269,6 +4283,12 @@ if [ -n "${_PEON_LOG_FILE:-}" ]; then
   fi
 else
   _peon_log() { :; }
+fi
+
+# Auto-prune old log files in the background if debug is enabled.
+# PEON_AUTO_PRUNE is set by the main Python block above — no extra python3 process needed.
+if [ -n "${PEON_AUTO_PRUNE:-}" ]; then
+  ( _prune_old_logs "$PEON_AUTO_PRUNE" ) &>/dev/null &
 fi
 
 # If Python signalled early exit (disabled, agent, unknown event), bail out

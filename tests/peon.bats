@@ -4640,15 +4640,40 @@ LOG
   [[ "$output" == *"--session ID --all"* ]]
 }
 
+@test "logs --prune skips non-log files" {
+  mkdir -p "$TEST_DIR/logs"
+  touch "$TEST_DIR/logs/peon-ping-2020-01-01.log"
+  touch "$TEST_DIR/logs/other-file.txt"
+  touch "$TEST_DIR/logs/readme.md"
+
+  run bash "$PEON_SH" logs --prune
+  [ "$status" -eq 0 ]
+  # Non-log files should survive
+  [ -f "$TEST_DIR/logs/other-file.txt" ]
+  [ -f "$TEST_DIR/logs/readme.md" ]
+}
+
 @test "logs --clear deletes all log files" {
   mkdir -p "$TEST_DIR/logs"
-  echo "data" > "$TEST_DIR/logs/peon-ping-2026-03-24.log"
-  echo "data" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
-  # Pipe 'y' to confirm
-  run bash -c "echo y | bash '$PEON_SH' logs --clear"
+  touch "$TEST_DIR/logs/peon-ping-2024-01-01.log"
+  touch "$TEST_DIR/logs/peon-ping-2024-06-15.log"
+  touch "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log"
+
+  run bash "$PEON_SH" logs --clear
   [ "$status" -eq 0 ]
-  [ ! -f "$TEST_DIR/logs/peon-ping-2026-03-24.log" ]
-  [ ! -f "$TEST_DIR/logs/peon-ping-2026-03-25.log" ]
+  [[ "$output" == *"cleared 3 log file(s)"* ]]
+  # All log files should be gone
+  local remaining
+  remaining=$(find "$TEST_DIR/logs" -name "peon-ping-*.log" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$remaining" -eq 0 ]
+}
+
+@test "logs --clear reports no files when directory is empty" {
+  mkdir -p "$TEST_DIR/logs"
+
+  run bash "$PEON_SH" logs --clear
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no log files to clear"* ]]
 }
 
 @test "logs --prune skips non-log files in logs directory" {

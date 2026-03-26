@@ -34,6 +34,8 @@
   "notification_title_override": "",
   "notification_title_script": "",
   "project_name_map": {},
+  "debug": false,
+  "debug_retention_days": 7,
   "trainer": {
     "enabled": false,
     "exercises": {
