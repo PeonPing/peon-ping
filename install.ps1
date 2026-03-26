@@ -586,45 +586,77 @@ if ($Command) {
         "^--status$" {
             try {
                 $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                $isVerbose = ($Arg1 -eq "--verbose")
+
+                # --- Essential info (always shown) ---
                 $state = if ($cfg.enabled) { "ENABLED" } else { "PAUSED" }
                 Write-Host "peon-ping: $state | pack: $(Get-ActivePack $cfg) | volume: $($cfg.volume)" -ForegroundColor Cyan
-                # Show path_rules info
-                $rules = @()
-                if ($cfg.path_rules) { $rules = @($cfg.path_rules) }
-                if ($rules.Count -gt 0) {
-                    $activeRule = $null
-                    foreach ($r in $rules) {
-                        if ($PWD.Path -like $r.pattern) {
-                            $activeRule = $r
-                            break
-                        }
-                    }
-                    if ($activeRule) {
-                        Write-Host "peon-ping: active path rule: $($activeRule.pattern) -> $($activeRule.pack)" -ForegroundColor Cyan
-                    } else {
-                        Write-Host "peon-ping: path rules: $($rules.Count) configured" -ForegroundColor Cyan
-                    }
+
+                # Pack count
+                $packsDir = Join-Path $InstallDir "packs"
+                $packCount = 0
+                if (Test-Path $packsDir) {
+                    $packCount = @(Get-ChildItem -Path $packsDir -Directory | Where-Object {
+                        (Test-Path (Join-Path $_.FullName "openpeon.json")) -or
+                        (Test-Path (Join-Path $_.FullName "manifest.json"))
+                    }).Count
                 }
-                # Verbose flag: show notification details
-                if ($Arg1 -eq "--verbose") {
+                Write-Host "peon-ping: $packCount pack(s) installed" -ForegroundColor Cyan
+
+                if (-not $isVerbose) {
+                    Write-Host 'peon-ping: run "peon status --verbose" for full details' -ForegroundColor DarkGray
+                }
+
+                # --- Informational (verbose only) ---
+                if ($isVerbose) {
+                    # Desktop notifications
                     $dn = $cfg.desktop_notifications
                     if ($null -eq $dn) { $dn = $true }
                     $dnStatus = if ($dn) { "on" } else { "off (sounds still play)" }
                     Write-Host "peon-ping: desktop notifications $dnStatus" -ForegroundColor Cyan
 
+                    # Mobile notifications
                     $mn = $cfg.mobile_notify
                     if ($mn -and $mn.service) {
                         $mnEnabled = if ($null -eq $mn.enabled) { $true } else { $mn.enabled }
                         $mnStatus = if ($mnEnabled) { "on ($($mn.service))" } else { "off" }
                         Write-Host "peon-ping: mobile notifications $mnStatus" -ForegroundColor Cyan
+                    } else {
+                        Write-Host "peon-ping: mobile notifications not configured" -ForegroundColor Cyan
                     }
 
+                    # Notification templates
                     $tpls = $cfg.notification_templates
                     if ($tpls -and ($tpls.PSObject.Properties | Measure-Object).Count -gt 0) {
                         Write-Host "peon-ping: notification templates:" -ForegroundColor Cyan
                         foreach ($prop in $tpls.PSObject.Properties) {
                             Write-Host "  $($prop.Name) = `"$($prop.Value)`"" -ForegroundColor Cyan
                         }
+                    }
+
+                    # Headphones-only mode
+                    $headphonesOnly = $cfg.headphones_only
+                    if ($headphonesOnly) {
+                        Write-Host "peon-ping: headphones_only: on" -ForegroundColor Cyan
+                    } else {
+                        Write-Host "peon-ping: headphones_only: off" -ForegroundColor Cyan
+                    }
+
+                    # Path rules
+                    $rules = @()
+                    if ($cfg.path_rules) { $rules = @($cfg.path_rules) }
+                    if ($rules.Count -gt 0) {
+                        $activeRule = $null
+                        foreach ($r in $rules) {
+                            if ($PWD.Path -like $r.pattern) {
+                                $activeRule = $r
+                                break
+                            }
+                        }
+                        if ($activeRule) {
+                            Write-Host "peon-ping: active path rule: $($activeRule.pattern) -> $($activeRule.pack)" -ForegroundColor Cyan
+                        }
+                        Write-Host "peon-ping: path rules: $($rules.Count) configured" -ForegroundColor Cyan
                     }
                 }
             } catch {

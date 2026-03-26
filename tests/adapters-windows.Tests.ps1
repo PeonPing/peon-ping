@@ -1687,10 +1687,26 @@ Describe "path_rules: CLI Commands - Functional" {
         ($result -join "`n") | Should -Match "No pack bindings configured"
     }
 
-    It "status shows path rules count" {
+    It "status shows path rules count under --verbose" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status --verbose 2>&1"
+        ($result -join "`n") | Should -Match "path rules: 1 configured"
+    }
+
+    It "status default output hides path rules" {
         & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
         $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
-        ($result -join "`n") | Should -Match "path rules: 1 configured"
+        ($result -join "`n") | Should -Not -Match "path rules"
+    }
+
+    It "status default output shows verbose hint" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "peon status --verbose"
+    }
+
+    It "status default output shows pack count" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "pack\(s\) installed"
     }
 }
 
@@ -1940,10 +1956,26 @@ Describe "path_rules: CLI Commands - Functional" {
         ($result -join "`n") | Should -Match "No pack bindings configured"
     }
 
-    It "status shows path rules count" {
+    It "status shows path rules count under --verbose" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status --verbose 2>&1"
+        ($result -join "`n") | Should -Match "path rules: 1 configured"
+    }
+
+    It "status default output hides path rules" {
         & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
         $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
-        ($result -join "`n") | Should -Match "path rules: 1 configured"
+        ($result -join "`n") | Should -Not -Match "path rules"
+    }
+
+    It "status default output shows verbose hint" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "peon status --verbose"
+    }
+
+    It "status default output shows pack count" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "pack\(s\) installed"
     }
 }
 
@@ -2330,9 +2362,25 @@ Describe "path_rules: CLI Commands - Functional" {
         ($result -join "`n") | Should -Match "No pack bindings configured"
     }
 
-    It "status shows path rules count" {
+    It "status shows path rules count under --verbose" {
+        & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status --verbose 2>&1"
+        ($result -join "`n") | Should -Match "path rules: 1 configured"
+    }
+
+    It "status default output hides path rules" {
         & powershell.exe -NoProfile -Command "& '$script:peonPs1' --packs bind peon --pattern '*/proj/*' 2>&1" | Out-Null
         $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
-        ($result -join "`n") | Should -Match "path rules: 1 configured"
+        ($result -join "`n") | Should -Not -Match "path rules"
+    }
+
+    It "status default output shows verbose hint" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "peon status --verbose"
+    }
+
+    It "status default output shows pack count" {
+        $result = & powershell.exe -NoProfile -Command "& '$script:peonPs1' --status 2>&1"
+        ($result -join "`n") | Should -Match "pack\(s\) installed"
     }
 }
