@@ -597,7 +597,9 @@ if ($Command) {
 
                 # --- Essential info (always shown) ---
                 $state = if ($cfg.enabled) { "ENABLED" } else { "PAUSED" }
-                Write-Host "peon-ping: $state | pack: $(Get-ActivePack $cfg) | volume: $($cfg.volume)" -ForegroundColor Cyan
+                $versionFile = Join-Path $InstallDir "VERSION"
+                $version = if (Test-Path $versionFile) { (Get-Content $versionFile -Raw).Trim() } else { "unknown" }
+                Write-Host "peon-ping: $state | version $version | pack: $(Get-ActivePack $cfg) | volume: $($cfg.volume)" -ForegroundColor Cyan
 
                 # Pack count
                 $packsDir = Join-Path $InstallDir "packs"
@@ -664,6 +666,15 @@ if ($Command) {
                             Write-Host "peon-ping: active path rule: $($activeRule.pattern) -> $($activeRule.pack)" -ForegroundColor Cyan
                         }
                         Write-Host "peon-ping: path rules: $($rules.Count) configured" -ForegroundColor Cyan
+                    }
+
+                    # Debug logging state
+                    $debugEnabled = $env:PEON_DEBUG -eq "1"
+                    $debugStatus = if ($debugEnabled) { "enabled" } else { "disabled" }
+                    Write-Host "peon-ping: debug logging: $debugStatus" -ForegroundColor Cyan
+                    if ($debugEnabled) {
+                        $logDir = Join-Path $InstallDir "logs"
+                        Write-Host "peon-ping: log dir: $logDir" -ForegroundColor Cyan
                     }
                 }
             } catch {
