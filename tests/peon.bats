@@ -4077,7 +4077,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   # Extract invocation ID from the agent_session route line and verify exit exists for same inv
   local inv
   inv=$(grep 'reason=agent_session' "$logfile" | sed 's/.*inv=\([^ ]*\).*/\1/')
-  grep -q "inv=$inv.*\[exit\]" "$logfile"
+  grep -q "\[exit\] inv=$inv" "$logfile"
 }
 
 @test "debug log emits route reason for replay suppression" {
