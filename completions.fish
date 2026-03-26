@@ -33,6 +33,8 @@ complete -c peon -n __peon_no_subcommand -a rotation -d "Get or set pack rotatio
 complete -c peon -n __peon_no_subcommand -a packs -d "Manage sound packs"
 complete -c peon -n __peon_no_subcommand -a notifications -d "Control desktop notifications"
 complete -c peon -n __peon_no_subcommand -a mobile -d "Configure mobile push notifications"
+complete -c peon -n __peon_no_subcommand -a debug -d "Toggle debug logging"
+complete -c peon -n __peon_no_subcommand -a logs -d "View or manage log files"
 complete -c peon -n __peon_no_subcommand -a relay -d "Start audio relay for devcontainers"
 complete -c peon -n __peon_no_subcommand -a debug -d "Enable/disable debug logging"
 complete -c peon -n __peon_no_subcommand -a logs -d "View debug log files"
@@ -148,4 +150,6 @@ complete -c peon -n "__peon_using_subcommand debug" -a status -d "Show debug sta
 # logs subcommands
 complete -c peon -n "__peon_using_subcommand logs" -a "--last" -d "Show last N lines across all logs"
 complete -c peon -n "__peon_using_subcommand logs" -a "--session" -d "Filter by session ID"
+complete -c peon -n "__peon_using_subcommand logs" -a "--all" -d "Search across all log files"
+complete -c peon -n "__peon_using_subcommand logs" -a "--prune" -d "Delete logs older than retention period"
 complete -c peon -n "__peon_using_subcommand logs" -a "--clear" -d "Delete all log files"
