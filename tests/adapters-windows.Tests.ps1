@@ -1062,7 +1062,7 @@ Describe "Embedded peon.ps1 Hook Script" {
     # --- Category toggle (mirrors BATS: category disabled skips sound) ---
 
     It "checks if category is enabled before playing sound" {
-        $script:peonHookContent | Should -Match '\$catEnabled.*-eq \$false.*exit 0'
+        $script:peonHookContent | Should -Match '\$catEnabled[\s\S]*-eq \$false[\s\S]*exit 0'
     }
 
     # --- Sound Selection: No-Repeat (mirrors BATS: sound picker avoids immediate repeats) ---
@@ -1185,7 +1185,7 @@ Describe "Embedded peon.ps1 Hook Script" {
 
     It "allows notification-only events to pass through (skipSound)" {
         $script:peonHookContent | Should -Match '\$skipSound = \(-not \$category\)'
-        $script:peonHookContent | Should -Match '\$skipSound -and -not \$notify.*exit 0'
+        $script:peonHookContent | Should -Match '\$skipSound -and -not \$notify[\s\S]*exit 0'
     }
 
     # --- Audio Delegation (detached process via win-play.ps1) ---
