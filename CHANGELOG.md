@@ -1,3 +1,21 @@
+## v2.17.0 (2026-03-26)
+
+### Added
+- **Structured debug logging** — 9-phase decision tracing for hook execution (`peon debug on/off`, `peon logs`). Traces event routing, config loading, state management, pack selection, sound pick, playback, notification, trainer, and exit timing in a structured JSONL-like format.
+- **`peon debug` CLI command** — toggle debug logging on/off with `peon debug on` and `peon debug off`. Check current state with `peon debug`.
+- **`peon logs` CLI command** — view recent debug logs with `peon logs`, `peon logs --last N`, `peon logs --session`, and `peon logs --clear`. Daily log rotation with configurable retention.
+- **`PEON_DEBUG=1` env var override** — enable debug logging for a single hook invocation without changing config.
+- **`debug` and `debug_retention_days` config keys** — persistent debug toggle (default: `false`) and log retention period (default: 7 days).
+- **Cross-platform debug parity** — identical structured log format on Unix (`peon.sh`) and Windows (`peon.ps1`).
+- **Shared test fixtures** — BATS and Pester tests share fixture data enforcing format parity between platforms.
+- **`peon status` verbose output** — now includes debug logging state.
+- **Nix/Home Manager: custom pack sources** — `installPacks` now accepts both simple strings (for og-packs) and attribute sets with `name` and `src` fields to install packs from any source. The `src` field accepts any Nix fetcher result (e.g., `pkgs.fetchFromGitHub`), enabling community packs from the [openpeon.com registry](https://openpeon.com/) that aren't in og-packs while maintaining full reproducibility.
+
+### Fixed
+- **State contention test** — removed `|| true` that was silently masking assertion failures in concurrent state access tests.
+- **Bash log helpers** — real millisecond timestamps and proper newline escaping in structured log output.
+- **Missing exit/route logs** — added `[route]` and `[exit]` log entries to all early-exit paths for complete tracing.
+
 ## v2.16.1 (2026-03-20)
 
 ### Fixed
@@ -11,11 +29,6 @@
 
 ### Fixed
 - **RovoDev hook installer: multi-line YAML command values** — installer now correctly handles `- command:` entries whose values span multiple YAML continuation lines (e.g., multi-line `osascript` strings). The new hook entry is inserted after the full continuation block, preventing corruption of existing config. (#384)
-
-## Unreleased
-
-### Added
-- **Nix/Home Manager: custom pack sources** — `installPacks` now accepts both simple strings (for og-packs) and attribute sets with `name` and `src` fields to install packs from any source. The `src` field accepts any Nix fetcher result (e.g., `pkgs.fetchFromGitHub`), enabling community packs from the [openpeon.com registry](https://openpeon.com/) that aren't in og-packs while maintaining full reproducibility.
 
 ## v2.15.2 (2026-03-15)
 
