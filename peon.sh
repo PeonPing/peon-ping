@@ -995,6 +995,16 @@ if headphones_only and not headphones_detected:
     status_str += ' (sounds muted)'
 print('peon-ping: headphones: ' + status_str)
 
+# --- Debug logging ---
+_debug = c.get('debug', False)
+_debug_status = 'enabled' if _debug else 'disabled'
+_log_dir = os.path.join(peon_dir, 'logs')
+print('peon-ping: debug logging: ' + _debug_status)
+if verbose:
+    print('  log dir: ' + _log_dir + '/')
+    _retention = c.get('debug_retention_days', 7)
+    print('  retention: ' + str(_retention) + ' days')
+
 # --- Active pack ---
 active = c.get('default_pack', c.get('active_pack', 'peon'))
 packs_dir = os.path.join(peon_dir, 'packs')
