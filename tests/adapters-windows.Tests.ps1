@@ -1056,7 +1056,7 @@ Describe "Embedded peon.ps1 Hook Script" {
     # --- Config: enabled/disabled (mirrors BATS: enabled=false skips everything) ---
 
     It "exits early when config enabled is false" {
-        $script:peonHookContent | Should -Match '-not \$config\.enabled.*exit 0'
+        $script:peonHookContent | Should -Match '(?s)-not \$config\.enabled.*?exit 0'
     }
 
     # --- Category toggle (mirrors BATS: category disabled skips sound) ---
