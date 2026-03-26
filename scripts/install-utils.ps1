@@ -21,6 +21,20 @@ function Get-PeonConfigRaw {
     return $raw
 }
 
+# Write a config object to a JSON file with culture-safe serialization.
+# Saves and restores CurrentCulture in a try/finally to guarantee no culture leak,
+# preventing locale-damaged decimals (e.g. "volume": 0,5 on European locales).
+function Set-PeonConfig {
+    param($Config, [string]$Path)
+    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+    try {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
+        $Config | ConvertTo-Json -Depth 10 | Set-Content $Path -Encoding UTF8
+    } finally {
+        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
+    }
+}
+
 # Resolve the active pack from config using the default_pack -> active_pack -> "peon" fallback chain.
 # Accepts any object with optional default_pack and/or active_pack properties.
 function Get-ActivePack($config) {
