@@ -3816,3 +3816,154 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ "$status" -eq 0 ]
   [[ "$output" == *"$pack_name"* ]]
 }
+
+# ============================================================
+# Debug logging CLI
+# ============================================================
+
+@test "debug on enables debug in config and creates logs directory" {
+  run bash "$PEON_SH" debug on
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug logging enabled"* ]]
+  [ -d "$TEST_DIR/logs" ]
+  # Verify config was updated (grep for "debug": true in JSON)
+  grep -q '"debug": true' "$TEST_DIR/config.json"
+}
+
+@test "debug off disables debug in config" {
+  # Enable first
+  bash "$PEON_SH" debug on
+  run bash "$PEON_SH" debug off
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug logging disabled"* ]]
+  grep -q '"debug": false' "$TEST_DIR/config.json"
+}
+
+@test "debug status shows current state" {
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug logging"* ]]
+  [[ "$output" == *"log retention"* ]]
+  [[ "$output" == *"logs directory"* ]]
+}
+
+@test "debug on backfills debug_retention_days" {
+  run bash "$PEON_SH" debug on
+  [ "$status" -eq 0 ]
+  grep -q '"debug_retention_days": 7' "$TEST_DIR/config.json"
+}
+
+# ============================================================
+# Log rotation (prune)
+# ============================================================
+
+@test "logs --prune removes old log files" {
+  mkdir -p "$TEST_DIR/logs"
+  # Create old log files (30 days ago)
+  touch "$TEST_DIR/logs/peon-ping-2020-01-01.log"
+  touch "$TEST_DIR/logs/peon-ping-2020-01-02.log"
+  # Create recent log file (today)
+  touch "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log"
+
+  run bash "$PEON_SH" logs --prune
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"pruned 2 log file(s)"* ]]
+  # Old files should be gone
+  [ ! -f "$TEST_DIR/logs/peon-ping-2020-01-01.log" ]
+  [ ! -f "$TEST_DIR/logs/peon-ping-2020-01-02.log" ]
+  # Today's file should remain
+  [ -f "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log" ]
+}
+
+@test "logs --prune respects custom retention value" {
+  mkdir -p "$TEST_DIR/logs"
+  # Enable debug first to ensure keys exist, then set retention to 1 day
+  bash "$PEON_SH" debug on
+  sed -i 's/"debug_retention_days": 7/"debug_retention_days": 1/' "$TEST_DIR/config.json" 2>/dev/null || \
+    sed -i '' 's/"debug_retention_days": 7/"debug_retention_days": 1/' "$TEST_DIR/config.json"
+  # Create a log from 3 days ago
+  local three_days_ago
+  three_days_ago=$(date -d "3 days ago" +%Y-%m-%d 2>/dev/null || date -v-3d +%Y-%m-%d 2>/dev/null)
+  if [ -n "$three_days_ago" ]; then
+    touch "$TEST_DIR/logs/peon-ping-${three_days_ago}.log"
+    touch "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log"
+
+    run bash "$PEON_SH" logs --prune
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pruned 1 log file(s)"* ]]
+    [ ! -f "$TEST_DIR/logs/peon-ping-${three_days_ago}.log" ]
+    [ -f "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log" ]
+  else
+    skip "cannot compute date offsets on this platform"
+  fi
+}
+
+@test "logs --prune handles no old files gracefully" {
+  mkdir -p "$TEST_DIR/logs"
+  touch "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log"
+
+  run bash "$PEON_SH" logs --prune
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no log files older than"* ]]
+}
+
+@test "logs --prune handles missing logs directory" {
+  run bash "$PEON_SH" logs --prune
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no logs directory found"* ]]
+}
+
+@test "logs --prune skips non-log files" {
+  mkdir -p "$TEST_DIR/logs"
+  touch "$TEST_DIR/logs/peon-ping-2020-01-01.log"
+  touch "$TEST_DIR/logs/other-file.txt"
+  touch "$TEST_DIR/logs/readme.md"
+
+  run bash "$PEON_SH" logs --prune
+  [ "$status" -eq 0 ]
+  # Non-log files should survive
+  [ -f "$TEST_DIR/logs/other-file.txt" ]
+  [ -f "$TEST_DIR/logs/readme.md" ]
+}
+
+@test "logs --clear deletes all log files" {
+  mkdir -p "$TEST_DIR/logs"
+  touch "$TEST_DIR/logs/peon-ping-2024-01-01.log"
+  touch "$TEST_DIR/logs/peon-ping-2024-06-15.log"
+  touch "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log"
+
+  run bash "$PEON_SH" logs --clear
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"cleared 3 log file(s)"* ]]
+  # All log files should be gone
+  local remaining
+  remaining=$(find "$TEST_DIR/logs" -name "peon-ping-*.log" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$remaining" -eq 0 ]
+}
+
+@test "logs --last shows content from latest log" {
+  mkdir -p "$TEST_DIR/logs"
+  echo "line1" > "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log"
+  echo "line2" >> "$TEST_DIR/logs/peon-ping-$(date +%Y-%m-%d).log"
+
+  run bash "$PEON_SH" logs --last 10
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"line1"* ]]
+  [[ "$output" == *"line2"* ]]
+}
+
+@test "logs reports no files when directory is empty" {
+  mkdir -p "$TEST_DIR/logs"
+
+  run bash "$PEON_SH" logs --last
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no log files found"* ]]
+}
+
+@test "logs --clear reports no files when directory is empty" {
+  mkdir -p "$TEST_DIR/logs"
+
+  run bash "$PEON_SH" logs --clear
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no log files to clear"* ]]
+}
