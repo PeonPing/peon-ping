@@ -1034,6 +1034,160 @@ if ($Command) {
             }
             return
         }
+        "^debug$" {
+            $debugSub = if ($Arg1) { $Arg1 } else { "status" }
+            switch ($debugSub) {
+                "on" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $cfgObj | Add-Member -NotePropertyName 'debug' -NotePropertyValue $true -Force
+                    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
+                    $logDir = Join-Path $InstallDir "logs"
+                    Write-Host "peon-ping: debug logging enabled -- logs at $logDir" -ForegroundColor Green
+                    return
+                }
+                "off" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $cfgObj | Add-Member -NotePropertyName 'debug' -NotePropertyValue $false -Force
+                    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
+                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
+                    Write-Host "peon-ping: debug logging disabled" -ForegroundColor Yellow
+                    return
+                }
+                "status" {
+                    $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                    $debugEnabled = if ($cfgObj.debug) { $true } else { $false }
+                    $state = if ($debugEnabled) { "enabled" } else { "disabled" }
+                    $logDir = Join-Path $InstallDir "logs"
+                    Write-Host "peon-ping: debug $state" -ForegroundColor Cyan
+                    Write-Host "peon-ping: log directory: $logDir" -ForegroundColor Cyan
+                    if (Test-Path $logDir) {
+                        $logFiles = @(Get-ChildItem -Path $logDir -Filter "peon-ping-*.log" -ErrorAction SilentlyContinue)
+                        $totalSize = ($logFiles | Measure-Object -Property Length -Sum).Sum
+                        if (-not $totalSize) { $totalSize = 0 }
+                        if ($totalSize -ge 1MB) {
+                            $sizeStr = "{0:N1} MB" -f ($totalSize / 1MB)
+                        } elseif ($totalSize -ge 1KB) {
+                            $sizeStr = "{0:N1} KB" -f ($totalSize / 1KB)
+                        } else {
+                            $sizeStr = "$totalSize bytes"
+                        }
+                        Write-Host "peon-ping: log files: $($logFiles.Count) ($sizeStr)" -ForegroundColor Cyan
+                    } else {
+                        Write-Host "peon-ping: log files: 0 (0 bytes)" -ForegroundColor Cyan
+                    }
+                    return
+                }
+                default {
+                    Write-Host "Usage: peon debug [on|off|status]" -ForegroundColor Yellow
+                    return
+                }
+            }
+        }
+        "^logs$" {
+            $logDir = Join-Path $InstallDir "logs"
+            # Parse flags from Arg1, Arg2, ExtraArgs
+            $flag = $Arg1
+            switch -Regex ($flag) {
+                "^--clear$" {
+                    if (Test-Path $logDir) {
+                        $logFiles = @(Get-ChildItem -Path $logDir -Filter "peon-ping-*.log" -ErrorAction SilentlyContinue)
+                        if ($logFiles.Count -gt 0) {
+                            foreach ($f in $logFiles) {
+                                Remove-Item $f.FullName -Force -ErrorAction SilentlyContinue
+                            }
+                            Write-Host "peon-ping: cleared $($logFiles.Count) log file(s)" -ForegroundColor Green
+                        } else {
+                            Write-Host "peon-ping: no log files to clear" -ForegroundColor Yellow
+                        }
+                    } else {
+                        Write-Host "peon-ping: no log files to clear" -ForegroundColor Yellow
+                    }
+                    return
+                }
+                "^--last$" {
+                    $n = if ($Arg2) { [int]$Arg2 } else { 50 }
+                    if (-not (Test-Path $logDir)) {
+                        Write-Host "peon-ping: no log files found" -ForegroundColor Yellow
+                        return
+                    }
+                    $logFiles = @(Get-ChildItem -Path $logDir -Filter "peon-ping-*.log" -ErrorAction SilentlyContinue | Sort-Object Name)
+                    if ($logFiles.Count -eq 0) {
+                        Write-Host "peon-ping: no log files found" -ForegroundColor Yellow
+                        return
+                    }
+                    $collected = @()
+                    foreach ($f in $logFiles) {
+                        $lines = @(Get-Content $f.FullName -Encoding UTF8 | Where-Object { $_ -ne '' })
+                        $collected += $lines
+                    }
+                    # Take last N lines (chronological order, oldest first)
+                    if ($collected.Count -gt $n) {
+                        $collected = $collected[($collected.Count - $n)..($collected.Count - 1)]
+                    }
+                    foreach ($line in $collected) {
+                        Write-Host $line
+                    }
+                    return
+                }
+                "^--session$" {
+                    $sessionId = $Arg2
+                    if (-not $sessionId) {
+                        Write-Host "Usage: peon logs --session <ID>" -ForegroundColor Yellow
+                        return
+                    }
+                    if (-not (Test-Path $logDir)) {
+                        Write-Host "peon-ping: no log files found" -ForegroundColor Yellow
+                        return
+                    }
+                    $logDate = (Get-Date).ToString('yyyy-MM-dd')
+                    $todayLog = Join-Path $logDir "peon-ping-$logDate.log"
+                    if (-not (Test-Path $todayLog)) {
+                        Write-Host "peon-ping: no log file for today" -ForegroundColor Yellow
+                        return
+                    }
+                    $lines = @(Get-Content $todayLog -Encoding UTF8 | Where-Object { $_ -match "session=$sessionId" })
+                    if ($lines.Count -eq 0) {
+                        Write-Host "peon-ping: no entries for session $sessionId" -ForegroundColor Yellow
+                        return
+                    }
+                    foreach ($line in $lines) {
+                        Write-Host $line
+                    }
+                    return
+                }
+                default {
+                    # No flag or unrecognized: show last 50 lines of today's log
+                    if ($flag -and $flag -match "^--") {
+                        Write-Host "Usage: peon logs [--last N] [--session ID] [--clear]" -ForegroundColor Yellow
+                        return
+                    }
+                    if (-not (Test-Path $logDir)) {
+                        Write-Host "peon-ping: no log files found. Enable debug logging with: peon debug on" -ForegroundColor Yellow
+                        return
+                    }
+                    $logDate = (Get-Date).ToString('yyyy-MM-dd')
+                    $todayLog = Join-Path $logDir "peon-ping-$logDate.log"
+                    if (-not (Test-Path $todayLog)) {
+                        Write-Host "peon-ping: no log file for today. Enable debug logging with: peon debug on" -ForegroundColor Yellow
+                        return
+                    }
+                    $lines = @(Get-Content $todayLog -Encoding UTF8 | Where-Object { $_ -ne '' })
+                    $n = 50
+                    if ($lines.Count -gt $n) {
+                        $lines = $lines[($lines.Count - $n)..($lines.Count - 1)]
+                    }
+                    foreach ($line in $lines) {
+                        Write-Host $line
+                    }
+                    return
+                }
+            }
+        }
         "^--help$" {
             Write-Host "peon-ping commands:" -ForegroundColor Cyan
             Write-Host "  --toggle              Toggle enabled/paused"
@@ -1072,6 +1226,15 @@ if ($Command) {
             Write-Host "  --notifications template <key> <fmt> Set a template"
             Write-Host "  --notifications template --reset    Clear all templates"
             Write-Host "  --popups on/off       Alias for --notifications on/off"
+            Write-Host ""
+            Write-Host "Debug & Logs:" -ForegroundColor Cyan
+            Write-Host "  debug on              Enable debug logging"
+            Write-Host "  debug off             Disable debug logging"
+            Write-Host "  debug status          Show debug state and log info"
+            Write-Host "  logs                  Show last 50 lines of today's log"
+            Write-Host "  logs --last N         Show last N lines across all logs"
+            Write-Host "  logs --session ID     Filter by session ID"
+            Write-Host "  logs --clear          Delete all log files"
             return
         }
         "^--(notifications|popups)$" {
