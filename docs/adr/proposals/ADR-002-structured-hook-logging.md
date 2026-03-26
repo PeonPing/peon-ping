@@ -1,6 +1,6 @@
 # ADR-002: Structured Hook Logging via Inline Phase Emitters
 
-> **Status**: Proposed | **Date**: 2026-03-25 | **Deciders**: TBD
+> **Status**: Accepted | **Date**: 2026-03-25 | **Accepted**: 2026-03-25 | **Deciders**: cameron
 
 ## Context
 
@@ -200,3 +200,4 @@ To prevent format drift between the Python and PowerShell implementations, creat
 |------|--------|-------|
 | 2026-03-25 | Proposed | Initial proposal |
 | 2026-03-25 | Proposed | Post-review revisions: added stderr alternative (B2), defined key=value escaping convention (B1), added per-line invocation ID for concurrent correlation (S4), corrected hook frequency estimates for sprint dispatch (S1), optimized rotation to once-per-day (S2), documented Windows `Add-Content` atomicity asymmetry (S3), renumbered to ADR-002 to avoid collision with M0's reserved ADR-001 (M3), restored roadmap `docs_ref` to PRD (M2) |
+| 2026-03-25 | Accepted | Accepted ahead of HOOKLOG sprint implementation |
