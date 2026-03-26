@@ -948,49 +948,44 @@ try:
 except Exception:
     c = {}
 
-dn = c.get('desktop_notifications', True)
 if verbose:
+    dn = c.get('desktop_notifications', True)
     dn_status = 'on' if dn else 'off (sounds still play)'
     print('peon-ping: desktop notifications ' + dn_status)
-else:
-    print('peon-ping: desktop notifications ' + ('on' if dn else 'off'))
-ns = c.get('notification_style', 'overlay')
-print('peon-ping: notification style ' + ns)
-np = c.get('notification_position', 'top-center')
-print('peon-ping: notification position ' + np)
-nd = c.get('notification_dismiss_seconds', 4)
-print('peon-ping: dismiss time ' + (str(nd) + 's' if nd > 0 else 'persistent (click to dismiss)'))
-_lbl = c.get('notification_title_override', '')
-_pmap = c.get('project_name_map', {})
-if _lbl:
-    print('peon-ping: label override: ' + _lbl)
-if _pmap:
-    print('peon-ping: project name map: ' + str(len(_pmap)) + ' pattern(s)')
-_tpls = c.get('notification_templates', {})
-if _tpls:
-    print('peon-ping: notification templates:')
-    for _tk, _tv in _tpls.items():
-        print(f'  {_tk} = "{_tv}"')
+    ns = c.get('notification_style', 'overlay')
+    print('peon-ping: notification style ' + ns)
+    np = c.get('notification_position', 'top-center')
+    print('peon-ping: notification position ' + np)
+    nd = c.get('notification_dismiss_seconds', 4)
+    print('peon-ping: dismiss time ' + (str(nd) + 's' if nd > 0 else 'persistent (click to dismiss)'))
+    _lbl = c.get('notification_title_override', '')
+    _pmap = c.get('project_name_map', {})
+    if _lbl:
+        print('peon-ping: label override: ' + _lbl)
+    if _pmap:
+        print('peon-ping: project name map: ' + str(len(_pmap)) + ' pattern(s)')
+    _tpls = c.get('notification_templates', {})
+    if _tpls:
+        print('peon-ping: notification templates:')
+        for _tk, _tv in _tpls.items():
+            print(f'  {_tk} = "{_tv}"')
 
-mn = c.get('mobile_notify', {})
-if mn and mn.get('service'):
-    enabled = mn.get('enabled', True)
-    svc = mn.get('service', '?')
-    if verbose:
+    mn = c.get('mobile_notify', {})
+    if mn and mn.get('service'):
+        enabled = mn.get('enabled', True)
+        svc = mn.get('service', '?')
         mobile_status = 'on' if enabled else 'off'
         print(f'peon-ping: mobile notifications {mobile_status} ({svc})')
     else:
-        print(f'peon-ping: mobile notifications ' + ('on' if enabled else 'off') + f' ({svc})')
-else:
-    print('peon-ping: mobile notifications not configured')
+        print('peon-ping: mobile notifications not configured')
 
-# --- Headphones-only mode ---
-headphones_only = c.get('headphones_only', False)
-print('peon-ping: headphones_only: ' + ('on' if headphones_only else 'off'))
-status_str = 'connected' if headphones_detected else 'not detected'
-if headphones_only and not headphones_detected:
-    status_str += ' (sounds muted)'
-print('peon-ping: headphones: ' + status_str)
+    # --- Headphones-only mode ---
+    headphones_only = c.get('headphones_only', False)
+    print('peon-ping: headphones_only: ' + ('on' if headphones_only else 'off'))
+    status_str = 'connected' if headphones_detected else 'not detected'
+    if headphones_only and not headphones_detected:
+        status_str += ' (sounds muted)'
+    print('peon-ping: headphones: ' + status_str)
 
 # --- Active pack ---
 active = c.get('default_pack', c.get('active_pack', 'peon'))
@@ -1019,106 +1014,110 @@ if os.path.isdir(packs_dir):
                         break
 print(f'peon-ping: default pack: {active} ({display_name})')
 print(f'peon-ping: {pack_count} pack(s) installed')
-rules = c.get('path_rules', [])
-if rules:
-    import fnmatch as _fnm
-    _cwd = os.getcwd()
-    _matched = None
-    for _r in rules:
-        _pat = _r.get('pattern', '')
-        if _cwd and _fnm.fnmatch(_cwd, _pat):
-            _matched = _r
-            break
-    if _matched:
-        _mp = _matched.get('pattern', '')
-        _mk = _matched.get('pack', '')
-        print(f'peon-ping: path rule: {_mp} -> {_mk}')
-    print(f'peon-ping: path rules: {len(rules)} configured')
+if not verbose:
+    print('peon-ping: run \"peon status --verbose\" for full details')
+if verbose:
+    rules = c.get('path_rules', [])
+    if rules:
+        import fnmatch as _fnm
+        _cwd = os.getcwd()
+        _matched = None
+        for _r in rules:
+            _pat = _r.get('pattern', '')
+            if _cwd and _fnm.fnmatch(_cwd, _pat):
+                _matched = _r
+                break
+        if _matched:
+            _mp = _matched.get('pattern', '')
+            _mk = _matched.get('pack', '')
+            print(f'peon-ping: path rule: {_mp} -> {_mk}')
+        print(f'peon-ping: path rules: {len(rules)} configured')
 
-# --- IDE detection ---
-home = os.path.expanduser('~')
-claude_dir = os.environ.get('CLAUDE_CONFIG_DIR', os.path.join(home, '.claude'))
-xdg_config = os.environ.get('XDG_CONFIG_HOME', os.path.join(home, '.config'))
-opencode_dir = os.path.join(xdg_config, 'opencode')
+if verbose:
+    # --- IDE detection ---
+    home = os.path.expanduser('~')
+    claude_dir = os.environ.get('CLAUDE_CONFIG_DIR', os.path.join(home, '.claude'))
+    xdg_config = os.environ.get('XDG_CONFIG_HOME', os.path.join(home, '.config'))
+    opencode_dir = os.path.join(xdg_config, 'opencode')
 
-ides = []
+    ides = []
 
-# Claude Code: check if hooks are registered
-claude_hooks_dir = os.path.join(claude_dir, 'hooks', 'peon-ping')
-if os.path.isdir(claude_dir):
-    if os.path.exists(os.path.join(claude_hooks_dir, 'peon.sh')):
-        ides.append(('Claude Code', claude_dir, 'installed'))
-    else:
-        ides.append(('Claude Code', claude_dir, 'detected (not set up)'))
+    # Claude Code: check if hooks are registered
+    claude_hooks_dir = os.path.join(claude_dir, 'hooks', 'peon-ping')
+    if os.path.isdir(claude_dir):
+        if os.path.exists(os.path.join(claude_hooks_dir, 'peon.sh')):
+            ides.append(('Claude Code', claude_dir, 'installed'))
+        else:
+            ides.append(('Claude Code', claude_dir, 'detected (not set up)'))
 
-# OpenCode: check if plugin is installed
-opencode_plugin = os.path.join(opencode_dir, 'plugins', 'peon-ping.ts')
-if os.path.isdir(opencode_dir):
-    if os.path.exists(opencode_plugin):
-        ides.append(('OpenCode', opencode_dir, 'installed'))
-    else:
-        ides.append(('OpenCode', opencode_dir, 'detected (not set up)'))
+    # OpenCode: check if plugin is installed
+    opencode_plugin = os.path.join(opencode_dir, 'plugins', 'peon-ping.ts')
+    if os.path.isdir(opencode_dir):
+        if os.path.exists(opencode_plugin):
+            ides.append(('OpenCode', opencode_dir, 'installed'))
+        else:
+            ides.append(('OpenCode', opencode_dir, 'detected (not set up)'))
 
-# Rovo Dev CLI: check if hooks are registered in config.yml
-rovodev_dir = os.path.join(home, '.rovodev')
-rovodev_config = os.path.join(rovodev_dir, 'config.yml')
-rovodev_config_yaml = os.path.join(rovodev_dir, 'config.yaml')
-if os.path.isdir(rovodev_dir):
-    config_file = rovodev_config if os.path.isfile(rovodev_config) else rovodev_config_yaml if os.path.isfile(rovodev_config_yaml) else None
-    if config_file:
+    # Rovo Dev CLI: check if hooks are registered in config.yml
+    rovodev_dir = os.path.join(home, '.rovodev')
+    rovodev_config = os.path.join(rovodev_dir, 'config.yml')
+    rovodev_config_yaml = os.path.join(rovodev_dir, 'config.yaml')
+    if os.path.isdir(rovodev_dir):
+        config_file = rovodev_config if os.path.isfile(rovodev_config) else rovodev_config_yaml if os.path.isfile(rovodev_config_yaml) else None
+        if config_file:
+            try:
+                with open(config_file) as f:
+                    content = f.read()
+                if 'rovodev.sh' in content:
+                    ides.append(('Rovo Dev CLI', rovodev_dir, 'installed'))
+                else:
+                    ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
+            except Exception:
+                ides.append(('Rovo Dev CLI', rovodev_dir, 'detected'))
+        else:
+            ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
+
+    # Gemini CLI: check if hooks are registered in settings.json
+    gemini_dir = os.environ.get('GEMINI_CONFIG_DIR', os.path.join(home, '.gemini'))
+    gemini_settings = os.path.join(gemini_dir, 'settings.json')
+    if os.path.isfile(gemini_settings):
         try:
-            with open(config_file) as f:
-                content = f.read()
-            if 'rovodev.sh' in content:
-                ides.append(('Rovo Dev CLI', rovodev_dir, 'installed'))
-            else:
-                ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
+            with open(gemini_settings) as f:
+                settings = json.load(f)
+                hooks = settings.get('hooks', {})
+                if any('gemini.sh' in str(h) for h in hooks.values()):
+                    ides.append(('Gemini CLI', gemini_dir, 'installed'))
+                else:
+                    ides.append(('Gemini CLI', gemini_dir, 'detected (not set up)'))
         except Exception:
-            ides.append(('Rovo Dev CLI', rovodev_dir, 'detected'))
+            ides.append(('Gemini CLI', gemini_dir, 'detected'))
+
+    # OpenAI Codex: check if notify hook points to codex adapter
+    codex_dir = os.environ.get('CODEX_HOME', os.path.join(home, '.codex'))
+    codex_config = os.path.join(codex_dir, 'config.toml')
+    if os.path.isdir(codex_dir):
+        codex_installed = False
+        if os.path.isfile(codex_config):
+            try:
+                codex_cfg_text = open(codex_config).read()
+                codex_installed = (
+                    'adapters/codex.sh' in codex_cfg_text or
+                    'adapters/codex.ps1' in codex_cfg_text
+                )
+            except Exception:
+                codex_installed = False
+        if codex_installed:
+            ides.append(('OpenAI Codex', codex_dir, 'installed'))
+        else:
+            ides.append(('OpenAI Codex', codex_dir, 'detected (not set up)'))
+
+    if ides:
+        print('peon-ping: IDEs')
+        for name, path, status in ides:
+            marker = '[x]' if status == 'installed' else '[ ]'
+            print(f'  {marker} {name:12s} {path} ({status})')
     else:
-        ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
-
-# Gemini CLI: check if hooks are registered in settings.json
-gemini_dir = os.environ.get('GEMINI_CONFIG_DIR', os.path.join(home, '.gemini'))
-gemini_settings = os.path.join(gemini_dir, 'settings.json')
-if os.path.isfile(gemini_settings):
-    try:
-        with open(gemini_settings) as f:
-            settings = json.load(f)
-            hooks = settings.get('hooks', {})
-            if any('gemini.sh' in str(h) for h in hooks.values()):
-                ides.append(('Gemini CLI', gemini_dir, 'installed'))
-            else:
-                ides.append(('Gemini CLI', gemini_dir, 'detected (not set up)'))
-    except Exception:
-        ides.append(('Gemini CLI', gemini_dir, 'detected'))
-
-# OpenAI Codex: check if notify hook points to codex adapter
-codex_dir = os.environ.get('CODEX_HOME', os.path.join(home, '.codex'))
-codex_config = os.path.join(codex_dir, 'config.toml')
-if os.path.isdir(codex_dir):
-    codex_installed = False
-    if os.path.isfile(codex_config):
-        try:
-            codex_cfg_text = open(codex_config).read()
-            codex_installed = (
-                'adapters/codex.sh' in codex_cfg_text or
-                'adapters/codex.ps1' in codex_cfg_text
-            )
-        except Exception:
-            codex_installed = False
-    if codex_installed:
-        ides.append(('OpenAI Codex', codex_dir, 'installed'))
-    else:
-        ides.append(('OpenAI Codex', codex_dir, 'detected (not set up)'))
-
-if ides:
-    print('peon-ping: IDEs')
-    for name, path, status in ides:
-        marker = '[x]' if status == 'installed' else '[ ]'
-        print(f'  {marker} {name:12s} {path} ({status})')
-else:
-    print('peon-ping: no supported IDEs detected')
+        print('peon-ping: no supported IDEs detected')
 "
     exit 0 ;;
   notifications)

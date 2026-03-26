@@ -56,6 +56,11 @@ _peon_completions() {
           COMPREPLY=( $(compgen -W "random round-robin agentskill" -- "$cur") )
         fi
         return 0 ;;
+      status)
+        if [ "$cword" -eq 2 ]; then
+          COMPREPLY=( $(compgen -W "--verbose" -- "$cur") )
+        fi
+        return 0 ;;
       mobile)
         if [ "$cword" -eq 2 ]; then
           COMPREPLY=( $(compgen -W "ntfy pushover telegram on off status test" -- "$cur") )

@@ -236,7 +236,8 @@ peon pause                # Mute sounds
 peon resume               # Unmute sounds
 peon mute                 # Alias for 'pause'
 peon unmute               # Alias for 'resume'
-peon status               # Check if paused or active
+peon status               # Check if paused or active (concise)
+peon status --verbose     # Show full details (notifications, headphones, IDEs, etc.)
 peon volume               # Show current volume
 peon volume 0.7           # Set volume (0.0–1.0)
 peon rotation             # Show current rotation mode
