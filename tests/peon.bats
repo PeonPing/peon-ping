@@ -4236,3 +4236,61 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   # Verify no state errors in the log
   ! grep '\[state\]' "$logfile" | grep -q 'error=' || true
 }
+
+# --- Step 2B: Bash log helper hardening tests ---
+
+@test "debug log timestamps have real millisecond precision (not hardcoded .000)" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Run multiple invocations to increase chance of non-zero ms
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-ms1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-ms2"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-ms3"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  [ -f "$logfile" ]
+
+  # Extract all millisecond parts (the 3 digits after the dot in timestamps)
+  # Timestamp format: 2024-01-15T10:30:45.123 [phase] ...
+  local ms_values
+  ms_values=$(grep -oE '\.[0-9]{3} \[' "$logfile" | grep -oE '[0-9]{3}' | sort -u)
+  # With multiple invocations, at least one timestamp should have non-zero ms.
+  # If ALL timestamps are .000, the ms is likely hardcoded.
+  local non_zero
+  non_zero=$(echo "$ms_values" | grep -v '^000$' | head -1 || true)
+  [ -n "$non_zero" ]
+}
+
+@test "debug log _log_quote escapes newlines to preserve one-line-per-entry invariant" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Send a Stop event — the Python log function will write entries with various values.
+  # We verify that NO log line is a bare continuation (i.e., every line matches the
+  # timestamp-prefixed format). If _log_quote fails to escape newlines, a multi-line
+  # value would produce lines without the timestamp prefix.
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/my\nproject","session_id":"s-nl"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  [ -f "$logfile" ]
+
+  # Every line in the log file must start with an ISO timestamp
+  local bad_lines
+  bad_lines=$(grep -cvE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3} \[' "$logfile" || true)
+  [ "$bad_lines" -eq 0 ]
+}
