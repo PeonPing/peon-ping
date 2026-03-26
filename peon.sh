@@ -391,6 +391,7 @@ ssh_audio_mode() {
 # --- Platform-aware audio playback ---
 play_sound() {
   local file="$1" vol="$2"
+  _peon_log play "backend=$PLATFORM file=$(basename "$file") volume=$vol async=true"
   kill_previous_sound
   case "$PLATFORM" in
     mac)
@@ -3016,6 +3017,7 @@ _PEON_HOOK_TTY=$(_peon_walk_tty)
 _PEON_PYOUT=$(python3 -c "
 import sys, json, os, re, random, time, shlex, tempfile
 q = shlex.quote
+_peon_start = time.monotonic()
 
 config_path = '$CONFIG_PY'
 state_file = '$STATE_PY'
@@ -3038,6 +3040,58 @@ if str(cfg.get('enabled', True)).lower() == 'false':
     print('PEON_EXIT=true')
     sys.exit(0)
 
+# --- Structured debug logging (ADR-002) ---
+_inv = os.urandom(2).hex()
+_log_enabled = cfg.get('debug', False) or os.environ.get('PEON_DEBUG') == '1'
+_log_fh = None
+
+if _log_enabled:
+    import datetime as _dt
+    _log_dir = os.path.join(peon_dir, 'logs')
+    try:
+        os.makedirs(_log_dir, exist_ok=True)
+        _log_date = _dt.date.today().isoformat()
+        _log_path = os.path.join(_log_dir, 'peon-ping-' + _log_date + '.log')
+        _log_is_new = not os.path.exists(_log_path)
+        _log_fh = open(_log_path, 'a')
+    except Exception:
+        _log_enabled = False
+        _log_fh = None
+
+    def _log_quote(v):
+        s = str(v)
+        if ' ' in s or '\"' in s or '=' in s or not s:
+            return '\"' + s.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"') + '\"'
+        return s
+
+    def log(phase, **kw):
+        if not _log_fh:
+            return
+        _now = _dt.datetime.now()
+        ts = _now.strftime('%Y-%m-%dT%H:%M:%S.') + f'{_now.microsecond // 1000:03d}'
+        parts = [f'{ts} [{phase}] inv={_inv}']
+        for k, v in kw.items():
+            parts.append(f'{k}={_log_quote(v)}')
+        try:
+            print(' '.join(parts), file=_log_fh, flush=True)
+        except Exception:
+            pass
+
+    # Prune old logs on first file of the day
+    if _log_is_new and _log_fh:
+        _retention = int(cfg.get('debug_retention_days', 7))
+        try:
+            _cutoff = (_dt.date.today() - _dt.timedelta(days=_retention)).isoformat()
+            for f in os.listdir(_log_dir):
+                if f.startswith('peon-ping-') and f.endswith('.log'):
+                    fdate = f[len('peon-ping-'):-len('.log')]
+                    if fdate < _cutoff:
+                        os.remove(os.path.join(_log_dir, f))
+        except Exception:
+            pass
+else:
+    log = lambda phase, **kw: None
+
 volume = cfg.get('volume', 0.5)
 desktop_notif = cfg.get('desktop_notifications', True)
 use_sound_effects_device = cfg.get('use_sound_effects_device', True)
@@ -3053,6 +3107,8 @@ suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).l
 headphones_only = str(cfg.get('headphones_only', False)).lower() == 'true'
 meeting_detect = str(cfg.get('meeting_detect', False)).lower() == 'true'
 suppress_sound_when_tab_focused = str(cfg.get('suppress_sound_when_tab_focused', False)).lower() == 'true'
+
+log('config', loaded=config_path, volume=volume, pack=active_pack, enabled=True)
 
 cats = cfg.get('categories', {})
 cat_enabled = {}
@@ -3089,8 +3145,12 @@ session_id = event_data.get('session_id', '') or event_data.get('conversation_id
 perm_mode = event_data.get('permission_mode', '')
 session_source = event_data.get('source', '')
 
+log('hook', event=event, session=session_id, cwd=cwd, paused=paused)
+
 # --- Load state ---
 state = read_state(state_file)
+
+log('state', sessions=len(state.get('agent_sessions', [])), rotation_index=state.get('rotation_index', 0), last_stop=state.get('last_stop_time', 0))
 
 # --- Agent detection ---
 agent_sessions = set(state.get('agent_sessions', []))
@@ -3098,10 +3158,12 @@ if perm_mode and perm_mode in agent_modes:
     agent_sessions.add(session_id)
     state['agent_sessions'] = list(agent_sessions)
     state_dirty = True
+    log('route', category='none', suppressed=True, reason='delegate_mode')
     print('PEON_EXIT=true')
     write_state(state, state_file)
     sys.exit(0)
 elif session_id in agent_sessions:
+    log('route', category='none', suppressed=True, reason='agent_session')
     print('PEON_EXIT=true')
     sys.exit(0)
 
@@ -3339,6 +3401,8 @@ if event == 'SessionStart':
     source = event_data.get('source', '')
     if source == 'compact':
         # Compaction is mid-conversation — greeting makes no sense, but maintain title
+        log('route', category='none', suppressed=True, reason='compact_source')
+        log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         print('PROJECT=' + q(project or ''))
         print('STATUS=ready')
         print('MARKER=')
@@ -3372,6 +3436,8 @@ elif event == 'Stop':
     category = 'task.complete'
     # Suppress completion sound/notification for known sub-agent sessions
     if suppress_subagent_complete and session_id in state.get('subagent_sessions', {}):
+        log('route', category='task.complete', suppressed=True, reason='subagent_session')
+        log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         write_state(state, state_file)
         print('PEON_EXIT=true')
         sys.exit(0)
@@ -3502,6 +3568,8 @@ elif event in ('PreToolUse', 'PostToolUse'):
     status = 'working'
 else:
     # Unknown event (plan mode, etc.) — no sound, but maintain tab title
+    log('route', category='none', suppressed=True, reason='unknown_event')
+    log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
     print('PROJECT=' + q(project or ''))
     print('STATUS=working')
     print('MARKER=')
@@ -3513,6 +3581,7 @@ if event == 'Stop':
     now = time.time()
     last_stop = state.get('last_stop_time', 0)
     if now - last_stop < 5:
+        log('route', category='task.complete', suppressed=True, reason='debounce_5s')
         category = ''
         notify = ''
     state['last_stop_time'] = now
@@ -3547,7 +3616,16 @@ elif category:
 
 # --- Check if category is enabled ---
 if category and not cat_enabled.get(category, True):
+    log('route', category=category, suppressed=True, reason='category_disabled')
     category = ''
+
+# --- Log route decision ---
+if category:
+    _route_reason = 'paused' if paused else ''
+    log('route', category=category, suppressed=bool(paused), reason=_route_reason)
+elif not category:
+    # category may have been cleared by debounce, replay suppression, etc.
+    pass
 
 # --- Pick sound (skip if no category or paused) ---
 sound_file = ''
@@ -3610,8 +3688,13 @@ if category and not paused:
                     icon_resolved = os.path.realpath(os.path.join(pack_dir, icon_candidate))
                     if icon_resolved.startswith(pack_root) and os.path.isfile(icon_resolved):
                         icon_path = icon_resolved
-    except Exception:
-        pass
+    except Exception as _e:
+        log('sound', error=str(_e), fallback='none')
+
+if sound_file:
+    log('sound', file=os.path.basename(sound_file), pack=active_pack, candidates=len(candidates) if 'candidates' in dir() else 0, no_repeat=True)
+elif category and not paused:
+    log('sound', error='no sound found', pack=active_pack, fallback='none')
 
 # --- Trainer reminder check ---
 trainer_sound = ''
@@ -3668,6 +3751,9 @@ if trainer_cfg.get('enabled', False):
             state_dirty = True
     state['trainer'] = trainer_state
     state_dirty = True
+    log('trainer', active=True, reminder=bool(trainer_sound), exercise=list(exercises.keys())[0] if exercises else '', reps=sum(reps.values()), goal=sum(exercises.values()))
+elif not trainer_cfg.get('enabled', False):
+    log('trainer', active=False, reminder=False)
 
 # --- Write state once ---
 if state_dirty:
@@ -3739,6 +3825,21 @@ if _tpl:
     except Exception:
         pass
 
+log('notify', desktop=bool(desktop_notif and notify), mobile=bool(cfg.get('mobile_notify', {}).get('service')), template=_tpl or '', rendered=msg)
+
+# --- Log exit ---
+_duration_ms = int((time.monotonic() - _peon_start) * 1000)
+log('exit', duration_ms=_duration_ms, exit=0)
+
+# --- Export log variables for bash-side [play] logging ---
+if _log_enabled and _log_fh:
+    try:
+        _log_fh.close()
+    except Exception:
+        pass
+    print('_PEON_LOG_FILE=' + q(_log_path))
+    print('_PEON_INV_ID=' + q(_inv))
+
 # --- Output shell variables ---
 print('PEON_EXIT=false')
 print('EVENT=' + q(event))
@@ -3779,6 +3880,18 @@ print('TRAINER_MSG=' + q(trainer_msg))
 print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 " <<< "$INPUT" 2>/dev/null)
 eval "$_PEON_PYOUT"
+
+# --- Bash-side debug log function for [play] and [notify] phases ---
+if [ -n "${_PEON_LOG_FILE:-}" ]; then
+  _peon_log() {
+    local phase="$1"; shift
+    local ts
+    ts=$(date '+%Y-%m-%dT%H:%M:%S.000')
+    printf '%s [%s] inv=%s %s\n' "$ts" "$phase" "$_PEON_INV_ID" "$*" >> "$_PEON_LOG_FILE" 2>/dev/null
+  }
+else
+  _peon_log() { :; }
+fi
 
 # If Python signalled early exit (disabled, agent, unknown event), bail out
 if [ "${PEON_EXIT:-true}" = "true" ]; then
