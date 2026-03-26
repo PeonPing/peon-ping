@@ -1,0 +1,45 @@
+{
+  "sprint_id": "sprint-hooklog-20260326",
+  "sprint_name": "HOOKLOG",
+  "sprint_folder": "sprint-hooklog-20260326",
+  "created_at": "2026-03-26T01:19:55.310621",
+  "start_date": null,
+  "end_date": "2026-03-26",
+  "archived_at": "2026-03-26T01:19:55.310621",
+  "card_ids": [
+    "kr62ia",
+    "j6lzi1",
+    "77eri8",
+    "w56sog",
+    "u48cb6",
+    "r783op",
+    "kt3ucx",
+    "unkjkl",
+    "288ewn",
+    "xb6c47",
+    "ah4y1j",
+    "261745",
+    "od5a0c",
+    "cb0gpg",
+    "f4w9gu"
+  ],
+  "metrics": {
+    "total_cards": 15,
+    "by_priority": {
+      "P1": 7,
+      "P0": 3,
+      "P2": 5
+    },
+    "by_type": {
+      "feature": 5,
+      "chore": 6,
+      "documentation": 1,
+      "refactor": 2,
+      "test": 1
+    },
+    "by_handle": {
+      "CAMERON": 12,
+      "Unassigned": 3
+    }
+  }
+}

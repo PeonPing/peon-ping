@@ -121,7 +121,7 @@ versions:
           well-documented. Users see meaningful context in notification
           messages, can click notifications to focus their IDE, and can easily
           discover how to control sounds vs popups independently.
-        status: todo
+        status: done
         success_criteria:
           - Notification messages render user-configured templates with event
             variables
@@ -140,8 +140,8 @@ versions:
               categories (stop, permission, error, idle, question). Variables
               include {project}, {summary}, {tool_name}, {status}, {event}.
               Defaults to current behavior when no templates configured. Unix
-              implementation complete — Windows parity work remains.
-            status: in_progress
+              and Windows implementations complete.
+            status: done
             priority: high
             docs_ref: docs/plans/2026-02-24-notification-templates-design.md
             projects:
@@ -180,7 +180,7 @@ versions:
                   Python block to PowerShell in peon.ps1. Regex-based variable
                   substitution, same 5 template keys and 5 variables. Windows
                   parity.
-                status: todo
+                status: done
                 sequence: 4
                 docs_ref: docs/designs/win-notification-templates.md
               win-template-cli:
@@ -189,7 +189,7 @@ versions:
                 description: Port peon notifications template get/set/reset CLI
                   subcommand to peon.ps1. Same UX as Unix. Windows parity.
                 sequence: 5
-                status: todo
+                status: done
                 depends_on:
                   - win-template-engine
                 docs_ref: docs/designs/win-notification-templates.md
@@ -200,7 +200,7 @@ versions:
                   get/set/reset, unknown variable handling, and fallback
                   behavior. Windows parity.
                 sequence: 6
-                status: todo
+                status: done
                 depends_on:
                   - win-template-engine
                   - win-template-cli
@@ -260,7 +260,7 @@ versions:
               desktop_notifications feature. No core logic changes — purely CLI
               help, verbose status, README sections, skill docs, and llms.txt
               updates.
-            status: todo
+            status: done
             priority: low
             docs_ref: docs/plans/2026-02-25-selective-sound-control-design.md
             projects:
@@ -279,7 +279,7 @@ versions:
                   Controls table). Skills docs done. llms.txt done. README_zh.md
                   still needs translated sections.
                 sequence: 1
-                status: in_progress
+                status: done
         docs_ref: docs/prds/PRD-001-m2-close-out-smart-notifications.md
       m3:
         id: m3
@@ -452,3 +452,57 @@ versions:
                 sequence: 1
                 status: done
         upstream_version: 2.15.1
+      m4:
+        id: m4
+        title: When something breaks, you can see why
+        description: Structured observability for hook execution. Configurable
+          debug logging with phase timing, decision tracing, and daily log
+          rotation. Users can diagnose timeout, config, pack, and audio failures
+          from log output alone — no source reading required.
+        status: todo
+        docs_ref: docs/designs/structured-hook-logging.md
+        success_criteria:
+          - debug config key enables structured logging with zero overhead when
+            disabled
+          - 'Log entries cover all decision phases: event routing, config load, pack
+            selection, sound pick, playback, notification'
+          - peon debug on/off and peon logs CLI commands work on all platforms
+          - Daily log rotation with configurable retention (default 7 days)
+          - Worktree-safe concurrent append logging with session/cwd correlation
+        features:
+          hook-logging-core:
+            id: hook-logging-core
+            title: Core structured logging in hook scripts
+            description: 'Add inline phase-emitting log calls to both peon.sh (Python
+              block) and peon.ps1 (PowerShell). Implements debug and debug_retention_days
+              config keys, daily-rotated log files under $PEON_DIR/logs/, invocation
+              ID correlation, and PEON_DEBUG=1 env var override. Covers all decision
+              phases: [hook], [config], [state], [route], [sound], [play], [notify],
+              [trainer], [exit]. Zero overhead when disabled (no-op lambda/scriptblock).
+              Cross-platform test fixtures prevent format drift between Python and
+              PowerShell implementations.'
+            status: todo
+            docs_ref: docs/designs/structured-hook-logging.md
+          hook-logging-cli:
+            id: hook-logging-cli
+            title: CLI commands for debug toggle and log reading
+            description: Add peon debug on|off|status and peon logs [--last N]
+              [--session ID] [--clear] CLI commands to both peon.sh and
+              peon.ps1. Update shell completions (completions.bash,
+              completions.fish). Users can toggle logging and read/filter log
+              files without editing config files or knowing log directory paths.
+              Windows parity via peon.cmd delegation to peon.ps1.
+            status: todo
+            docs_ref: docs/designs/structured-hook-logging.md
+          hook-logging-docs:
+            id: hook-logging-docs
+            title: Documentation and discoverability for hook logging
+            description: Add Debugging section to README.md with examples of
+              diagnosing the 5 common failure modes from log output. Translate
+              to README_zh.md. Update docs/public/llms.txt. Update peon help
+              output with debug/logs commands. Update peon status --verbose to
+              show debug logging state. Troubleshooting guide with common
+              failure patterns.
+            status: todo
+            docs_ref: docs/designs/structured-hook-logging.md
+        sprint_tag: HOOKLOG
