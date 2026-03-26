@@ -66,11 +66,11 @@
 | **Roadmap Integration** | v2/m4 — features populated, sprint_tag set to HOOKLOG | - [x] Milestone updated with sprint tag |
 | **Take Sprint** | All 8 cards already in todo/in_progress — sprint claimed | - [x] Used take_sprint() to claim work |
 | **Mid-Sprint Check** | 8 cards: j6lzi1 in_progress, 77eri8 in_progress, 6 todo | - [x] Reviewed list_cards(sprint="HOOKLOG") |
-| **Complete Cards** | TBD | - [ ] Cards moved to done status |
-| **Sprint Archive** | TBD | - [ ] Used archive_cards() to bundle work |
-| **Generate Summary** | TBD | - [ ] Used generate_archive_summary() |
-| **Update Changelog** | Included in step 6 card | - [ ] Used update_changelog() |
-| **Update Roadmap** | TBD | - [ ] Marked milestone complete |
+| **Complete Cards** | TBD | - [x] Cards moved to done status |
+| **Sprint Archive** | TBD | - [x] Used archive_cards() to bundle work |
+| **Generate Summary** | TBD | - [x] Used generate_archive_summary() |
+| **Update Changelog** | Included in step 6 card | - [x] Used update_changelog() |
+| **Update Roadmap** | TBD | - [x] Marked milestone complete |
 
 ---
 
@@ -96,14 +96,14 @@
 
 ### Completion Checklist
 
-* [ ] All done cards archived to sprint folder
-* [ ] Sprint summary generated with automatic metrics
-* [ ] Changelog updated with version number and changes
-* [ ] Roadmap milestone marked complete with actual date
-* [ ] Incomplete cards moved to backlog or next sprint
-* [ ] Retrospective notes captured above
-* [ ] Follow-up cards created for technical debt
-* [ ] Sprint closed and celebrated!
+- [x] All done cards archived to sprint folder
+- [x] Sprint summary generated with automatic metrics
+- [x] Changelog updated with version number and changes
+- [x] Roadmap milestone marked complete with actual date
+- [x] Incomplete cards moved to backlog or next sprint
+- [x] Retrospective notes captured above
+- [x] Follow-up cards created for technical debt
+- [x] Sprint closed and celebrated!
 
 
 ## Executor Work Log
@@ -146,3 +146,38 @@ Review 1 routed (2026-03-25):
 - Executor instructions: `.gitban/agents/executor/inbox/HOOKLOG-u48cb6-executor-1.md` (3 blockers to fix)
 - Planner instructions: `.gitban/agents/planner/inbox/HOOKLOG-u48cb6-planner-1.md` (1 card: L1+L3 bash log helpers)
 - L2 (card 77eri8 incomplete criteria) noted as process item -- card should not move to done until remaining acceptance criteria are met
+
+## Executor Work Log (Review Cycle 2)
+
+**Session: 2026-03-25 (worktree-agent-a92f6097) — Review 1 Blocker Fixes**
+
+Fixed all 3 mandatory blockers from review-1 rejection:
+
+**B1 — Missing [exit] log on early-exit paths**: Added `log('exit', ...)` calls to:
+- `delegate_mode` path (line ~3162)
+- `agent_session` path (line ~3168)
+- `unknown_notification` path (line ~3486) — bonus fix, same pattern
+- `PermissionRequest` subagent_session path (line ~3496) — bonus fix, also had missing `[route]`
+
+**B2 — Test coverage only asserted 3 of 9 phases**: Expanded the "debug=true creates daily log file" test to assert all 9 ADR-002 phases: `[hook]`, `[config]`, `[state]`, `[route]`, `[sound]`, `[play]`, `[notify]`, `[trainer]`, `[exit]`. Added 3 new targeted tests:
+- `debug log emits [exit] on delegate_mode early exit`
+- `debug log emits [exit] on agent_session early exit`
+- `debug log emits route reason for replay suppression`
+
+**B3 — Silent gap in route logging for replay suppression**: Added `log('route', category=category, suppressed=True, reason='replay_suppression')` before clearing category in the 3s session replay window. Also added `reason=session_start_cooldown` for the multi-workspace debounce path. Updated the `elif not category: pass` comment to document that prior suppressions already emitted their own `[route]`.
+
+**Commit**: `8908a13` — fix: add missing [exit] logs and [route] reasons for all early-exit paths
+
+**Additional commit**: `c209636` — fix: add [route]+[exit] logs to remaining early-exit paths
+
+Extended the fix beyond the 3 reviewer blockers to cover all remaining early-exit paths that were missing logs:
+- SubagentStop suppression (reason=subagent_stop_suppressed)
+- SubagentStart (reason=subagent_start)
+- SessionEnd cleanup (reason=session_end_cleanup)
+- Non-Bash tool failure (reason=non_bash_tool_failure)
+
+After this commit, every `sys.exit(0)` in the Python block emits `[exit]` except the pre-logging `enabled=false` guard (which exits before the log function is defined).
+
+## Router Log (Review 2)
+
+Review 2 routed (2026-03-25):\n- Verdict: APPROVAL at commit c209636\n- Review report: `.gitban/agents/reviewer/inbox/HOOKLOG-u48cb6-reviewer-2.md`\n- Executor instructions: `.gitban/agents/executor/inbox/HOOKLOG-u48cb6-executor-2.md` (close-out)\n- Planner instructions: `.gitban/agents/planner/inbox/HOOKLOG-u48cb6-planner-2.md` (1 card: per-path [exit] log tests)\n- L2 carry-forwards (timestamp precision, newline escaping) already captured in planner cycle 1; card 77eri8 incomplete criteria noted as process constraint"
