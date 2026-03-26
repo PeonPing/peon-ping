@@ -30,6 +30,7 @@ AI coding agents don't notify you when they finish or need permission. You tab a
 - [Remote development](#remote-development-ssh--devcontainers--codespaces)
 - [Mobile notifications](#mobile-notifications)
 - [Sound packs](#sound-packs)
+- [Debugging](#debugging)
 - [Uninstall](#uninstall)
 - [Requirements](#requirements)
 - [How it works](#how-it-works)
@@ -271,6 +272,13 @@ peon preview --list       # List all categories in the active pack
 peon mobile ntfy <topic>  # Set up phone notifications (free)
 peon mobile off           # Disable phone notifications
 peon mobile test          # Send a test notification
+peon debug on             # Enable debug logging
+peon debug off            # Disable debug logging
+peon debug status         # Show debug state, log directory, file count, total size
+peon logs                 # Show last 50 lines of today's log
+peon logs --last N        # Show last N lines across all log files
+peon logs --session ID    # Filter today's log by session ID
+peon logs --clear         # Delete all log files (with confirmation)
 peon relay --daemon       # Start audio relay (for SSH/devcontainer)
 peon relay --stop         # Stop background relay
 ```
@@ -1079,6 +1087,63 @@ peon packs install --all          # install every pack in the registry
 ```
 
 Want to add your own pack? See the [full guide at openpeon.com/create](https://openpeon.com/create) or [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Debugging
+
+When sounds aren't playing or notifications aren't appearing, structured debug logging helps you trace exactly what happened during a hook invocation.
+
+### Enabling debug logs
+
+```bash
+peon debug on             # Enable — logs written to ~/.claude/hooks/peon-ping/logs/
+peon debug off            # Disable
+peon debug status         # Show state, log directory, file count, total size
+```
+
+You can also enable debug logging per-invocation without changing config by setting the environment variable `PEON_DEBUG=1`.
+
+### Reading logs
+
+```bash
+peon logs                 # Last 50 lines of today's log
+peon logs --last 100      # Last 100 lines across all log files
+peon logs --session <ID>  # Filter today's log by session ID
+peon logs --clear         # Delete all log files (with confirmation)
+```
+
+### Log format
+
+Each log line is a structured key=value record:
+
+```
+2026-03-26T14:32:01.042 [config] inv=a3f1 loaded=/path/to/config.json volume=0.5 pack=peon enabled=True
+2026-03-26T14:32:01.045 [event] inv=a3f1 hook_event=Stop cesp=task.complete session=abc123
+2026-03-26T14:32:01.048 [sound] inv=a3f1 file=work-work.wav label="Work, work." category=task.complete
+2026-03-26T14:32:01.120 [play] inv=a3f1 player=afplay file=work-work.wav
+2026-03-26T14:32:01.125 [notify] inv=a3f1 title="peon: done" body="Work, work."
+```
+
+- **inv** -- unique 4-character invocation ID linking all phases of a single hook call
+- **Phases**: `[config]`, `[event]`, `[sound]`, `[play]`, `[notify]` -- each represents a stage in the hook pipeline
+- Values containing spaces or special characters are quoted
+
+### Common failure examples
+
+| Symptom | What to look for in logs |
+|---|---|
+| No sound plays | `[event]` line shows `exit=early` (category disabled, paused, or debounced) |
+| Wrong pack | `[config]` line shows unexpected `pack=` value -- check path_rules or rotation |
+| Missing sound file | `[sound]` line shows `error=` with file path |
+| Notification missing | `[notify]` line absent -- check `desktop_notifications` in config |
+
+### Config keys
+
+| Key | Default | Description |
+|---|---|---|
+| `debug` | `false` | Enable structured debug logging |
+| `debug_retention_days` | `7` | Auto-prune logs older than N days |
+
+Logs are stored at `~/.claude/hooks/peon-ping/logs/peon-ping-YYYY-MM-DD.log` (one file per day). Old logs are automatically pruned based on `debug_retention_days` when a new day's log is created.
 
 ## Uninstall
 
