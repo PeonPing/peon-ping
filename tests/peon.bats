@@ -4551,6 +4551,95 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   [[ "$output" == *"no logs directory found"* ]]
 }
 
+# ── multi-day session search (--session --all) ───────────────────────
+
+@test "logs --session ID --all searches across multiple day files" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  # Create yesterday's log with a session entry
+  cat > "$TEST_DIR/logs/peon-ping-2026-03-24.log" <<'LOG'
+ts=2026-03-24T23:59:00 inv=aa11 session=midnight123 phase=[hook] event=Start
+ts=2026-03-24T23:59:30 inv=bb22 session=other999 phase=[hook] event=Stop
+LOG
+  # Create today's log with the same session
+  cat > "$TEST_DIR/logs/peon-ping-${today}.log" <<'LOG'
+ts=2026-03-25T00:00:05 inv=cc33 session=midnight123 phase=[sound] file=Hello1.wav
+ts=2026-03-25T00:01:00 inv=dd44 session=other999 phase=[hook] event=Start
+LOG
+  run bash "$PEON_SH" logs --session midnight123 --all
+  [ "$status" -eq 0 ]
+  # Should find entries from both days
+  [[ "$output" == *"2026-03-24T23:59:00"* ]]
+  [[ "$output" == *"2026-03-25T00:00:05"* ]]
+  # Should not include other sessions
+  [[ "$output" != *"other999"* ]]
+}
+
+@test "logs --session ID without --all only searches today" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  # Create yesterday's log with a session entry
+  cat > "$TEST_DIR/logs/peon-ping-2026-03-24.log" <<'LOG'
+ts=2026-03-24T23:59:00 inv=aa11 session=midnight123 phase=[hook] event=Start
+LOG
+  # Create today's log with the same session
+  cat > "$TEST_DIR/logs/peon-ping-${today}.log" <<'LOG'
+ts=2026-03-25T00:00:05 inv=cc33 session=midnight123 phase=[sound] file=Hello1.wav
+LOG
+  run bash "$PEON_SH" logs --session midnight123
+  [ "$status" -eq 0 ]
+  # Should find today's entry only
+  [[ "$output" == *"2026-03-25T00:00:05"* ]]
+  # Should NOT find yesterday's entry (no --all)
+  [[ "$output" != *"2026-03-24T23:59:00"* ]]
+}
+
+@test "logs --session ID --all shows results in chronological order" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  cat > "$TEST_DIR/logs/peon-ping-2026-03-23.log" <<'LOG'
+ts=2026-03-23T12:00:00 inv=aa11 session=chrono123 phase=[hook] event=Start
+LOG
+  cat > "$TEST_DIR/logs/peon-ping-2026-03-24.log" <<'LOG'
+ts=2026-03-24T12:00:00 inv=bb22 session=chrono123 phase=[hook] event=Stop
+LOG
+  cat > "$TEST_DIR/logs/peon-ping-${today}.log" <<'LOG'
+ts=2026-03-25T12:00:00 inv=cc33 session=chrono123 phase=[sound] file=Hello1.wav
+LOG
+  run bash "$PEON_SH" logs --session chrono123 --all
+  [ "$status" -eq 0 ]
+  # All three entries should appear
+  [[ "$output" == *"2026-03-23"* ]]
+  [[ "$output" == *"2026-03-24"* ]]
+  [[ "$output" == *"2026-03-25"* ]]
+  # Verify chronological order: line 1 should be earliest
+  first_line=$(echo "$output" | head -1)
+  [[ "$first_line" == *"2026-03-23"* ]]
+}
+
+@test "logs --session ID --all with no matches shows message" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  echo "ts=2026-03-25T10:00:00 inv=aa11 session=abc123 phase=[hook] event=Start" > "$TEST_DIR/logs/peon-ping-${today}.log"
+  run bash "$PEON_SH" logs --session nonexistent --all
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no entries for session=nonexistent across all log files"* ]]
+}
+
+@test "logs --session ID --all with no log files shows message" {
+  # Ensure no logs directory
+  rm -rf "$TEST_DIR/logs"
+  run bash "$PEON_SH" logs --session abc123 --all
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no log files found"* ]]
+}
+
+@test "help shows logs --session --all" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--session ID --all"* ]]
+}
+
 @test "logs --clear deletes all log files" {
   mkdir -p "$TEST_DIR/logs"
   echo "data" > "$TEST_DIR/logs/peon-ping-2026-03-24.log"

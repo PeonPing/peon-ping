@@ -296,6 +296,64 @@ Describe "peon logs --session ID" {
 }
 
 # ============================================================
+# peon logs --session ID --all
+# ============================================================
+Describe "peon logs --session ID --all" {
+    BeforeEach {
+        $script:testDir = New-DebugTestEnv
+    }
+    AfterEach {
+        Remove-PeonTestEnvironment -TestDir $script:testDir
+    }
+
+    It "searches across all log files" {
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-23" -Lines @(
+            "2026-03-23T23:59:00.000 [hook] inv=a1b2 event=SessionStart session=midnight123"
+        )
+        $today = (Get-Date).ToString('yyyy-MM-dd')
+        New-FakeLogFile -TestDir $script:testDir -Date $today -Lines @(
+            "$today`T00:00:05.000 [sound] inv=c3d4 session=midnight123 file=Hello1.wav",
+            "$today`T00:01:00.000 [hook] inv=e5f6 event=Start session=other999"
+        )
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--session", "midnight123", "--all")
+        $result.Output | Should -Match "midnight123"
+        $result.Output | Should -Match "2026-03-23"
+        $result.Output | Should -Not -Match "other999"
+    }
+
+    It "shows message when session not found across all files" {
+        $today = (Get-Date).ToString('yyyy-MM-dd')
+        New-FakeLogFile -TestDir $script:testDir -Date $today -Lines @(
+            "$today`T10:00:00.000 [hook] inv=a1b2 event=SessionStart session=abc123"
+        )
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--session", "nonexistent", "--all")
+        $result.Output | Should -Match "no entries for session=nonexistent across all log files"
+    }
+
+    It "shows message when no log files exist with --all" {
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--session", "abc123", "--all")
+        $result.Output | Should -Match "no log files found"
+    }
+
+    It "returns results in chronological order" {
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-22" -Lines @(
+            "2026-03-22T12:00:00.000 [hook] inv=a1b2 event=Start session=chrono123"
+        )
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-23" -Lines @(
+            "2026-03-23T12:00:00.000 [hook] inv=c3d4 event=Stop session=chrono123"
+        )
+        $today = (Get-Date).ToString('yyyy-MM-dd')
+        New-FakeLogFile -TestDir $script:testDir -Date $today -Lines @(
+            "$today`T12:00:00.000 [sound] inv=e5f6 session=chrono123 file=Hello1.wav"
+        )
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--session", "chrono123", "--all")
+        $lines = ($result.Output -split "`n" | Where-Object { $_ -ne '' })
+        $lines[0] | Should -Match "2026-03-22"
+        $lines[1] | Should -Match "2026-03-23"
+    }
+}
+
+# ============================================================
 # peon logs --clear
 # ============================================================
 Describe "peon logs --clear" {
@@ -349,6 +407,7 @@ Describe "peon --help includes debug and logs" {
         $result.Output | Should -Match "logs\b"
         $result.Output | Should -Match "logs --last"
         $result.Output | Should -Match "logs --session"
+        $result.Output | Should -Match "logs --session ID --all"
         $result.Output | Should -Match "logs --clear"
     }
 }

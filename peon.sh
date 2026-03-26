@@ -2758,7 +2758,23 @@ print('  log data: ' + str(count) + ' ' + unit + ', ' + size_str)
       --session)
         SESSION_ID="${2:-}"
         if [ -z "$SESSION_ID" ]; then
-          echo "Usage: peon logs --session <ID>" >&2; exit 1
+          echo "Usage: peon logs --session <ID> [--all]" >&2; exit 1
+        fi
+        SESSION_ALL_FLAG="${3:-}"
+        if [ "$SESSION_ALL_FLAG" = "--all" ]; then
+          # Search across all log files in chronological order
+          if [ ! -d "$LOGS_DIR" ] || [ -z "$(ls "$LOGS_DIR"/peon-ping-*.log 2>/dev/null)" ]; then
+            echo "peon-ping: no log files found in $LOGS_DIR/"
+            exit 0
+          fi
+          MATCHES=$(ls -1 "$LOGS_DIR"/peon-ping-*.log 2>/dev/null | sort | xargs grep -F "session=$SESSION_ID" 2>/dev/null)
+          if [ -z "$MATCHES" ]; then
+            echo "peon-ping: no entries for session=$SESSION_ID across all log files"
+          else
+            # Strip filename prefix from grep output (filename:line → line)
+            echo "$MATCHES" | sed 's/^[^:]*://'
+          fi
+          exit 0
         fi
         TODAY=$(date +%Y-%m-%d)
         LOG_FILE="$LOGS_DIR/peon-ping-${TODAY}.log"
@@ -2797,7 +2813,7 @@ print('  log data: ' + str(count) + ' ' + unit + ', ' + size_str)
         tail -n 50 "$LOG_FILE"
         exit 0 ;;
       *)
-        echo "Usage: peon logs [--last N] [--session ID] [--clear]" >&2; exit 1 ;;
+        echo "Usage: peon logs [--last N] [--session ID [--all]] [--clear]" >&2; exit 1 ;;
     esac ;;
   update)
     echo "Updating peon-ping..."
@@ -2877,6 +2893,7 @@ Commands:
   logs                 Show last 50 lines of today's log
   logs --last N        Show last N lines across all log files
   logs --session ID    Filter today's log by session ID
+  logs --session ID --all  Search across all log files for session ID
   logs --clear         Delete all log files (with confirmation)
   update               Update peon-ping and refresh all sound packs
   help                 Show this help

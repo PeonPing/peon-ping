@@ -156,7 +156,7 @@ Log format: `TIMESTAMP [phase] inv=ID key=value ...` where inv is a 4-char invoc
 
 Config keys: `debug` (boolean, default false) enables logging. `debug_retention_days` (integer, default 7) auto-prunes old log files.
 
-View logs with `peon logs` (last 50 lines of today), `peon logs --last N` (last N lines across all files), `peon logs --session ID` (filter by session), `peon logs --clear` (delete all).
+View logs with `peon logs` (last 50 lines of today), `peon logs --last N` (last N lines across all files), `peon logs --session ID` (filter today by session), `peon logs --session ID --all` (search all log files for session), `peon logs --clear` (delete all).
 
 ## Claude Code Skills
 

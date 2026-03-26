@@ -1152,11 +1152,33 @@ if ($Command) {
                 "^--session$" {
                     $sessionId = $Arg2
                     if (-not $sessionId) {
-                        Write-Host "Usage: peon logs --session <ID>" -ForegroundColor Yellow
+                        Write-Host "Usage: peon logs --session <ID> [--all]" -ForegroundColor Yellow
                         return
                     }
                     if (-not (Test-Path $logDir)) {
                         Write-Host "peon-ping: no log files found" -ForegroundColor Yellow
+                        return
+                    }
+                    $searchAll = $ExtraArgs -contains "--all"
+                    if ($searchAll) {
+                        # Search across all log files in chronological order
+                        $logFiles = @(Get-ChildItem -Path $logDir -Filter "peon-ping-*.log" -ErrorAction SilentlyContinue | Sort-Object Name)
+                        if ($logFiles.Count -eq 0) {
+                            Write-Host "peon-ping: no log files found" -ForegroundColor Yellow
+                            return
+                        }
+                        $found = @()
+                        foreach ($f in $logFiles) {
+                            $lines = @(Get-Content $f.FullName -Encoding UTF8 | Where-Object { $_ -match "session=$sessionId" })
+                            $found += $lines
+                        }
+                        if ($found.Count -eq 0) {
+                            Write-Host "peon-ping: no entries for session=$sessionId across all log files" -ForegroundColor Yellow
+                            return
+                        }
+                        foreach ($line in $found) {
+                            Write-Host $line
+                        }
                         return
                     }
                     $logDate = (Get-Date).ToString('yyyy-MM-dd')
@@ -1178,7 +1200,7 @@ if ($Command) {
                 default {
                     # No flag or unrecognized: show last 50 lines of today's log
                     if ($flag -and $flag -match "^--") {
-                        Write-Host "Usage: peon logs [--last N] [--session ID] [--clear]" -ForegroundColor Yellow
+                        Write-Host "Usage: peon logs [--last N] [--session ID [--all]] [--clear]" -ForegroundColor Yellow
                         return
                     }
                     if (-not (Test-Path $logDir)) {
@@ -1248,7 +1270,8 @@ if ($Command) {
             Write-Host "  debug status          Show debug state and log info"
             Write-Host "  logs                  Show last 50 lines of today's log"
             Write-Host "  logs --last N         Show last N lines across all logs"
-            Write-Host "  logs --session ID     Filter by session ID"
+            Write-Host "  logs --session ID     Filter today's log by session ID"
+            Write-Host "  logs --session ID --all  Search all log files for session ID"
             Write-Host "  logs --clear          Delete all log files"
             return
         }
