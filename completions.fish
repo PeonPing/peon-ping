@@ -149,3 +149,4 @@ complete -c peon -n "__peon_using_subcommand debug" -a status -d "Show debug sta
 complete -c peon -n "__peon_using_subcommand logs" -a "--last" -d "Show last N lines across all logs"
 complete -c peon -n "__peon_using_subcommand logs" -a "--session" -d "Filter by session ID"
 complete -c peon -n "__peon_using_subcommand logs" -a "--clear" -d "Delete all log files"
+complete -c peon -n "__peon_using_subcommand logs; and __fish_seen_argument -l session" -a "--all" -d "Search across all log files"

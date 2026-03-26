@@ -69,6 +69,8 @@ _peon_completions() {
       logs)
         if [ "$cword" -eq 2 ]; then
           COMPREPLY=( $(compgen -W "--last --session --clear" -- "$cur") )
+        elif [ "$cword" -eq 4 ] && [ "${words[2]}" = "--session" ]; then
+          COMPREPLY=( $(compgen -W "--all" -- "$cur") )
         fi
         return 0 ;;
     esac
