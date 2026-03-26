@@ -152,15 +152,5 @@ complete -c peon -n "__peon_notif_subcommand position" -a "bottom-center" -d "Bo
 # notifications label values
 complete -c peon -n "__peon_notif_subcommand label" -a reset -d "Clear label override"
 
-# debug subcommands
-complete -c peon -n "__peon_using_subcommand debug" -a on -d "Enable debug logging"
-complete -c peon -n "__peon_using_subcommand debug" -a off -d "Disable debug logging"
-complete -c peon -n "__peon_using_subcommand debug" -a status -d "Show debug state and log info"
-
-# logs subcommands
-complete -c peon -n "__peon_using_subcommand logs" -a "--last" -d "Show last N lines across all logs"
-complete -c peon -n "__peon_using_subcommand logs" -a "--session" -d "Filter by session ID"
-complete -c peon -n "__peon_using_subcommand logs" -a "--all" -d "Search across all log files"
-complete -c peon -n "__peon_using_subcommand logs" -a "--prune" -d "Delete logs older than retention period"
-complete -c peon -n "__peon_using_subcommand logs" -a "--clear" -d "Delete all log files"
+# logs --session --all (conditional: only after --session)
 complete -c peon -n "__peon_using_subcommand logs; and __fish_seen_argument -l session" -a "--all" -d "Search across all log files"
