@@ -1435,15 +1435,73 @@ if ($Command) {
 $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigPath = Join-Path $InstallDir "config.json"
 $StatePath = Join-Path $InstallDir ".state.json"
+$_peonStart = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Read config
+# Read config (capture error for logging after init)
+$_configError = $null
 try {
     $config = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
 } catch {
-    exit 0
+    $_configError = "$_"
+    # Fall back to minimal defaults so logging can still initialize
+    $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7 }
 }
 
 if (-not $config.enabled) { exit 0 }
+
+# --- Structured logging infrastructure ---
+# Mirrors peon.sh log() closure: key=value format, invocation IDs, daily rotation.
+# When debug=false (default): empty scriptblock, zero overhead.
+# When debug=true or PEON_DEBUG=1: appends to $PEON_DIR/logs/peon-ping-YYYY-MM-DD.log.
+$peonInv = '{0:x4}' -f ([System.Random]::new().Next(0, 65535))
+$script:peonLogEnabled = ($config.debug -eq $true) -or ($peonDebug)
+$script:peonLogPath = $null
+
+if ($script:peonLogEnabled) {
+    $logDir = Join-Path $InstallDir 'logs'
+    if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+    $logDate = (Get-Date).ToString('yyyy-MM-dd')
+    $script:peonLogPath = Join-Path $logDir "peon-ping-$logDate.log"
+    $logIsNew = -not (Test-Path $script:peonLogPath)
+
+    $peonLog = {
+        param([string]$Phase, [hashtable]$Fields)
+        if (-not $script:peonLogEnabled) { return }
+        $ts = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss.fff')
+        $parts = "$ts [$Phase] inv=$peonInv"
+        foreach ($kv in $Fields.GetEnumerator()) {
+            $v = [string]$kv.Value
+            if ($v -match '[ "=]' -or $v -eq '') {
+                $v = '"' + ($v -replace '\\','\\' -replace '"','\"') + '"'
+            }
+            $parts += " $($kv.Key)=$v"
+        }
+        try { Add-Content -Path $script:peonLogPath -Value $parts -Encoding UTF8 -ErrorAction Stop }
+        catch { $script:peonLogEnabled = $false }
+    }
+
+    # Prune old logs on first file of the day
+    if ($logIsNew) {
+        $retention = if ($config.debug_retention_days) { $config.debug_retention_days } else { 7 }
+        $cutoff = (Get-Date).AddDays(-$retention).ToString('yyyy-MM-dd')
+        Get-ChildItem -Path $logDir -Filter 'peon-ping-*.log' -ErrorAction SilentlyContinue |
+            Where-Object { $_.BaseName -replace 'peon-ping-','' -lt $cutoff } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+} else {
+    $peonLog = { }
+}
+
+# Log config error if config load failed
+if ($_configError) {
+    & $peonLog 'config' @{ error = $_configError; fallback = 'defaults' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
+
+# Log config phase
+$_activePack = Get-ActivePack $config
+& $peonLog 'config' @{ loaded = $ConfigPath; volume = [string]$config.volume; pack = $_activePack; enabled = 'True' }
 
 # Read hook input from stdin (StreamReader with UTF-8 auto-strips BOM on Windows)
 $hookInput = ""
@@ -1494,8 +1552,17 @@ $project = if ($cwd) { Split-Path $cwd -Leaf } else { "" }
 if (-not $project) { $project = "claude" }
 $project = $project -replace '[^a-zA-Z0-9 ._-]', ''
 
+# Log hook phase
+& $peonLog 'hook' @{ event = $hookEvent; session = $sessionId; cwd = $cwd; paused = 'False' }
+
 # Read state
 $state = Read-StateWithRetry -Path $StatePath
+
+# Log state phase
+$_stateSessions = if ($state.ContainsKey("agent_sessions")) { @($state["agent_sessions"]).Count } else { 0 }
+$_stateRotIdx = if ($state.ContainsKey("rotation_index")) { $state["rotation_index"] } else { 0 }
+$_stateLastStop = if ($state.ContainsKey("last_stop_time")) { $state["last_stop_time"] } else { 0 }
+& $peonLog 'state' @{ sessions = [string]$_stateSessions; rotation_index = [string]$_stateRotIdx; last_stop = [string]$_stateLastStop }
 
 # --- Session cleanup: expire old sessions ---
 $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
@@ -1528,6 +1595,24 @@ if ($sessionPacksClean.Count -ne $sessionPacks.Count) {
     $stateDirty = $true
 }
 
+# --- Agent detection (delegate mode) ---
+$_permMode = if ($event.permission_mode) { $event.permission_mode } else { '' }
+$_agentModes = @('delegate')
+$_agentSessions = if ($state.ContainsKey("agent_sessions")) { @($state["agent_sessions"]) } else { @() }
+
+if ($_permMode -and $_agentModes -contains $_permMode) {
+    $_agentSessions = @($_agentSessions + $sessionId | Select-Object -Unique)
+    $state["agent_sessions"] = $_agentSessions
+    & $peonLog 'route' @{ category = 'none'; suppressed = 'True'; reason = 'delegate_mode' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    try { Write-StateAtomic -State $state -Path $StatePath } catch { <# state write best-effort #> }
+    exit 0
+} elseif ($sessionId -and $_agentSessions -contains $sessionId) {
+    & $peonLog 'route' @{ category = 'none'; suppressed = 'True'; reason = 'agent_session' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
+
 # --- Map Claude Code hook event -> CESP manifest category ---
 $category = $null
 $ntype = $event.notification_type
@@ -1546,6 +1631,7 @@ switch ($hookEvent) {
         $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         $lastStop = if ($state.ContainsKey("last_stop_time")) { $state["last_stop_time"] } else { 0 }
         if (($now - $lastStop) -lt 5) {
+            & $peonLog 'route' @{ category = 'task.complete'; suppressed = 'True'; reason = 'debounce_5s' }
             $category = $null
         } else {
             $notify = $true
@@ -1626,17 +1712,30 @@ try {
 }
 
 $skipSound = (-not $category)
-if ($skipSound -and -not $notify) { exit 0 }
+if ($skipSound -and -not $notify) {
+    # No category and no notification — nothing to do (may have already logged route reason like debounce)
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
 
 # Check if category is enabled (only relevant when we have a category to play)
 if (-not $skipSound) {
     try {
         $catEnabled = $config.categories.$category
-        if ($catEnabled -eq $false -and -not $notify) { exit 0 }
+        if ($catEnabled -eq $false -and -not $notify) {
+            & $peonLog 'route' @{ category = $category; suppressed = 'True'; reason = 'category_disabled' }
+            & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+            exit 0
+        }
         if ($catEnabled -eq $false) { $skipSound = $true }
     } catch {
         if ($peonDebug) { Write-Warning "peon-ping: category check failed for '$category': $_" }
     }
+}
+
+# Log route decision (normal flow — not suppressed)
+if ($category) {
+    & $peonLog 'route' @{ category = $category; suppressed = 'False' }
 }
 
 if (-not $skipSound) {
@@ -1725,11 +1824,19 @@ if ($rotationMode -eq "agentskill" -or $rotationMode -eq "session_override") {
 
 $packDir = Join-Path $InstallDir "packs\$activePack"
 $manifestPath = Join-Path $packDir "openpeon.json"
-if (-not (Test-Path $manifestPath)) { exit 0 }
+if (-not (Test-Path $manifestPath)) {
+    & $peonLog 'sound' @{ error = 'manifest not found'; pack = $activePack; fallback = 'none' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
 
 try {
     $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-} catch { exit 0 }
+} catch {
+    & $peonLog 'sound' @{ error = "$_"; pack = $activePack; fallback = 'none' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
 
 # Get sounds for this category
 $catSounds = $null
@@ -1737,8 +1844,13 @@ try {
     $catSounds = $manifest.categories.$category.sounds
 } catch {
     if ($peonDebug) { Write-Warning "peon-ping: sound lookup failed for category '$category': $_" }
+    & $peonLog 'sound' @{ error = "$_"; pack = $activePack; fallback = 'none' }
 }
-if (-not $catSounds -or $catSounds.Count -eq 0) { exit 0 }
+if (-not $catSounds -or $catSounds.Count -eq 0) {
+    & $peonLog 'sound' @{ error = 'no sound found'; pack = $activePack; fallback = 'none' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
 
 # Anti-repeat: avoid last played sound
 $lastKey = "last_$category"
@@ -1754,7 +1866,14 @@ $chosen = $candidates | Get-Random
 $soundFile = Split-Path $chosen.file -Leaf
 $soundPath = Join-Path $packDir "sounds\$soundFile"
 
-if (-not (Test-Path $soundPath)) { exit 0 }
+if (-not (Test-Path $soundPath)) {
+    & $peonLog 'sound' @{ error = "file not found: $soundFile"; pack = $activePack; fallback = 'none' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
+
+# Log sound selection
+& $peonLog 'sound' @{ file = $soundFile; pack = $activePack; candidates = [string]$candidates.Count; no_repeat = 'True' }
 
 # Icon resolution chain (CESP §5.5)
 $iconPath = ""
@@ -1786,8 +1905,10 @@ if (-not $volume) { $volume = 0.5 }
 $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
 if (Test-Path $winPlayScript) {
     Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
+    & $peonLog 'play' @{ backend = 'win-play.ps1'; file = $soundFile; volume = [string]$volume }
 } else {
     if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
+    & $peonLog 'play' @{ error = "win-play.ps1 not found"; backend = 'none' }
 }
 
 } # end if (-not $skipSound)
@@ -1889,6 +2010,10 @@ if ($trainerCfg -and $trainerCfg.enabled) {
     } catch {
         if ($peonDebug) { Write-Warning "peon-ping: state write failed (trainer): $_" }
     }
+
+    & $peonLog 'trainer' @{ active = 'True'; reminder = [string][bool]$trainerSoundPath }
+} else {
+    & $peonLog 'trainer' @{ active = 'False'; reminder = 'False' }
 }
 
 # --- Trainer sound sequencing (500ms delay after main sound) ---
@@ -1970,6 +2095,14 @@ if ($notify -and $desktopNotif) {
         Start-Process -FilePath "powershell.exe" -ArgumentList $notifArgs -WindowStyle Hidden
     }
 }
+
+# Log notify phase
+$_mobileService = ''
+if ($config.mobile_notify -and $config.mobile_notify.service) { $_mobileService = $config.mobile_notify.service }
+& $peonLog 'notify' @{ desktop = [string]($notify -and $desktopNotif); mobile = [string][bool]$_mobileService }
+
+# Log exit phase with duration
+& $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
 
 exit 0
 '@
