@@ -4104,7 +4104,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 validate_log_fixture() {
   local fixture_name="$1"
   local fixture_dir
-  fixture_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fixtures/hook-logging"
+  fixture_dir="${BATS_TEST_DIRNAME}/fixtures/hook-logging"
   local input_file="$fixture_dir/${fixture_name}.input.json"
   local expected_file="$fixture_dir/${fixture_name}.expected.txt"
 

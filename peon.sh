@@ -3047,7 +3047,9 @@ TRAINER_HELP
     esac ;;
   debug)
     shift
-    case "${1:-status}" in
+    case "${1:-}" in
+      "")
+        echo "Usage: peon debug <on|off|status>"; exit 0 ;;
       on)
         python3 -c "
 import json
@@ -3145,9 +3147,9 @@ print(cfg.get('debug_retention_days', 7))
       --last)
         _n="${2:-50}"
         if [ -d "$LOG_DIR" ]; then
-          _latest=$(ls -t "$LOG_DIR"/peon-ping-*.log 2>/dev/null | head -1)
-          if [ -n "$_latest" ]; then
-            tail -n "$_n" "$_latest"
+          _files=$(ls -1 "$LOG_DIR"/peon-ping-*.log 2>/dev/null | sort)
+          if [ -n "$_files" ]; then
+            cat $_files | tail -n "$_n"
           else
             echo "peon-ping: no log files found"
           fi
@@ -3246,7 +3248,7 @@ state_file = '$STATE_PY'
 peon_dir = '$PEON_DIR_PY'
 paused = '$PAUSED' == 'true'
 hook_tty = '$_PEON_HOOK_TTY'
-agent_modes = {'delegate'}
+agent_modes = {'delegate', 'dangerouslySkipPermissions'}
 state_dirty = False
 
 # --- Atomic state I/O helpers (shared definition from _PEON_STATE_PY_HELPERS) ---
