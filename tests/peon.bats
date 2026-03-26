@@ -4262,3 +4262,131 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   bad_lines=$(grep -cvE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3} \[' "$logfile" || true)
   [ "$bad_lines" -eq 0 ]
 }
+
+# ── debug on/off/status ──────────────────────────────────────────────
+
+@test "debug on sets debug true in config" {
+  run bash "$PEON_SH" debug on
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug logging enabled"* ]]
+  val=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('debug'))")
+  [ "$val" = "True" ]
+}
+
+@test "debug off sets debug false in config" {
+  # Enable first
+  bash "$PEON_SH" debug on >/dev/null 2>&1
+  run bash "$PEON_SH" debug off
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug logging disabled"* ]]
+  val=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('debug'))")
+  [ "$val" = "False" ]
+}
+
+@test "debug status shows disabled when debug is false" {
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"disabled"* ]]
+}
+
+@test "debug status shows enabled when debug is true" {
+  bash "$PEON_SH" debug on >/dev/null 2>&1
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"enabled"* ]]
+}
+
+@test "debug status shows log directory path" {
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"logs/"* ]]
+}
+
+@test "debug status shows log file count and size" {
+  mkdir -p "$TEST_DIR/logs"
+  echo "test log line" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  run bash "$PEON_SH" debug status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 file"* ]]
+}
+
+@test "debug with no subcommand shows usage" {
+  run bash "$PEON_SH" debug
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"on"* ]]
+  [[ "$output" == *"off"* ]]
+  [[ "$output" == *"status"* ]]
+}
+
+# ── logs ──────────────────────────────────────────────────────────────
+
+@test "logs shows last 50 lines of today's log" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  for i in $(seq 1 60); do
+    echo "line $i" >> "$TEST_DIR/logs/peon-ping-${today}.log"
+  done
+  run bash "$PEON_SH" logs
+  [ "$status" -eq 0 ]
+  # Should show last 50, not first 50
+  [[ "$output" == *"line 60"* ]]
+  [[ "$output" != *"line 1"* ]]
+}
+
+@test "logs shows message when no log files exist" {
+  run bash "$PEON_SH" logs
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no log"* ]] || [[ "$output" == *"No log"* ]]
+}
+
+@test "logs --last N shows last N lines across all files" {
+  mkdir -p "$TEST_DIR/logs"
+  echo "old line 1" > "$TEST_DIR/logs/peon-ping-2026-03-24.log"
+  echo "old line 2" >> "$TEST_DIR/logs/peon-ping-2026-03-24.log"
+  echo "new line 1" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  echo "new line 2" >> "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  run bash "$PEON_SH" logs --last 3
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"new line 2"* ]]
+  [[ "$output" == *"new line 1"* ]]
+  [[ "$output" == *"old line 2"* ]]
+}
+
+@test "logs --session ID filters by session" {
+  mkdir -p "$TEST_DIR/logs"
+  today=$(date +%Y-%m-%d)
+  cat > "$TEST_DIR/logs/peon-ping-${today}.log" <<'LOG'
+ts=2026-03-25T10:00:00 inv=aa11 session=abc123 phase=[hook] event=Start
+ts=2026-03-25T10:00:01 inv=bb22 session=def456 phase=[hook] event=Stop
+ts=2026-03-25T10:00:02 inv=cc33 session=abc123 phase=[sound] file=Hello1.wav
+LOG
+  run bash "$PEON_SH" logs --session abc123
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"abc123"* ]]
+  [[ "$output" != *"def456"* ]]
+}
+
+@test "logs --clear deletes all log files" {
+  mkdir -p "$TEST_DIR/logs"
+  echo "data" > "$TEST_DIR/logs/peon-ping-2026-03-24.log"
+  echo "data" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
+  # Pipe 'y' to confirm
+  run bash -c "echo y | bash '$PEON_SH' logs --clear"
+  [ "$status" -eq 0 ]
+  [ ! -f "$TEST_DIR/logs/peon-ping-2026-03-24.log" ]
+  [ ! -f "$TEST_DIR/logs/peon-ping-2026-03-25.log" ]
+}
+
+# ── help includes debug and logs ─────────────────────────────────────
+
+@test "help lists debug command" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"debug"* ]]
+}
+
+@test "help lists logs command" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"logs"* ]]
+}
