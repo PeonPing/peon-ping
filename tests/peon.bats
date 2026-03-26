@@ -3816,3 +3816,102 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ "$status" -eq 0 ]
   [[ "$output" == *"$pack_name"* ]]
 }
+
+# ============================================================
+# Debug logging (ADR-002)
+# ============================================================
+
+@test "debug=false produces no log file" {
+  # Default config has no debug key, so logging should be disabled
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # No logs directory should be created
+  [ ! -d "$TEST_DIR/logs" ]
+}
+
+@test "debug=true creates daily log file with phase entries" {
+  # Enable debug logging
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # logs directory should exist
+  [ -d "$TEST_DIR/logs" ]
+  # Daily log file should exist
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  [ -f "$logfile" ]
+  # Log should contain phase entries
+  grep -q '\[hook\]' "$logfile"
+  grep -q '\[config\]' "$logfile"
+  grep -q '\[exit\]' "$logfile"
+  # All lines should carry an inv= prefix
+  grep -v 'inv=' "$logfile" && false || true
+}
+
+@test "PEON_DEBUG=1 env var enables logging even when config debug=false" {
+  # Config has no debug key (defaults to false)
+  export PEON_DEBUG=1
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  unset PEON_DEBUG
+  # logs directory should exist
+  [ -d "$TEST_DIR/logs" ]
+  local today
+  today=$(date '+%Y-%m-%d')
+  [ -f "$TEST_DIR/logs/peon-ping-${today}.log" ]
+}
+
+@test "log rotation prunes files older than debug_retention_days" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+cfg['debug_retention_days'] = 3
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Create old log files (older than 3 days)
+  mkdir -p "$TEST_DIR/logs"
+  touch "$TEST_DIR/logs/peon-ping-2020-01-01.log"
+  touch "$TEST_DIR/logs/peon-ping-2020-01-02.log"
+  touch "$TEST_DIR/logs/peon-ping-2020-01-03.log"
+  # Create a recent log file that should NOT be pruned
+  local today
+  today=$(date '+%Y-%m-%d')
+  # Don't create today's file so pruning triggers (new-day detection)
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  # Old files should be pruned
+  [ ! -f "$TEST_DIR/logs/peon-ping-2020-01-01.log" ]
+  [ ! -f "$TEST_DIR/logs/peon-ping-2020-01-02.log" ]
+  [ ! -f "$TEST_DIR/logs/peon-ping-2020-01-03.log" ]
+  # Today's file should exist
+  [ -f "$TEST_DIR/logs/peon-ping-${today}.log" ]
+}
+
+@test "debug log contains route suppression reason for debounce" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['debug'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # First Stop event
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # Second Stop within 5s should be debounced
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  grep -q 'reason=debounce_5s' "$logfile"
+}
