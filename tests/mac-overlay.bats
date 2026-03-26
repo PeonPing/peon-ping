@@ -286,7 +286,7 @@ assert cfg['notification_style'] == 'standard', f'Expected standard, got {cfg[\"
 # ============================================================
 
 @test "peon status shows notification style" {
-  output=$(bash "$PEON_SH" status 2>/dev/null)
+  output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
   [[ "$output" == *"notification style overlay"* ]]
 }
 
@@ -342,7 +342,7 @@ JSON
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard" }
 JSON
-  output=$(bash "$PEON_SH" status 2>/dev/null)
+  output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
   [[ "$output" == *"notification style standard"* ]]
 }
 
@@ -461,7 +461,7 @@ cfg = json.load(open('$TEST_DIR/config.json'))
 cfg['notification_position'] = 'top-right'
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
-  output=$(bash "$PEON_SH" status 2>/dev/null)
+  output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
   [[ "$output" == *"notification position top-right"* ]]
 }
 
@@ -524,7 +524,7 @@ cfg = json.load(open('$TEST_DIR/config.json'))
 cfg['notification_dismiss_seconds'] = 8
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
-  output=$(bash "$PEON_SH" status 2>/dev/null)
+  output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
   [[ "$output" == *"dismiss time 8s"* ]]
 }
 
@@ -535,7 +535,7 @@ cfg = json.load(open('$TEST_DIR/config.json'))
 cfg['notification_dismiss_seconds'] = 0
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
-  output=$(bash "$PEON_SH" status 2>/dev/null)
+  output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
   [[ "$output" == *"persistent"* ]]
 }
 
@@ -594,7 +594,7 @@ cfg = json.load(open('$TEST_DIR/config.json'))
 cfg['notification_title_override'] = 'Custom Name'
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
-  output=$(bash "$PEON_SH" status 2>/dev/null)
+  output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
   [[ "$output" == *"label override: Custom Name"* ]]
 }
 
@@ -771,7 +771,7 @@ cfg = json.load(open('$TEST_DIR/config.json'))
 cfg['notification_templates'] = {'stop': '{project}: {summary}'}
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
-  output=$(bash "$PEON_SH" status 2>/dev/null)
+  output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
   [[ "$output" == *"notification templates"* ]]
   [[ "$output" == *"{project}: {summary}"* ]]
 }

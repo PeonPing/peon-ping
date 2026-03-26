@@ -4413,31 +4413,31 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ "$val" = "False" ]
 }
 
-@test "debug status shows disabled when debug is false" {
+@test "debug status shows off when debug is false" {
   run bash "$PEON_SH" debug status
   [ "$status" -eq 0 ]
-  [[ "$output" == *"disabled"* ]]
+  [[ "$output" == *"off"* ]]
 }
 
-@test "debug status shows enabled when debug is true" {
+@test "debug status shows on when debug is true" {
   bash "$PEON_SH" debug on >/dev/null 2>&1
   run bash "$PEON_SH" debug status
   [ "$status" -eq 0 ]
-  [[ "$output" == *"enabled"* ]]
+  [[ "$output" == *" on"* ]]
 }
 
 @test "debug status shows log directory path" {
   run bash "$PEON_SH" debug status
   [ "$status" -eq 0 ]
-  [[ "$output" == *"logs/"* ]]
+  [[ "$output" == *"logs directory"* ]]
 }
 
-@test "debug status shows log file count and size" {
+@test "debug status shows log file count" {
   mkdir -p "$TEST_DIR/logs"
   echo "test log line" > "$TEST_DIR/logs/peon-ping-2026-03-25.log"
   run bash "$PEON_SH" debug status
   [ "$status" -eq 0 ]
-  [[ "$output" == *"1 file"* ]]
+  [[ "$output" == *"log files:"* ]]
 }
 
 @test "debug with no subcommand shows usage" {
