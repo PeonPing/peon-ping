@@ -1680,7 +1680,7 @@ try {
     $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7 }
 }
 
-if (-not $config.enabled) { exit 0 }
+# NOTE: enabled check moved below logging init so paused invocations are visible in debug logs
 
 # --- Structured logging infrastructure ---
 # Mirrors peon.sh log() closure: key=value format, invocation IDs, daily rotation.
@@ -1729,6 +1729,15 @@ if ($script:peonLogEnabled) {
 if ($_configError) {
     & $peonLog 'config' @{ error = $_configError; fallback = 'defaults' }
     & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    exit 0
+}
+
+# --- Paused check (after logging init so paused invocations are visible) ---
+if (-not $config.enabled) {
+    $_activePack = Get-ActivePack $config
+    & $peonLog 'config' @{ loaded = $ConfigPath; volume = [string]$config.volume; pack = $_activePack; enabled = 'False' }
+    & $peonLog 'hook' @{ event = 'unknown'; session = 'unknown'; cwd = ''; paused = 'True' }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0'; reason = 'paused' }
     exit 0
 }
 
@@ -1786,7 +1795,8 @@ if (-not $project) { $project = "claude" }
 $project = $project -replace '[^a-zA-Z0-9 ._-]', ''
 
 # Log hook phase
-& $peonLog 'hook' @{ event = $hookEvent; session = $sessionId; cwd = $cwd; paused = 'False' }
+$_isPaused = if ($config.enabled) { 'False' } else { 'True' }
+& $peonLog 'hook' @{ event = $hookEvent; session = $sessionId; cwd = $cwd; paused = $_isPaused }
 
 # Read state
 $state = Read-StateWithRetry -Path $StatePath

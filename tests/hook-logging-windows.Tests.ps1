@@ -320,6 +320,79 @@ Describe "Daily rotation prunes old log files" {
 }
 
 # ============================================================
+# Paused early-exit logging
+# ============================================================
+
+Describe "Paused (enabled=false) logs hook and exit before early-exit" {
+    BeforeEach {
+        $script:env = New-PeonTestEnvironment -ConfigOverrides @{ debug = $true; enabled = $false }
+        $script:testDir = $script:env.TestDir
+    }
+    AfterEach {
+        Remove-PeonTestEnvironment -TestDir $script:testDir
+    }
+
+    It "creates log file when paused with debug=true" {
+        $json = New-CespJson -HookEventName "Stop"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+        $logFile = Get-PeonLogFile $script:testDir
+        $logFile | Should -Exist
+    }
+
+    It "[hook] contains paused=True" {
+        $json = New-CespJson -HookEventName "Stop"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+
+        $hookLines = Get-PeonLogPhaseLines $script:testDir 'hook'
+        $hookLines.Count | Should -BeGreaterThan 0
+        $hookLines[0] | Should -Match 'paused=True'
+    }
+
+    It "[exit] contains reason=paused" {
+        $json = New-CespJson -HookEventName "Stop"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+
+        $exitLines = Get-PeonLogPhaseLines $script:testDir 'exit'
+        $exitLines.Count | Should -BeGreaterThan 0
+        $exitLines[0] | Should -Match 'reason=paused'
+    }
+
+    It "[config] shows enabled=False" {
+        $json = New-CespJson -HookEventName "Stop"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+
+        $configLines = Get-PeonLogPhaseLines $script:testDir 'config'
+        $configLines.Count | Should -BeGreaterThan 0
+        $configLines[0] | Should -Match 'enabled=False'
+    }
+
+    It "[exit] includes duration_ms" {
+        $json = New-CespJson -HookEventName "Stop"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+
+        $exitLines = Get-PeonLogPhaseLines $script:testDir 'exit'
+        $exitLines.Count | Should -BeGreaterThan 0
+        $exitLines[0] | Should -Match 'duration_ms=\d+'
+    }
+
+    It "no sound or route phases logged when paused" {
+        $json = New-CespJson -HookEventName "Stop"
+        $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $json
+        $result.ExitCode | Should -Be 0
+
+        $soundLines = Get-PeonLogPhaseLines $script:testDir 'sound'
+        $soundLines.Count | Should -Be 0
+        $playLines = Get-PeonLogPhaseLines $script:testDir 'play'
+        $playLines.Count | Should -Be 0
+    }
+}
+
+# ============================================================
 # Route suppression logging
 # ============================================================
 
@@ -444,10 +517,26 @@ Describe "Shared test fixtures produce expected log output" {
         $fixtureDir = Join-Path $PSScriptRoot 'fixtures/hook-logging'
         $inputJson = Get-Content (Join-Path $fixtureDir 'paused.input.json') -Raw
         $result = Invoke-PeonHook -TestDir $script:testDir -JsonPayload $inputJson
-        # When paused (enabled=false), peon.ps1 exits immediately at the enabled check
-        # So no log file is created -- this is expected behavior divergence from peon.sh
-        # which continues routing but suppresses sound
         $result.ExitCode | Should -Be 0
+
+        # Paused invocations now produce log output (paused check moved after log init)
+        $logFile = Get-PeonLogFile $script:testDir
+        $logFile | Should -Exist
+
+        # [hook] should contain paused=True
+        $hookLines = Get-PeonLogPhaseLines $script:testDir 'hook'
+        $hookLines.Count | Should -BeGreaterThan 0
+        $hookLines[0] | Should -Match 'paused=True'
+
+        # [exit] should contain reason=paused
+        $exitLines = Get-PeonLogPhaseLines $script:testDir 'exit'
+        $exitLines.Count | Should -BeGreaterThan 0
+        $exitLines[0] | Should -Match 'reason=paused'
+
+        # [config] should show enabled=False
+        $configLines = Get-PeonLogPhaseLines $script:testDir 'config'
+        $configLines.Count | Should -BeGreaterThan 0
+        $configLines[0] | Should -Match 'enabled=False'
     }
 
     It "missing-pack fixture logs sound error path" {
