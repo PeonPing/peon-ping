@@ -845,7 +845,7 @@ model = "gpt-5"
 notify = ["/bin/bash", "/tmp/not-codex.sh"]
 TOML
 
-  run env HOME="$FAKE_HOME" bash "$PEON_SH" status
+  run env HOME="$FAKE_HOME" bash "$PEON_SH" status --verbose
   [ "$status" -eq 0 ]
   [[ "$output" == *"OpenAI Codex"* ]]
   [[ "$output" == *"detected (not set up)"* ]]
@@ -861,12 +861,38 @@ model = "gpt-5"
 notify = ["/bin/bash", "/some/path/adapters/codex.sh"]
 TOML
 
-  run env HOME="$FAKE_HOME" bash "$PEON_SH" status
+  run env HOME="$FAKE_HOME" bash "$PEON_SH" status --verbose
   [ "$status" -eq 0 ]
   [[ "$output" == *"[x] OpenAI Codex"* ]]
   [[ "$output" == *"(installed)"* ]]
 
   rm -rf "$FAKE_HOME"
+}
+
+@test "status default output omits verbose-only lines" {
+  rm -f "$TEST_DIR/.paused"
+  run bash "$PEON_SH" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active"* ]]
+  [[ "$output" == *"default pack"* ]]
+  [[ "$output" == *"pack(s) installed"* ]]
+  [[ "$output" == *"--verbose"* ]]
+  [[ "$output" != *"desktop notifications"* ]]
+  [[ "$output" != *"notification style"* ]]
+  [[ "$output" != *"headphones_only"* ]]
+  [[ "$output" != *"IDEs"* ]]
+}
+
+@test "status --verbose shows full details" {
+  rm -f "$TEST_DIR/.paused"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active"* ]]
+  [[ "$output" == *"default pack"* ]]
+  [[ "$output" == *"desktop notifications"* ]]
+  [[ "$output" == *"notification style"* ]]
+  [[ "$output" == *"headphones_only"* ]]
+  [[ "$output" != *"--verbose"* ]]
 }
 
 @test "paused file suppresses sound on SessionStart" {
@@ -3780,7 +3806,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
 @test "status shows active path rule when cwd matches" {
   # Bind a pack with a glob that matches our cwd
   bash "$PEON_SH" packs bind sc_kerrigan --pattern "*"
-  run bash "$PEON_SH" status
+  run bash "$PEON_SH" status --verbose
   [ "$status" -eq 0 ]
   [[ "$output" == *"path rule: * -> sc_kerrigan"* ]]
   [[ "$output" == *"path rules: 1 configured"* ]]
@@ -3789,7 +3815,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
 @test "status shows path rules count but no active rule when cwd does not match" {
   # Bind a pack with a pattern that won't match
   bash "$PEON_SH" packs bind peon --pattern "*/nonexistent-dir-xyz/*"
-  run bash "$PEON_SH" status
+  run bash "$PEON_SH" status --verbose
   [ "$status" -eq 0 ]
   [[ "$output" == *"path rules: 1 configured"* ]]
   [[ "$output" != *"path rule:"* ]]

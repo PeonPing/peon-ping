@@ -28,6 +28,7 @@ complete -c peon -n __peon_no_subcommand -a mute -d "Alias for 'pause' — mute 
 complete -c peon -n __peon_no_subcommand -a unmute -d "Alias for 'resume' — unmute sounds"
 complete -c peon -n __peon_no_subcommand -a toggle -d "Toggle mute on/off"
 complete -c peon -n __peon_no_subcommand -a status -d "Show current status"
+complete -c peon -n "__peon_using_subcommand status" -l verbose -d "Show full details"
 complete -c peon -n __peon_no_subcommand -a volume -d "Get or set volume level"
 complete -c peon -n __peon_no_subcommand -a rotation -d "Get or set pack rotation mode"
 complete -c peon -n __peon_no_subcommand -a packs -d "Manage sound packs"

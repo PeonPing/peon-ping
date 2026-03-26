@@ -239,7 +239,8 @@ peon rotation             # 查看当前轮换模式
 peon rotation random      # 设置轮换模式（random|round-robin|session_override）
 peon resume               # 取消静音
 peon unmute               # 'resume' 的别名
-peon status               # 查看暂停或活动状态
+peon status               # 查看暂停或活动状态（简洁模式）
+peon status --verbose     # 显示完整详情（通知、耳机、IDE 等）
 peon packs list           # 列出已安装的语音包
 peon packs list --registry # 浏览注册表中所有可用语音包
 peon packs community      # 按信任等级列出所有注册表语音包（Windows）
