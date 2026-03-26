@@ -262,7 +262,7 @@ Describe "PS 7+ delegation" {
 Describe "install.ps1 hook script passes -parentPid" {
     It "resolves parent PID in hook script" {
         $content = Get-Content $script:InstallPath -Raw
-        $content | Should -Match 'Get-Process.*-Id.*\$PID.*Parent'
+        $content | Should -Match 'Get-Process.*-Id.*\$PID[\s\S]*?\.Parent'
     }
 
     It "passes -parentPid in notification args" {

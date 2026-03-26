@@ -2274,7 +2274,7 @@ if ($trainerMsg) {
             try {
                 $proc = Get-Process -Id $PID
                 if ($proc.Parent) { $parentPid = $proc.Parent.Id }
-            } catch { }
+            } catch { <# PID may not exist; fall through to $parentPid = 0 #> }
             if (-not $parentPid) { $parentPid = 0 }
             $trainerNotifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
                            "-body", "`"$trainerMsg`"", "-title", "`"$trainerTitle`"", "-dismissSeconds", [string]$dismissSecs,
@@ -2319,7 +2319,7 @@ if ($notify -and $desktopNotif) {
         try {
             $proc = Get-Process -Id $PID
             if ($proc.Parent) { $parentPid = $proc.Parent.Id }
-        } catch { }
+        } catch { <# PID may not exist; fall through to $parentPid = 0 #> }
         if (-not $parentPid) { $parentPid = 0 }
         $notifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
                        "-body", "`"$notifyMsg`"", "-title", "`"$notifTitle`"", "-dismissSeconds", [string]$dismissSecs,

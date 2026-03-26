@@ -249,3 +249,148 @@
 - Tests at close: 419 Pester passing
 - Version: 2.17.0 (tag v2.17.0 created, push after PR merge)
 
+---
+
+## Batch 2: Backlog Follow-up Cards
+
+**Timestamp**: 2026-03-26
+**Cards**: px9k89, 80usvr, 8v56dp, 2d99d1
+
+### Updated Execution Plan
+
+| Batch | Steps | Cards | Parallelizable |
+|-------|-------|-------|----------------|
+| ~~7~~ | ~~7A, 7B~~ | ~~px9k89, 80usvr~~ | ~~Done~~ |
+| 8 | 8A, 8B | 8v56dp, 2d99d1 | Yes (independent files) |
+| 9 | 9 | pwv7yj | No (planner card from 80usvr) |
+
+### Risk Notes
+- Batch 7: Both cards modify peon.sh (logs handler), completions.bash, completions.fish, and tests/peon.bats. Merge conflicts likely but resolvable — consistent with Phase 1-2 conflict resolution pattern.
+- Batch 8: Docs (README_ja/ko) vs refactor (peon.sh status handler) — no shared files.
+
+---
+
+## Phase 7: Batch 7 — Steps 7A + 7B
+
+**Timestamp**: 2026-03-26
+**Cards**: px9k89 (step 7A — log rotation), 80usvr (step 7B — multi-day session search)
+
+### Execution
+
+| Agent | Card | Tools | Duration | Result |
+|:------|:-----|------:|---------:|:-------|
+| px9k89-executor-1 | px9k89 | 89 | 12m | commit f82d6c9 |
+| 80usvr-executor-1 | 80usvr | 92 | 11m | commit 00dd065 |
+| px9k89-reviewer-1 | px9k89 | 46 | 4m | REJECTION (3 blockers) |
+| 80usvr-reviewer-1 | 80usvr | 47 | 4m | APPROVAL |
+| px9k89-router-1 | px9k89 | 23 | 3m | → rework |
+| 80usvr-router-1 | 80usvr | 29 | 3m | → close-out + planner |
+| 80usvr-closeout-1 | 80usvr | 6 | 1m | DONE |
+| 80usvr-planner-1 | 80usvr | 24 | 2m | created pwv7yj (step 9) |
+| px9k89-executor-2 | px9k89 | 112 | 15m | commit 4566993 (rework) |
+| px9k89-reviewer-2 | px9k89 | 36 | 4m | REJECTION (2 blockers — duplicate case blocks persisted in merge) |
+| dispatcher fix | px9k89 | — | — | commit 39919f4 (manual dedup of case blocks) |
+| px9k89-reviewer-3 | px9k89 | 33 | 4m | APPROVAL |
+| px9k89-router-3 | px9k89 | 22 | 2m | → close-out |
+| px9k89-closeout-3 | px9k89 | 8 | 1m | DONE |
+
+### Merge Status
+- f82d6c9 merged (px9k89, conflicts in completions + tests — resolved)
+- 00dd065 merged (80usvr, conflicts in completions + tests — resolved)
+- 4566993 merged (px9k89 rework, conflicts in peon.sh/completions/tests — resolved)
+- 39919f4 committed (dispatcher: deduplicated debug/logs case blocks from merge artifact)
+
+### Tests
+- Pester: 394/394 passed (360 adapter + 34 debug-logs)
+
+### Sprint Impact
+- px9k89: DONE (2 rework cycles — merge-induced duplicate case blocks)
+- 80usvr: DONE
+- New card: pwv7yj (step 9 — remove unconditional --all from completions)
+
+---
+
+## Phase 8: Batch 8 — Steps 8A, 8B (2026-03-26)
+
+### Dispatched Agents
+
+| Agent | Card | Tools | Duration | Result |
+|:------|:-----|------:|---------:|:-------|
+| 8v56dp-executor-1 | 8v56dp | — | — | DONE (fast-forward merge, commit 8f67b4b) |
+| 2d99d1-executor-1 | 2d99d1 | — | — | DONE (auto-merge, commit 6eb6274/4294e6d) |
+| 8v56dp-reviewer-1 | 8v56dp | 24 | 2m | APPROVAL |
+| 2d99d1-reviewer-1 | 2d99d1 | 21 | 2m | APPROVAL |
+| 8v56dp-router-1 | 8v56dp | 26 | 3m | APPROVAL → close-out |
+| 2d99d1-router-1 | 2d99d1 | 26 | 3m | APPROVAL → close-out + planner |
+| 8v56dp-closeout-1 | 8v56dp | 5 | <1m | DONE |
+| 2d99d1-closeout-1 | 2d99d1 | 14 | 1m | DONE |
+| 2d99d1-planner-1 | 2d99d1 | 16 | 2m | Created card nnj6gt (step 10) |
+
+### Merge Status
+- 8f67b4b merged (8v56dp, fast-forward — no conflicts)
+- 6eb6274 merged (2d99d1, auto-merge — no conflicts)
+
+### Tests
+- Pester: 394/394 passed post-merge
+
+### Sprint Impact
+- 8v56dp: DONE
+- 2d99d1: DONE
+- New card: nnj6gt (step 10 — gate peon.ps1 status behind --verbose flag)
+
+---
+
+## Phase 9: Batch 9 — Step 9 (2026-03-26)
+
+### Dispatched Agents
+
+| Agent | Card | Tools | Duration | Result |
+|:------|:-----|------:|---------:|:-------|
+| pwv7yj-executor-1 | pwv7yj | 41 | 3m | DONE (fast-forward merge, commit 0bd1a18) |
+| pwv7yj-reviewer-1 | pwv7yj | 22 | 2m | APPROVAL |
+| pwv7yj-router-1 | pwv7yj | 24 | 2m | APPROVAL → close-out |
+| pwv7yj-closeout-1 | pwv7yj | 9 | <1m | DONE |
+
+### Merge Status
+- 0bd1a18 merged (pwv7yj, fast-forward — no conflicts)
+
+### Sprint Impact
+- pwv7yj: DONE
+
+---
+
+## Phase 10: Batch 10 — Step 10 (2026-03-26)
+
+### Dispatched Agents
+
+| Agent | Card | Tools | Duration | Result |
+|:------|:-----|------:|---------:|:-------|
+| nnj6gt-executor-1 | nnj6gt | 84 | 10m | DONE (auto-merge, commit 762a8de) |
+| nnj6gt-reviewer-1 | nnj6gt | 29 | 3m | APPROVAL |
+| nnj6gt-router-1 | nnj6gt | 30 | 3m | APPROVAL → close-out |
+| nnj6gt-closeout-1 | nnj6gt | 7 | <1m | DONE |
+
+### Merge Status
+- 762a8de merged (nnj6gt, auto-merge — no conflicts)
+
+### Tests
+- Pester: 369/369 passed post-merge
+
+### Sprint Impact
+- nnj6gt: DONE
+- No new cards from planner
+
+---
+
+## Sprint Summary
+
+All 6 HOOKLOG dispatch-2 cards completed:
+
+| Card | Step | Title | Rework Cycles |
+|:-----|:-----|:------|:--------------|
+| px9k89 | 7A | Implement debug retention days log rotation | 2 |
+| 80usvr | 7B | Enhance peon logs --session to search across multiple days | 0 |
+| 8v56dp | 8A | Sync debugging docs to README_ja and README_ko | 0 |
+| 2d99d1 | 8B | Gate informational status lines behind --verbose flag | 0 |
+| pwv7yj | 9 | Remove unconditional --all from logs completions | 0 |
+| nnj6gt | 10 | Gate peon.ps1 status output behind --verbose flag | 0 |

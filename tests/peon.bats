@@ -4458,9 +4458,10 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   done
   run bash "$PEON_SH" logs
   [ "$status" -eq 0 ]
-  # Should show last 50, not first 50
+  # Should show last 50 (lines 11-60), not first 10
   [[ "$output" == *"line 60"* ]]
-  [[ "$output" != *"line 1"* ]]
+  # Grep for exact "line 1" (word boundary) — should not appear in last 50 of 60 lines
+  ! echo "$output" | grep -q '^line 1$'
 }
 
 @test "logs shows message when no log files exist" {
