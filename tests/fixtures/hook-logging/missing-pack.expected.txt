@@ -1,0 +1,6 @@
+[hook] event=Stop session=s-nopack
+[config] loaded= volume= pack= enabled=
+[state] sessions= rotation_index= last_stop=
+[route] category=task.complete suppressed=False
+[sound] error= fallback=none
+[exit] duration_ms= exit=0

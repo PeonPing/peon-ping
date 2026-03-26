@@ -3031,10 +3031,12 @@ state_dirty = False
 ${_PEON_STATE_PY_HELPERS}
 
 # --- Load config ---
+_config_error = None
 try:
     cfg = json.load(open(config_path))
-except Exception:
+except Exception as _ce:
     cfg = {}
+    _config_error = str(_ce)
 
 if str(cfg.get('enabled', True)).lower() == 'false':
     print('PEON_EXIT=true')
@@ -3091,6 +3093,10 @@ if _log_enabled:
             pass
 else:
     log = lambda phase, **kw: None
+
+# Log config error if config load failed (captured before logging was initialized)
+if _config_error:
+    log('config', error=_config_error, fallback='defaults')
 
 volume = cfg.get('volume', 0.5)
 desktop_notif = cfg.get('desktop_notifications', True)

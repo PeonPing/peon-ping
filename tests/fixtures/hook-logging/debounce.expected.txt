@@ -1,0 +1,5 @@
+[hook] event=Stop session=s-debounce
+[config] loaded= volume= pack= enabled=
+[state] sessions= rotation_index= last_stop=
+[route] category=task.complete suppressed=True reason=debounce_5s
+[exit] duration_ms= exit=0

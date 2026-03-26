@@ -1,0 +1,5 @@
+[hook] event=PermissionRequest session=s-delegate
+[config] loaded= volume= pack= enabled=
+[state] sessions= rotation_index= last_stop=
+[route] category=none suppressed=True reason=delegate_mode
+[exit] duration_ms= exit=0
