@@ -3,7 +3,7 @@
 #
 # These tests validate:
 # - peon debug on/off/status CLI commands
-# - peon logs / logs --last N / logs --session ID / logs --clear CLI commands
+# - peon logs / logs --last N / logs --session ID / logs --prune / logs --clear CLI commands
 # - peon --help includes debug and logs commands
 # - Output format matches expected strings
 
@@ -385,6 +385,77 @@ Describe "peon logs --clear" {
 }
 
 # ============================================================
+# peon logs --prune
+# ============================================================
+Describe "peon logs --prune" {
+    BeforeEach {
+        $script:testDir = New-DebugTestEnv -ConfigOverrides @{ debug_retention_days = 7 }
+    }
+    AfterEach {
+        Remove-PeonTestEnvironment -TestDir $script:testDir
+    }
+
+    It "deletes log files older than retention days" {
+        # Create old files (>7 days ago) and a recent file
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-10" -Lines @("old1")
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-12" -Lines @("old2")
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-25" -Lines @("recent")
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-26" -Lines @("today")
+
+        $logDir = Join-Path $script:testDir "logs"
+        $before = @(Get-ChildItem $logDir -Filter "peon-ping-*.log")
+        $before.Count | Should -Be 4
+
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
+        $result.Output | Should -Match "pruned 2 log file\(s\) older than 7 days"
+
+        $after = @(Get-ChildItem $logDir -Filter "peon-ping-*.log")
+        $after.Count | Should -Be 2
+        # Verify old files are gone and recent files remain
+        ($after | Where-Object { $_.Name -match "2026-03-10" }) | Should -BeNullOrEmpty
+        ($after | Where-Object { $_.Name -match "2026-03-12" }) | Should -BeNullOrEmpty
+        ($after | Where-Object { $_.Name -match "2026-03-25" }) | Should -Not -BeNullOrEmpty
+        ($after | Where-Object { $_.Name -match "2026-03-26" }) | Should -Not -BeNullOrEmpty
+    }
+
+    It "shows message when no old log files to prune" {
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-25" -Lines @("recent")
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
+        $result.Output | Should -Match "no log files older than 7 days"
+    }
+
+    It "shows message when no logs directory exists" {
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
+        $result.Output | Should -Match "no logs directory found"
+    }
+
+    It "respects custom debug_retention_days from config" {
+        # Override config to retention of 3 days
+        $configPath = Join-Path $script:testDir "config.json"
+        $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+        $cfg.debug_retention_days = 3
+        $cfg | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-20" -Lines @("old")
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-22" -Lines @("also-old")
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-25" -Lines @("recent")
+
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
+        $result.Output | Should -Match "pruned 2 log file\(s\) older than 3 days"
+
+        $logDir = Join-Path $script:testDir "logs"
+        $after = @(Get-ChildItem $logDir -Filter "peon-ping-*.log")
+        $after.Count | Should -Be 1
+    }
+
+    It "shows message when log files exist but none are old enough" {
+        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-26" -Lines @("today")
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
+        $result.Output | Should -Match "no log files older than 7 days"
+    }
+}
+
+# ============================================================
 # peon --help includes debug and logs
 # ============================================================
 Describe "peon --help includes debug and logs" {
@@ -408,6 +479,7 @@ Describe "peon --help includes debug and logs" {
         $result.Output | Should -Match "logs --last"
         $result.Output | Should -Match "logs --session"
         $result.Output | Should -Match "logs --session ID --all"
+        $result.Output | Should -Match "logs --prune"
         $result.Output | Should -Match "logs --clear"
     }
 }
