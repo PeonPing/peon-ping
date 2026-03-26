@@ -278,6 +278,7 @@ peon debug status         # Show debug state, log directory, file count, total s
 peon logs                 # Show last 50 lines of today's log
 peon logs --last N        # Show last N lines across all log files
 peon logs --session ID    # Filter today's log by session ID
+peon logs --session ID --all  # Search all log files for session ID
 peon logs --clear         # Delete all log files (with confirmation)
 peon relay --daemon       # Start audio relay (for SSH/devcontainer)
 peon relay --stop         # Stop background relay
@@ -1108,6 +1109,7 @@ You can also enable debug logging per-invocation without changing config by sett
 peon logs                 # Last 50 lines of today's log
 peon logs --last 100      # Last 100 lines across all log files
 peon logs --session <ID>  # Filter today's log by session ID
+peon logs --session <ID> --all  # Search all log files for session ID
 peon logs --clear         # Delete all log files (with confirmation)
 ```
 
