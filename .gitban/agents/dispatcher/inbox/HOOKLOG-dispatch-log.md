@@ -394,3 +394,60 @@ All 6 HOOKLOG dispatch-2 cards completed:
 | 2d99d1 | 8B | Gate informational status lines behind --verbose flag | 0 |
 | pwv7yj | 9 | Remove unconditional --all from logs completions | 0 |
 | nnj6gt | 10 | Gate peon.ps1 status output behind --verbose flag | 0 |
+
+---
+
+## Batch 3: Cards r0qoai, ki3aim, oln59n (Step 11A/B/C -- Windows parity gaps)
+
+**Timestamp:** 2026-03-26
+**Cards:** 3 parallel (all step 11, all P2 chore)
+**Source:** Smoke test findings from card 6qfugq
+
+### Phase 1: Executor Dispatch
+
+| Card | Agent | Commit | Duration | Tools |
+|:-----|:------|:-------|:---------|:------|
+| r0qoai | HOOKLOG-r0qoai-executor-1 | 55596c4 | 6m 43s | 63 |
+| ki3aim | HOOKLOG-ki3aim-executor-1 | 3aeb2e4 | 8m 27s | 64 |
+| oln59n | HOOKLOG-oln59n-executor-1 | 173d2b6 | 8m 4s | 68 |
+
+**Merge notes:**
+- r0qoai merge had 2 conflicts in install.ps1 (status handler overlapped with nnj6gt verbose gating). Resolved by keeping both: version line from r0qoai + existing verbose structure from HEAD.
+- ki3aim and oln59n merged cleanly.
+- Post-merge structural test failure: `adapters-windows.Tests.ps1:1059` regex expected single-line match for enabled check that ki3aim moved after logging init. Fixed with `(?s)` singleline flag (commit 60c13bb).
+- Post-merge Pester: 520/520 passing.
+
+### Phase 2: Review
+
+| Card | Agent | Verdict | Duration | Tools |
+|:-----|:------|:--------|:---------|:------|
+| r0qoai | HOOKLOG-r0qoai-reviewer-1 | APPROVAL | 2m 9s | 20 |
+| ki3aim | HOOKLOG-ki3aim-reviewer-1 | APPROVAL | 2m 40s | 26 |
+| oln59n | HOOKLOG-oln59n-reviewer-1 | APPROVAL | 2m 18s | 21 |
+
+All clean approvals, no blockers, no follow-up items.
+
+### Phase 3: Router
+
+| Card | Agent | Verdict | Duration | Tools |
+|:-----|:------|:--------|:---------|:------|
+| r0qoai | HOOKLOG-r0qoai-router-1 | APPROVAL | 1m 33s | 17 |
+| ki3aim | HOOKLOG-ki3aim-router-1 | APPROVAL | 2m 6s | 22 |
+| oln59n | HOOKLOG-oln59n-router-1 | APPROVAL | 2m 52s | 31 |
+
+No planner work routed.
+
+### Phase 4: Close-out
+
+| Card | Agent | Result | Duration |
+|:-----|:------|:-------|:---------|
+| r0qoai | HOOKLOG-r0qoai-closeout-1 | DONE | 9m 1s |
+| ki3aim | HOOKLOG-ki3aim-closeout-1 | DONE | 51s |
+| oln59n | HOOKLOG-oln59n-closeout-1 | DONE | 47s |
+
+### Sprint Impact
+- r0qoai: DONE
+- ki3aim: DONE
+- oln59n: DONE
+- No new cards from planner
+- All HOOKLOG todo cards exhausted -- sprint complete

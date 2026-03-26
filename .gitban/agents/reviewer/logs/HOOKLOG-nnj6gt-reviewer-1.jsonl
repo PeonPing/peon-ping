@@ -1,0 +1,9 @@
+{"timestamp":"2026-03-26T15:42:49Z","operation":"init","role":"reviewer","sprint":"HOOKLOG","card_id":"nnj6gt","cycle":1}
+{"timestamp":"2026-03-26T15:42:49Z","operation":"event","label":"read-diff","metadata":{"commit":"762a8de"}}
+{"timestamp":"2026-03-26T15:42:49Z","operation":"event","label":"read-card","metadata":{"card_id":"nnj6gt"}}
+{"timestamp":"2026-03-26T15:42:50Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"HOOKLOG\" && export AGENT_CARD_ID=\"nnj6gt\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"762a8de\"}' && agent_log_event \"read-card\" '{\"card_id\":\"nnj6gt\"}' && echo \"OK\""}
+{"timestamp":"2026-03-26T15:43:01Z","operation":"hook_cmd","command":"ls C:/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/inbox/ 2>/dev/null || mkdir -p C:/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/inbox/"}
+{"timestamp":"2026-03-26T15:43:52Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git add -f .gitban/agents/reviewer/inbox/HOOKLOG-nnj6gt-reviewer-1.md && echo \"Staged\""}
+{"timestamp":"2026-03-26T15:44:08Z","operation":"hook_cmd","command":"cd \"C:/Users/Cameron/Projects/peon-ping\" && bash .gitban/hooks/agent-watchdog.sh \"HOOKLOG-nnj6gt-router-1\" 120 30 &"}
+{"timestamp":"2026-03-26T15:44:42Z","operation":"hook_cmd","command":"ls -la \"C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-a539fe77/.gitban/agents/reviewer/\" 2>/dev/null || echo \"Directory not found\""}
+{"timestamp":"2026-03-26T15:45:10Z","operation":"hook_cmd","command":"ls \"C:/Users/Cameron/Projects/peon-ping/scripts/agent-log.sh\" 2>/dev/null && echo \"Found in main\" || echo \"Not in main either\""}

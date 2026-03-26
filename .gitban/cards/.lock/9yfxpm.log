@@ -1,0 +1,175 @@
+{
+  "validation_template": "test-user",
+  "card_id": "9yfxpm",
+  "validation_timestamp": "2026-03-26T16:17:39.241003+00:00",
+  "validation_errors": {
+    "missing_sections": [
+      {
+        "section_name": "User Testing Sessions Log",
+        "message": "Required section '## User Testing Sessions Log' not found"
+      }
+    ],
+    "missing_checkboxes": [
+      {
+        "text": "**Testing focus** is clearly defined and scoped.",
+        "section": "User Testing Overview",
+        "optional": false,
+        "line_number": 38
+      },
+      {
+        "text": "**Target users** are identified and recruited.",
+        "section": "User Testing Overview",
+        "optional": false,
+        "line_number": 39
+      },
+      {
+        "text": "Test scenarios defined (specific tasks users will perform).",
+        "section": "Test Planning & Preparation",
+        "optional": false,
+        "line_number": 48
+      },
+      {
+        "text": "Test environment prepared (tools, accounts, data seeded).",
+        "section": "Test Planning & Preparation",
+        "optional": false,
+        "line_number": 49
+      },
+      {
+        "text": "Test script/guide created (facilitator instructions, questions to ask).",
+        "section": "Test Planning & Preparation",
+        "optional": false,
+        "line_number": 50
+      },
+      {
+        "text": "Observation protocol defined (what to observe, how to record).",
+        "section": "Test Planning & Preparation",
+        "optional": false,
+        "line_number": 51
+      },
+      {
+        "text": "User recruitment completed (participants confirmed, scheduled).",
+        "section": "Test Planning & Preparation",
+        "optional": false,
+        "line_number": 52
+      },
+      {
+        "text": "Consent forms prepared (if recording sessions or collecting data).",
+        "section": "Test Planning & Preparation",
+        "optional": false,
+        "line_number": 53
+      },
+      {
+        "text": "Testing tools ready (screen recording, note-taking, feedback forms).",
+        "section": "Test Planning & Preparation",
+        "optional": false,
+        "line_number": 54
+      },
+      {
+        "text": "All planned testing sessions completed.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 206
+      },
+      {
+        "text": "All scenarios tested with target users.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 207
+      },
+      {
+        "text": "Observations documented for each session.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 208
+      },
+      {
+        "text": "Issues identified and prioritized by severity.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 209
+      },
+      {
+        "text": "Findings synthesized into narrative summary.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 210
+      },
+      {
+        "text": "Recommendations are clear and actionable.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 211
+      },
+      {
+        "text": "Follow-up feature cards created for issues.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 212
+      },
+      {
+        "text": "Video recordings archived [if applicable].",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 213
+      },
+      {
+        "text": "User feedback forms collected and analyzed.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 214
+      },
+      {
+        "text": "Findings report published to team.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 215
+      },
+      {
+        "text": "Positive findings documented (preserve strengths).",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 216
+      },
+      {
+        "text": "Follow-up testing scheduled [if needed].",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 217
+      },
+      {
+        "text": "Documentation updated based on insights.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 218
+      },
+      {
+        "text": "Metrics collected for future comparison.",
+        "section": "# Completion Checklist",
+        "optional": false,
+        "line_number": 219
+      }
+    ],
+    "missing_tables": [
+      "Preparation Item|Status / Link|Notes",
+      "Scenario #|Scenario Description|Tasks to Complete|Success Criteria|Status",
+      "Session #|User / Profile|Scenario Tested|Observations / Issues|Outcome",
+      "Task|Detail/Link",
+      "Topic|Status / Action Required"
+    ]
+  },
+  "suggestions": [
+    "append_card('9yfxpm', '* [ ] **Testing focus** is clearly defined and scoped.', heading='User Testing Overview')",
+    "append_card('9yfxpm', '* [ ] **Target users** are identified and recruited.', heading='User Testing Overview')",
+    "append_card('9yfxpm', '* [ ] Test scenarios defined (specific tasks users will perform).', heading='Test Planning & Preparation')",
+    "append_card('9yfxpm', '* [ ] Test environment prepared (tools, accounts, data seeded).', heading='Test Planning & Preparation')",
+    "append_card('9yfxpm', '* [ ] Test script/guide created (facilitator instructions, questions to ask).', heading='Test Planning & Preparation')",
+    "append_card('9yfxpm', '## User Testing Sessions Log\\n\\n[Add content here]')"
+  ],
+  "formatted_message": "[VALIDATION ERROR] Card validation failed\n\nTemplate: test-user\nCard ID: 9yfxpm\nTotal Issues: 29\n\n======================================================================\n\n=== MISSING CHECKBOXES (23) ===\n\nMissing checkbox #1:\n  Expected text: **Testing focus** is clearly defined and scoped.\n  Expected location: Under '## User Testing Overview' section\n\n  FIX: Use append_card() to add:\n  * [ ] **Testing focus** is clearly defined and scoped.\n\nMissing checkbox #2:\n  Expected text: **Target users** are identified and recruited.\n  Expected location: Under '## User Testing Overview' section\n\n  FIX: Use append_card() to add:\n  * [ ] **Target users** are identified and recruited.\n\nMissing checkbox #3:\n  Expected text: Test scenarios defined (specific tasks users will perform).\n  Expected location: Under '## Test Planning & Preparation' section\n\n  FIX: Use append_card() to add:\n  * [ ] Test scenarios defined (specific tasks users will perform).\n\nMissing checkbox #4:\n  Expected text: Test environment prepared (tools, accounts, data seeded).\n  Expected location: Under '## Test Planning & Preparation' section\n\n  FIX: Use append_card() to add:\n  * [ ] Test environment prepared (tools, accounts, data seeded).\n\nMissing checkbox #5:\n  Expected text: Test script/guide created (facilitator instructions, questions to ask).\n  Expected location: Under '## Test Planning & Preparation' section\n\n  FIX: Use append_card() to add:\n  * [ ] Test script/guide created (facilitator instructions, questions to ask).\n\nMissing checkbox #6:\n  Expected text: Observation protocol defined (what to observe, how to record).\n  Expected location: Under '## Test Planning & Preparation' section\n\n  FIX: Use append_card() to add:\n  * [ ] Observation protocol defined (what to observe, how to record).\n\nMissing checkbox #7:\n  Expected text: User recruitment completed (participants confirmed, scheduled).\n  Expected location: Under '## Test Planning & Preparation' section\n\n  FIX: Use append_card() to add:\n  * [ ] User recruitment completed (participants confirmed, scheduled).\n\nMissing checkbox #8:\n  Expected text: Consent forms prepared (if recording sessions or collecting data).\n  Expected location: Under '## Test Planning & Preparation' section\n\n  FIX: Use append_card() to add:\n  * [ ] Consent forms prepared (if recording sessions or collecting data).\n\nMissing checkbox #9:\n  Expected text: Testing tools ready (screen recording, note-taking, feedback forms).\n  Expected location: Under '## Test Planning & Preparation' section\n\n  FIX: Use append_card() to add:\n  * [ ] Testing tools ready (screen recording, note-taking, feedback forms).\n\nMissing checkbox #10:\n  Expected text: All planned testing sessions completed.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] All planned testing sessions completed.\n\nMissing checkbox #11:\n  Expected text: All scenarios tested with target users.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] All scenarios tested with target users.\n\nMissing checkbox #12:\n  Expected text: Observations documented for each session.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Observations documented for each session.\n\nMissing checkbox #13:\n  Expected text: Issues identified and prioritized by severity.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Issues identified and prioritized by severity.\n\nMissing checkbox #14:\n  Expected text: Findings synthesized into narrative summary.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Findings synthesized into narrative summary.\n\nMissing checkbox #15:\n  Expected text: Recommendations are clear and actionable.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Recommendations are clear and actionable.\n\nMissing checkbox #16:\n  Expected text: Follow-up feature cards created for issues.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Follow-up feature cards created for issues.\n\nMissing checkbox #17:\n  Expected text: Video recordings archived [if applicable].\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Video recordings archived [if applicable].\n\nMissing checkbox #18:\n  Expected text: User feedback forms collected and analyzed.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] User feedback forms collected and analyzed.\n\nMissing checkbox #19:\n  Expected text: Findings report published to team.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Findings report published to team.\n\nMissing checkbox #20:\n  Expected text: Positive findings documented (preserve strengths).\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Positive findings documented (preserve strengths).\n\nMissing checkbox #21:\n  Expected text: Follow-up testing scheduled [if needed].\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Follow-up testing scheduled [if needed].\n\nMissing checkbox #22:\n  Expected text: Documentation updated based on insights.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Documentation updated based on insights.\n\nMissing checkbox #23:\n  Expected text: Metrics collected for future comparison.\n  Expected location: Under '## # Completion Checklist' section\n\n  FIX: Use append_card() to add:\n  * [ ] Metrics collected for future comparison.\n\n======================================================================\n\n=== MISSING SECTIONS (1) ===\n\nMissing section #1:\n  Expected heading: ## User Testing Sessions Log\n\n  FIX: Use append_card() to add:\n  ## User Testing Sessions Log\n\n======================================================================\n\n=== MISSING TABLES (5) ===\n\nMissing table #1:\n  Expected headers: Preparation Item|Status / Link|Notes\n\nMissing table #2:\n  Expected headers: Scenario #|Scenario Description|Tasks to Complete|Success Criteria|Status\n\nMissing table #3:\n  Expected headers: Session #|User / Profile|Scenario Tested|Observations / Issues|Outcome\n\nMissing table #4:\n  Expected headers: Task|Detail/Link\n\nMissing table #5:\n  Expected headers: Topic|Status / Action Required\n\n======================================================================\n\nACTION REQUIRED:\n1. Read current content: read_card('9yfxpm')\n2. Add missing checkboxes:\n   append_card('9yfxpm', '* [ ] **Testing focus** is clearly defined and scoped.', heading='User Testing Overview')\n   append_card('9yfxpm', '* [ ] **Target users** are identified and recruited.', heading='User Testing Overview')\n   append_card('9yfxpm', '* [ ] Test scenarios defined (specific tasks users will perform).', heading='Test Planning & Preparation')\n   ... and 20 more\n3. Add missing sections using append_card('9yfxpm', '## Section Name')\n4. Retry promotion: move_to_todo('9yfxpm')\n",
+  "next_steps": [
+    "1. Read validation errors above",
+    "2. Read current content: read_card('9yfxpm')",
+    "3. Fix content using suggested commands",
+    "4. Retry promotion: move_to_todo('9yfxpm')"
+  ]
+}

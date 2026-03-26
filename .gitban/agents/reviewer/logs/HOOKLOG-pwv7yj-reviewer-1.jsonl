@@ -1,0 +1,14 @@
+{"timestamp":"2026-03-26T15:25:11Z","operation":"init","role":"reviewer","sprint":"HOOKLOG","card_id":"pwv7yj","cycle":1}
+{"timestamp":"2026-03-26T15:25:11Z","operation":"event","label":"read-diff","metadata":{"commit":"0bd1a18"}}
+{"timestamp":"2026-03-26T15:25:11Z","operation":"event","label":"read-card","metadata":{"card_id":"pwv7yj"}}
+{"timestamp":"2026-03-26T15:25:11Z","operation":"event","label":"read-completions","metadata":{"files":["completions.bash","completions.fish"]}}
+{"timestamp":"2026-03-26T15:25:12Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"HOOKLOG\" && export AGENT_CARD_ID=\"pwv7yj\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"0bd1a18\"}' && agent_log_event \"read-card\" '{\"card_id\":\"pwv7yj\"}' && agent_log_event \"read-completions\" '{\"files\":[\"completions.bash\",\"completions.fish\"]}'"}
+{"timestamp":"2026-03-26T15:25:17Z","operation":"hook_cmd","command":"mkdir -p C:/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/inbox"}
+{"timestamp":"2026-03-26T15:25:50Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git add -f .gitban/agents/reviewer/inbox/HOOKLOG-pwv7yj-reviewer-1.md && git status --short .gitban/agents/reviewer/inbox/"}
+{"timestamp":"2026-03-26T15:26:04Z","operation":"hook_cmd","command":"cd \"C:/Users/Cameron/Projects/peon-ping\" && bash .gitban/hooks/agent-watchdog.sh \"HOOKLOG-pwv7yj-router-1\" 120 30 &"}
+{"timestamp":"2026-03-26T15:26:17Z","operation":"hook_cmd","command":"ls C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-aa70153b/.gitban/cards/ | head -30"}
+{"timestamp":"2026-03-26T15:26:23Z","operation":"hook_cmd","command":"ls C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-aa70153b/.gitban/agents/reviewer/inbox/ 2>/dev/null | grep -i pwv7yj"}
+{"timestamp":"2026-03-26T15:26:36Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-aa70153b && find .gitban/agents/reviewer -type f 2>/dev/null | head -20"}
+{"timestamp":"2026-03-26T15:26:52Z","operation":"hook_cmd","command":"ls -la C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-aa70153b/"}
+{"timestamp":"2026-03-26T15:27:03Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && find .gitban/agents/reviewer -name \"*pwv7yj*\" 2>/dev/null | head -10"}
+{"timestamp":"2026-03-26T15:27:04Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git branch --show-current"}
