@@ -4234,7 +4234,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   state_count=$(grep -c '\[state\]' "$logfile")
   [ "$state_count" -ge 3 ]
   # Verify no state errors in the log
-  ! grep '\[state\]' "$logfile" | grep -q 'error=' || true
+  ! grep '\[state\]' "$logfile" | grep -q 'error='
 }
 
 # --- Step 2B: Bash log helper hardening tests ---
