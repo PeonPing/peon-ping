@@ -1110,7 +1110,15 @@ if ($Command) {
                     return
                 }
                 "^--last$" {
-                    $n = if ($Arg2) { [int]$Arg2 } else { 50 }
+                    $n = 50
+                    if ($Arg2) {
+                        $parsed = $Arg2 -as [int]
+                        if ($null -eq $parsed -or $parsed -le 0) {
+                            Write-Host "Usage: peon logs --last N  (N must be a positive integer)" -ForegroundColor Yellow
+                            return
+                        }
+                        $n = $parsed
+                    }
                     if (-not (Test-Path $logDir)) {
                         Write-Host "peon-ping: no log files found" -ForegroundColor Yellow
                         return

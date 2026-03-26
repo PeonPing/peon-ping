@@ -240,6 +240,21 @@ Describe "peon logs --last N" {
         $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--last", "10")
         $result.Output | Should -Match "no log files"
     }
+
+    It "shows usage when N is not a number" {
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--last", "foo")
+        $result.Output | Should -Match "positive integer"
+    }
+
+    It "shows usage when N is zero" {
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--last", "0")
+        $result.Output | Should -Match "positive integer"
+    }
+
+    It "shows usage when N is negative" {
+        $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--last", "-5")
+        $result.Output | Should -Match "positive integer"
+    }
 }
 
 # ============================================================
