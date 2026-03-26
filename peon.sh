@@ -921,6 +921,42 @@ sync_adapter_paused() {
   done
 }
 
+LOG_DIR="$PEON_DIR/logs"
+
+# Prune log files older than debug_retention_days.
+# Uses filename-based date parsing (peon-ping-YYYY-MM-DD.log) for cross-platform consistency.
+_prune_old_logs() {
+  local retention_days="${1:-7}"
+  [ ! -d "$LOG_DIR" ] && return 0
+  local today_epoch
+  today_epoch=$(date +%s)
+  local cutoff_epoch=$(( today_epoch - retention_days * 86400 ))
+  for logfile in "$LOG_DIR"/peon-ping-*.log; do
+    [ -f "$logfile" ] || continue
+    local basename="${logfile##*/}"
+    # Extract YYYY-MM-DD from peon-ping-YYYY-MM-DD.log
+    local date_part="${basename#peon-ping-}"
+    date_part="${date_part%.log}"
+    # Validate date format (YYYY-MM-DD)
+    case "$date_part" in
+      [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+      *) continue ;;
+    esac
+    # Parse date to epoch (portable: use date -d on Linux, date -j on macOS)
+    local file_epoch
+    if date -d "$date_part" +%s >/dev/null 2>&1; then
+      file_epoch=$(date -d "$date_part" +%s 2>/dev/null) || continue
+    elif date -j -f "%Y-%m-%d" "$date_part" +%s >/dev/null 2>&1; then
+      file_epoch=$(date -j -f "%Y-%m-%d" "$date_part" +%s 2>/dev/null) || continue
+    else
+      continue
+    fi
+    if [ "$file_epoch" -lt "$cutoff_epoch" ]; then
+      rm -f "$logfile"
+    fi
+  done
+}
+
 case "${1:-}" in
   pause|mute)   touch "$PAUSED_FILE"; sync_adapter_paused; echo "peon-ping: sounds paused (run 'peon toggle' to unpause)"; exit 0 ;;
   resume|unmute)  rm -f "$PAUSED_FILE"; sync_adapter_paused; echo "peon-ping: sounds resumed"; exit 0 ;;
@@ -2730,6 +2766,18 @@ Trainer (exercise reminders):
   trainer goal <ex> <n> Set daily goal for one exercise
   trainer help         Show trainer help
 
+Debug logging:
+  debug on               Enable debug logging
+  debug off              Disable debug logging
+  debug status           Show debug logging state
+
+Log management:
+  logs                   Show last 50 lines of the most recent log
+  logs --last N          Show last N lines of the most recent log
+  logs --session <id>    Filter log entries by session ID
+  logs --prune           Delete log files older than debug_retention_days
+  logs --clear           Delete all log files
+
 Relay (SSH/devcontainer/Codespaces):
   ssh-audio [mode]        SSH routing mode: relay (default), auto, or local
   relay [--port=N]        Start audio relay on your local machine
@@ -2963,6 +3011,121 @@ Commands:
 Exercises: pushups, squats
 TRAINER_HELP
         exit 0 ;;
+    esac ;;
+  debug)
+    shift
+    case "${1:-status}" in
+      on)
+        python3 -c "
+import json
+config_path = '$GLOBAL_CONFIG_PY'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['debug'] = True
+if 'debug_retention_days' not in cfg:
+    cfg['debug_retention_days'] = 7
+json.dump(cfg, open(config_path, 'w'), indent=2)
+"
+        mkdir -p "$LOG_DIR"
+        echo "peon-ping: debug logging enabled"
+        echo "peon-ping: logs directory: $LOG_DIR"
+        exit 0 ;;
+      off)
+        python3 -c "
+import json
+config_path = '$GLOBAL_CONFIG_PY'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['debug'] = False
+json.dump(cfg, open(config_path, 'w'), indent=2)
+"
+        echo "peon-ping: debug logging disabled"
+        exit 0 ;;
+      status)
+        python3 -c "
+import json
+config_path = '$GLOBAL_CONFIG_PY'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+enabled = cfg.get('debug', False)
+retention = cfg.get('debug_retention_days', 7)
+print('peon-ping: debug logging ' + ('on' if enabled else 'off'))
+print('peon-ping: log retention: ' + str(retention) + ' days')
+"
+        echo "peon-ping: logs directory: $LOG_DIR"
+        exit 0 ;;
+      *)
+        echo "Usage: peon debug <on|off|status>" >&2; exit 1 ;;
+    esac ;;
+  logs)
+    shift
+    case "${1:---last}" in
+      --prune)
+        _retention=$(python3 -c "
+import json
+config_path = '$GLOBAL_CONFIG_PY'
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+print(cfg.get('debug_retention_days', 7))
+" 2>/dev/null)
+        _retention="${_retention:-7}"
+        if [ ! -d "$LOG_DIR" ]; then
+          echo "peon-ping: no logs directory found"
+          exit 0
+        fi
+        # Count files before pruning
+        _before=$(find "$LOG_DIR" -name "peon-ping-*.log" 2>/dev/null | wc -l | tr -d ' ')
+        _prune_old_logs "$_retention"
+        _after=$(find "$LOG_DIR" -name "peon-ping-*.log" 2>/dev/null | wc -l | tr -d ' ')
+        _removed=$(( _before - _after ))
+        if [ "$_removed" -gt 0 ]; then
+          echo "peon-ping: pruned $_removed log file(s) older than ${_retention} days"
+        else
+          echo "peon-ping: no log files older than ${_retention} days"
+        fi
+        exit 0 ;;
+      --clear)
+        if [ -d "$LOG_DIR" ]; then
+          rm -f "$LOG_DIR"/peon-ping-*.log
+          echo "peon-ping: all log files deleted"
+        else
+          echo "peon-ping: no logs directory found"
+        fi
+        exit 0 ;;
+      --last)
+        _n="${2:-50}"
+        if [ -d "$LOG_DIR" ]; then
+          _latest=$(ls -t "$LOG_DIR"/peon-ping-*.log 2>/dev/null | head -1)
+          if [ -n "$_latest" ]; then
+            tail -n "$_n" "$_latest"
+          else
+            echo "peon-ping: no log files found"
+          fi
+        else
+          echo "peon-ping: no logs directory found"
+        fi
+        exit 0 ;;
+      --session)
+        _sid="${2:-}"
+        if [ -z "$_sid" ]; then
+          echo "Usage: peon logs --session <id>" >&2; exit 1
+        fi
+        if [ -d "$LOG_DIR" ]; then
+          grep -h "session_id=$_sid" "$LOG_DIR"/peon-ping-*.log 2>/dev/null || echo "peon-ping: no entries for session $_sid"
+        else
+          echo "peon-ping: no logs directory found"
+        fi
+        exit 0 ;;
+      *)
+        echo "Usage: peon logs [--last N | --session <id> | --prune | --clear]" >&2; exit 1 ;;
     esac ;;
   --*)
     echo "Unknown option: $1" >&2
@@ -3792,6 +3955,29 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
     printf '\033]0;%s\007' "${MARKER:-}${PROJECT}: ${STATUS:-working}" > /dev/tty 2>/dev/null || true
   fi
   exit 0
+fi
+
+# --- Auto-prune old log files (non-blocking, when debug logging is enabled) ---
+if [ "${PEON_DEBUG:-0}" = "1" ] || python3 -c "
+import json
+try:
+    cfg = json.load(open('$GLOBAL_CONFIG_PY'))
+except Exception:
+    cfg = {}
+exit(0 if cfg.get('debug', False) else 1)
+" 2>/dev/null; then
+  (
+    _retention=$(python3 -c "
+import json
+try:
+    cfg = json.load(open('$GLOBAL_CONFIG_PY'))
+except Exception:
+    cfg = {}
+print(cfg.get('debug_retention_days', 7))
+" 2>/dev/null)
+    _retention="${_retention:-7}"
+    _prune_old_logs "$_retention"
+  ) &>/dev/null &
 fi
 
 HEADPHONES_DETECTED=true
