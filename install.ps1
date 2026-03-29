@@ -2367,6 +2367,8 @@ if ($notify) {
 
 # --- TTS speech text resolution ---
 $ttsCfg = if ($config.tts) { $config.tts } else { @{} }
+# Note: $paused guard is handled implicitly by the early-exit when $config.enabled = false
+# (see top of hook block), rather than explicitly checked here. See review finding L2.
 $ttsEnabled = ($ttsCfg.enabled -eq $true)
 $ttsText = ""
 $ttsBackend = if ($ttsCfg.backend) { $ttsCfg.backend } else { "auto" }

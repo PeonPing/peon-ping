@@ -1,0 +1,6 @@
+{"timestamp":"2026-03-29T04:11:49Z","operation":"init","role":"router","sprint":"TTSINTEG","card_id":"3c490l","cycle":1}
+{"timestamp":"2026-03-29T04:11:56Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/TTSINTEG-3c490l-reviewer-1.md","verdict":"APPROVAL"}}
+{"timestamp":"2026-03-29T04:12:01Z","operation":"event","label":"write-executor-inbox","metadata":{"file":".gitban/agents/executor/inbox/TTSINTEG-3c490l-executor-1.md"}}
+{"timestamp":"2026-03-29T04:12:03Z","operation":"event","label":"write-planner-inbox","metadata":{"file":".gitban/agents/planner/inbox/TTSINTEG-3c490l-planner-1.md"}}
+{"timestamp":"2026-03-29T04:12:05Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
+{"timestamp":"2026-03-29T04:12:07Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":21}
