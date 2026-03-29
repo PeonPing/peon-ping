@@ -16,6 +16,7 @@ function run(argv) {
   var idePid     = parseInt(argv[6], 10) || 0;
   var sessionTty  = argv[7] || '';  // TTY of the Claude session (for window focus)
   var subtitle    = argv[8] || '';  // Context subtitle (e.g. tool info, last message)
+  var position    = argv[9] || 'top-center';
   var notifType   = argv[10] || ''; // Semantic type: complete|permission|limit|idle|question
 
   // ── Type text ──
@@ -57,8 +58,35 @@ function run(argv) {
   }
 
   var vf = focusedScreen.visibleFrame;
-  var x = vf.origin.x + vf.size.width - winW - 10;
-  var y = vf.origin.y + vf.size.height - winH - (10 + slot * (winH + 8));
+  var margin = 10;
+  var slotStep = winH + 8;
+  var ySlotOffset = margin + slot * slotStep;
+  var x, y;
+  switch (position) {
+    case 'top-right':
+      x = vf.origin.x + vf.size.width - winW - margin;
+      y = vf.origin.y + vf.size.height - winH - ySlotOffset;
+      break;
+    case 'top-left':
+      x = vf.origin.x + margin;
+      y = vf.origin.y + vf.size.height - winH - ySlotOffset;
+      break;
+    case 'bottom-right':
+      x = vf.origin.x + vf.size.width - winW - margin;
+      y = vf.origin.y + ySlotOffset;
+      break;
+    case 'bottom-left':
+      x = vf.origin.x + margin;
+      y = vf.origin.y + ySlotOffset;
+      break;
+    case 'bottom-center':
+      x = vf.origin.x + (vf.size.width - winW) / 2;
+      y = vf.origin.y + ySlotOffset;
+      break;
+    default: // top-center
+      x = vf.origin.x + (vf.size.width - winW) / 2;
+      y = vf.origin.y + vf.size.height - winH - ySlotOffset;
+  }
 
   // ── Window ──
   var win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer(
