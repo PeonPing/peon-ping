@@ -516,6 +516,7 @@ _mac_terminal_bundle_id() {
     WarpTerminal)   echo "dev.warp.Warp-Stable" ;;
     Apple_Terminal) echo "com.apple.Terminal" ;;
     zed)            echo "dev.zed.Zed" ;;
+    WezTerm)        echo "com.github.wez.wezterm" ;;
     vscode)
       # IDE embedded terminal (Cursor, VS Code, Windsurf all set TERM_PROGRAM=vscode).
       # Async hooks are orphaned from the process tree, so _mac_ide_pid() won't find
