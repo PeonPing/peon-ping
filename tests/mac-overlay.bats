@@ -768,12 +768,13 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 # notification_all_screens config
 # ============================================================
 
-@test "config migration adds notification_all_screens when missing" {
+@test "config migration adds notification_all_screens when missing (default overlay)" {
   # Remove the key if present
   python3 -c "
 import json
 cfg = json.load(open('$TEST_DIR/config.json'))
 cfg.pop('notification_all_screens', None)
+cfg.pop('overlay_theme', None)
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
   # Run the same migration logic as peon update
@@ -784,7 +785,8 @@ cfg = json.load(open(config_path))
 changed = False
 migrations = []
 if 'notification_all_screens' not in cfg:
-    cfg['notification_all_screens'] = False
+    _theme = cfg.get('overlay_theme', '')
+    cfg['notification_all_screens'] = _theme not in ('glass', 'jarvis', 'sakura')
     changed = True
     migrations.append('notification_all_screens')
 if changed:
@@ -794,7 +796,36 @@ if changed:
   python3 -c "
 import json
 cfg = json.load(open('$TEST_DIR/config.json'))
-assert cfg.get('notification_all_screens') == False, f'Expected False, got {cfg.get(\"notification_all_screens\")}'
+assert cfg.get('notification_all_screens') == True, f'Expected True for default overlay, got {cfg.get(\"notification_all_screens\")}'
+"
+}
+
+@test "config migration sets notification_all_screens=false for themed overlay" {
+  python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg.pop('notification_all_screens', None)
+cfg['overlay_theme'] = 'glass'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
+"
+  python3 -c "
+import json
+config_path = '$TEST_DIR/config.json'
+cfg = json.load(open(config_path))
+changed = False
+migrations = []
+if 'notification_all_screens' not in cfg:
+    _theme = cfg.get('overlay_theme', '')
+    cfg['notification_all_screens'] = _theme not in ('glass', 'jarvis', 'sakura')
+    changed = True
+    migrations.append('notification_all_screens')
+if changed:
+    json.dump(cfg, open(config_path, 'w'), indent=2)
+"
+  python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+assert cfg.get('notification_all_screens') == False, f'Expected False for themed overlay, got {cfg.get(\"notification_all_screens\")}'
 "
 }
 
@@ -813,7 +844,8 @@ cfg = json.load(open(config_path))
 changed = False
 migrations = []
 if 'notification_all_screens' not in cfg:
-    cfg['notification_all_screens'] = False
+    _theme = cfg.get('overlay_theme', '')
+    cfg['notification_all_screens'] = _theme not in ('glass', 'jarvis', 'sakura')
     changed = True
     migrations.append('notification_all_screens')
 if changed:
@@ -826,25 +858,25 @@ assert cfg['notification_all_screens'] == True, 'Should have preserved True valu
 "
 }
 
-@test "overlay passes false for all_screens by default" {
+@test "overlay passes true for all_screens by default" {
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
-  # all_screens is argv[11] — should be "false" by default
-  [[ "$(overlay_log)" == *"false"* ]]
+  # all_screens is argv[11] — should be "true" by default
+  [[ "$(overlay_log)" == *"true"* ]]
 }
 
-@test "overlay passes true for all_screens when config enabled" {
+@test "overlay passes false for all_screens when config disabled" {
   python3 -c "
 import json
 cfg = json.load(open('$TEST_DIR/config.json'))
-cfg['notification_all_screens'] = True
+cfg['notification_all_screens'] = False
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
-  [[ "$(overlay_log)" == *"true"* ]]
+  [[ "$(overlay_log)" == *"false"* ]]
 }
 
 @test "peon status shows templates when configured" {

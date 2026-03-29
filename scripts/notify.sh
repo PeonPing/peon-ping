@@ -191,7 +191,7 @@ case "$PEON_PLATFORM" in
         local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
         local notif_position="${PEON_NOTIF_POSITION:-top-center}"
         local notify_type="${PEON_NOTIFY_TYPE:-}"
-        local all_screens="${PEON_NOTIF_ALL_SCREENS:-false}"
+        local all_screens="${PEON_NOTIF_ALL_SCREENS:-true}"
         # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty, argv[8]=subtitle, argv[9]=position, argv[10]=notify_type, argv[11]=all_screens, argv[12]=screen_index
         local _overlay_pids=""
         if [ "$all_screens" = "true" ]; then

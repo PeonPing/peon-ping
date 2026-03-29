@@ -3,7 +3,7 @@
 // Usage: osascript -l JavaScript mac-overlay.js <message> <color> <icon_path> <slot> <dismiss_seconds> [bundle_id] [ide_pid] [session_tty] [subtitle] [position] [notify_type] [all_screens] [screen_index]
 //
 // Creates a borderless, always-on-top overlay. Shows on all screens by default,
-// or on a specific screen when screen_index is provided, or on the focused screen when all_screens=false.
+// or on a specific screen when screen_index is provided, or on the focused screen when all_screens is disabled in config.
 // Dismisses automatically after <dismiss_seconds> seconds (0 = persistent until clicked).
 // If bundle_id is provided, clicking the overlay activates that app (click-to-focus).
 // position: top-center (default), top-right, top-left, bottom-right, bottom-left, bottom-center
