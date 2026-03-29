@@ -1,0 +1,5 @@
+{"type":"init","role":"router","sprint":"TTSINTEG","card":"02x5jy","cycle":1,"ts":"2026-03-29T09:14:35Z"}
+{"type":"event","label":"read-review","meta":{"file":"TTSINTEG-02x5jy-reviewer-1.md","verdict":"APPROVAL"},"ts":"2026-03-29T09:14:35Z"}
+{"type":"event","label":"write-executor-inbox","meta":{"file":"TTSINTEG-02x5jy-executor-1.md"},"ts":"2026-03-29T09:14:35Z"}
+{"type":"event","label":"card-update","meta":{"action":"append"},"ts":"2026-03-29T09:14:35Z"}
+{"type":"summary","commands":0,"failures":0,"ts":"2026-03-29T09:14:35Z"}

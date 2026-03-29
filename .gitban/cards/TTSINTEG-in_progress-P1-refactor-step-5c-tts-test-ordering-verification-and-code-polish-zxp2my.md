@@ -184,3 +184,13 @@ Before refactoring, review existing code, tests, documentation, and dependencies
 **Testing note:** BATS cannot run on this Windows worktree. Tests are structurally verified and follow existing conventions. CI will validate on macOS.
 
 **No follow-up work identified.** All three items from the s81ofk review are addressed.
+
+## Review Log
+
+| Review | Verdict | Commit | Report Location |
+| :--- | :--- | :--- | :--- |
+| Review 1 | APPROVAL | fe25812 | `.gitban/agents/reviewer/inbox/TTSINTEG-zxp2my-reviewer-1.md` |
+
+**Routing:**
+- Executor instructions: `.gitban/agents/executor/inbox/TTSINTEG-zxp2my-executor-1.md` (close-out with one minor comment addition)
+- Planner instructions: `.gitban/agents/planner/inbox/TTSINTEG-zxp2my-planner-1.md` (1 follow-up card: BATS test for speak-only debug log)
