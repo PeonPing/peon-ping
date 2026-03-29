@@ -191,9 +191,20 @@ case "$PEON_PLATFORM" in
         local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
         local notif_position="${PEON_NOTIF_POSITION:-top-center}"
         local notify_type="${PEON_NOTIFY_TYPE:-}"
-        # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty, argv[8]=subtitle, argv[9]=position, argv[10]=notify_type
-        osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" "$notify_type" >/dev/null 2>&1 &
-        local _overlay_pid=$!
+        local all_screens="${PEON_NOTIF_ALL_SCREENS:-false}"
+        # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty, argv[8]=subtitle, argv[9]=position, argv[10]=notify_type, argv[11]=all_screens, argv[12]=screen_index
+        local _overlay_pids=""
+        if [ "$all_screens" = "true" ]; then
+          local screen_count
+          screen_count=$(osascript -l JavaScript -e 'ObjC.import("Cocoa"); $.NSScreen.screens.count' 2>/dev/null || echo 1)
+          for _si in $(seq 0 $((screen_count - 1))); do
+            osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" "$notify_type" "$all_screens" "$_si" >/dev/null 2>&1 &
+            _overlay_pids="$_overlay_pids $!"
+          done
+        else
+          osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" "$notify_type" "$all_screens" >/dev/null 2>&1 &
+          _overlay_pids="$!"
+        fi
         # Shell-level watchdog: kill if JXA terminate timer doesn't fire (macOS regression)
         # When dismiss_secs=0 (persistent), skip the watchdog — overlay stays until clicked.
         local _max_wait
@@ -202,8 +213,10 @@ case "$PEON_PLATFORM" in
         else
           _max_wait=$(python3 -c "print(int(float('${dismiss_secs}'))+5)" 2>/dev/null || echo '9')
         fi
-        ( sleep "$_max_wait" && kill "$_overlay_pid" 2>/dev/null ) &
-        wait "$_overlay_pid" 2>/dev/null || true
+        for _pid in $_overlay_pids; do
+          ( sleep "$_max_wait" && kill "$_pid" 2>/dev/null ) &
+          wait "$_pid" 2>/dev/null || true
+        done
         rm -rf "$slot_dir/slot-$slot"
       )
       if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi

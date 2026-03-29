@@ -18,6 +18,8 @@ function run(argv) {
   var subtitle    = argv[8] || '';  // Context subtitle (e.g. tool info, last message)
   var position    = argv[9] || 'top-center';
   var notifType   = argv[10] || ''; // Semantic type: complete|permission|limit|idle|question
+  var allScreens  = argv[11] === 'true';
+  var screenIdx   = (argv[12] !== undefined && argv[12] !== '') ? parseInt(argv[12], 10) : -1;
 
   var PI = Math.PI, TAU = 2 * PI;
 
@@ -46,20 +48,30 @@ function run(argv) {
   $.NSApplication.sharedApplication;
   $.NSApp.setActivationPolicy($.NSApplicationActivationPolicyAccessory);
 
-  // ── Screen detection: find screen where mouse cursor is ──
-  var mouseLocation = $.NSEvent.mouseLocation;
+  // Generate unique notification ID for all sibling overlays (all-screens mode)
+  var slotForNotification = parseInt(argv[3], 10) || 0;
+  var dismissNotificationName = 'com.peonping.dismiss.sakura.' + slotForNotification;
+
+  // ── Screen detection ──
   var screens = $.NSScreen.screens;
-  var focusedScreen = screens.objectAtIndex(0);
-  for (var s = 0; s < screens.count; s++) {
-    var scr = screens.objectAtIndex(s);
-    var sf = scr.frame;
-    if (mouseLocation.x >= sf.origin.x && mouseLocation.x <= sf.origin.x + sf.size.width &&
-        mouseLocation.y >= sf.origin.y && mouseLocation.y <= sf.origin.y + sf.size.height) {
-      focusedScreen = scr; break;
+  var targetScreen;
+  if (screenIdx >= 0 && screenIdx < screens.count) {
+    targetScreen = screens.objectAtIndex(screenIdx);
+  } else {
+    // Find screen where mouse cursor is
+    var mouseLocation = $.NSEvent.mouseLocation;
+    targetScreen = screens.objectAtIndex(0);
+    for (var s = 0; s < screens.count; s++) {
+      var scr = screens.objectAtIndex(s);
+      var sf = scr.frame;
+      if (mouseLocation.x >= sf.origin.x && mouseLocation.x <= sf.origin.x + sf.size.width &&
+          mouseLocation.y >= sf.origin.y && mouseLocation.y <= sf.origin.y + sf.size.height) {
+        targetScreen = scr; break;
+      }
     }
   }
 
-  var vf = focusedScreen.visibleFrame;
+  var vf = targetScreen.visibleFrame;
   var margin = 10;
   var slotStep = winH + 8;
   var ySlotOffset = margin + slot * slotStep;
@@ -474,7 +486,12 @@ function run(argv) {
           } catch(e) {}
         }
       }
-      $.NSApp.terminate(null);
+      // Signal ALL sibling overlays to dismiss (event-driven, no polling!)
+      $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObject($(dismissNotificationName), $.NSString.string);
+      // Small delay to ensure notification is delivered before we terminate
+      $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
+        0.05, $.NSApp, 'terminate:', null, false
+      );
     }}}
   });
   var dh = $.SakuraDismissHandler.alloc.init;
@@ -538,6 +555,27 @@ function run(argv) {
     $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
       dismiss + 0.3, $.NSApp, 'terminate:', null, false);
   }
+
+  // Event-driven dismissal: observe distributed notifications from sibling overlays
+  ObjC.registerSubclass({
+    name: 'SakuraDismissObserver',
+    superclass: 'NSObject',
+    methods: {
+      'handleDismiss:': {
+        types: ['void', ['id']],
+        implementation: function(notification) {
+          $.NSApp.terminate(null);
+        }
+      }
+    }
+  });
+  var sakuraObserver = $.SakuraDismissObserver.alloc.init;
+  $.NSDistributedNotificationCenter.defaultCenter.addObserverSelectorNameObject(
+    sakuraObserver,
+    'handleDismiss:',
+    $(dismissNotificationName),
+    $.NSString.string
+  );
 
   $.NSApp.run;
 }

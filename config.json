@@ -31,6 +31,7 @@
   "suppress_sound_when_tab_focused": false,
   "notification_position": "top-center",
   "notification_dismiss_seconds": 4,
+  "notification_all_screens": false,
   "notification_title_override": "",
   "notification_title_script": "",
   "project_name_map": {},

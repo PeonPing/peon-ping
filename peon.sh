@@ -648,6 +648,7 @@ send_notification() {
       export PEON_NOTIF_STYLE="${NOTIF_STYLE:-overlay}"
       export PEON_NOTIF_POSITION="${NOTIF_POSITION:-top-center}"
       export PEON_NOTIF_DISMISS="${NOTIF_DISMISS:-4}"
+      export PEON_NOTIF_ALL_SCREENS="${NOTIF_ALL_SCREENS:-false}"
       export PEON_DIR
       export PEON_SYNC="0"
       [ "${PEON_TEST:-0}" = "1" ] && export PEON_SYNC="1"
@@ -1360,10 +1361,12 @@ dn = cfg.get('desktop_notifications', True)
 ns = cfg.get('notification_style', 'overlay')
 np = cfg.get('notification_position', 'top-center')
 nd = cfg.get('notification_dismiss_seconds', 4)
+na = cfg.get('notification_all_screens', False)
 print('_NOTIF_ENABLED=' + ('true' if dn else 'false'))
 print('NOTIF_STYLE=' + q(ns))
 print('NOTIF_POSITION=' + q(np))
 print('NOTIF_DISMISS=' + q(str(nd)))
+print('NOTIF_ALL_SCREENS=' + ('true' if na else 'false'))
 ")"
         safe_eval_python "$_py_out" || true
         if [ "$_NOTIF_ENABLED" != "true" ]; then
@@ -2714,6 +2717,10 @@ if 'debug_retention_days' not in cfg:
     cfg['debug_retention_days'] = 7
     changed = True
     migrations.append('debug_retention_days')
+if 'notification_all_screens' not in cfg:
+    cfg['notification_all_screens'] = False
+    changed = True
+    migrations.append('notification_all_screens')
 if changed:
     json.dump(cfg, open(config_path, 'w'), indent=2)
     print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
@@ -4116,6 +4123,7 @@ print('DESKTOP_NOTIF=' + ('true' if desktop_notif else 'false'))
 print('NOTIF_STYLE=' + q(cfg.get('notification_style', 'overlay')))
 print('NOTIF_POSITION=' + q(cfg.get('notification_position', 'top-center')))
 print('NOTIF_DISMISS=' + q(str(cfg.get('notification_dismiss_seconds', 4))))
+print('NOTIF_ALL_SCREENS=' + ('true' if cfg.get('notification_all_screens', False) else 'false'))
 print('USE_SOUND_EFFECTS_DEVICE=' + q(str(use_sound_effects_device).lower()))
 print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))
 print('PEON_SSH_AUDIO_MODE=' + q(str(cfg.get('ssh_audio_mode', 'relay'))))
