@@ -4354,6 +4354,10 @@ print(cfg.get('debug_retention_days', 7))
   ) &>/dev/null &
 fi
 
+# Test-mode flag: evaluated once, used for sync/async dispatch and test observability writes.
+_PEON_SYNC=false
+[ "${PEON_TEST:-0}" = "1" ] && _PEON_SYNC=true
+
 HEADPHONES_DETECTED=true
 if [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
   detect_headphones || HEADPHONES_DETECTED=false
@@ -4436,7 +4440,7 @@ _relay_guidance() {
   fi
 }
 if [ "$EVENT" = "SessionStart" ] && { [ "$PLATFORM" = "devcontainer" ] || [ "$PLATFORM" = "ssh" ]; }; then
-  if [ "${PEON_TEST:-0}" = "1" ]; then
+  if [ "$_PEON_SYNC" = "true" ]; then
     _relay_guidance
   else
     _relay_guidance &
@@ -4476,17 +4480,19 @@ fi
 
 # --- Set iTerm2 tab color (OSC 6) ---
 # Detects iTerm2 via ITERM_SESSION_ID (persists inside tmux where TERM_PROGRAM=tmux).
-# In test mode, write resolved color to file for BATS verification.
-[ "${PEON_TEST:-0}" = "1" ] && [ -n "$TAB_COLOR_RGB" ] && echo "$TAB_COLOR_RGB" > "$PEON_DIR/.tab_color_rgb"
-[ "${PEON_TEST:-0}" = "1" ] && [ -n "$ICON_PATH" ] && echo "$ICON_PATH" > "$PEON_DIR/.icon_path"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TTS_ENABLED:-false}" > "$PEON_DIR/.tts_enabled"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TTS_TEXT:-}" > "$PEON_DIR/.tts_text"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TTS_BACKEND:-}" > "$PEON_DIR/.tts_backend"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TTS_VOICE:-}" > "$PEON_DIR/.tts_voice"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TTS_RATE:-}" > "$PEON_DIR/.tts_rate"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TTS_VOLUME:-}" > "$PEON_DIR/.tts_volume"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TTS_MODE:-}" > "$PEON_DIR/.tts_mode"
-[ "${PEON_TEST:-0}" = "1" ] && echo "${TRAINER_TTS_TEXT:-}" > "$PEON_DIR/.trainer_tts_text"
+# In test mode, write resolved values to files for BATS verification.
+if [ "$_PEON_SYNC" = "true" ]; then
+  [ -n "$TAB_COLOR_RGB" ] && echo "$TAB_COLOR_RGB" > "$PEON_DIR/.tab_color_rgb"
+  [ -n "$ICON_PATH" ] && echo "$ICON_PATH" > "$PEON_DIR/.icon_path"
+  echo "${TTS_ENABLED:-false}" > "$PEON_DIR/.tts_enabled"
+  echo "${TTS_TEXT:-}" > "$PEON_DIR/.tts_text"
+  echo "${TTS_BACKEND:-}" > "$PEON_DIR/.tts_backend"
+  echo "${TTS_VOICE:-}" > "$PEON_DIR/.tts_voice"
+  echo "${TTS_RATE:-}" > "$PEON_DIR/.tts_rate"
+  echo "${TTS_VOLUME:-}" > "$PEON_DIR/.tts_volume"
+  echo "${TTS_MODE:-}" > "$PEON_DIR/.tts_mode"
+  echo "${TRAINER_TTS_TEXT:-}" > "$PEON_DIR/.trainer_tts_text"
+fi
 if [ -n "$TAB_COLOR_RGB" ] && { [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]] || [ -n "${ITERM_SESSION_ID:-}" ]; }; then
   read -r _R _G _B <<< "$TAB_COLOR_RGB"
   _peon_esc "$(printf '\033]6;1;bg;red;brightness;%d\a' "$_R")"
@@ -4554,7 +4560,7 @@ _run_sound_and_notify() {
 }
 
 # In test mode run synchronously; in production background to avoid blocking the IDE
-if [ "${PEON_TEST:-0}" = "1" ]; then
+if [ "$_PEON_SYNC" = "true" ]; then
   _run_sound_and_notify
 else
   _run_sound_and_notify & disown
@@ -4562,7 +4568,7 @@ fi
 
 # --- Trainer reminder sound (after main sound finishes) ---
 if [ -n "${TRAINER_SOUND:-}" ] && [ -f "$TRAINER_SOUND" ]; then
-  if [ "${PEON_TEST:-0}" = "1" ]; then
+  if [ "$_PEON_SYNC" = "true" ]; then
     play_sound "$TRAINER_SOUND" "$VOLUME"
     # Speak trainer TTS text after trainer sound when TTS enabled
     if [ "${TTS_ENABLED:-false}" = "true" ] && [ -n "${TRAINER_TTS_TEXT:-}" ]; then
