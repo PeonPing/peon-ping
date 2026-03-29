@@ -1307,6 +1307,128 @@ Describe "Embedded peon.ps1 Hook Script" {
     It "converts PSCustomObject to hashtable for PS 5.1 compat" {
         $script:peonHookContent | Should -Match 'ConvertTo-Hashtable'
     }
+
+    # --- TTS: Resolve-TtsBackend ---
+
+    It "defines Resolve-TtsBackend function" {
+        $script:peonHookContent | Should -Match 'function Resolve-TtsBackend'
+    }
+
+    It "Resolve-TtsBackend maps native to tts-native.ps1" {
+        $script:peonHookContent | Should -Match '"native".*"tts-native\.ps1"'
+    }
+
+    It "Resolve-TtsBackend maps elevenlabs to tts-elevenlabs.ps1" {
+        $script:peonHookContent | Should -Match '"elevenlabs".*"tts-elevenlabs\.ps1"'
+    }
+
+    It "Resolve-TtsBackend maps piper to tts-piper.ps1" {
+        $script:peonHookContent | Should -Match '"piper".*"tts-piper\.ps1"'
+    }
+
+    It "Resolve-TtsBackend auto probes in priority order (elevenlabs > piper > native)" {
+        $script:peonHookContent | Should -Match '"auto"[\s\S]*?elevenlabs.*piper.*native'
+    }
+
+    It "Resolve-TtsBackend auto returns null when no backend scripts exist" {
+        $script:peonHookContent | Should -Match 'function Resolve-TtsBackend[\s\S]*?return \$null'
+    }
+
+    # --- TTS: Invoke-TtsSpeak ---
+
+    It "defines Invoke-TtsSpeak function" {
+        $script:peonHookContent | Should -Match 'function Invoke-TtsSpeak'
+    }
+
+    It "Invoke-TtsSpeak uses Base64 encoding for text transport" {
+        $script:peonHookContent | Should -Match 'ToBase64String'
+        $script:peonHookContent | Should -Match 'FromBase64String'
+    }
+
+    It "Invoke-TtsSpeak manages .tts.pid file" {
+        $script:peonHookContent | Should -Match '\.tts\.pid'
+    }
+
+    It "Invoke-TtsSpeak kills previous TTS via Stop-Process" {
+        $script:peonHookContent | Should -Match 'Stop-Process.*-Id \$oldPid.*-Force'
+    }
+
+    It "Invoke-TtsSpeak uses Start-Process -WindowStyle Hidden -PassThru" {
+        $script:peonHookContent | Should -Match 'function Invoke-TtsSpeak[\s\S]*?Start-Process[\s\S]*?-PassThru'
+    }
+
+    It "Invoke-TtsSpeak writes PID to .tts.pid" {
+        $script:peonHookContent | Should -Match '\$proc\.Id.*Set-Content.*\$pidFile'
+    }
+
+    It "Invoke-TtsSpeak returns early on empty text" {
+        $script:peonHookContent | Should -Match 'function Invoke-TtsSpeak[\s\S]*?-not \$Text[\s\S]*?return'
+    }
+
+    It "Invoke-TtsSpeak returns early when backend resolves to null" {
+        $script:peonHookContent | Should -Match 'function Invoke-TtsSpeak[\s\S]*?-not \$scriptName[\s\S]*?return'
+    }
+
+    # --- TTS: Text Resolution ---
+
+    It "reads TTS config section with safe defaults" {
+        $script:peonHookContent | Should -Match '\$ttsCfg'
+        $script:peonHookContent | Should -Match '\$ttsEnabled'
+        $script:peonHookContent | Should -Match '\$ttsBackend'
+        $script:peonHookContent | Should -Match '\$ttsMode'
+    }
+
+    It "resolves TTS text from speech_text field on chosen sound entry" {
+        $script:peonHookContent | Should -Match '\$chosen.*speech_text'
+    }
+
+    It "falls back to notification template for TTS text" {
+        $script:peonHookContent | Should -Match '\$resolvedTemplate'
+    }
+
+    It "falls back to default TTS template with project and status" {
+        $script:peonHookContent | Should -Match 'project.*status'
+    }
+
+    It "uses template variable replacement for TTS text" {
+        $script:peonHookContent | Should -Match '\$ttsText.*Replace.*\$key'
+    }
+
+    # --- TTS: Mode Sequencing ---
+
+    It "implements sound-then-speak mode" {
+        $script:peonHookContent | Should -Match 'sound-then-speak'
+    }
+
+    It "implements speak-only mode (skips sound playback)" {
+        $script:peonHookContent | Should -Match 'speak-only'
+    }
+
+    It "implements speak-then-sound mode" {
+        $script:peonHookContent | Should -Match 'speak-then-sound'
+    }
+
+    It "mode sequencing uses switch on ttsMode" {
+        $script:peonHookContent | Should -Match 'switch \(\$ttsMode\)'
+    }
+
+    It "speak-only mode does not call Play-Sound or win-play" {
+        # In speak-only block, only Invoke-TtsSpeak should be called
+        $script:peonHookContent | Should -Match '"speak-only"[\s\S]*?Invoke-TtsSpeak'
+    }
+
+    # --- TTS: Suppression ---
+
+    It "applies suppression to TTS (skipSound disables TTS)" {
+        $script:peonHookContent | Should -Match 'if \(-not \$skipSound\)[\s\S]*?switch \(\$ttsMode\)'
+    }
+
+    # --- TTS: Trainer speaks progress ---
+
+    It "trainer speaks progress when TTS enabled" {
+        $script:peonHookContent | Should -Match 'trainerTtsText'
+        $script:peonHookContent | Should -Match 'Invoke-TtsSpeak.*trainerTtsText'
+    }
 }
 
 # ============================================================

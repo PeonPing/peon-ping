@@ -561,6 +561,64 @@ function Resolve-NotificationTemplate {
     return $rendered
 }
 
+# --- TTS backend resolution ---
+function Resolve-TtsBackend {
+    param([string]$Backend = "auto")
+    switch ($Backend) {
+        "native"     { return "tts-native.ps1" }
+        "elevenlabs" { return "tts-elevenlabs.ps1" }
+        "piper"      { return "tts-piper.ps1" }
+        "auto" {
+            # Probe in priority order: prefer premium when installed.
+            foreach ($b in @("elevenlabs", "piper", "native")) {
+                $scriptName = Resolve-TtsBackend -Backend $b
+                $full = Join-Path $InstallDir "scripts\$scriptName"
+                if (Test-Path $full) { return $scriptName }
+            }
+            return $null
+        }
+        default { return $null }
+    }
+}
+
+# --- TTS speak function ---
+function Invoke-TtsSpeak {
+    param(
+        [string]$Text,
+        [string]$Backend = "auto",
+        [string]$Voice = "default",
+        [double]$Rate = 1.0,
+        [double]$Volume = 0.5
+    )
+    if (-not $Text) { return }
+
+    # Kill previous TTS
+    $pidFile = Join-Path $InstallDir ".tts.pid"
+    if (Test-Path $pidFile) {
+        $oldPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+        if ($oldPid) {
+            try { Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+    }
+
+    $scriptName = Resolve-TtsBackend -Backend $Backend
+    if (-not $scriptName) { return }
+    $scriptPath = Join-Path $InstallDir "scripts\$scriptName"
+    if (-not (Test-Path $scriptPath)) { return }
+
+    # Text is Base64-encoded to avoid shell metacharacter injection. Dynamic text
+    # from template variables ({summary}, {project}) can contain double quotes,
+    # dollar signs, backticks, and other PowerShell-interpreted characters that
+    # would corrupt or break a directly-interpolated -Command string.
+    $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))
+    $proc = Start-Process -FilePath "powershell.exe" `
+        -ArgumentList "-NoProfile", "-NonInteractive", "-Command",
+            "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$b64')) | & '$scriptPath' -voice '$Voice' -rate $Rate -vol $Volume" `
+        -WindowStyle Hidden -PassThru
+    $proc.Id | Set-Content $pidFile
+}
+
 # --- CLI commands ---
 if ($Command) {
     $InstallDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -2032,6 +2090,36 @@ if ($category) {
     & $peonLog 'route' @{ category = $category; suppressed = 'False' }
 }
 
+# Pre-resolve notification template for TTS text fallback
+$resolvedTemplate = ""
+if ($category) {
+    $tplCfg0 = $config.notification_templates
+    if ($tplCfg0) {
+        $tplSum0 = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+        $tplTool0 = if ($event.tool_name) { [string]$event.tool_name } else { '' }
+        $resolvedTemplate = Resolve-NotificationTemplate `
+            -Templates $tplCfg0 `
+            -Category $category `
+            -Event $hookEvent `
+            -Ntype $ntype `
+            -Project $project `
+            -Summary $tplSum0 `
+            -ToolName $tplTool0 `
+            -Status $notifyStatus `
+            -DefaultMsg ""
+    }
+}
+
+# --- TTS config (read before skipSound gate so trainer TTS can use it) ---
+$ttsCfg = if ($config.tts) { $config.tts } else { @{} }
+$ttsEnabled = ($ttsCfg.enabled -eq $true)
+$ttsBackend = if ($ttsCfg.backend) { $ttsCfg.backend } else { "auto" }
+$ttsVoice = if ($ttsCfg.voice) { $ttsCfg.voice } else { "default" }
+$ttsRate = if ($ttsCfg.rate) { $ttsCfg.rate } else { 1.0 }
+$ttsVolume = if ($ttsCfg.volume) { $ttsCfg.volume } else { 0.5 }
+$ttsMode = if ($ttsCfg.mode) { $ttsCfg.mode } else { "sound-then-speak" }
+$ttsText = ""
+
 if (-not $skipSound) {
 # --- Pick a sound ---
 $activePack = Get-ActivePack $config
@@ -2192,17 +2280,72 @@ try {
     if ($peonDebug) { Write-Warning "peon-ping: state write failed (last played): $_" }
 }
 
-# --- Delegate audio to win-play.ps1 in a detached process ---
+# --- TTS speech text resolution ---
+if ($ttsEnabled -and $category) {
+    $speechTpl = ""
+    if ($chosen -and $chosen.speech_text) {
+        $speechTpl = $chosen.speech_text
+    } elseif ($resolvedTemplate) {
+        $speechTpl = $resolvedTemplate
+    } else {
+        $speechTpl = "{project} " + [char]0x2014 + " {status}"
+    }
+
+    # Build template variables (same set as notification templates)
+    $tplSummary = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+    if ($tplSummary -and $tplSummary.Length -gt 120) { $tplSummary = $tplSummary.Substring(0, 120) }
+    $tplToolName = if ($event.tool_name) { [string]$event.tool_name } else { '' }
+    $ttsVars = @{
+        project   = $project
+        summary   = $tplSummary
+        tool_name = $tplToolName
+        status    = $notifyStatus
+        event     = $hookEvent
+    }
+
+    $ttsText = $speechTpl
+    foreach ($key in $ttsVars.Keys) {
+        $ttsText = $ttsText.Replace("{$key}", $ttsVars[$key])
+    }
+    $ttsText = $ttsText.Trim()
+    if ($ttsText -eq [string][char]0x2014 -or -not $ttsText) { $ttsText = "" }
+}
+
+# --- Sound and TTS playback with mode sequencing ---
 $volume = $config.volume
 if (-not $volume) { $volume = 0.5 }
 
 $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
-if (Test-Path $winPlayScript) {
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
-    & $peonLog 'play' @{ backend = 'win-play.ps1'; file = $soundFile; volume = [string]$volume }
+
+# Helper: play sound file via win-play.ps1
+function Play-Sound {
+    param([string]$SndPath, [double]$Vol)
+    if ((Test-Path $winPlayScript) -and (Test-Path $SndPath)) {
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $SndPath, "-vol", $Vol -WindowStyle Hidden
+        & $peonLog 'play' @{ backend = 'win-play.ps1'; file = $soundFile; volume = [string]$Vol }
+    } else {
+        if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
+        & $peonLog 'play' @{ error = "win-play.ps1 not found"; backend = 'none' }
+    }
+}
+
+if ($ttsEnabled -and $ttsText) {
+    switch ($ttsMode) {
+        "sound-then-speak" {
+            Play-Sound $soundPath $volume
+            Invoke-TtsSpeak -Text $ttsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
+        }
+        "speak-only" {
+            Invoke-TtsSpeak -Text $ttsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
+        }
+        "speak-then-sound" {
+            Invoke-TtsSpeak -Text $ttsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
+            Play-Sound $soundPath $volume
+        }
+    }
 } else {
-    if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
-    & $peonLog 'play' @{ error = "win-play.ps1 not found"; backend = 'none' }
+    # No TTS — play sound normally
+    Play-Sound $soundPath $volume
 }
 
 } # end if (-not $skipSound)
@@ -2320,6 +2463,12 @@ if ($trainerSoundPath) {
             "Start-Sleep -Milliseconds 500; & '$winPlayScript' -path '$trainerSoundPath' -vol $volume")
         Start-Process -FilePath "powershell.exe" -ArgumentList $trainerArgs -WindowStyle Hidden
     }
+}
+
+# --- Trainer TTS (speak progress after trainer sound) ---
+$trainerTtsText = if ($ttsEnabled -and $trainerMsg) { $trainerMsg } else { "" }
+if ($trainerTtsText) {
+    Invoke-TtsSpeak -Text $trainerTtsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
 }
 
 # --- Trainer desktop notification ---
