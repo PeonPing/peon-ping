@@ -396,11 +396,15 @@ Describe "peon logs --prune" {
     }
 
     It "deletes log files older than retention days" {
-        # Create old files (>7 days ago) and a recent file
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-10" -Lines @("old1")
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-12" -Lines @("old2")
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-25" -Lines @("recent")
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-26" -Lines @("today")
+        # Create old files (>7 days ago) and recent files (within 7 days)
+        $oldDate1 = (Get-Date).AddDays(-10).ToString('yyyy-MM-dd')
+        $oldDate2 = (Get-Date).AddDays(-8).ToString('yyyy-MM-dd')
+        $recentDate = (Get-Date).AddDays(-1).ToString('yyyy-MM-dd')
+        $todayDate = (Get-Date).ToString('yyyy-MM-dd')
+        New-FakeLogFile -TestDir $script:testDir -Date $oldDate1 -Lines @("old1")
+        New-FakeLogFile -TestDir $script:testDir -Date $oldDate2 -Lines @("old2")
+        New-FakeLogFile -TestDir $script:testDir -Date $recentDate -Lines @("recent")
+        New-FakeLogFile -TestDir $script:testDir -Date $todayDate -Lines @("today")
 
         $logDir = Join-Path $script:testDir "logs"
         $before = @(Get-ChildItem $logDir -Filter "peon-ping-*.log")
@@ -412,14 +416,15 @@ Describe "peon logs --prune" {
         $after = @(Get-ChildItem $logDir -Filter "peon-ping-*.log")
         $after.Count | Should -Be 2
         # Verify old files are gone and recent files remain
-        ($after | Where-Object { $_.Name -match "2026-03-10" }) | Should -BeNullOrEmpty
-        ($after | Where-Object { $_.Name -match "2026-03-12" }) | Should -BeNullOrEmpty
-        ($after | Where-Object { $_.Name -match "2026-03-25" }) | Should -Not -BeNullOrEmpty
-        ($after | Where-Object { $_.Name -match "2026-03-26" }) | Should -Not -BeNullOrEmpty
+        ($after | Where-Object { $_.Name -match [regex]::Escape($oldDate1) }) | Should -BeNullOrEmpty
+        ($after | Where-Object { $_.Name -match [regex]::Escape($oldDate2) }) | Should -BeNullOrEmpty
+        ($after | Where-Object { $_.Name -match [regex]::Escape($recentDate) }) | Should -Not -BeNullOrEmpty
+        ($after | Where-Object { $_.Name -match [regex]::Escape($todayDate) }) | Should -Not -BeNullOrEmpty
     }
 
     It "shows message when no old log files to prune" {
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-25" -Lines @("recent")
+        $recentDate = (Get-Date).AddDays(-1).ToString('yyyy-MM-dd')
+        New-FakeLogFile -TestDir $script:testDir -Date $recentDate -Lines @("recent")
         $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
         $result.Output | Should -Match "no log files older than 7 days"
     }
@@ -436,9 +441,12 @@ Describe "peon logs --prune" {
         $cfg.debug_retention_days = 3
         $cfg | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
 
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-20" -Lines @("old")
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-22" -Lines @("also-old")
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-25" -Lines @("recent")
+        $oldDate1 = (Get-Date).AddDays(-5).ToString('yyyy-MM-dd')
+        $oldDate2 = (Get-Date).AddDays(-4).ToString('yyyy-MM-dd')
+        $recentDate = (Get-Date).AddDays(-1).ToString('yyyy-MM-dd')
+        New-FakeLogFile -TestDir $script:testDir -Date $oldDate1 -Lines @("old")
+        New-FakeLogFile -TestDir $script:testDir -Date $oldDate2 -Lines @("also-old")
+        New-FakeLogFile -TestDir $script:testDir -Date $recentDate -Lines @("recent")
 
         $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
         $result.Output | Should -Match "pruned 2 log file\(s\) older than 3 days"
@@ -449,7 +457,8 @@ Describe "peon logs --prune" {
     }
 
     It "shows message when log files exist but none are old enough" {
-        New-FakeLogFile -TestDir $script:testDir -Date "2026-03-26" -Lines @("today")
+        $todayDate = (Get-Date).ToString('yyyy-MM-dd')
+        New-FakeLogFile -TestDir $script:testDir -Date $todayDate -Lines @("today")
         $result = Invoke-PeonCli -TestDir $script:testDir -Arguments @("logs", "--prune")
         $result.Output | Should -Match "no log files older than 7 days"
     }
