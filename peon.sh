@@ -375,6 +375,12 @@ save_sound_pid() {
   echo "$1" > "$PEON_DIR/.sound.pid"
 }
 
+# _peon_log stub — replaced with a real implementation later in the script
+# (after the main Python block that sets _PEON_LOG_FILE). Defined here so
+# functions like play_sound can safely call it before the main block runs
+# (e.g., via `peon preview` or `peon play` CLI commands).
+_peon_log() { :; }
+
 # SSH audio routing mode.
 # relay (default): current behavior, require relay endpoint.
 # auto: try relay first, fallback to local host playback.
