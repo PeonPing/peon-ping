@@ -71,10 +71,12 @@ function Invoke-NativeMediaPlayback {
     return $false
 }
 
-# Prefer native Windows playback first. WPF MediaPlayer can handle WAV and common
-# compressed formats like MP3 on machines with the built-in codecs available.
-if (Invoke-NativeMediaPlayback -Path $path -Volume $vol) {
-    exit 0
+# Prefer native Windows playback for WAV files first. Other formats use CLI players
+# because codec availability for MediaPlayer is inconsistent across Windows installs.
+if ($path -match '\.wav$') {
+    if (Invoke-NativeMediaPlayback -Path $path -vol $vol) {
+        exit 0
+    }
 }
 
 # Non-WAV formats (mp3, ogg, etc.): CLI player priority chain
