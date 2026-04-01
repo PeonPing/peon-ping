@@ -4,7 +4,7 @@ load setup.bash
 
 setup() {
   setup_test_env
-  export PLATFORM=wsl
+  export PEON_PLATFORM=wsl
 
   # Mock powershell.exe — logs calls and returns a fake temp path
   cat > "$MOCK_BIN/powershell.exe" <<'SCRIPT'

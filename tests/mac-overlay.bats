@@ -4,7 +4,7 @@ load setup.bash
 
 setup() {
   setup_test_env
-  export PLATFORM=mac
+  export PEON_PLATFORM=mac
 
   # Enable desktop notifications in config
   cat > "$TEST_DIR/config.json" <<'JSON'

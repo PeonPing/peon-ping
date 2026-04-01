@@ -28,12 +28,12 @@ detect_platform() {
     *) echo "unknown" ;;
   esac
 }
-PLATFORM=${PLATFORM:-$(detect_platform)}
+PEON_PLATFORM=${PEON_PLATFORM:-$(detect_platform)}
 
 # Detect if headphones/external audio is connected
 # Returns 0 (true) if headphones detected, 1 (false) if built-in speakers only
 detect_headphones() {
-  case "$PLATFORM" in
+  case "$PEON_PLATFORM" in
     mac)
       local output default_section
       output=$(system_profiler SPAudioDataType 2>/dev/null) || return 0
@@ -80,7 +80,7 @@ detect_headphones() {
 # Detect if user is in an active meeting/call
 # Returns 0 (true) if meeting detected, 1 (false) if not
 detect_meeting() {
-  case "$PLATFORM" in
+  case "$PEON_PLATFORM" in
     mac)
       # Check if any microphone is in use (CoreAudio)
       local _meeting_detect
@@ -148,7 +148,7 @@ STATE="$PEON_DIR/.state.json"
 
 # MSYS2/MinGW: Windows Python can't read /c/... paths — convert to C:/... via cygpath
 # Also set PYTHONUTF8=1 to avoid cp932/cp1252 codec errors when settings.json contains Unicode
-if [ "$PLATFORM" = "msys2" ]; then
+if [ "$PEON_PLATFORM" = "msys2" ]; then
   export PYTHONUTF8=1
   CONFIG_PY="$(cygpath -m "$CONFIG")"
   GLOBAL_CONFIG_PY="$(cygpath -m "$GLOBAL_CONFIG")"
@@ -166,7 +166,7 @@ export PEON_ENV_CONFIG="$CONFIG_PY"
 export PEON_ENV_GLOBAL_CONFIG="$GLOBAL_CONFIG_PY"
 export PEON_ENV_STATE="$STATE_PY"
 export PEON_ENV_PEON_DIR="$PEON_DIR_PY"
-export PEON_ENV_PLATFORM="$PLATFORM"
+export PEON_ENV_PLATFORM="$PEON_PLATFORM"
 
 # --- Shared Python state I/O helpers (DRY: single definition used by all inline Python blocks) ---
 # Included via ${_PEON_STATE_PY_HELPERS} in python3 -c strings.
@@ -397,9 +397,9 @@ ssh_audio_mode() {
 # --- Platform-aware audio playback ---
 play_sound() {
   local file="$1" vol="$2"
-  _peon_log play "backend=$PLATFORM file=$(basename "$file") volume=$vol async=true"
+  _peon_log play "backend=$PEON_PLATFORM file=$(basename "$file") volume=$vol async=true"
   kill_previous_sound
-  case "$PLATFORM" in
+  case "$PEON_PLATFORM" in
     mac)
       local player="afplay"
       if [ "${USE_SOUND_EFFECTS_DEVICE:-true}" != "false" ]; then
@@ -432,7 +432,7 @@ play_sound() {
       ;;
     devcontainer|ssh)
       local relay_host_default="host.docker.internal"
-      [ "$PLATFORM" = "ssh" ] && relay_host_default="localhost"
+      [ "$PEON_PLATFORM" = "ssh" ] && relay_host_default="localhost"
       local relay_host="${PEON_RELAY_HOST:-$relay_host_default}"
       local relay_port="${PEON_RELAY_PORT:-19998}"
       local rel_path="${file#$PEON_DIR/}"
@@ -440,10 +440,10 @@ play_sound() {
       encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "$rel_path" 2>/dev/null || echo "$rel_path")
 
       local ssh_mode="relay"
-      [ "$PLATFORM" = "ssh" ] && ssh_mode="$(ssh_audio_mode)"
+      [ "$PEON_PLATFORM" = "ssh" ] && ssh_mode="$(ssh_audio_mode)"
 
       # SSH local mode bypasses relay and plays on the SSH host.
-      if [ "$PLATFORM" = "ssh" ] && [ "$ssh_mode" = "local" ]; then
+      if [ "$PEON_PLATFORM" = "ssh" ] && [ "$ssh_mode" = "local" ]; then
         local player
         player=$(detect_linux_player "${LINUX_AUDIO_PLAYER:-}") || player=""
         if [ -n "$player" ]; then
@@ -451,7 +451,7 @@ play_sound() {
           save_sound_pid $!
         fi
       # SSH auto mode tries relay first, then falls back to local playback.
-      elif [ "$PLATFORM" = "ssh" ] && [ "$ssh_mode" = "auto" ]; then
+      elif [ "$PEON_PLATFORM" = "ssh" ] && [ "$ssh_mode" = "auto" ]; then
         if curl -sf --connect-timeout 1 --max-time 2 -H "X-Volume: $vol" \
           "http://${relay_host}:${relay_port}/play?file=${encoded_path}" >/dev/null 2>&1; then
           :
@@ -642,7 +642,7 @@ send_notification() {
   local use_bg=true
   [ "${PEON_TEST:-0}" = "1" ] && use_bg=false
 
-  case "$PLATFORM" in
+  case "$PEON_PLATFORM" in
     mac|wsl|linux|msys2)
       # Delegate to shared notify.sh script
       local notify_script
@@ -650,7 +650,7 @@ send_notification() {
       [ -z "$notify_script" ] && return 0
 
       # Set env vars for notify.sh
-      export PEON_PLATFORM="$PLATFORM"
+      export PEON_PLATFORM
       export PEON_NOTIF_STYLE="${NOTIF_STYLE:-overlay}"
       export PEON_NOTIF_POSITION="${NOTIF_POSITION:-top-center}"
       export PEON_NOTIF_DISMISS="${NOTIF_DISMISS:-4}"
@@ -658,7 +658,7 @@ send_notification() {
       export PEON_DIR
       export PEON_SYNC="0"
       [ "${PEON_TEST:-0}" = "1" ] && export PEON_SYNC="1"
-      if [ "$PLATFORM" = "mac" ]; then
+      if [ "$PEON_PLATFORM" = "mac" ]; then
         export PEON_BUNDLE_ID="$(_mac_terminal_bundle_id)"
         export PEON_IDE_PID="$(_mac_ide_pid)"
         # Fallback: if no terminal bundle ID but we found an IDE ancestor,
@@ -675,7 +675,7 @@ send_notification() {
       ;;
     devcontainer|ssh)
       local relay_host_default="host.docker.internal"
-      [ "$PLATFORM" = "ssh" ] && relay_host_default="localhost"
+      [ "$PEON_PLATFORM" = "ssh" ] && relay_host_default="localhost"
       local relay_host="${PEON_RELAY_HOST:-$relay_host_default}"
       local relay_port="${PEON_RELAY_PORT:-19998}"
       local json_title json_msg
@@ -698,7 +698,7 @@ send_notification() {
 
 # --- Platform-aware terminal focus check ---
 terminal_is_focused() {
-  case "$PLATFORM" in
+  case "$PEON_PLATFORM" in
     mac)
       local frontmost
       frontmost=$(osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>/dev/null)
@@ -4197,7 +4197,7 @@ fi
 # If Python signalled early exit (disabled, agent, unknown event), bail out
 if [ "${PEON_EXIT:-true}" = "true" ]; then
   # On session end, kill any lingering overlay popups (macOS only)
-  if [ "${EVENT:-}" = "SessionEnd" ] && [ "$PLATFORM" = "mac" ]; then
+  if [ "${EVENT:-}" = "SessionEnd" ] && [ "$PEON_PLATFORM" = "mac" ]; then
     pkill -f "mac-overlay" 2>/dev/null || true
   fi
   # Maintain tab title even on suppressed events (plan mode, unknown events, subagent start).
@@ -4291,14 +4291,14 @@ fi
 # --- Relay guidance on SessionStart (devcontainer/SSH) ---
 # Backgrounded in production to avoid blocking the greeting sound while curl times out.
 _relay_guidance() {
-  if [ "$PLATFORM" = "devcontainer" ]; then
+  if [ "$PEON_PLATFORM" = "devcontainer" ]; then
     RELAY_HOST="${PEON_RELAY_HOST:-host.docker.internal}"
     RELAY_PORT="${PEON_RELAY_PORT:-19998}"
     if ! curl -sf --connect-timeout 1 --max-time 2 "http://${RELAY_HOST}:${RELAY_PORT}/health" >/dev/null 2>&1; then
       echo "peon-ping: devcontainer detected but audio relay not reachable at ${RELAY_HOST}:${RELAY_PORT}" >&2
       echo "peon-ping: run 'peon relay' on your host machine to enable sounds" >&2
     fi
-  elif [ "$PLATFORM" = "ssh" ]; then
+  elif [ "$PEON_PLATFORM" = "ssh" ]; then
     local _ssh_mode
     _ssh_mode="$(ssh_audio_mode)"
     # In local/auto mode, SSH can play locally without relay.
@@ -4312,7 +4312,7 @@ _relay_guidance() {
     fi
   fi
 }
-if [ "$EVENT" = "SessionStart" ] && { [ "$PLATFORM" = "devcontainer" ] || [ "$PLATFORM" = "ssh" ]; }; then
+if [ "$EVENT" = "SessionStart" ] && { [ "$PEON_PLATFORM" = "devcontainer" ] || [ "$PEON_PLATFORM" = "ssh" ]; }; then
   if [ "${PEON_TEST:-0}" = "1" ]; then
     _relay_guidance
   else

@@ -1821,11 +1821,27 @@ PYTHON
 }
 
 # ============================================================
+# Platform env var isolation (#426)
+# ============================================================
+
+@test "Ambient PLATFORM env var does not pollute platform detection" {
+  # Simulate a user who exports PLATFORM=osx in their dotfiles.
+  # peon.sh must ignore it and detect the real platform via detect_platform().
+  export PLATFORM=osx
+  unset PEON_PLATFORM
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s-envtest","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # On macOS (where CI runs), detect_platform returns "mac" and afplay is called.
+  # The key assertion: sound played successfully despite PLATFORM=osx in env.
+  afplay_was_called
+}
+
+# ============================================================
 # Linux audio backend detection (order of preference)
 # ============================================================
 
 @test "Linux detects pw-play first" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   # Disable all other players to ensure pw-play is selected
   for player in paplay ffplay mpv play aplay; do
     touch "$TEST_DIR/.disabled_${player}"
@@ -1838,7 +1854,7 @@ PYTHON
 }
 
 @test "Linux detects paplay when pw-play not available" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -1848,7 +1864,7 @@ PYTHON
 }
 
 @test "Linux detects ffplay when pw-play and paplay not available" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -1858,7 +1874,7 @@ PYTHON
 }
 
 @test "Linux detects mpv when pw-play, paplay, and ffplay not available" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -1868,7 +1884,7 @@ PYTHON
 }
 
 @test "Linux detects play (SoX) when pw-play through mpv not available" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay" "$TEST_DIR/.disabled_mpv"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -1878,7 +1894,7 @@ PYTHON
 }
 
 @test "Linux falls back to aplay when no other backend available" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay" "$TEST_DIR/.disabled_mpv" "$TEST_DIR/.disabled_play"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -1888,7 +1904,7 @@ PYTHON
 }
 
 @test "Linux continues gracefully when no audio backend available" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   for player in pw-play paplay ffplay mpv play aplay; do
     touch "$TEST_DIR/.disabled_${player}"
   done
@@ -1903,7 +1919,7 @@ PYTHON
 # ============================================================
 
 @test "Linux pw-play uses --volume with decimal" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   for player in paplay ffplay mpv play aplay; do
     touch "$TEST_DIR/.disabled_${player}"
   done
@@ -1917,7 +1933,7 @@ JSON
 }
 
 @test "Linux paplay scales volume to PulseAudio range" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play"
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
@@ -1930,7 +1946,7 @@ JSON
 }
 
 @test "Linux ffplay scales volume to 0-100" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay"
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
@@ -1943,7 +1959,7 @@ JSON
 }
 
 @test "Linux mpv scales volume to 0-100" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay"
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {} }
@@ -1956,7 +1972,7 @@ JSON
 }
 
 @test "Linux play (SoX) uses -v with decimal" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay" "$TEST_DIR/.disabled_mpv"
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
@@ -1968,7 +1984,7 @@ JSON
 }
 
 @test "Linux aplay does not support volume control" {
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   touch "$TEST_DIR/.disabled_pw-play" "$TEST_DIR/.disabled_paplay" "$TEST_DIR/.disabled_ffplay" "$TEST_DIR/.disabled_mpv" "$TEST_DIR/.disabled_play"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   linux_audio_was_called
@@ -1983,7 +1999,7 @@ JSON
 # ============================================================
 
 @test "devcontainer plays sound via relay curl" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -1994,7 +2010,7 @@ JSON
 }
 
 @test "devcontainer does not call afplay or linux audio" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2003,14 +2019,14 @@ JSON
 }
 
 @test "devcontainer exits cleanly when relay unavailable" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   # .relay_available NOT created, so mock curl returns exit 7
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
 }
 
 @test "devcontainer SessionStart shows relay guidance when relay unavailable" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   rm -f "$TEST_DIR/.relay_available"  # Remove to simulate relay unavailable
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2019,7 +2035,7 @@ JSON
 }
 
 @test "devcontainer SessionStart does NOT show relay guidance when relay available" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2027,7 +2043,7 @@ JSON
 }
 
 @test "devcontainer relay respects PEON_RELAY_HOST override" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   export PEON_RELAY_HOST="custom.host.local"
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2037,7 +2053,7 @@ JSON
 }
 
 @test "devcontainer relay respects PEON_RELAY_PORT override" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   export PEON_RELAY_PORT="12345"
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2047,7 +2063,7 @@ JSON
 }
 
 @test "devcontainer volume passed in X-Volume header" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.7, "enabled": true, "categories": {} }
 JSON
@@ -2059,7 +2075,7 @@ JSON
 }
 
 @test "devcontainer Stop event plays via relay" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2069,7 +2085,7 @@ JSON
 }
 
 @test "devcontainer notification sent via relay POST" {
-  export PLATFORM=devcontainer
+  export PEON_PLATFORM=devcontainer
   touch "$TEST_DIR/.relay_available"
   # PermissionRequest triggers notification
   run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2084,7 +2100,7 @@ JSON
 # ============================================================
 
 @test "ssh plays sound via relay curl" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2095,7 +2111,7 @@ JSON
 }
 
 @test "ssh does not call afplay or linux audio" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2104,14 +2120,14 @@ JSON
 }
 
 @test "ssh exits cleanly when relay unavailable" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   # .relay_available NOT created, so mock curl returns exit 7
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
 }
 
 @test "ssh local mode plays locally and skips relay" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
   "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
@@ -2125,7 +2141,7 @@ JSON
 }
 
 @test "ssh auto mode falls back to local when relay is unavailable" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   export LINUX_AUDIO_PLAYER="ffplay"
   rm -f "$TEST_DIR/.relay_available"
   cat > "$TEST_DIR/config.json" <<'JSON'
@@ -2140,7 +2156,7 @@ JSON
 }
 
 @test "ssh SessionStart shows relay guidance when relay unavailable" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   rm -f "$TEST_DIR/.relay_available"  # Remove to simulate relay unavailable
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2150,7 +2166,7 @@ JSON
 }
 
 @test "ssh SessionStart does NOT show relay guidance when relay available" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -2158,7 +2174,7 @@ JSON
 }
 
 @test "ssh local mode does not show relay guidance" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
   "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
@@ -2171,7 +2187,7 @@ JSON
 }
 
 @test "ssh relay uses localhost as default host" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   relay_was_called
@@ -2180,7 +2196,7 @@ JSON
 }
 
 @test "ssh relay respects PEON_RELAY_HOST override" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   export PEON_RELAY_HOST="custom.host.local"
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2190,7 +2206,7 @@ JSON
 }
 
 @test "ssh relay respects PEON_RELAY_PORT override" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   export PEON_RELAY_PORT="12345"
   touch "$TEST_DIR/.relay_available"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2200,7 +2216,7 @@ JSON
 }
 
 @test "ssh notification sent via relay POST" {
-  export PLATFORM=ssh
+  export PEON_PLATFORM=ssh
   touch "$TEST_DIR/.relay_available"
   # PermissionRequest triggers notification
   run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2853,7 +2869,7 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   # On mac (default platform in tests), the overlay is invoked via osascript.
   # peon.sh should append the IDE ancestor PID as the 7th positional argument.
   # In the test environment there is no Cursor ancestor, so _ide_pid=0 is expected.
-  export PLATFORM=mac
+  export PEON_PLATFORM=mac
   mkdir -p "$TEST_DIR/scripts"
   touch "$TEST_DIR/scripts/mac-overlay.js"
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -2867,7 +2883,7 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
 }
 
 @test "mac overlay IDE PID argument is numeric" {
-  export PLATFORM=mac
+  export PEON_PLATFORM=mac
   mkdir -p "$TEST_DIR/scripts"
   touch "$TEST_DIR/scripts/mac-overlay.js"
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
@@ -4281,7 +4297,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   enable_debug_logging
   # Force linux platform and remove ALL audio backends from PATH so
   # detect_linux_player fails and play_sound logs [play] error=
-  export PLATFORM=linux
+  export PEON_PLATFORM=linux
   # Build a PATH with only python3 and basic utils — no audio players
   local clean_bin
   clean_bin="$(mktemp -d)"
@@ -4295,7 +4311,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   export PATH="$clean_bin"
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-nobackend"}'
   export PATH="$saved_path"
-  unset PLATFORM
+  unset PEON_PLATFORM
   [ "$PEON_EXIT" -eq 0 ]
   local today
   today=$(date '+%Y-%m-%d')
