@@ -120,7 +120,16 @@ if [ ! -f "$PEON_CONFIG_DIR/config.json" ]; then
   "spam_threshold": 3,
   "spam_window_seconds": 10,
   "pack_rotation": [],
-  "debounce_ms": 500
+  "debounce_ms": 500,
+  "trainer": {
+    "enabled": false,
+    "exercises": {
+      "pushups": 300,
+      "squats": 300
+    },
+    "reminder_interval_minutes": 20,
+    "reminder_min_gap_minutes": 5
+  }
 }
 CONFIGEOF
   info "Config created at $PEON_CONFIG_DIR/config.json"
@@ -176,6 +185,35 @@ for p in reg.get('packs', []):
   fi
 else
   info "Pack '$DEFAULT_PACK' already installed."
+fi
+
+# --- Install trainer voice packs ---
+TRAINER_INSTALL_DIR="$HOME/.openpeon/trainer"
+if [ ! -f "$TRAINER_INSTALL_DIR/manifest.json" ]; then
+  info "Installing trainer voice packs..."
+  mkdir -p "$TRAINER_INSTALL_DIR/sounds"
+
+  TRAINER_MANIFEST_URL="https://raw.githubusercontent.com/PeonPing/peon-ping/main/trainer/manifest.json"
+  if curl -fsSL "$TRAINER_MANIFEST_URL" -o "$TRAINER_INSTALL_DIR/manifest.json" 2>/dev/null; then
+    # Parse manifest to download all trainer sounds
+    python3 -c "
+import json
+m = json.load(open('$TRAINER_INSTALL_DIR/manifest.json'))
+for cat in m.values():
+    for s in cat:
+        print(s['file'])
+" 2>/dev/null | while read -r sfile; do
+      mkdir -p "$TRAINER_INSTALL_DIR/$(dirname "$sfile")"
+      curl -fsSL "https://raw.githubusercontent.com/PeonPing/peon-ping/main/trainer/$sfile" \
+        -o "$TRAINER_INSTALL_DIR/$sfile" 2>/dev/null || true
+    done
+    info "Trainer voice packs installed to $TRAINER_INSTALL_DIR"
+  else
+    warn "Could not download trainer manifest. Trainer reminders will not work."
+    rm -rf "$TRAINER_INSTALL_DIR"
+  fi
+else
+  info "Trainer voice packs already installed."
 fi
 
 # --- Done ---

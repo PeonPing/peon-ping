@@ -48,6 +48,13 @@ type CESPCategory =
   | "resource.limit"
   | "user.spam"
 
+type TrainerCategory =
+  | "trainer.session_start"
+  | "trainer.remind"
+  | "trainer.log"
+  | "trainer.complete"
+  | "trainer.slacking"
+
 const CESP_CATEGORIES: readonly CESPCategory[] = [
   "session.start",
   "session.end",
@@ -58,6 +65,14 @@ const CESP_CATEGORIES: readonly CESPCategory[] = [
   "input.required",
   "resource.limit",
   "user.spam",
+] as const
+
+const TRAINER_CATEGORIES: readonly TrainerCategory[] = [
+  "trainer.session_start",
+  "trainer.remind",
+  "trainer.log",
+  "trainer.complete",
+  "trainer.slacking",
 ] as const
 
 interface CESPSound {
@@ -87,9 +102,16 @@ interface CESPManifest {
   category_aliases?: Record<string, CESPCategory>
 }
 
+interface TrainerConfig {
+  enabled: boolean
+  exercises: Record<string, number>
+  reminder_interval_minutes: number
+  reminder_min_gap_minutes: number
+}
+
 interface PeonConfig {
   default_pack: string
-  active_pack?: string // legacy alias for default_pack
+  active_pack?: string
   volume: number
   enabled: boolean
   desktop_notifications: boolean
@@ -103,12 +125,20 @@ interface PeonConfig {
   debounce_ms: number
   relay_host?: string
   relay_port?: number
+  trainer?: TrainerConfig
+}
+
+interface TrainerState {
+  date: string
+  reps: Record<string, number>
+  last_reminder_ts: number
 }
 
 interface PeonState {
   last_played: Partial<Record<CESPCategory, string>>
   session_packs: Record<string, string>
   last_session_start_sound_time?: number
+  trainer?: TrainerState
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +208,12 @@ const DEFAULT_CONFIG: PeonConfig = {
   session_start_cooldown_seconds: 30,
   pack_rotation: [],
   debounce_ms: 500,
+  trainer: {
+    enabled: false,
+    exercises: { pushups: 300, squats: 300 },
+    reminder_interval_minutes: 20,
+    reminder_min_gap_minutes: 5,
+  },
 }
 
 const TERMINAL_APPS = [
@@ -390,6 +426,114 @@ function resolveActivePack(
 
 function escapeAppleScript(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+}
+
+// ---------------------------------------------------------------------------
+// Trainer: Manifest & Reminder Logic
+// ---------------------------------------------------------------------------
+
+interface TrainerManifest {
+  [category: string]: Array<{ file: string; label: string }>
+}
+
+const TRAINER_DIR = path.join(os.homedir(), ".openpeon", "trainer")
+const TRAINER_MANIFEST_PATH = path.join(TRAINER_DIR, "manifest.json")
+
+function loadTrainerManifest(): TrainerManifest | null {
+  try {
+    const raw = fs.readFileSync(TRAINER_MANIFEST_PATH, "utf8")
+    return JSON.parse(raw) as TrainerManifest
+  } catch {
+    return null
+  }
+}
+
+function pickTrainerSound(
+  manifest: TrainerManifest,
+  category: TrainerCategory,
+): { filePath: string; label: string } | null {
+  const sounds = manifest[category]
+  if (!sounds || sounds.length === 0) return null
+  const pick = sounds[Math.floor(Math.random() * sounds.length)]
+  const filePath = path.join(TRAINER_DIR, pick.file)
+  if (!fs.existsSync(filePath)) return null
+  return { filePath, label: pick.label }
+}
+
+function checkTrainerReminder(
+  config: PeonConfig,
+  state: PeonState,
+  isSessionStart: boolean,
+): { category: TrainerCategory; sound: { filePath: string; label: string }; msg: string } | null {
+  const trainerCfg = config.trainer
+  if (!trainerCfg?.enabled) return null
+
+  const manifest = loadTrainerManifest()
+  if (!manifest) return null
+
+  const today = new Date().toISOString().slice(0, 10)
+  const defaultExercises: Record<string, number> = { pushups: 300, squats: 300 }
+  const exercises = trainerCfg.exercises || defaultExercises
+
+  let trainerState = state.trainer
+  if (!trainerState || trainerState.date !== today) {
+    trainerState = {
+      date: today,
+      reps: Object.fromEntries(Object.keys(exercises).map((k) => [k, 0])),
+      last_reminder_ts: 0,
+    }
+  }
+
+  const reps = trainerState.reps
+  const allDone = Object.entries(exercises).every(
+    ([ex, goal]) => (reps[ex] || 0) >= goal,
+  )
+  if (allDone) {
+    state.trainer = trainerState
+    return null
+  }
+
+  const nowTs = Date.now() / 1000
+  const lastTs = trainerState.last_reminder_ts || 0
+  const interval = (trainerCfg.reminder_interval_minutes || 20) * 60
+  const minGap = (trainerCfg.reminder_min_gap_minutes || 5) * 60
+  const elapsed = nowTs - lastTs
+
+  if (!isSessionStart && (elapsed < interval || elapsed < minGap)) {
+    state.trainer = trainerState
+    return null
+  }
+
+  let tcat: TrainerCategory
+  if (isSessionStart) {
+    tcat = "trainer.session_start"
+  } else {
+    const hour = new Date().getHours()
+    const totalReps = Object.values(reps).reduce((a, b) => a + (b || 0), 0)
+    const totalGoal = Object.values(exercises).reduce((a, b) => a + b, 0)
+    const pct = totalGoal > 0 ? totalReps / totalGoal : 1
+    if (hour >= 12 && pct < 0.25) {
+      tcat = "trainer.slacking"
+    } else {
+      tcat = "trainer.remind"
+    }
+  }
+
+  const sound = pickTrainerSound(manifest, tcat)
+  if (!sound) {
+    state.trainer = trainerState
+    return null
+  }
+
+  trainerState.last_reminder_ts = Math.floor(nowTs)
+  state.trainer = trainerState
+
+  const parts = Object.entries(exercises).map(
+    ([ex, goal]) => `${ex}: ${reps[ex] || 0}/${goal}`,
+  )
+  const msg = parts.join(" | ")
+
+  return { category: tcat, sound, msg }
 }
 
 function createDebounceChecker(
@@ -790,6 +934,30 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
         const soundPath = path.join(packDir, pickedSound.file)
         playSound(soundPath, config.volume, runtimePlatform, relay, packsDir)
         saveState(currentState)
+      }
+
+      // Trainer reminder — check after main sound plays
+      const isSessionStart = category === "session.start"
+      const trainerResult = checkTrainerReminder(config, currentState, isSessionStart)
+      if (trainerResult) {
+        saveState(currentState)
+        // Play trainer sound after a brief delay for natural spacing
+        setTimeout(() => {
+          playSound(trainerResult.sound.filePath, config.volume, runtimePlatform, relay, packsDir)
+          if (config.desktop_notifications !== false) {
+            sendNotification(
+              {
+                title: "Peon Trainer",
+                body: trainerResult.msg || "Time for reps!",
+                group: "peon-ping-trainer",
+                iconPath: iconPath || undefined,
+              },
+              terminalNotifierPath,
+              runtimePlatform,
+              relay,
+            )
+          }
+        }, 1500)
       }
     }
 
