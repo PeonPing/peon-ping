@@ -4425,7 +4425,7 @@ if [ -n "${TRAINER_SOUND:-}" ] && [ -f "$TRAINER_SOUND" ]; then
       fi
       # Brief pause after main sound ends for natural spacing
       sleep 0.5
-      local _trainer_focused=""
+      _trainer_focused=""
       if [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
         terminal_is_focused && _trainer_focused=true || _trainer_focused=false
         [ "$_trainer_focused" != "true" ] && play_sound "$TRAINER_SOUND" "$VOLUME"
