@@ -1,6 +1,0 @@
-{"event":"init","ts":"2026-03-26T07:03:48Z","role":"reviewer","sprint":"HOOKLOG","card":"ah4y1j","cycle":1}
-{"event":"read-diff","ts":"2026-03-26T07:04:45Z","data":{"commit":"ab9f5da"}}
-{"event":"read-card","ts":"2026-03-26T07:04:45Z","data":{"card_id":"ah4y1j"}}
-{"event":"write-review","ts":"2026-03-26T07:04:46Z","data":{"verdict":"APPROVAL"}}
-{"event":"card-status-change","ts":"2026-03-26T07:04:46Z","data":{"new_status":"in_progress"}}
-{"event":"summary","ts":"2026-03-26T07:04:46Z","data":{"verdict":"APPROVAL","blockers":0,"followups":0}}

@@ -1,4 +1,0 @@
-{"ts":"2026-03-26T00:00:00Z","role":"router","sprint":"HOOKLOG","card":"oln59n","cycle":1,"event":"read-review","data":{"file":".gitban/agents/reviewer/inbox/HOOKLOG-oln59n-reviewer-1.md","verdict":"APPROVAL"}}
-{"ts":"2026-03-26T00:00:00Z","role":"router","sprint":"HOOKLOG","card":"oln59n","cycle":1,"event":"write-executor-inbox","data":{"file":".gitban/agents/executor/inbox/HOOKLOG-oln59n-executor-1.md"}}
-{"ts":"2026-03-26T00:00:00Z","role":"router","sprint":"HOOKLOG","card":"oln59n","cycle":1,"event":"card-update","data":{"action":"append"}}
-{"ts":"2026-03-26T00:00:00Z","role":"router","sprint":"HOOKLOG","card":"oln59n","cycle":1,"event":"summary","data":{"verdict":"APPROVAL","blockers":0,"followups":0,"executor_file":".gitban/agents/executor/inbox/HOOKLOG-oln59n-executor-1.md","planner_file":null}}

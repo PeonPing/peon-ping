@@ -1,9 +1,0 @@
-{"ts":"2026-03-23T00:07:30Z","tool":"Read","input":{"file_path":"C:\\Users\\Cameron\\Projects\\peon-ping\\.gitban\\agents\\planner\\inbox\\WINTRAIN-hchc5z-planner-1.md"},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:07:33Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__search_cards,mcp__gitban__create_card","max_results":"2"},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:07:37Z","tool":"mcp__gitban__search_cards","input":{"query":"Pester Invoke-PeonCli argument"},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:07:38Z","tool":"mcp__gitban__search_cards","input":{"query":"splatting quoting trainer"},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:07:42Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__list_templates","max_results":"1"},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:07:45Z","tool":"mcp__gitban__list_templates","input":{},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:07:49Z","tool":"ToolSearch","input":{"query":"select:mcp__gitban__read_template","max_results":"1"},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:07:52Z","tool":"mcp__gitban__read_template","input":{"name":"refactor"},"agent_id":"ab597fed","agent_type":"general-purpose"}
-{"ts":"2026-03-23T00:08:35Z","tool":"mcp__gitban__create_card","input":{"title":"Harden Pester test helper argument handling","priority":"P2","status":"backlog","template":"refactor","sprint":"WINTRAIN","content":"## Refactoring Overview & Motivation\n\n* **Refactoring Target:** `Invoke-PeonCli` helper function argument construction\n* **Code Location:** `tests/trainer-windows.Tests.ps1`\n* **Refactoring Type:** Re..."},"agent_id":"ab597fed","agent_type":"general-purpose"}

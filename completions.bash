@@ -83,7 +83,7 @@ _peon_completions() {
   fi
 
   # Top-level commands
-  COMPREPLY=( $(compgen -W "pause resume mute unmute toggle status volume rotation packs notifications mobile relay debug logs help" -- "$cur") )
+  COMPREPLY=( $(compgen -W "pause resume mute unmute toggle status volume rotation packs notifications mobile relay debug logs update help" -- "$cur") )
   return 0
 }
 

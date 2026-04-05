@@ -1,8 +1,0 @@
-{"timestamp":"2026-03-22T00:19:06Z","operation":"init","role":"reviewer","sprint":"WINFOCUS","card_id":"afe3sm","cycle":1}
-{"timestamp":"2026-03-22T00:19:06Z","operation":"event","label":"read-diff","metadata":{"commit":"78bbc27"}}
-{"timestamp":"2026-03-22T00:19:07Z","operation":"event","label":"read-card","metadata":{"card_id":"afe3sm"}}
-{"timestamp":"2026-03-22T00:19:07Z","operation":"event","label":"read-adr","metadata":{"file":"ADR-001-windows-toast-activation-mechanism.md"}}
-{"timestamp":"2026-03-22T00:19:07Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && export AGENT_LOG_DIR=\".gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"WINFOCUS\" && export AGENT_CARD_ID=\"afe3sm\" && export AGENT_CYCLE=\"1\" && source .gitban/hooks/agent-log.sh && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"78bbc27\"}' && agent_log_event \"read-card\" '{\"card_id\":\"afe3sm\"}' && agent_log_event \"read-adr\" '{\"file\":\"ADR-001-windows-toast-activation-mechanism.md\"}'"}
-{"timestamp":"2026-03-22T00:19:24Z","operation":"hook_cmd","command":"ls C:/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/inbox/ 2>/dev/null || mkdir -p C:/Users/Cameron/Projects/peon-ping/.gitban/agents/reviewer/inbox"}
-{"timestamp":"2026-03-22T00:20:21Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && git add .gitban/agents/reviewer/inbox/WINFOCUS-afe3sm-reviewer-1.md"}
-{"timestamp":"2026-03-22T00:21:10Z","operation":"hook_cmd","command":"ls scripts/agent-log.sh 2>/dev/null || echo \"NOT FOUND\" && ls .gitban/hooks/agent-log.sh 2>/dev/null || echo \"NOT IN HOOKS EITHER\""}

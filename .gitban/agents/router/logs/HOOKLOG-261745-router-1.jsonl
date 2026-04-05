@@ -1,5 +1,0 @@
-{"timestamp":"2026-03-26T06:54:46Z","operation":"init","role":"router","sprint":"HOOKLOG","card_id":"261745","cycle":1}
-{"timestamp":"2026-03-26T06:54:46Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/HOOKLOG-261745-reviewer-1.md","verdict":"APPROVAL"}}
-{"timestamp":"2026-03-26T06:54:46Z","operation":"event","label":"write-executor-inbox","metadata":{"file":".gitban/agents/executor/inbox/HOOKLOG-261745-executor-1.md"}}
-{"timestamp":"2026-03-26T06:54:46Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
-{"timestamp":"2026-03-26T06:54:46Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

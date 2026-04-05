@@ -1,5 +1,0 @@
-{"event":"init","role":"router","sprint":"HOOKLOG","card":"r0qoai","cycle":1,"ts":"2026-03-26T19:23:49Z"}
-{"event":"read-review","file":"HOOKLOG-r0qoai-reviewer-1.md","verdict":"APPROVAL","ts":"2026-03-26T19:23:49Z"}
-{"event":"write-executor-inbox","file":"HOOKLOG-r0qoai-executor-1.md","ts":"2026-03-26T19:23:49Z"}
-{"event":"card-update","action":"append","ts":"2026-03-26T19:23:49Z"}
-{"event":"summary","verdict":"APPROVAL","executor_files":1,"planner_files":0,"ts":"2026-03-26T19:23:49Z"}

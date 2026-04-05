@@ -1,9 +1,0 @@
-{"timestamp":"2026-03-14T08:27:22Z","operation":"init","role":"executor","sprint":"HOOKBUG","card_id":"kydihy","cycle":1}
-{"timestamp":"2026-03-14T08:27:33Z","operation":"init","role":"executor","sprint":"HOOKBUG","card_id":"kydihy","cycle":1}
-{"timestamp":"2026-03-14T08:27:33Z","operation":"event","label":"read-card","metadata":{"card_id":"kydihy"}}
-{"timestamp":"2026-03-14T08:32:29Z","operation":"init","role":"executor","sprint":"HOOKBUG","card_id":"kydihy","cycle":1}
-{"timestamp":"2026-03-14T08:32:29Z","operation":"event","label":"code-change","metadata":{"files":["peon.sh","install.ps1","tests/peon.bats"]}}
-{"timestamp":"2026-03-14T08:32:30Z","operation":"event","label":"test-run","metadata":{"type":"python-unit","passed":4,"failed":0}}
-{"timestamp":"2026-03-14T08:32:30Z","operation":"event","label":"test-run","metadata":{"type":"powershell-unit","passed":3,"failed":0}}
-{"timestamp":"2026-03-14T08:32:30Z","operation":"event","label":"commit","metadata":{"hash":"bf77f49","message":"feat: atomic state writes and retry-on-read for both platforms"}}
-{"timestamp":"2026-03-14T08:32:30Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

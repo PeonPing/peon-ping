@@ -1,5 +1,0 @@
-{"ts":"2026-03-26T14:17:45Z","event":"init","role":"router","sprint":"HOOKLOG","card":"px9k89","cycle":1}
-{"ts":"2026-03-26T14:17:45Z","event":"read-review","data":{"file":"HOOKLOG-px9k89-reviewer-1.md","verdict":"REJECTION"}}
-{"ts":"2026-03-26T14:17:45Z","event":"write-executor-inbox","data":{"file":"HOOKLOG-px9k89-executor-1.md"}}
-{"ts":"2026-03-26T14:17:45Z","event":"card-update","data":{"action":"append"}}
-{"ts":"2026-03-26T14:17:45Z","event":"summary","data":{"verdict":"REJECTION","blockers":3,"followups":0,"executor_files":1,"planner_files":0}}

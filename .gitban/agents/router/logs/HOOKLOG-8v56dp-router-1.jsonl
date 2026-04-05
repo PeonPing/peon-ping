@@ -1,5 +1,0 @@
-{"event":"init","role":"router","sprint":"HOOKLOG","card_id":"8v56dp","cycle":1,"ts":"2026-03-26T00:00:00Z"}
-{"event":"read-review","file":".gitban/agents/reviewer/inbox/HOOKLOG-8v56dp-reviewer-1.md","verdict":"APPROVAL","ts":"2026-03-26T00:00:00Z"}
-{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/HOOKLOG-8v56dp-executor-1.md","ts":"2026-03-26T00:00:00Z"}
-{"event":"card-update","action":"append","card_id":"8v56dp","ts":"2026-03-26T00:00:00Z"}
-{"event":"summary","verdict":"APPROVAL","blockers":0,"closeout_items":0,"planner_cards":0,"ts":"2026-03-26T00:00:00Z"}

@@ -1,9 +1,0 @@
-{"timestamp":"2026-03-26T14:50:04Z","operation":"init","role":"reviewer","sprint":"HOOKLOG","card_id":"px9k89","cycle":3}
-{"timestamp":"2026-03-26T14:50:04Z","operation":"event","label":"read-diff","metadata":{"commit":"39919f4"}}
-{"timestamp":"2026-03-26T14:50:04Z","operation":"event","label":"read-card","metadata":{"card_id":"px9k89"}}
-{"timestamp":"2026-03-26T14:50:05Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-aa66a5b1 && source C:/Users/Cameron/Projects/peon-ping/.gitban/hooks/agent-log.sh && export AGENT_LOG_DIR=\"C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-aa66a5b1/.gitban/agents/reviewer/logs\" && export AGENT_ROLE=\"reviewer\" && export AGENT_SPRINT_TAG=\"HOOKLOG\" && export AGENT_CARD_ID=\"px9k89\" && export AGENT_CYCLE=\"3\" && agent_log_init && agent_log_event \"read-diff\" '{\"commit\":\"39919f4\"}' && agent_log_event \"read-card\" '{\"card_id\":\"px9k89\"}' && echo \"done\""}
-{"timestamp":"2026-03-26T14:50:14Z","operation":"hook_cmd","command":"mkdir -p C:/Users/Cameron/Projects/peon-ping/.claude/worktrees/agent-aa66a5b1/.gitban/agents/reviewer/inbox"}
-{"timestamp":"2026-03-26T14:51:01Z","operation":"init","role":"reviewer","sprint":"HOOKLOG","card_id":"px9k89","cycle":3}
-{"timestamp":"2026-03-26T14:51:01Z","operation":"event","label":"write-review","metadata":{"verdict":"APPROVAL"}}
-{"timestamp":"2026-03-26T14:51:01Z","operation":"event","label":"card-status-change","metadata":{"new_status":"in_progress"}}
-{"timestamp":"2026-03-26T14:51:01Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":0}

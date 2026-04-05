@@ -1,5 +1,0 @@
-{"ts":"2026-03-26T04:06:59Z","role":"planner","sprint":"HOOKLOG","card":"u48cb6","cycle":2,"event":"init"}
-{"ts":"2026-03-26T04:06:59Z","role":"planner","sprint":"HOOKLOG","card":"u48cb6","cycle":2,"event":"read-inbox","data":{"file":"HOOKLOG-u48cb6-planner-1.md"}}
-{"ts":"2026-03-26T04:06:59Z","role":"planner","sprint":"HOOKLOG","card":"u48cb6","cycle":2,"event":"search-existing","data":{"query":"_peon_log timestamp newline _log_quote","duplicates_found":1,"duplicate_card":"288ewn"}}
-{"ts":"2026-03-26T04:06:59Z","role":"planner","sprint":"HOOKLOG","card":"u48cb6","cycle":2,"event":"skip-group","data":{"reason":"all items already tracked in card 288ewn","group":"Card 1: Harden bash-side log helpers"}}
-{"ts":"2026-03-26T04:06:59Z","role":"planner","sprint":"HOOKLOG","card":"u48cb6","cycle":2,"event":"summary","data":{"cards_created":0,"cards_skipped":1,"reason":"all 2 items in 1 group already tracked by existing card 288ewn"}}

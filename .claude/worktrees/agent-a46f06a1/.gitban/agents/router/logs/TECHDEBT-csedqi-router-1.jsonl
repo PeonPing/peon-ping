@@ -1,6 +1,0 @@
-{"event":"init","role":"router","sprint":"TECHDEBT","card_id":"csedqi","cycle":1,"ts":"2026-03-16T00:00:00Z"}
-{"event":"read-review","file":".gitban/agents/reviewer/inbox/TECHDEBT-csedqi-reviewer-1.md","verdict":"REJECTION","ts":"2026-03-16T00:00:00Z"}
-{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/TECHDEBT-csedqi-executor-1.md","ts":"2026-03-16T00:00:00Z"}
-{"event":"write-planner-inbox","file":".gitban/agents/planner/inbox/TECHDEBT-csedqi-planner-1.md","ts":"2026-03-16T00:00:00Z"}
-{"event":"card-update","action":"append","ts":"2026-03-16T00:00:00Z"}
-{"event":"summary","blockers_routed":1,"backlog_items":2,"backlog_cards_created":1,"classification":"1 FASTFOLLOW","ts":"2026-03-16T00:00:00Z"}

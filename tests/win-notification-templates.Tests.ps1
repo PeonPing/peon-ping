@@ -182,6 +182,44 @@ Describe "Notifications: Syntax Validation" {
 }
 
 # ============================================================
+# Resolve-TemplateKey Unit Tests (shared helper)
+# ============================================================
+
+Describe "Resolve-TemplateKey: category-to-key mapping" {
+    BeforeAll {
+        # Extract Resolve-TemplateKey function from peon.ps1 and load it
+        $content = Get-PeonPs1Content
+        $fnMatch = [regex]::Match($content, '(?ms)(function Resolve-TemplateKey \{.+?\n\})')
+        if (-not $fnMatch.Success) { throw "Could not extract Resolve-TemplateKey from peon.ps1" }
+        Invoke-Expression $fnMatch.Groups[1].Value
+    }
+
+    It "maps task.complete to stop" {
+        Resolve-TemplateKey -Category "task.complete" -Event "Stop" -Ntype "" | Should -Be "stop"
+    }
+
+    It "maps task.error to error" {
+        Resolve-TemplateKey -Category "task.error" -Event "PostToolUseFailure" -Ntype "" | Should -Be "error"
+    }
+
+    It "maps Notification with idle_prompt to idle" {
+        Resolve-TemplateKey -Category "" -Event "Notification" -Ntype "idle_prompt" | Should -Be "idle"
+    }
+
+    It "maps Notification with elicitation_dialog to question" {
+        Resolve-TemplateKey -Category "" -Event "Notification" -Ntype "elicitation_dialog" | Should -Be "question"
+    }
+
+    It "maps PermissionRequest to permission" {
+        Resolve-TemplateKey -Category "" -Event "PermissionRequest" -Ntype "" | Should -Be "permission"
+    }
+
+    It "returns null for unknown category" {
+        Resolve-TemplateKey -Category "session.start" -Event "SessionStart" -Ntype "" | Should -BeNullOrEmpty
+    }
+}
+
+# ============================================================
 # Template CLI (13 tests — mirrors Unix BATS)
 # ============================================================
 

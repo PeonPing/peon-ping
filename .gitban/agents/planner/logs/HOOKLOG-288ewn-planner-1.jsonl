@@ -1,7 +1,0 @@
-{"ts":"2026-03-26T04:39:11Z","role":"planner","sprint":"HOOKLOG","card":"288ewn","cycle":1,"event":"read-inbox","data":{"file":"HOOKLOG-u48cb6-planner-1.md"}}
-{"ts":"2026-03-26T04:39:11Z","role":"planner","sprint":"HOOKLOG","card":"288ewn","cycle":1,"event":"read-inbox","data":{"file":"HOOKLOG-77eri8-planner-1.md"}}
-{"ts":"2026-03-26T04:39:11Z","role":"planner","sprint":"HOOKLOG","card":"288ewn","cycle":1,"event":"search-existing","data":{"query":"timestamp precision + newline escaping","duplicates_found":1,"duplicate_card":"288ewn"}}
-{"ts":"2026-03-26T04:39:11Z","role":"planner","sprint":"HOOKLOG","card":"288ewn","cycle":1,"event":"search-existing","data":{"query":"test fixtures coverage gaps","duplicates_found":0}}
-{"ts":"2026-03-26T04:39:11Z","role":"planner","sprint":"HOOKLOG","card":"288ewn","cycle":1,"event":"skip-group","data":{"reason":"duplicate of card 288ewn","inbox":"HOOKLOG-u48cb6-planner-1.md"}}
-{"ts":"2026-03-26T04:39:11Z","role":"planner","sprint":"HOOKLOG","card":"288ewn","cycle":1,"event":"create-card","data":{"card_id":"ce8ljj","type":"refactor","title":"step-2c-harden-hook-logging-test-fixtures-and-coverage-gaps"}}
-{"ts":"2026-03-26T04:39:11Z","role":"planner","sprint":"HOOKLOG","card":"288ewn","cycle":1,"event":"summary","data":{"inbox_files_read":2,"groups_skipped":1,"cards_created":1,"cards_created_ids":["ce8ljj"]}}

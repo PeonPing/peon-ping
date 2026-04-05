@@ -1,8 +1,0 @@
-{"timestamp":"2026-03-20T22:17:11Z","operation":"init","role":"router","sprint":"WINTEST","card_id":"cb0gpg","cycle":2}
-{"timestamp":"2026-03-20T22:17:11Z","operation":"hook_cmd","command":"cd C:/Users/Cameron/Projects/peon-ping && export AGENT_LOG_DIR=\".gitban/agents/router/logs\" && export AGENT_ROLE=\"router\" && export AGENT_SPRINT_TAG=\"WINTEST\" && export AGENT_CARD_ID=\"cb0gpg\" && export AGENT_CYCLE=\"2\" && source .gitban/hooks/agent-log.sh && agent_log_init 2>&1"}
-{"timestamp":"2026-03-20T22:17:49Z","operation":"hook_cmd","command":"ls C:/Users/Cameron/Projects/peon-ping/.gitban/agents/executor/inbox/ 2>/dev/null"}
-{"timestamp":"2026-03-20T22:18:54Z","operation":"init","role":"router","sprint":"WINTEST","card_id":"cb0gpg","cycle":2}
-{"timestamp":"2026-03-20T22:18:55Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/WINTEST-cb0gpg-reviewer-2.md","verdict":"APPROVAL"}}
-{"timestamp":"2026-03-20T22:18:55Z","operation":"event","label":"write-executor-inbox","metadata":{"file":".gitban/agents/executor/inbox/WINTEST-cb0gpg-executor-2.md"}}
-{"timestamp":"2026-03-20T22:18:55Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
-{"timestamp":"2026-03-20T22:18:55Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

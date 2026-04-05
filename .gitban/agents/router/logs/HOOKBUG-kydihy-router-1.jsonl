@@ -1,6 +1,0 @@
-{"timestamp":"2026-03-14T08:38:47Z","operation":"init","role":"router","sprint":"HOOKBUG","card_id":"kydihy","cycle":1}
-{"timestamp":"2026-03-14T08:40:00Z","operation":"event","label":"read-review","metadata":{"file":".gitban/agents/reviewer/inbox/HOOKBUG-kydihy-reviewer-1.md","verdict":"APPROVAL"}}
-{"timestamp":"2026-03-14T08:40:00Z","operation":"event","label":"write-executor-inbox","metadata":{"file":".gitban/agents/executor/inbox/HOOKBUG-kydihy-executor-1.md"}}
-{"timestamp":"2026-03-14T08:40:01Z","operation":"event","label":"write-planner-inbox","metadata":{"file":".gitban/agents/planner/inbox/HOOKBUG-kydihy-planner-1.md"}}
-{"timestamp":"2026-03-14T08:40:01Z","operation":"event","label":"card-update","metadata":{"action":"append"}}
-{"timestamp":"2026-03-14T08:40:01Z","operation":"summary","total_commands":0,"failed_commands":0,"total_duration_s":1}

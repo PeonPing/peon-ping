@@ -45,5 +45,13 @@
     },
     "reminder_interval_minutes": 20,
     "reminder_min_gap_minutes": 5
+  },
+  "tts": {
+    "enabled": false,
+    "backend": "auto",
+    "voice": "default",
+    "rate": 1.0,
+    "volume": 0.5,
+    "mode": "sound-then-speak"
   }
 }

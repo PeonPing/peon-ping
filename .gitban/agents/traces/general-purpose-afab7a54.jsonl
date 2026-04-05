@@ -1,3 +1,0 @@
-{"ts":"2026-03-21T22:26:18Z","tool":"ToolSearch","input":{"query":"gitban card","max_results":"10"},"agent_id":"afab7a54","agent_type":"general-purpose"}
-{"ts":"2026-03-21T22:26:23Z","tool":"mcp__gitban__read_card","input":{"card_id":"w7eys1"},"agent_id":"afab7a54","agent_type":"general-purpose"}
-{"ts":"2026-03-21T22:26:24Z","tool":"mcp__gitban__read_card","input":{"card_id":"afe3sm"},"agent_id":"afab7a54","agent_type":"general-purpose"}

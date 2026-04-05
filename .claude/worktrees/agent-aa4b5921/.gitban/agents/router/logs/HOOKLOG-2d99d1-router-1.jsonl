@@ -1,6 +1,0 @@
-{"event":"init","role":"router","sprint":"HOOKLOG","card":"2d99d1","cycle":1,"ts":"2026-03-26T00:00:00Z"}
-{"event":"read-review","file":".gitban/agents/reviewer/inbox/HOOKLOG-2d99d1-reviewer-1.md","verdict":"APPROVAL","ts":"2026-03-26T00:00:00Z"}
-{"event":"write-executor-inbox","file":".gitban/agents/executor/inbox/HOOKLOG-2d99d1-executor-1.md","ts":"2026-03-26T00:00:00Z"}
-{"event":"write-planner-inbox","file":".gitban/agents/planner/inbox/HOOKLOG-2d99d1-planner-1.md","ts":"2026-03-26T00:00:00Z"}
-{"event":"card-update","action":"append","ts":"2026-03-26T00:00:00Z"}
-{"event":"summary","verdict":"APPROVAL","executor_routed":true,"planner_routed":true,"follow_ups":1,"ts":"2026-03-26T00:00:00Z"}
