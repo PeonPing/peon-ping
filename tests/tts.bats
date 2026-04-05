@@ -226,11 +226,17 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   bash "$PEON_SH" trainer on
 
   # Create trainer sounds directory and manifest
+  # Include both trainer.remind and trainer.slacking so the test passes
+  # regardless of time of day (Python picks trainer.slacking when hour >= 12
+  # and reps < 25% of goal).
   mkdir -p "$TEST_DIR/trainer/sounds/remind"
   cat > "$TEST_DIR/trainer/manifest.json" <<'JSON'
 {
   "trainer.remind": [
     { "file": "sounds/remind/reminder.mp3", "label": "Time for reps!" }
+  ],
+  "trainer.slacking": [
+    { "file": "sounds/remind/reminder.mp3", "label": "Get moving!" }
   ]
 }
 JSON
