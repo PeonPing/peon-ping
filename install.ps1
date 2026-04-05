@@ -224,6 +224,14 @@ if (-not $Updating) {
         silent_window_seconds = 0
         pack_rotation = @()
         pack_rotation_mode = "random"
+        tts = @{
+            enabled = $false
+            backend = "auto"
+            voice = "default"
+            rate = 1.0
+            volume = 0.5
+            mode = "sound-then-speak"
+        }
     }
     Set-PeonConfig $config $configPath
 }
@@ -496,6 +504,30 @@ function Read-StateWithRetry {
     return @{}
 }
 
+function Resolve-TemplateKey {
+    param(
+        [string]$Category,
+        [string]$Event,
+        [string]$Ntype
+    )
+
+    # Category-to-key mapping (matches peon.sh template resolution)
+    # Shared by notification templates and TTS text resolution.
+    $keyMap = @{
+        "task.complete" = "stop"
+        "task.error"    = "error"
+    }
+    $tplKey = $keyMap[$Category]
+    if ($Event -eq "Notification") {
+        if ($Ntype -eq "idle_prompt") { $tplKey = "idle" }
+        elseif ($Ntype -eq "elicitation_dialog") { $tplKey = "question" }
+    } elseif ($Event -eq "PermissionRequest") {
+        $tplKey = "permission"
+    }
+
+    return $tplKey
+}
+
 function Resolve-NotificationTemplate {
     param(
         [object]$Templates,
@@ -509,18 +541,7 @@ function Resolve-NotificationTemplate {
         [string]$DefaultMsg
     )
 
-    # Category-to-key mapping (matches peon.sh template resolution)
-    $keyMap = @{
-        "task.complete" = "stop"
-        "task.error"    = "error"
-    }
-    $tplKey = $keyMap[$Category]
-    if ($Event -eq "Notification") {
-        if ($Ntype -eq "idle_prompt") { $tplKey = "idle" }
-        elseif ($Ntype -eq "elicitation_dialog") { $tplKey = "question" }
-    } elseif ($Event -eq "PermissionRequest") {
-        $tplKey = "permission"
-    }
+    $tplKey = Resolve-TemplateKey -Category $Category -Event $Event -Ntype $Ntype
 
     if (-not $tplKey -or -not $Templates.$tplKey) {
         return $DefaultMsg
@@ -551,6 +572,64 @@ function Resolve-NotificationTemplate {
     $rendered = [regex]::Replace($rendered, '\{(\w+)\}', '')
 
     return $rendered
+}
+
+# --- TTS backend resolution ---
+function Resolve-TtsBackend {
+    param([string]$Backend = "auto")
+    switch ($Backend) {
+        "native"     { return "tts-native.ps1" }
+        "elevenlabs" { return "tts-elevenlabs.ps1" }
+        "piper"      { return "tts-piper.ps1" }
+        "auto" {
+            # Probe in priority order: prefer premium when installed.
+            foreach ($b in @("elevenlabs", "piper", "native")) {
+                $scriptName = Resolve-TtsBackend -Backend $b
+                $full = Join-Path $InstallDir "scripts\$scriptName"
+                if (Test-Path $full) { return $scriptName }
+            }
+            return $null
+        }
+        default { return $null }
+    }
+}
+
+# --- TTS speak function ---
+function Invoke-TtsSpeak {
+    param(
+        [string]$Text,
+        [string]$Backend = "auto",
+        [string]$Voice = "default",
+        [double]$Rate = 1.0,
+        [double]$Volume = 0.5
+    )
+    if (-not $Text) { return }
+
+    # Kill previous TTS
+    $pidFile = Join-Path $InstallDir ".tts.pid"
+    if (Test-Path $pidFile) {
+        $oldPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+        if ($oldPid) {
+            try { Stop-Process -Id $oldPid -Force -ErrorAction SilentlyContinue } catch { $null }
+        }
+        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+    }
+
+    $scriptName = Resolve-TtsBackend -Backend $Backend
+    if (-not $scriptName) { return }
+    $scriptPath = Join-Path $InstallDir "scripts\$scriptName"
+    if (-not (Test-Path $scriptPath)) { return }
+
+    # Text is Base64-encoded to avoid shell metacharacter injection. Dynamic text
+    # from template variables ({summary}, {project}) can contain double quotes,
+    # dollar signs, backticks, and other PowerShell-interpreted characters that
+    # would corrupt or break a directly-interpolated -Command string.
+    $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Text))
+    $proc = Start-Process -FilePath "powershell.exe" `
+        -ArgumentList "-NoProfile", "-NonInteractive", "-Command",
+            "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$b64')) | & '$scriptPath' -voice '$Voice' -rate $Rate -vol $Volume" `
+        -WindowStyle Hidden -PassThru
+    $proc.Id | Set-Content $pidFile
 }
 
 # --- CLI commands ---
@@ -1299,6 +1378,44 @@ if ($Command) {
                 }
             }
         }
+        "^--update$" {
+            Write-Host "Updating peon-ping..." -ForegroundColor Cyan
+            # Migrate config keys (active_pack → default_pack, agentskill → session_override)
+            $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+            $changed = $false
+            if ($cfgObj.PSObject.Properties['active_pack'] -and -not $cfgObj.PSObject.Properties['default_pack']) {
+                $cfgObj | Add-Member -NotePropertyName 'default_pack' -NotePropertyValue $cfgObj.active_pack -Force
+                $cfgObj.PSObject.Properties.Remove('active_pack')
+                $changed = $true
+            } elseif ($cfgObj.PSObject.Properties['active_pack']) {
+                $cfgObj.PSObject.Properties.Remove('active_pack')
+                $changed = $true
+            }
+            if ($cfgObj.pack_rotation_mode -eq 'agentskill') {
+                $cfgObj.pack_rotation_mode = 'session_override'
+                $changed = $true
+            }
+            if ($changed) {
+                $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                Write-Host "peon-ping: config migrated (active_pack -> default_pack, agentskill -> session_override)" -ForegroundColor Green
+            }
+            # Re-run install.ps1 from a temp directory. Download install-utils.ps1
+            # alongside it so the dot-source resolves correctly via $PSScriptRoot.
+            $tempDir = Join-Path $env:TEMP "peon-ping-update"
+            $tempScriptsDir = Join-Path $tempDir "scripts"
+            New-Item -ItemType Directory -Path $tempScriptsDir -Force | Out-Null
+            try {
+                $base = "https://raw.githubusercontent.com/PeonPing/peon-ping/main"
+                Invoke-WebRequest -Uri "$base/install.ps1" -OutFile (Join-Path $tempDir "install.ps1") -UseBasicParsing -ErrorAction Stop
+                Invoke-WebRequest -Uri "$base/scripts/install-utils.ps1" -OutFile (Join-Path $tempScriptsDir "install-utils.ps1") -UseBasicParsing -ErrorAction Stop
+                & powershell -NoProfile -File (Join-Path $tempDir "install.ps1")
+            } catch {
+                Write-Host "Error: Could not download installer. Check your internet connection." -ForegroundColor Red
+            } finally {
+                Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            return
+        }
         "^--help$" {
             Write-Host "peon-ping commands:" -ForegroundColor Cyan
             Write-Host "  --toggle              Toggle enabled/paused"
@@ -1308,6 +1425,7 @@ if ($Command) {
             Write-Host "  --unmute              Alias for --resume"
             Write-Host "  --status              Show current status"
             Write-Host "  --volume N            Set volume (0.0-1.0)"
+            Write-Host "  --update              Update peon-ping (migrate config + reinstall)"
             Write-Host "  --help                Show this help"
             Write-Host ""
             Write-Host "Pack management:" -ForegroundColor Cyan
@@ -2034,6 +2152,38 @@ if ($category) {
     & $peonLog 'route' @{ category = $category; suppressed = 'False' }
 }
 
+# Pre-resolve notification template for TTS text fallback
+$resolvedTemplate = ""
+if ($category) {
+    $tplCfg0 = $config.notification_templates
+    if ($tplCfg0) {
+        $tplSum0 = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+        $tplTool0 = if ($event.tool_name) { [string]$event.tool_name } else { '' }
+        $resolvedTemplate = Resolve-NotificationTemplate `
+            -Templates $tplCfg0 `
+            -Category $category `
+            -Event $hookEvent `
+            -Ntype $ntype `
+            -Project $project `
+            -Summary $tplSum0 `
+            -ToolName $tplTool0 `
+            -Status $notifyStatus `
+            -DefaultMsg ""
+    }
+}
+
+# --- TTS config (read before skipSound gate so trainer TTS can use it) ---
+$ttsCfg = if ($config.tts) { $config.tts } else { @{} }
+# Note: $paused guard is handled implicitly by the early-exit when $config.enabled = false
+# (see top of hook block), rather than explicitly checked here.
+$ttsEnabled = ($ttsCfg.enabled -eq $true)
+$ttsBackend = if ($ttsCfg.backend) { $ttsCfg.backend } else { "auto" }
+$ttsVoice = if ($ttsCfg.voice) { $ttsCfg.voice } else { "default" }
+$ttsRate = if ($ttsCfg.rate) { $ttsCfg.rate } else { 1.0 }
+$ttsVolume = if ($ttsCfg.volume) { $ttsCfg.volume } else { 0.5 }
+$ttsMode = if ($ttsCfg.mode) { $ttsCfg.mode } else { "sound-then-speak" }
+$ttsText = ""
+
 if (-not $skipSound) {
 # --- Pick a sound ---
 $activePack = Get-ActivePack $config
@@ -2194,17 +2344,81 @@ try {
     if ($peonDebug) { Write-Warning "peon-ping: state write failed (last played): $_" }
 }
 
-# --- Delegate audio to win-play.ps1 in a detached process ---
+# --- TTS speech text resolution ---
+if ($ttsEnabled -and $category) {
+    $speechTpl = ""
+    if ($chosen -and $chosen.speech_text) {
+        $speechTpl = $chosen.speech_text
+    } elseif ($resolvedTemplate) {
+        $speechTpl = $resolvedTemplate
+    } else {
+        $speechTpl = "{project} " + [char]0x2014 + " {status}"
+    }
+
+    # Build template variables (same set as notification templates).
+    # NOTE: This duplicates the variable construction from the notification template
+    # rendering block (~lines 1710-1725). Intentional for now to keep TTS text
+    # resolution self-contained. If this area is touched again, consolidate into
+    # a shared $tplVars hashtable built once and reused by both paths.
+    $tplSummary = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+    if ($tplSummary -and $tplSummary.Length -gt 120) { $tplSummary = $tplSummary.Substring(0, 120) }
+    $tplToolName = if ($event.tool_name) { [string]$event.tool_name } else { '' }
+    $ttsVars = @{
+        project   = $project
+        summary   = $tplSummary
+        tool_name = $tplToolName
+        status    = $notifyStatus
+        event     = $hookEvent
+    }
+
+    $ttsText = $speechTpl
+    foreach ($key in $ttsVars.Keys) {
+        $ttsText = $ttsText.Replace("{$key}", $ttsVars[$key])
+    }
+    $ttsText = $ttsText.Trim()
+    if ($ttsText -eq [string][char]0x2014 -or -not $ttsText) { $ttsText = "" }
+}
+
+# --- Sound and TTS playback with mode sequencing ---
 $volume = $config.volume
 if (-not $volume) { $volume = 0.5 }
 
 $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
-if (Test-Path $winPlayScript) {
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $soundPath, "-vol", $volume -WindowStyle Hidden
-    & $peonLog 'play' @{ backend = 'win-play.ps1'; file = $soundFile; volume = [string]$volume }
+
+# Helper: play sound file via win-play.ps1
+function Play-Sound {
+    param([string]$SndPath, [double]$Vol)
+    if ((Test-Path $winPlayScript) -and (Test-Path $SndPath)) {
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $SndPath, "-vol", $Vol -WindowStyle Hidden
+        & $peonLog 'play' @{ backend = 'win-play.ps1'; file = $soundFile; volume = [string]$Vol }
+    } else {
+        if (-not (Test-Path $winPlayScript)) {
+            if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
+            & $peonLog 'play' @{ error = "win-play.ps1 not found"; backend = 'none' }
+        } elseif (-not (Test-Path $SndPath)) {
+            if ($peonDebug) { Write-Warning "peon-ping: sound file not found at '$SndPath' - audio skipped" }
+            & $peonLog 'play' @{ error = "sound file not found"; backend = 'none' }
+        }
+    }
+}
+
+if ($ttsEnabled -and $ttsText) {
+    switch ($ttsMode) {
+        "sound-then-speak" {
+            Play-Sound $soundPath $volume
+            Invoke-TtsSpeak -Text $ttsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
+        }
+        "speak-only" {
+            Invoke-TtsSpeak -Text $ttsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
+        }
+        "speak-then-sound" {
+            Invoke-TtsSpeak -Text $ttsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
+            Play-Sound $soundPath $volume
+        }
+    }
 } else {
-    if ($peonDebug) { Write-Warning "peon-ping: win-play.ps1 not found at '$winPlayScript' - audio skipped" }
-    & $peonLog 'play' @{ error = "win-play.ps1 not found"; backend = 'none' }
+    # No TTS — play sound normally
+    Play-Sound $soundPath $volume
 }
 
 } # end if (-not $skipSound)
@@ -2324,6 +2538,12 @@ if ($trainerSoundPath) {
     }
 }
 
+# --- Trainer TTS (speak progress after trainer sound) ---
+$trainerTtsText = if ($ttsEnabled -and $trainerMsg) { $trainerMsg } else { "" }
+if ($trainerTtsText) {
+    Invoke-TtsSpeak -Text $trainerTtsText -Backend $ttsBackend -Voice $ttsVoice -Rate $ttsRate -Volume $ttsVolume
+}
+
 # --- Trainer desktop notification ---
 if ($trainerMsg) {
     $desktopNotif = $config.desktop_notifications
@@ -2365,6 +2585,74 @@ if ($notify) {
             -DefaultMsg $notifyMsg
         $notifyMsg = $resolved
     }
+}
+
+# --- TTS speech text resolution ---
+$ttsCfg = if ($config.tts) { $config.tts } else { @{} }
+# Note: $paused guard is handled implicitly by the early-exit when $config.enabled = false
+# (see top of hook block), rather than explicitly checked here. See review finding L2.
+$ttsEnabled = ($ttsCfg.enabled -eq $true)
+$ttsText = ""
+$ttsBackend = if ($ttsCfg.backend) { $ttsCfg.backend } else { "auto" }
+$ttsVoice = if ($ttsCfg.voice) { $ttsCfg.voice } else { "default" }
+$ttsRate = if ($ttsCfg.rate) { $ttsCfg.rate } else { 1.0 }
+$ttsVolume = if ($ttsCfg.volume) { $ttsCfg.volume } else { 0.5 }
+$ttsMode = if ($ttsCfg.mode) { $ttsCfg.mode } else { "sound-then-speak" }
+
+if ($ttsEnabled -and $category) {
+    $speechTpl = ""
+    if ($chosen -and $chosen.speech_text) {
+        $speechTpl = $chosen.speech_text
+    } elseif ($config.notification_templates) {
+        # Check for notification template (same key resolution as notification templates)
+        $ttsKeyMap = @{ "task.complete" = "stop"; "task.error" = "error" }
+        $ttsTplKey = $ttsKeyMap[$category]
+        if ($hookEvent -eq "Notification") {
+            if ($ntype -eq "idle_prompt") { $ttsTplKey = "idle" }
+            elseif ($ntype -eq "elicitation_dialog") { $ttsTplKey = "question" }
+        } elseif ($hookEvent -eq "PermissionRequest") {
+            $ttsTplKey = "permission"
+        }
+        if ($ttsTplKey -and $config.notification_templates.$ttsTplKey) {
+            $speechTpl = $config.notification_templates.$ttsTplKey
+        }
+    }
+    if (-not $speechTpl) {
+        $speechTpl = "{project} `u{2014} {status}"
+    }
+
+    # Interpolate template variables (same set as notification templates)
+    $ttsVars = @{
+        project   = $project
+        summary   = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+        tool_name = if ($event.tool_name) { [string]$event.tool_name } else { '' }
+        status    = $notifyStatus
+        event     = $hookEvent
+    }
+    $ttsText = $speechTpl
+    foreach ($key in $ttsVars.Keys) {
+        $ttsText = $ttsText.Replace("{$key}", $ttsVars[$key])
+    }
+    $ttsText = $ttsText.Trim()
+    if ($ttsText -eq "`u{2014}" -or -not $ttsText) { $ttsText = "" }
+}
+
+# TRAINER_TTS_TEXT: trainer progress string when TTS enabled
+$trainerTtsText = if ($ttsEnabled -and $trainerMsg) { $trainerMsg } else { "" }
+
+# --- TTS test output (write variables for Pester verification) ---
+if ($env:PEON_TEST -eq "1") {
+    $ttsLogPath = Join-Path $InstallDir ".tts-vars.json"
+    @{
+        TTS_ENABLED      = $ttsEnabled
+        TTS_TEXT         = $ttsText
+        TTS_BACKEND      = $ttsBackend
+        TTS_VOICE        = $ttsVoice
+        TTS_RATE         = $ttsRate
+        TTS_VOLUME       = $ttsVolume
+        TTS_MODE         = $ttsMode
+        TRAINER_TTS_TEXT = $trainerTtsText
+    } | ConvertTo-Json | Set-Content -Path $ttsLogPath -Encoding UTF8
 }
 
 # --- Desktop notification dispatch ---

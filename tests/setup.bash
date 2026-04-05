@@ -123,6 +123,7 @@ JSON
   cat > "$MOCK_BIN/afplay" <<'SCRIPT'
 #!/bin/bash
 echo "$@" >> "${CLAUDE_PEON_DIR}/afplay.log"
+echo "afplay" >> "${CLAUDE_PEON_DIR}/call_order.log"
 SCRIPT
   chmod +x "$MOCK_BIN/afplay"
 
@@ -378,6 +379,93 @@ SCRIPT
   # Change to TEST_DIR so PWD-based local config lookup does not pick up
   # a real installation config (e.g. with pack_rotation) from outside the test env
   cd "$TEST_DIR"
+}
+
+# Install mock TTS backend script at $PEON_DIR/scripts/tts-native.sh
+# Reads text from stdin and logs invocation args + text to tts.log
+install_mock_tts_backend() {
+  mkdir -p "$TEST_DIR/scripts"
+  cat > "$TEST_DIR/scripts/tts-native.sh" <<'SCRIPT'
+#!/bin/bash
+# Mock TTS backend: logs voice, rate, volume args and stdin text
+text=$(cat)
+echo "voice=$1 rate=$2 vol=$3 text=$text" >> "${CLAUDE_PEON_DIR}/tts.log"
+echo "tts" >> "${CLAUDE_PEON_DIR}/call_order.log"
+SCRIPT
+  chmod +x "$TEST_DIR/scripts/tts-native.sh"
+}
+
+# Helper: check if TTS backend was called
+tts_was_called() {
+  [ -f "$TEST_DIR/tts.log" ] && [ -s "$TEST_DIR/tts.log" ]
+}
+
+# Helper: get TTS call count
+tts_call_count() {
+  if [ -f "$TEST_DIR/tts.log" ]; then
+    wc -l < "$TEST_DIR/tts.log" | tr -d ' '
+  else
+    echo "0"
+  fi
+}
+
+# Helper: get call ordering (reads combined call_order.log)
+# Returns lines like "afplay\ntts" — callers compare line positions.
+call_order() {
+  if [ -f "$TEST_DIR/call_order.log" ]; then
+    cat "$TEST_DIR/call_order.log"
+  fi
+}
+
+# Helper: get last TTS log line
+tts_last_call() {
+  if [ -f "$TEST_DIR/tts.log" ]; then
+    tail -1 "$TEST_DIR/tts.log"
+  fi
+}
+
+# Helper: run peon.sh with TTS config written to config.json
+# Usage: run_peon_tts <json> [speech_text] [TTS_MODE] [TTS_ENABLED]
+# speech_text is injected into the manifest's task.complete entries so the
+# Python block resolves it as TTS_TEXT.  Pass "" to test empty-text skip.
+run_peon_tts() {
+  local json="$1"
+  local speech_text="${2:-Hello world}"
+  local tts_mode="${3:-sound-then-speak}"
+  local tts_enabled="${4:-true}"
+
+  # Write TTS section into config.json so the Python block picks it up
+  /usr/bin/python3 -c "
+import json, sys
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {
+  'enabled': $( [ "$tts_enabled" = "true" ] && echo "True" || echo "False" ),
+  'backend': 'native',
+  'voice': 'default',
+  'rate': 1.0,
+  'volume': 0.5,
+  'mode': '$tts_mode'
+}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+
+  # Inject speech_text into manifest sound entries so the Python TTS
+  # resolution chain finds it.  An empty string means no speech_text field.
+  if [ -n "$speech_text" ]; then
+    /usr/bin/python3 -c "
+import json
+m = json.load(open('$TEST_DIR/packs/peon/manifest.json'))
+for cat in m.get('categories', {}).values():
+    for entry in cat.get('sounds', []):
+        entry['speech_text'] = $(printf '%s' "$speech_text" | /usr/bin/python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
+"
+  fi
+
+  export PEON_TEST=1
+  echo "$json" | bash "$PEON_SH" 2>"$TEST_DIR/stderr.log"
+  PEON_EXIT=$?
+  PEON_STDERR=$(cat "$TEST_DIR/stderr.log" 2>/dev/null)
 }
 
 teardown_test_env() {

@@ -381,6 +381,89 @@ save_sound_pid() {
 # (e.g., via `peon preview` or `peon play` CLI commands).
 _peon_log() { :; }
 
+# --- Kill any previously running TTS process ---
+kill_previous_tts() {
+  local pidfile="$PEON_DIR/.tts.pid"
+  if [ -f "$pidfile" ]; then
+    local old_pid
+    old_pid=$(cat "$pidfile" 2>/dev/null)
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      kill "$old_pid" 2>/dev/null
+    fi
+    rm -f "$pidfile"
+  fi
+}
+
+save_tts_pid() {
+  echo "$1" > "$PEON_DIR/.tts.pid"
+}
+
+# --- TTS backend resolution ---
+# Maps config values to script filenames. The caller (speak()) resolves
+# to an absolute path via find_bundled_script.
+_resolve_tts_backend() {
+  local backend="${1:-auto}"
+  case "$backend" in
+    native)     echo "tts-native.sh" ;;
+    elevenlabs) echo "tts-elevenlabs.sh" ;;
+    piper)      echo "tts-piper.sh" ;;
+    auto)
+      # Probe in priority order: prefer premium when installed.
+      # Each candidate is resolved inline (no recursive self-call).
+      local candidate
+      for candidate in tts-elevenlabs.sh tts-piper.sh tts-native.sh; do  # keep in sync with named cases above
+        find_bundled_script "$candidate" >/dev/null 2>&1 || continue
+        echo "$candidate" && return 0
+      done
+      return 1  # no backend available
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# --- TTS speech function ---
+# Invokes the resolved TTS backend with text on stdin.
+# Args: text
+# Reads TTS_BACKEND, TTS_VOICE, TTS_RATE, TTS_VOLUME from environment.
+speak() {
+  local text="$1"
+  [ -z "$text" ] && return 0
+
+  kill_previous_tts
+
+  # _resolve_tts_backend returns a script filename (e.g., "tts-native.sh").
+  # find_bundled_script resolves it to an absolute path.
+  local script_name
+  script_name="$(_resolve_tts_backend "${TTS_BACKEND:-auto}")" || {
+    [ "${PEON_DEBUG:-0}" = "1" ] && echo "[tts] no backend resolved for '${TTS_BACKEND:-auto}'" >&2
+    return 0
+  }
+  local abs_script
+  abs_script="$(find_bundled_script "$script_name")" 2>/dev/null || {
+    [ "${PEON_DEBUG:-0}" = "1" ] && echo "[tts] backend script '$script_name' not found" >&2
+    return 0
+  }
+  [ -x "$abs_script" ] || return 0
+
+  local voice="${TTS_VOICE:-default}"
+  local rate="${TTS_RATE:-1.0}"
+  local vol="${TTS_VOLUME:-0.5}"
+
+  [ "${PEON_DEBUG:-0}" = "1" ] && echo "[tts] speak: backend=$script_name voice=$voice rate=$rate vol=$vol text='${text:0:60}'" >&2
+
+  if [ "${PEON_TEST:-0}" = "1" ]; then
+    printf '%s\n' "$text" | "$abs_script" "$voice" "$rate" "$vol" >/dev/null 2>&1
+  else
+    # printf '%s\n' is used instead of echo to avoid flag interpretation
+    # (e.g., text starting with "-n" or "-e"). Text is passed as $0 to sh -c,
+    # avoiding shell interpolation of metacharacters in the text content.
+    nohup sh -c 'printf "%s\n" "$0" | "$1" "$2" "$3" "$4"' \
+      "$text" "$abs_script" "$voice" "$rate" "$vol" >/dev/null 2>&1 &
+    save_tts_pid $!
+    [ "${PEON_DEBUG:-0}" = "1" ] && echo "[tts] started PID $!" >&2
+  fi
+}
+
 # SSH audio routing mode.
 # relay (default): current behavior, require relay endpoint.
 # auto: try relay first, fallback to local host playback.
@@ -419,18 +502,10 @@ play_sound() {
       tmpfile="$(wslpath -u "${tmpdir}peon-ping-sound.wav")"
       if command -v ffmpeg &>/dev/null; then
         ffmpeg -y -i "$file" -filter:a "volume=$vol" "$tmpfile" 2>/dev/null
+      elif [[ "$file" == *.wav ]]; then
+        cp "$file" "$tmpfile"
       else
-        if [ -z "${_PEON_FFMPEG_WARNED:-}" ]; then
-          echo "peon-ping: warning: ffmpeg not found — volume control disabled, playing at default volume" >&2
-          _PEON_FFMPEG_WARNED=1
-          export _PEON_FFMPEG_WARNED
-        fi
-        if [[ "$file" == *.wav ]]; then
-          cp "$file" "$tmpfile"
-        else
-          _peon_log play "error=\"ffmpeg missing, cannot convert non-wav file\" file=$(basename "$file")"
-          return 0
-        fi
+        return 0
       fi
       local safe_tmpdir="${tmpdir//\'/\'\'}"
       setsid powershell.exe -NoProfile -NonInteractive -Command "
@@ -3262,12 +3337,7 @@ _PEON_HOOK_TTY=$(_peon_walk_tty)
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
 # Outputs shell variables consumed by the bash play/notify/title logic below.
-# Write Python to a temp file instead of passing inline via python3 -c "..."
-# to avoid the MSYS2/Windows ARG_MAX command-line length limit (~32KB).
-_PEON_PY_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/peon-py.XXXXXX")
-trap 'rm -f "$_PEON_PY_SCRIPT"' EXIT
-# Part 1: preamble with shell variable interpolation (unquoted heredoc)
-cat > "$_PEON_PY_SCRIPT" << _PEON_PYHEAD
+_PEON_PYOUT=$(python3 -c "
 import sys, json, os, re, random, time, shlex, tempfile
 q = shlex.quote
 _peon_start = time.monotonic()
@@ -3282,9 +3352,6 @@ state_dirty = False
 
 # --- Atomic state I/O helpers (shared definition from _PEON_STATE_PY_HELPERS) ---
 ${_PEON_STATE_PY_HELPERS}
-_PEON_PYHEAD
-# Part 2: main Python body (quoted heredoc -- no escaping changes needed)
-cat >> "$_PEON_PY_SCRIPT" << 'PYEOF'
 
 # --- Load config ---
 _config_error = None
@@ -3318,12 +3385,12 @@ if _log_enabled:
 
     def _log_quote(v):
         s = str(v)
-        if ' ' in s or '"' in s or '=' in s or '\n' in s or '\r' in s or not s:
-            s = s.replace('\\', '\\\\').replace('"', '\\"')
+        if ' ' in s or '\"' in s or '=' in s or '\n' in s or '\r' in s or not s:
+            s = s.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"')
             # Escape newlines/CR after backslash escaping to avoid double-escape.
             # Preserves the one-line-per-entry log invariant.
-            s = s.replace('\r', '\\r').replace('\n', '\\n')
-            return '"' + s + '"'
+            s = s.replace('\r', '\\\\r').replace('\n', '\\\\n')
+            return '\"' + s + '\"'
         return s
 
     def log(phase, **kw):
@@ -4095,20 +4162,52 @@ if event == 'Notification':
 elif event == 'PermissionRequest':
     _tpl_key = 'permission'
 _tpl = _templates.get(_tpl_key, '')
+_tpl_vars = _defaultdict(str, {
+    'project': project,
+    'summary': event_data.get('transcript_summary', '').strip()[:120],
+    'tool_name': event_data.get('tool_name', ''),
+    'status': status,
+    'event': event,
+})
 if _tpl:
-    _tpl_vars = _defaultdict(str, {
-        'project': project,
-        'summary': event_data.get('transcript_summary', '').strip()[:120],
-        'tool_name': event_data.get('tool_name', ''),
-        'status': status,
-        'event': event,
-    })
     try:
         msg = _tpl.format_map(_tpl_vars)
     except Exception:
         pass
 
 log('notify', desktop=bool(desktop_notif and notify), mobile=bool(cfg.get('mobile_notify', {}).get('service')), template=_tpl or '', rendered=msg)
+
+# --- TTS speech text resolution ---
+tts_cfg = cfg.get('tts', {})
+tts_enabled = tts_cfg.get('enabled', False) and not paused
+tts_text = ''
+tts_backend = tts_cfg.get('backend', 'auto')
+tts_voice = tts_cfg.get('voice', 'default')
+tts_rate = tts_cfg.get('rate', 1.0)
+tts_volume = tts_cfg.get('volume', 0.5)
+tts_mode = tts_cfg.get('mode', 'sound-then-speak')
+
+if tts_enabled and category:
+    # Chain: manifest speech_text -> notification template -> default
+    if pick and pick.get('speech_text'):
+        _speech_tpl = pick['speech_text']
+    elif _tpl:
+        _speech_tpl = _tpl  # already resolved notification template
+    else:
+        _speech_tpl = '{project} \u2014 {status}'
+
+    try:
+        tts_text = _speech_tpl.format_map(_tpl_vars)
+    except Exception:
+        tts_text = ''
+
+    # Empty after interpolation -> skip
+    tts_text = tts_text.strip()
+    if tts_text == '\u2014' or not tts_text:
+        tts_text = ''
+
+# After trainer reminder logic (which already computes trainer_msg):
+trainer_tts_text = trainer_msg if (tts_enabled and trainer_msg) else ''
 
 # --- Log exit ---
 _duration_ms = int((time.monotonic() - _peon_start) * 1000)
@@ -4161,15 +4260,20 @@ print('SOUND_FILE=' + q(sound_file))
 print('ICON_PATH=' + q(icon_path))
 print('TRAINER_SOUND=' + q(trainer_sound))
 print('TRAINER_MSG=' + q(trainer_msg))
+print('TTS_ENABLED=' + ('true' if tts_enabled else 'false'))
+print('TTS_TEXT=' + q(tts_text))
+print('TTS_BACKEND=' + q(tts_backend))
+print('TTS_VOICE=' + q(tts_voice))
+print('TTS_RATE=' + q(str(tts_rate)))
+print('TTS_VOLUME=' + q(str(tts_volume)))
+print('TTS_MODE=' + q(tts_mode))
+print('TRAINER_TTS_TEXT=' + q(trainer_tts_text))
 print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 # Auto-prune: emit retention days so bash can prune without spawning another python3
 _auto_debug = cfg.get('debug', False) or os.environ.get('PEON_DEBUG') == '1'
 if _auto_debug:
     print('PEON_AUTO_PRUNE=' + q(str(cfg.get('debug_retention_days', 7))))
-PYEOF
-_PEON_PYOUT=$(python3 "$_PEON_PY_SCRIPT" <<< "$INPUT" 2>/dev/null)
-_peon_py_rc=$?
-rm -f "$_PEON_PY_SCRIPT"
+" <<< "$INPUT" 2>/dev/null)
 eval "$_PEON_PYOUT"
 
 # --- Bash-side debug log function for [play] and [notify] phases ---
@@ -4249,6 +4353,10 @@ print(cfg.get('debug_retention_days', 7))
     _prune_old_logs "$_retention"
   ) &>/dev/null &
 fi
+
+# Test-mode flag: evaluated once, used for sync/async dispatch and test observability writes.
+_PEON_SYNC=false
+[ "${PEON_TEST:-0}" = "1" ] && _PEON_SYNC=true
 
 HEADPHONES_DETECTED=true
 if [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
@@ -4372,9 +4480,19 @@ fi
 
 # --- Set iTerm2 tab color (OSC 6) ---
 # Detects iTerm2 via ITERM_SESSION_ID (persists inside tmux where TERM_PROGRAM=tmux).
-# In test mode, write resolved color to file for BATS verification.
-[ "${PEON_TEST:-0}" = "1" ] && [ -n "$TAB_COLOR_RGB" ] && echo "$TAB_COLOR_RGB" > "$PEON_DIR/.tab_color_rgb"
-[ "${PEON_TEST:-0}" = "1" ] && [ -n "$ICON_PATH" ] && echo "$ICON_PATH" > "$PEON_DIR/.icon_path"
+# In test mode, write resolved values to files for BATS verification.
+if [ "$_PEON_SYNC" = "true" ]; then
+  [ -n "$TAB_COLOR_RGB" ] && echo "$TAB_COLOR_RGB" > "$PEON_DIR/.tab_color_rgb"
+  [ -n "$ICON_PATH" ] && echo "$ICON_PATH" > "$PEON_DIR/.icon_path"
+  echo "${TTS_ENABLED:-false}" > "$PEON_DIR/.tts_enabled"
+  echo "${TTS_TEXT:-}" > "$PEON_DIR/.tts_text"
+  echo "${TTS_BACKEND:-}" > "$PEON_DIR/.tts_backend"
+  echo "${TTS_VOICE:-}" > "$PEON_DIR/.tts_voice"
+  echo "${TTS_RATE:-}" > "$PEON_DIR/.tts_rate"
+  echo "${TTS_VOLUME:-}" > "$PEON_DIR/.tts_volume"
+  echo "${TTS_MODE:-}" > "$PEON_DIR/.tts_mode"
+  echo "${TRAINER_TTS_TEXT:-}" > "$PEON_DIR/.trainer_tts_text"
+fi
 if [ -n "$TAB_COLOR_RGB" ] && { [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]] || [ -n "${ITERM_SESSION_ID:-}" ]; }; then
   read -r _R _G _B <<< "$TAB_COLOR_RGB"
   _peon_esc "$(printf '\033]6;1;bg;red;brightness;%d\a' "$_R")"
@@ -4385,23 +4503,52 @@ fi
 _run_sound_and_notify() {
   local _focused=""  # lazy: empty = not yet checked
 
-  # --- Play sound ---
-  if [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ]; then
-    local _skip_sound=false
-    # Check headphones_only: skip sound if enabled but no headphones detected
-    if [ "${HEADPHONES_ONLY:-false}" = "true" ] && [ "${HEADPHONES_DETECTED:-true}" = "false" ]; then
-      _skip_sound=true
+  # --- Shared suppression checks (apply to both sound and TTS) ---
+  local _skip_sound=false
+  # Check headphones_only: skip sound if enabled but no headphones detected
+  if [ "${HEADPHONES_ONLY:-false}" = "true" ] && [ "${HEADPHONES_DETECTED:-true}" = "false" ]; then
+    _skip_sound=true
+  fi
+  # Check meeting_detect: skip sound if in a meeting
+  if [ "$_skip_sound" = "false" ] && [ "${MEETING_DETECT:-false}" = "true" ] && [ "${IN_MEETING:-false}" = "true" ]; then
+    _skip_sound=true
+  fi
+  # Check suppress_sound_when_tab_focused: skip sound if tab is focused
+  if [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
+    [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
+    [ "$_focused" = "true" ] && _skip_sound=true
+  fi
+
+  # --- Play sound and/or TTS based on mode ---
+  if [ "$_skip_sound" = "false" ]; then
+    # Determine if TTS should fire
+    local _do_tts=false
+    if [ "${TTS_ENABLED:-false}" = "true" ] && [ -n "${TTS_TEXT:-}" ]; then
+      _do_tts=true
     fi
-    # Check meeting_detect: skip sound if in a meeting
-    if [ "$_skip_sound" = "false" ] && [ "${MEETING_DETECT:-false}" = "true" ] && [ "${IN_MEETING:-false}" = "true" ]; then
-      _skip_sound=true
-    fi
-    # Check suppress_sound_when_tab_focused: skip sound if tab is focused
-    if [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
-      [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
-      [ "$_focused" = "true" ] && _skip_sound=true
-    fi
-    [ "$_skip_sound" = "false" ] && play_sound "$SOUND_FILE" "$VOLUME"
+
+    case "${TTS_MODE:-sound-then-speak}" in
+      sound-then-speak)
+        [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ] && play_sound "$SOUND_FILE" "$VOLUME"
+        [ "$_do_tts" = "true" ] && speak "$TTS_TEXT"
+        ;;
+      speak-only)
+        if [ "$_do_tts" = "true" ]; then
+          speak "$TTS_TEXT"
+        else
+          [ "${PEON_DEBUG:-0}" = "1" ] && echo "[tts] speak-only mode but TTS unavailable (enabled=${TTS_ENABLED:-false}, text='${TTS_TEXT:-}')" >&2
+        fi
+        ;;
+      speak-then-sound)
+        [ "$_do_tts" = "true" ] && speak "$TTS_TEXT"
+        [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ] && play_sound "$SOUND_FILE" "$VOLUME"
+        ;;
+      *)
+        # Unknown mode — fall back to sound-then-speak
+        [ -n "$SOUND_FILE" ] && [ -f "$SOUND_FILE" ] && play_sound "$SOUND_FILE" "$VOLUME"
+        [ "$_do_tts" = "true" ] && speak "$TTS_TEXT"
+        ;;
+    esac
   fi
 
   # --- Smart notification: only when terminal is NOT frontmost ---
@@ -4417,7 +4564,7 @@ _run_sound_and_notify() {
 }
 
 # In test mode run synchronously; in production background to avoid blocking the IDE
-if [ "${PEON_TEST:-0}" = "1" ]; then
+if [ "$_PEON_SYNC" = "true" ]; then
   _run_sound_and_notify
 else
   _run_sound_and_notify & disown
@@ -4425,8 +4572,12 @@ fi
 
 # --- Trainer reminder sound (after main sound finishes) ---
 if [ -n "${TRAINER_SOUND:-}" ] && [ -f "$TRAINER_SOUND" ]; then
-  if [ "${PEON_TEST:-0}" = "1" ]; then
+  if [ "$_PEON_SYNC" = "true" ]; then
     play_sound "$TRAINER_SOUND" "$VOLUME"
+    # Speak trainer TTS text after trainer sound when TTS enabled
+    if [ "${TTS_ENABLED:-false}" = "true" ] && [ -n "${TRAINER_TTS_TEXT:-}" ]; then
+      speak "$TRAINER_TTS_TEXT"
+    fi
   else
     (
       # Wait for the main pack sound to finish before playing trainer sound
@@ -4442,7 +4593,19 @@ if [ -n "${TRAINER_SOUND:-}" ] && [ -f "$TRAINER_SOUND" ]; then
           done
         fi
       fi
-      # Brief pause after main sound ends for natural spacing
+      # Wait for main TTS to finish too (prevents overlap in sound-then-speak mode)
+      _tts_pidfile="$PEON_DIR/.tts.pid"
+      if [ -f "$_tts_pidfile" ]; then
+        _tts_pid=$(cat "$_tts_pidfile" 2>/dev/null)
+        if [ -n "$_tts_pid" ] && kill -0 "$_tts_pid" 2>/dev/null; then
+          _waited=0
+          while kill -0 "$_tts_pid" 2>/dev/null && [ "$_waited" -lt 100 ]; do
+            sleep 0.1
+            _waited=$((_waited + 1))
+          done
+        fi
+      fi
+      # Brief pause after main sound/TTS ends for natural spacing
       sleep 0.5
       _trainer_focused=""
       if [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
@@ -4450,6 +4613,10 @@ if [ -n "${TRAINER_SOUND:-}" ] && [ -f "$TRAINER_SOUND" ]; then
         [ "$_trainer_focused" != "true" ] && play_sound "$TRAINER_SOUND" "$VOLUME"
       else
         play_sound "$TRAINER_SOUND" "$VOLUME"
+      fi
+      # Speak trainer TTS text after trainer sound when TTS enabled
+      if [ "${TTS_ENABLED:-false}" = "true" ] && [ -n "${TRAINER_TTS_TEXT:-}" ]; then
+        speak "$TRAINER_TTS_TEXT"
       fi
       if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
         [ -z "$_trainer_focused" ] && { terminal_is_focused && _trainer_focused=true || _trainer_focused=false; }

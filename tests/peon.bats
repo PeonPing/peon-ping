@@ -3446,6 +3446,102 @@ PYTHON
 }
 
 # ============================================================
+# peon update config backfill: tts section
+# ============================================================
+
+@test "peon update backfills tts section on config that lacks it" {
+  # Write a config WITHOUT tts (simulates pre-TTS install)
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "pack_rotation_mode": "random"
+}
+JSON
+
+  # Run the same shallow-merge logic that install.sh uses for backfill
+  python3 <<PYTHON
+import json
+defaults = json.load(open('${BATS_TEST_DIRNAME}/../config.json'))
+user_cfg = json.load(open('${TEST_DIR}/config.json'))
+changed = False
+for key, value in defaults.items():
+    if key not in user_cfg:
+        user_cfg[key] = value
+        changed = True
+if changed:
+    with open('${TEST_DIR}/config.json', 'w') as f:
+        json.dump(user_cfg, f, indent=2)
+        f.write('\n')
+PYTHON
+
+  # Verify tts section was added with correct defaults
+  python3 <<'PYTHON'
+import json, os
+cfg = json.load(open(os.environ['TEST_DIR'] + '/config.json'))
+tts = cfg.get('tts')
+assert tts is not None, "tts section should exist"
+assert tts['enabled'] == False, "tts.enabled should be false"
+assert tts['backend'] == 'auto', "tts.backend should be auto"
+assert tts['voice'] == 'default', "tts.voice should be default"
+assert tts['rate'] == 1.0, "tts.rate should be 1.0"
+assert tts['volume'] == 0.5, "tts.volume should be 0.5"
+assert tts['mode'] == 'sound-then-speak', "tts.mode should be sound-then-speak"
+PYTHON
+}
+
+@test "peon update preserves existing tts values when section already present" {
+  # Write a config WITH custom tts values
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "pack_rotation_mode": "random",
+  "tts": {
+    "enabled": true,
+    "backend": "say",
+    "voice": "Samantha",
+    "rate": 1.5,
+    "volume": 0.8,
+    "mode": "speak-only"
+  }
+}
+JSON
+
+  # Run the same shallow-merge backfill logic
+  python3 <<PYTHON
+import json
+defaults = json.load(open('${BATS_TEST_DIRNAME}/../config.json'))
+user_cfg = json.load(open('${TEST_DIR}/config.json'))
+changed = False
+for key, value in defaults.items():
+    if key not in user_cfg:
+        user_cfg[key] = value
+        changed = True
+if changed:
+    with open('${TEST_DIR}/config.json', 'w') as f:
+        json.dump(user_cfg, f, indent=2)
+        f.write('\n')
+PYTHON
+
+  # Verify user's tts values were NOT overwritten
+  python3 <<'PYTHON'
+import json, os
+cfg = json.load(open(os.environ['TEST_DIR'] + '/config.json'))
+tts = cfg.get('tts')
+assert tts is not None, "tts section should exist"
+assert tts['enabled'] == True, "tts.enabled should remain true"
+assert tts['backend'] == 'say', "tts.backend should remain say"
+assert tts['voice'] == 'Samantha', "tts.voice should remain Samantha"
+assert tts['rate'] == 1.5, "tts.rate should remain 1.5"
+assert tts['volume'] == 0.8, "tts.volume should remain 0.8"
+assert tts['mode'] == 'speak-only', "tts.mode should remain speak-only"
+PYTHON
+}
+
+# ============================================================
 # packs install-local
 # ============================================================
 
@@ -3936,6 +4032,160 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 # ============================================================
+# TTS speech text resolution
+# ============================================================
+
+@test "TTS: manifest speech_text present on chosen sound entry" {
+  # Enable TTS in config
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True, 'backend': 'auto', 'voice': 'default', 'rate': 1.0, 'volume': 0.5, 'mode': 'sound-then-speak'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Add speech_text to manifest sound entry
+  /usr/bin/python3 -c "
+import json
+m = json.load(open('$TEST_DIR/packs/peon/manifest.json'))
+m['categories']['task.complete']['sounds'] = [{'file': 'Done1.wav', 'label': 'Done', 'speech_text': 'Task complete for {project}'}]
+json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  tts_enabled=$(cat "$TEST_DIR/.tts_enabled")
+  [ "$tts_enabled" = "true" ]
+  tts_text=$(cat "$TEST_DIR/.tts_text")
+  [ "$tts_text" = "Task complete for myproject" ]
+}
+
+@test "TTS: falls back to notification template when no speech_text" {
+  # Enable TTS and notification templates
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+cfg['notification_templates'] = {'stop': '{project} is done'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  tts_enabled=$(cat "$TEST_DIR/.tts_enabled")
+  [ "$tts_enabled" = "true" ]
+  tts_text=$(cat "$TEST_DIR/.tts_text")
+  [ "$tts_text" = "myproject is done" ]
+}
+
+@test "TTS: falls back to default template when no notification template" {
+  # Enable TTS but no notification templates
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  tts_enabled=$(cat "$TEST_DIR/.tts_enabled")
+  [ "$tts_enabled" = "true" ]
+  tts_text=$(cat "$TEST_DIR/.tts_text")
+  # Default template: "{project} — {status}" where status is "done" for Stop event
+  [[ "$tts_text" == *"myproject"* ]]
+  [[ "$tts_text" == *"done"* ]]
+}
+
+@test "TTS: empty resolved text produces empty TTS_TEXT" {
+  # Enable TTS with a template that resolves to em dash only
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+cfg['notification_templates'] = {'stop': '{summary}'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Stop event with no transcript_summary -> summary resolves to empty
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  tts_text=$(cat "$TEST_DIR/.tts_text")
+  [ -z "$tts_text" ]
+}
+
+@test "TTS: disabled in config produces TTS_ENABLED=false" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': False}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  tts_enabled=$(cat "$TEST_DIR/.tts_enabled")
+  [ "$tts_enabled" = "false" ]
+  tts_text=$(cat "$TEST_DIR/.tts_text")
+  [ -z "$tts_text" ]
+}
+
+@test "TTS: TRAINER_TTS_TEXT populated when trainer fires and TTS enabled" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+cfg['trainer'] = {'enabled': True, 'exercises': {'pushups': 100}, 'reminder_interval_minutes': 0, 'reminder_min_gap_minutes': 0}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Create trainer manifest
+  mkdir -p "$TEST_DIR/trainer"
+  cat > "$TEST_DIR/trainer/manifest.json" <<'JSON'
+{
+  "trainer.session_start": [{"file": "remind.wav", "label": "Time for reps"}],
+  "trainer.remind": [{"file": "remind.wav", "label": "Time for reps"}]
+}
+JSON
+  touch "$TEST_DIR/trainer/remind.wav"
+
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  trainer_tts=$(cat "$TEST_DIR/.trainer_tts_text")
+  [[ "$trainer_tts" == *"pushups"* ]]
+}
+
+@test "TTS: all 8 TTS variables printed in output block" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True, 'backend': 'espeak', 'voice': 'en-us', 'rate': 1.5, 'volume': 0.8, 'mode': 'speak-only'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(cat "$TEST_DIR/.tts_enabled")" = "true" ]
+  [ -n "$(cat "$TEST_DIR/.tts_text")" ]
+  [ "$(cat "$TEST_DIR/.tts_backend")" = "espeak" ]
+  [ "$(cat "$TEST_DIR/.tts_voice")" = "en-us" ]
+  [ "$(cat "$TEST_DIR/.tts_rate")" = "1.5" ]
+  [ "$(cat "$TEST_DIR/.tts_volume")" = "0.8" ]
+  [ "$(cat "$TEST_DIR/.tts_mode")" = "speak-only" ]
+  # trainer_tts_text should be empty (no trainer configured)
+  [ -z "$(cat "$TEST_DIR/.trainer_tts_text")" ]
+}
+
+@test "TTS: paused hook produces TTS_ENABLED=false" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  # Create .paused file to simulate paused state
+  touch "$TEST_DIR/.paused"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  # When paused, peon exits early — no sound, no TTS
+  # The .tts_enabled file should show false
+  tts_enabled=$(cat "$TEST_DIR/.tts_enabled" 2>/dev/null || echo "false")
+  [ "$tts_enabled" = "false" ]
+  rm -f "$TEST_DIR/.paused"
+}
+
+# ============================================================
 # packs list --registry + install (end-to-end community pack flow)
 # ============================================================
 
@@ -4302,7 +4552,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   local clean_bin
   clean_bin="$(mktemp -d)"
   # Keep only python3 (needed for peon.sh), bash, date, grep, sed, etc.
-  for util in python3 bash date grep sed awk cat wc sort head tail mkdir mktemp touch rm printf tr cut; do
+  for util in python3 bash date grep sed awk cat wc sort head tail mkdir touch rm printf tr cut; do
     local util_path
     util_path=$(command -v "$util" 2>/dev/null) || true
     [ -n "$util_path" ] && ln -sf "$util_path" "$clean_bin/$util"

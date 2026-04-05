@@ -37,6 +37,7 @@ complete -c peon -n __peon_no_subcommand -a mobile -d "Configure mobile push not
 complete -c peon -n __peon_no_subcommand -a debug -d "Toggle debug logging"
 complete -c peon -n __peon_no_subcommand -a logs -d "View or manage log files"
 complete -c peon -n __peon_no_subcommand -a relay -d "Start audio relay for devcontainers"
+complete -c peon -n __peon_no_subcommand -a update -d "Update peon-ping and refresh sound packs"
 complete -c peon -n __peon_no_subcommand -a help -d "Show help message"
 
 # packs subcommands
