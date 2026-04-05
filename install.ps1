@@ -1912,7 +1912,7 @@ switch ($hookEvent) {
         $category = "session.start"
         # Debounce rapid SessionStart events (e.g. --continue fires twice, multi-workspace IDE startup)
         $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-        $ssCooldown = if ($config.session_start_cooldown_seconds) { [int]$config.session_start_cooldown_seconds } else { 30 }
+        $ssCooldown = if ($null -ne $config.session_start_cooldown_seconds) { [int]$config.session_start_cooldown_seconds } else { 30 }
         $lastStart = if ($state.ContainsKey("last_session_start_sound_time")) { $state["last_session_start_sound_time"] } else { 0 }
         if ($ssCooldown -gt 0 -and ($now - $lastStart) -lt $ssCooldown) {
             & $peonLog 'route' @{ category = 'session.start'; suppressed = 'True'; reason = 'session_start_cooldown' }
