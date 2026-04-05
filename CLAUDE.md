@@ -86,6 +86,8 @@ IDE triggers hook → `peon.sh` reads JSON stdin → single Python call maps eve
 - **`adapters/kiro.sh`** — Translates Kiro CLI (Amazon) events to CESP JSON
 - **`adapters/windsurf.sh`** — Translates Windsurf Cascade hook events to CESP JSON
 - **`adapters/antigravity.sh`** — Filesystem watcher for Google Antigravity agent events
+- **`adapters/hermes.sh`** — Installer script for Hermes Agent CESP plugin
+- **`adapters/hermes/`** — Native Python plugin (`__init__.py` + `plugin.yaml`) registered on Hermes lifecycle hooks
 
 All adapters have native Windows PowerShell (`.ps1`) counterparts alongside the bash originals. Windows adapters pipe CESP JSON to `peon.ps1` instead of `peon.sh`. Filesystem watchers (amp, antigravity, kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait.
 

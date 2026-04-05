@@ -559,6 +559,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **OpenClaw** | Adapter | Call `adapters/openclaw.sh <event>` (or `openclaw.ps1`) from your OpenClaw skill |
 | **Rovo Dev CLI** | Adapter | Auto-registered by `install.sh` if `~/.rovodev` exists, or add hooks to `~/.rovodev/config.yml` manually ([setup](#rovo-dev-cli-setup)) |
 | **DeepAgents** | Adapter | `bash adapters/deepagents.sh` / `powershell adapters/deepagents.ps1` ([setup](#deepagents-setup)) |
+| **Hermes** | Plugin | `bash adapters/hermes.sh` / `curl | bash` ([setup](#hermes-setup)) |
 
 > **Windows:** All adapters have native PowerShell (`.ps1`) versions. The Windows installer (`install.ps1`) copies them to `~/.claude/hooks/peon-ping/adapters/`. Filesystem watchers (Amp, Antigravity, Kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait — no extra dependencies needed.
 
@@ -942,6 +943,56 @@ Requires `fswatch` (`brew install fswatch`) on macOS or `inotifywait` (`apt inst
 - Agent finishes turn → Completion sound (*"Work, work."*, *"Job's done!"*)
 - Context compaction → Token limit sound
 - Sub-agent spawned → Sub-agent tracking
+
+### Hermes setup
+
+A native Python plugin for [Hermes Agent](https://github.com/NousResearch/hermes-agent), a CLI-first autonomous AI agent by Nous Research. No shell wrappers or filesystem watchers — the plugin registers directly on Hermes's lifecycle hook system.
+
+**Setup:**
+
+1. Install the peon-ping runtime first (`curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash`)
+
+2. Run the Hermes adapter installer:
+
+   ```bash
+   bash adapters/hermes.sh
+   ```
+
+   Or install manually:
+
+   ```bash
+   mkdir -p ~/.hermes/plugins/cesp-sounds
+   cp adapters/hermes/__init__.py ~/.hermes/plugins/cesp-sounds/
+   cp adapters/hermes/plugin.yaml ~/.hermes/plugins/cesp-sounds/
+   ```
+
+3. Restart Hermes. The plugin auto-discovers on startup.
+
+**Event mapping:**
+
+| Hermes Hook | CESP Category | Trigger |
+|---|---|---|
+| `on_session_start` | `session.start` | New session begins |
+| `pre_tool_call` (clarify) | `input.required` | Agent waiting for user input |
+| `post_tool_call` (success) | `task.complete` | Tool call finished |
+| `post_tool_call` (error) | `task.error` | Tool call failed |
+| `on_session_end` | `session.end` | Session closes |
+
+**Configuration** (all via environment variables):
+
+| Variable | Default | Description |
+|---|---|---|
+| `CESP_PACKS_DIR` | `~/.claude/hooks/peon-ping/packs` | Sound packs directory |
+| `CESP_ACTIVE_PACK` | (most recent) | Override active pack by name |
+| `CESP_VOLUME` | `0.5` | Master volume (0.0–1.0) |
+| `CESP_DEBOUNCE` | `0.5` | Min seconds between sounds per category |
+| `CESP_PLATFORMS` | `cli` | Comma-separated: `cli`, `gateway`, `cron` |
+
+**Uninstall:**
+
+```bash
+bash adapters/hermes.sh --uninstall
+```
 
 ## Remote development (SSH / Devcontainers / Codespaces)
 
