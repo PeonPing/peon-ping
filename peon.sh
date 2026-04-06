@@ -1633,7 +1633,7 @@ except Exception:
       exit 0
     fi
     case "$ROT_ARG" in
-      random|round-robin|session_override|agentskill)
+      random|round-robin|shuffle|session_override|agentskill)
         export PEON_ENV_ROT_ARG="$ROT_ARG"
         python3 -c "
 import json, os
@@ -1652,11 +1652,12 @@ print('peon-ping: rotation mode set to ' + mode)
 "
         _rc=$?; [ $_rc -eq 0 ] && sync_adapter_configs; exit $_rc ;;
       *)
-        echo "Usage: peon rotation <random|round-robin|session_override>" >&2
+        echo "Usage: peon rotation <random|round-robin|shuffle|session_override>" >&2
         echo "" >&2
         echo "Modes:" >&2
         echo "  random           Pick a random pack each session (default)" >&2
         echo "  round-robin      Cycle through packs in order each session" >&2
+        echo "  shuffle          Pick a random pack for every sound event" >&2
         echo "  session_override Use /peon-ping-use to assign pack per session" >&2
         exit 1 ;;
     esac ;;
@@ -2835,7 +2836,7 @@ Commands:
   toggle               Toggle mute on/off
   status               Check if paused or active
   volume [0.0-1.0]     Get or set volume level
-  rotation [mode]      Get or set pack rotation mode (random|round-robin|session_override)
+  rotation [mode]      Get or set pack rotation mode (random|round-robin|shuffle|session_override)
   notifications on        Enable desktop notification popups (sounds continue playing)
   notifications off       Disable desktop notification popups (sounds continue playing)
   notifications overlay   Use large overlay banners (default)
@@ -3579,10 +3580,13 @@ if rotation_mode in ('session_override', 'agentskill'):
                 active_pack = _path_rule_pack or _default_pack
         else:
             active_pack = _path_rule_pack or _default_pack
-elif pack_rotation and rotation_mode in ('random', 'round-robin'):
+elif pack_rotation and rotation_mode in ('random', 'round-robin', 'shuffle'):
     if _path_rule_pack:
         # Path rule beats rotation
         active_pack = _path_rule_pack
+    elif rotation_mode == 'shuffle':
+        # Shuffle: pick a random pack for every sound event, no session caching
+        active_pack = random.choice(pack_rotation)
     else:
         # Automatic rotation — detect context resets (new session_id within seconds
         # of the last event, no Stop in between) and reuse the previous pack.

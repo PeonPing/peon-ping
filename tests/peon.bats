@@ -1685,6 +1685,51 @@ PYTHON
   [[ "$sound" == *"/packs/sc_kerrigan/sounds/"* ]]
 }
 
+@test "shuffle mode picks from pack_rotation on every event" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["sc_kerrigan"],
+  "pack_rotation_mode": "shuffle"
+}
+JSON
+  # First event
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"shuf1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/sc_kerrigan/sounds/"* ]]
+
+  # Second event with same session_id should still use rotation list (not cache)
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"shuf1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  sound2=$(afplay_sound)
+  [[ "$sound2" == *"/packs/sc_kerrigan/sounds/"* ]]
+}
+
+@test "shuffle mode does not cache pack in session_packs" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": {},
+  "pack_rotation": ["sc_kerrigan"],
+  "pack_rotation_mode": "shuffle"
+}
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"shuf2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  # Verify session_packs does NOT contain the shuffle session
+  /usr/bin/python3 <<PYTHON
+import json, os
+state = json.load(open(os.environ['TEST_DIR'] + '/.state.json'))
+sp = state.get('session_packs', {})
+assert 'shuf2' not in sp, f"shuffle should not cache in session_packs, got: {sp}"
+PYTHON
+}
+
 @test "empty pack_rotation falls back to default_pack" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {

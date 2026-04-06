@@ -53,7 +53,7 @@ _peon_completions() {
         return 0 ;;
       rotation)
         if [ "$cword" -eq 2 ]; then
-          COMPREPLY=( $(compgen -W "random round-robin agentskill" -- "$cur") )
+          COMPREPLY=( $(compgen -W "random round-robin shuffle session_override" -- "$cur") )
         fi
         return 0 ;;
       status)

@@ -84,7 +84,8 @@ _peon() {
   rotation_cmds=(
     'random:Pick a random pack each session (default)'
     'round-robin:Cycle through packs in order'
-    'agentskill:Assign pack per session via /peon-ping-use'
+    'shuffle:Pick a random pack for every sound event'
+    'session_override:Assign pack per session via /peon-ping-use'
   )
 
   logs_cmds=(

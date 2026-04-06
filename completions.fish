@@ -124,7 +124,8 @@ complete -c peon -n "__peon_using_subcommand mobile" -a test -d "Send test notif
 # rotation subcommands
 complete -c peon -n "__peon_using_subcommand rotation" -a random -d "Pick a random pack each session (default)"
 complete -c peon -n "__peon_using_subcommand rotation" -a round-robin -d "Cycle through packs in order"
-complete -c peon -n "__peon_using_subcommand rotation" -a agentskill -d "Assign pack per session via /peon-ping-use"
+complete -c peon -n "__peon_using_subcommand rotation" -a shuffle -d "Pick a random pack for every sound event"
+complete -c peon -n "__peon_using_subcommand rotation" -a session_override -d "Assign pack per session via /peon-ping-use"
 
 # Helper: true when notifications subcommand is active and second arg matches
 function __peon_notif_subcommand
