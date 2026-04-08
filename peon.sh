@@ -414,27 +414,20 @@ play_sound() {
       fi
       ;;
     wsl)
-      local tmpdir tmpfile
-      tmpdir=$(powershell.exe -NoProfile -NonInteractive -Command '[System.IO.Path]::GetTempPath()' 2>/dev/null | tr -d '\r')
-      tmpfile="$(wslpath -u "${tmpdir}peon-ping-sound.wav")"
-      if command -v ffmpeg &>/dev/null; then
-        ffmpeg -y -i "$file" -filter:a "volume=$vol" "$tmpfile" 2>/dev/null
-      else
-        if [ -z "${_PEON_FFMPEG_WARNED:-}" ]; then
-          echo "peon-ping: warning: ffmpeg not found — volume control disabled, playing at default volume" >&2
-          _PEON_FFMPEG_WARNED=1
-          export _PEON_FFMPEG_WARNED
-        fi
-        if [[ "$file" == *.wav ]]; then
-          cp "$file" "$tmpfile"
-        else
-          _peon_log play "error=\"ffmpeg missing, cannot convert non-wav file\" file=$(basename "$file")"
-          return 0
-        fi
-      fi
-      local safe_tmpdir="${tmpdir//\'/\'\'}"
-      setsid powershell.exe -NoProfile -NonInteractive -Command "
-        (New-Object Media.SoundPlayer '${safe_tmpdir}peon-ping-sound.wav').PlaySync()
+      local wpath
+      wpath=$(wslpath -w "$file" 2>/dev/null) || { _peon_log play "error=\"wslpath failed\" file=$(basename "$file")"; return 0; }
+      wpath="${wpath//\\/\/}"
+      powershell.exe -NoProfile -NonInteractive -Command "
+        Add-Type -AssemblyName PresentationCore
+        \$p = New-Object System.Windows.Media.MediaPlayer
+        \$p.Volume = $vol
+        \$p.Open([Uri]::new('file:///$wpath'))
+        Start-Sleep -Milliseconds 500
+        \$p.Play()
+        while (\$p.Position -lt \$p.NaturalDuration.TimeSpan -and \$p.Position.TotalSeconds -lt 10) {
+          Start-Sleep -Milliseconds 100
+        }
+        \$p.Close()
       " &>/dev/null &
       save_sound_pid $!
       ;;
