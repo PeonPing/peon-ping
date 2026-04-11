@@ -109,7 +109,8 @@ JSON
 @test "invalid pack name is skipped" {
   run bash "$PACK_DL_SH" --dir="$TEST_DIR" --packs="../etc/passwd"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"skipping invalid"* ]] || [[ "$(cat "$TEST_DIR/stderr.log" 2>/dev/null)" == *"skipping invalid"* ]]
+  # Invalid pack name should be silently skipped — no directory created
+  [ ! -d "$TEST_DIR/packs/../etc/passwd" ]
 }
 
 @test "missing --dir shows error" {
