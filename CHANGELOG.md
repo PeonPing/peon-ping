@@ -1,3 +1,15 @@
+## v2.18.0 (2026-04-11)
+
+### Added
+- **`--lang` flag for pack filtering** — filter sound packs by language during install and registry listing. Supports prefix matching (`--lang en` matches `en`, `en-GB`) and multi-language packs. Works with `install.sh`, `peon packs install`, and `peon packs list --registry`. PR #450, closes #395.
+
+### Fixed
+- **Sounds now play in delegate/autonomous mode** — sessions using `delegate` or `dangerouslySkipPermissions` permission mode (Conductor, Claude Desktop, etc.) are no longer silenced. Set `suppress_delegate_sessions: true` in config to restore old behavior. Also adds sound to `idle_prompt` notifications (maps to `task.complete`). Fixes #452.
+- **WSL audio playback** — replaced `SoundPlayer` + `setsid` with `MediaPlayer` (PresentationCore) for WSL. Handles WAV/MP3 natively with volume control, no ffmpeg dependency. Fixes #446.
+- **Windows MediaPlayer for MP3/WMA** — `win-play.ps1` now uses native `MediaPlayer` for `.mp3` and `.wma` files (not just `.wav`). No more silent failure when CLI players aren't installed. Fixes #451.
+- **macOS osascript process accumulation** — overlay notification processes are now cleaned up proactively on each invocation (kills stale processes >30s old) and watchdog subshells are explicitly terminated after overlay exits. Prevents CPU-consuming buildup in long sessions. Fixes #449.
+- **Windows git-bash stdin hang** — bounded stdin read to 2 seconds to prevent `cat` from blocking until the outer timeout fires. Fixes #445.
+
 ## v2.17.3 (2026-03-31)
 
 ### Fixed
