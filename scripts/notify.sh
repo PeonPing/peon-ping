@@ -441,13 +441,18 @@ public class NoActivateForm : Form {
       # urgency=critical which overrides the user's dismiss-time setting (#378).
       urgency="normal"
       icon_flag=""
+      dismiss_mili_secs=$(( ${PEON_NOTIF_DISMISS:-4} * 1000 ))
       if [ -f "$icon_path" ]; then
         icon_flag="--icon=$icon_path"
       fi
+      expire_time_flag=""
+      if (( dismiss_mili_secs > 0 )); then
+        expire_time_flag="--expire-time=$dismiss_mili_secs"
+      fi
       if [ "$use_bg" = true ]; then
-        nohup notify-send --urgency="$urgency" --expire-time=5000 $icon_flag "$title" "$msg" >/dev/null 2>&1 &
+        nohup notify-send --urgency="$urgency" $expire_time_flag $icon_flag "$title" "$msg" >/dev/null 2>&1 &
       else
-        notify-send --urgency="$urgency" --expire-time=5000 $icon_flag "$title" "$msg" >/dev/null 2>&1
+        notify-send --urgency="$urgency" $expire_time_flag $icon_flag "$title" "$msg" >/dev/null 2>&1
       fi
     fi
     ;;
