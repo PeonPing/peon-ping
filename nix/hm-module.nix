@@ -174,7 +174,7 @@ in
     });
 
     # Shell completions
-    programs.zsh.initExtra = mkIf cfg.enableZshIntegration ''
+    programs.zsh.initContent = mkIf cfg.enableZshIntegration ''
       source ${cfg.package}/share/zsh/site-functions/_peon 2>/dev/null || true
       alias peon="${cfg.package}/bin/peon"
     '';
