@@ -976,6 +976,55 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   [ "$val" = "True" ]
 }
 
+@test "notifications marker shows default" {
+  run bash "$PEON_SH" notifications marker
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"●"* ]]
+}
+
+@test "notifications marker set to empty disables it" {
+  run bash "$PEON_SH" notifications marker ""
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"disabled"* ]]
+  val=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('notification_title_marker', '●'))")
+  [ "$val" = "" ]
+}
+
+@test "notifications marker set to custom" {
+  run bash "$PEON_SH" notifications marker "🔔"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"🔔"* ]]
+  val=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('notification_title_marker', '●'))")
+  [ "$val" = "🔔" ]
+}
+
+@test "notification_title_marker appears in notification title" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  grep -q "●" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_title_marker empty removes marker from title" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_marker'] = ''
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  ! grep -q "●" "$TEST_DIR/terminal_notifier.log"
+}
+
 # ============================================================
 # packs list
 # ============================================================

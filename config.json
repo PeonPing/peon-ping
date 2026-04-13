@@ -34,6 +34,7 @@
   "notification_dismiss_seconds": 4,
   "notification_all_screens": true,
   "notification_title_override": "",
+  "notification_title_marker": "●",
   "notification_title_script": "",
   "project_name_map": {},
   "debug": false,

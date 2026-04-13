@@ -1861,8 +1861,8 @@ try {
     $config = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
 } catch {
     $_configError = "$_"
-    # Fall back to minimal defaults so the hook can still run (logging requires PEON_DEBUG=1 when config is broken)
-    $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7 }
+# Fall back to minimal defaults so the hook can still run (logging requires PEON_DEBUG=1 when config is broken)
+    $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7; notification_title_marker = '●' }
 }
 
 # NOTE: enabled check moved below logging init so paused invocations are visible in debug logs
@@ -2686,7 +2686,7 @@ if ($null -eq $desktopNotif) { $desktopNotif = $true }
 if ($notify -and $desktopNotif) {
     $winNotifyScript = Join-Path $InstallDir "scripts\win-notify.ps1"
     if (Test-Path $winNotifyScript) {
-        $marker = [char]0x25CF  # ●
+$marker = if ($config.notification_title_marker) { $config.notification_title_marker } else { [char]0x25CF }
         $notifTitle = "$marker $project`: $notifyStatus"
         $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
         # Resolve parent PID (the IDE/terminal that spawned Claude Code) for click-to-focus

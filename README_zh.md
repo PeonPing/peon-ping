@@ -361,6 +361,7 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - **notification_dismiss_seconds**（数字，默认：`4`）：覆盖通知在 N 秒后自动消失。设为 `0` 则通知持续显示，需点击关闭。
 - **`CLAUDE_SESSION_NAME` 环境变量**：在启动 `claude` 前设置，为会话指定自定义名称。同时显示在桌面通知标题和终端标签标题中，优先级高于所有配置项。示例：`CLAUDE_SESSION_NAME="Auth Refactor" claude` 或先 `export CLAUDE_SESSION_NAME="功能: Auth"` 再 `claude`。
 - **notification_title_override**（字符串，默认：`""`）：覆盖通知标题中显示的项目名称。为空时自动检测：`/peon-ping-rename` > `CLAUDE_SESSION_NAME` > `.peon-label` > `notification_title_script` > `project_name_map` > git 仓库名 > 文件夹名。
+- **notification_title_marker**（字符串，默认：`"●"`）：通知标题和终端标签标题前显示的字符。设为 `""` 可禁用。例如：`"🔔"`。
 - **notification_title_script**（字符串，默认：`""`）：在事件触发时运行的 Shell 命令，用于动态计算项目名称。可用环境变量：`PEON_SESSION_ID`、`PEON_CWD`、`PEON_HOOK_EVENT`、`PEON_SESSION_NAME`。使用标准输出（去除首尾空白，最多 50 字符）；非零退出码则继续查找下一层级。示例：`"basename $PEON_CWD"`。
 - **project_name_map**（对象，默认：`{}`）：将目录路径映射为通知中的自定义项目标签。键为路径模式，值为显示名称。
 - **notification_templates**（对象，默认：`{}`）：自定义通知事件的消息格式。键为事件类型（`stop`、`permission`、`error`、`idle`、`question`），值为支持变量替换的模板字符串。可用变量：`{project}`、`{summary}`、`{tool_name}`、`{status}`、`{event}`。

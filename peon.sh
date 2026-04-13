@@ -1095,6 +1095,9 @@ if verbose:
         print('peon-ping: label override: ' + _lbl)
     if _pmap:
         print('peon-ping: project name map: ' + str(len(_pmap)) + ' pattern(s)')
+    _mrk = c.get('notification_title_marker', '●')
+    if _mrk != '●':
+        print('peon-ping: title marker: ' + (_mrk if _mrk else '(disabled)'))
     _tpls = c.get('notification_templates', {})
     if _tpls:
         print('peon-ping: notification templates:')
@@ -1433,8 +1436,46 @@ except Exception:
     cfg = {}
 cfg['notification_title_override'] = label
 json.dump(cfg, open(config_path, 'w'), indent=2)
-print(f'peon-ping: label override set to \"{label}\"')
+print(f'peon-ping: label override set to "{label}"')
 " "$LABEL_ARG"
+        _rc=$?; [ "$_rc" -ne 0 ] && exit "$_rc"
+        sync_adapter_configs; exit 0 ;;
+      marker)
+        MARKER_ARG="${3:-}"
+        if [ -z "$MARKER_ARG" ]; then
+          python3 -c "
+import json
+try:
+    cfg = json.load(open('$CONFIG_PY'))
+    m = cfg.get('notification_title_marker', '●')
+    if m == '●':
+        print('peon-ping: title marker: ● (default)')
+    elif m:
+        print(f'peon-ping: title marker: {m}')
+    else:
+        print('peon-ping: title marker: (disabled)')
+except Exception:
+    print('peon-ping: title marker: ● (default)')
+"
+          exit 0
+        fi
+        python3 -c "
+import json, sys
+config_path = '$GLOBAL_CONFIG_PY'
+marker = sys.argv[1]
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+cfg['notification_title_marker'] = marker
+json.dump(cfg, open(config_path, 'w'), indent=2)
+if marker == '●':
+    print('peon-ping: title marker reset to default ●')
+elif marker:
+    print(f'peon-ping: title marker set to \"{marker}\"')
+else:
+    print('peon-ping: title marker disabled')
+" "$MARKER_ARG"
         _rc=$?; [ "$_rc" -ne 0 ] && exit "$_rc"
         sync_adapter_configs; exit 0 ;;
       test)
@@ -2828,6 +2869,10 @@ if 'notification_all_screens' not in cfg:
     cfg['notification_all_screens'] = _theme not in ('glass', 'jarvis', 'sakura')
     changed = True
     migrations.append('notification_all_screens')
+if 'notification_title_marker' not in cfg:
+    cfg['notification_title_marker'] = '●'
+    changed = True
+    migrations.append('notification_title_marker')
 if changed:
     json.dump(cfg, open(config_path, 'w'), indent=2)
     print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
@@ -4282,6 +4327,7 @@ print('NOTIF_STYLE=' + q(cfg.get('notification_style', 'overlay')))
 print('NOTIF_POSITION=' + q(cfg.get('notification_position', 'top-center')))
 print('NOTIF_DISMISS=' + q(str(cfg.get('notification_dismiss_seconds', 4))))
 print('NOTIF_ALL_SCREENS=' + ('true' if cfg.get('notification_all_screens', True) else 'false'))
+print('NOTIF_MARKER=' + q(cfg.get('notification_title_marker', '●')))
 print('USE_SOUND_EFFECTS_DEVICE=' + q(str(use_sound_effects_device).lower()))
 print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))
 print('PEON_SSH_AUDIO_MODE=' + q(str(cfg.get('ssh_audio_mode', 'relay'))))
@@ -4361,7 +4407,7 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
   # Maintain tab title even on suppressed events (plan mode, unknown events, subagent start).
   # PROJECT is only emitted by paths that should maintain the title; agent/disabled paths omit it.
   if [ -n "${PROJECT:-}" ] && [ "${EVENT:-}" != "SessionEnd" ]; then
-    { printf '\033]0;%s\007' "${MARKER:-}${PROJECT}: ${STATUS:-working}" > /dev/tty; } 2>/dev/null || true
+    { printf '\033]0;%s\007' "${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS:-working}" > /dev/tty; } 2>/dev/null || true
   fi
   exit 0
 fi
@@ -4483,7 +4529,7 @@ if [ "$EVENT" = "SessionStart" ] && { [ "$PEON_PLATFORM" = "devcontainer" ] || [
 fi
 
 # --- Build tab title ---
-TITLE="${MARKER}${PROJECT}: ${STATUS}"
+TITLE="${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS}"
 
 # --- Resolve TTY for escape sequences ---
 # Write to /dev/tty so the escape sequence reaches the terminal directly.

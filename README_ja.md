@@ -358,6 +358,7 @@ peon-ping には3つの独立したコントロールがあり、自由に組み
 - **notification_dismiss_seconds**（数値、デフォルト: `4`）: N 秒後にオーバーレイ通知を自動的に消去。`0` に設定するとクリックで消去するまで永続的に表示。
 - **`CLAUDE_SESSION_NAME` 環境変数**: `claude` 起動前に設定すると、セッションにカスタム名を付けられます。デスクトップ通知タイトルとターミナルタブタイトルの両方に表示されます。すべての設定ベースの命名より優先。例: `CLAUDE_SESSION_NAME="Auth Refactor" claude` または `export CLAUDE_SESSION_NAME="Feature: Auth"` してから `claude`。各ターミナルは自動的に独自のタイトルを取得します。
 - **notification_title_override**（文字列、デフォルト: `""`）: 通知タイトルに表示されるプロジェクト名を上書き。空の場合は自動検出: `/peon-ping-rename` > `CLAUDE_SESSION_NAME` > `.peon-label` > `notification_title_script` > `project_name_map` > git リポジトリ名 > フォルダ名。
+- **notification_title_marker**（文字列、デフォルト: `"●"`）: 通知タイトルとターミナルタブタイトル前に表示される文字。`""` に設定すると無効化。例如：`"🔔"`。
 - **notification_title_script**（文字列、デフォルト: `""`）: イベント発生時に実行されるシェルコマンドで、プロジェクト名を動的に計算。利用可能な環境変数: `PEON_SESSION_ID`、`PEON_CWD`、`PEON_HOOK_EVENT`、`PEON_SESSION_NAME`。stdout を使用（トリミング済み、最大50文字）; 非ゼロ終了は次のティアにフォールスルー。例: `"basename $PEON_CWD"`。
 - **project_name_map**（オブジェクト、デフォルト: `{}`）: ディレクトリパスを通知のカスタムプロジェクトラベルにマッピング。キーはパスパターン、値は表示名。例: `{ "/home/user/work/client-a": "Client A" }`。
 - **notification_templates**（オブジェクト、デフォルト: `{}`）: 通知イベントのカスタムメッセージフォーマット文字列。キーはイベントタイプ（`stop`、`permission`、`error`、`idle`、`question`）、値は変数置換付きのテンプレート文字列。利用可能な変数: `{project}`、`{summary}`、`{tool_name}`、`{status}`、`{event}`。例: `{ "stop": "{project}: {summary}", "permission": "{project}: {tool_name} needs approval" }`。
