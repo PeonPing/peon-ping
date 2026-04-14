@@ -756,6 +756,8 @@ send_notification() {
       export PEON_MSG_SUBTITLE="${MSG_SUBTITLE:-}"
       export PEON_NOTIFY_TYPE="${NOTIFY_TYPE:-}"
       export PEON_NOTIF_CLOSE_BUTTON="${NOTIF_CLOSE_BUTTON:-true}"
+      export PEON_SESSION_ID="${SESSION_ID:-}"
+      export PEON_NOTIF_STACKING="${NOTIF_STACKING:-true}"
       bash "$notify_script" "$msg" "$title" "$color" "$icon_path"
       ;;
     devcontainer|ssh)
@@ -3812,6 +3814,26 @@ notify_color = ''
 msg = ''
 msg_subtitle = ''
 
+# --- Auto-dismiss: kill pending overlays when user resumes interaction ---
+# UserPromptSubmit = user typed/accepted, Stop = task finished,
+# PostToolUseFailure/Notification = tool ran (permission was granted) — dismiss stale notifications
+_dismiss_events = ('UserPromptSubmit', 'Stop', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'Notification')
+if event in _dismiss_events and session_id and cfg.get('notification_stacking', True):
+    _slot_dir = '/tmp/peon-ping-popups'
+    _sf = os.path.join(_slot_dir, '.session-' + session_id)
+    if os.path.isfile(_sf):
+        try:
+            _parts = open(_sf).read().strip().split('|')
+            if len(_parts) >= 2:
+                for _kpid in _parts[1].split():
+                    try:
+                        os.kill(int(_kpid), 15)
+                    except (OSError, ValueError):
+                        pass
+            os.unlink(_sf)
+        except Exception:
+            pass
+
 if event == 'SessionStart':
     source = event_data.get('source', '')
     if source == 'compact':
@@ -4332,6 +4354,8 @@ print('NOTIF_DISMISS=' + q(str(cfg.get('notification_dismiss_seconds', 4))))
 print('NOTIF_ALL_SCREENS=' + ('true' if cfg.get('notification_all_screens', True) else 'false'))
 print('NOTIF_MARKER=' + q(cfg.get('notification_title_marker', '●')))
 print('NOTIF_CLOSE_BUTTON=' + ('true' if cfg.get('notification_close_button', True) else 'false'))
+print('NOTIF_STACKING=' + ('true' if cfg.get('notification_stacking', True) else 'false'))
+print('SESSION_ID=' + q(session_id))
 print('USE_SOUND_EFFECTS_DEVICE=' + q(str(use_sound_effects_device).lower()))
 print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))
 print('PEON_SSH_AUDIO_MODE=' + q(str(cfg.get('ssh_audio_mode', 'relay'))))

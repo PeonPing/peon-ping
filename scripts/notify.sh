@@ -198,14 +198,48 @@ case "$PEON_PLATFORM" in
           fi
         fi
         slot_dir="/tmp/peon-ping-popups"; mkdir -p "$slot_dir"
-        slot=0
-        while [ "$slot" -lt 5 ] && ! mkdir "$slot_dir/slot-$slot" 2>/dev/null; do
-          slot=$((slot + 1))
-        done
-        if [ "$slot" -ge 5 ]; then
-          find "$slot_dir" -maxdepth 1 -name 'slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null
-          slot=0; mkdir -p "$slot_dir/slot-0"
+        local session_id="${PEON_SESSION_ID:-}"
+        local session_file=""
+        local count=1
+        local reuse_slot=-1
+
+        # --- Session stacking: group notifications from the same Claude session ---
+        local stacking_enabled="${PEON_NOTIF_STACKING:-true}"
+        if [ "$stacking_enabled" = "true" ] && [ -n "$session_id" ]; then
+          session_file="$slot_dir/.session-${session_id}"
+          if [ -f "$session_file" ]; then
+            local old_slot old_pid old_count
+            IFS='|' read -r old_slot old_pid old_count < "$session_file" 2>/dev/null || true
+            old_count="${old_count:-1}"
+            count=$((old_count + 1))
+            if [ -n "$old_pid" ]; then
+              for _kp in $old_pid; do
+                kill "$_kp" 2>/dev/null || true
+              done
+              local _w=0
+              while [ "$_w" -lt 10 ] && [ -d "$slot_dir/slot-${old_slot}" ]; do
+                sleep 0.05; _w=$((_w + 1))
+              done
+            fi
+            if mkdir "$slot_dir/slot-${old_slot}" 2>/dev/null; then
+              reuse_slot=$old_slot
+            fi
+          fi
         fi
+
+        if [ "$reuse_slot" -ge 0 ]; then
+          slot=$reuse_slot
+        else
+          slot=0
+          while [ "$slot" -lt 5 ] && ! mkdir "$slot_dir/slot-$slot" 2>/dev/null; do
+            slot=$((slot + 1))
+          done
+          if [ "$slot" -ge 5 ]; then
+            find "$slot_dir" -maxdepth 1 -name 'slot-*' -mmin +1 -exec rm -rf {} + 2>/dev/null
+            slot=0; mkdir -p "$slot_dir/slot-0"
+          fi
+        fi
+
         local session_tty="${PEON_SESSION_TTY:-}"
         local subtitle="${PEON_MSG_SUBTITLE:-}"
         local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
@@ -213,6 +247,12 @@ case "$PEON_PLATFORM" in
         local notify_type="${PEON_NOTIFY_TYPE:-}"
         local all_screens="${PEON_NOTIF_ALL_SCREENS:-true}"
         local close_button="${PEON_NOTIF_CLOSE_BUTTON:-true}"
+
+        # Prepend count badge if stacked
+        if [ "$count" -gt 1 ]; then
+          msg="($count) $msg"
+        fi
+
         # argv[5]=bundle_id, argv[6]=ide_pid, argv[7]=session_tty, argv[8]=subtitle, argv[9]=position, argv[10]=notify_type, argv[11]=all_screens, argv[12]=screen_index, argv[13]=close_button
         local _overlay_pids=""
         if [ "$all_screens" = "true" ]; then
@@ -226,6 +266,11 @@ case "$PEON_PLATFORM" in
           osascript -l JavaScript "$overlay_script" "$msg" "$color" "$local_icon_arg" "$slot" "$dismiss_secs" "$bundle_id" "$ide_pid" "$session_tty" "$subtitle" "$notif_position" "$notify_type" "$all_screens" "" "$close_button" >/dev/null 2>&1 &
           _overlay_pids="$!"
         fi
+        # Save session state for stacking
+        if [ -n "$session_file" ]; then
+          echo "${slot}|${_overlay_pids## }|${count}" > "$session_file"
+        fi
+
         # Shell-level watchdog: kill if JXA terminate timer doesn't fire (macOS regression)
         # When dismiss_secs=0 (persistent), skip the watchdog — overlay stays until clicked.
         local _max_wait
@@ -246,6 +291,7 @@ case "$PEON_PLATFORM" in
           wait "$_last_wd" 2>/dev/null || true
         done
         rm -rf "$slot_dir/slot-$slot"
+        [ -n "$session_file" ] && rm -f "$session_file"
       )
       if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi
     else
