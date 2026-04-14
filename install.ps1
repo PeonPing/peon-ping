@@ -2830,7 +2830,7 @@ $peonEntry = [PSCustomObject]@{
     hooks = @($peonHook)
 }
 
-$events = @("SessionStart", "SessionEnd", "SubagentStart", "Stop", "Notification", "PermissionRequest", "PostToolUseFailure", "PreCompact")
+$events = @("SessionStart", "SessionEnd", "SubagentStart", "Stop", "Notification", "PermissionRequest", "PreToolUse", "PostToolUseFailure", "PreCompact")
 
 foreach ($evt in $events) {
     $eventHooks = @()

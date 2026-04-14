@@ -1022,7 +1022,7 @@ peon_hook_async = {
 # SessionStart runs sync so stderr messages (update notice, pause status,
 # relay guidance) appear immediately. All other events run async.
 sync_events = ('SessionStart',)
-events = ['SessionStart', 'SessionEnd', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest', 'PostToolUseFailure', 'PreCompact']
+events = ['SessionStart', 'SessionEnd', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest', 'PreToolUse', 'PostToolUseFailure', 'PreCompact']
 
 # PostToolUseFailure only triggers on Bash failures — use matcher to limit scope
 bash_only_events = ('PostToolUseFailure',)
