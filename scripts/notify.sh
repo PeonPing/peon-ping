@@ -306,41 +306,62 @@ case "$PEON_PLATFORM" in
           printf '\e]99;i=peon:d=0;%s\e\\' "$title: $msg" > /dev/tty 2>/dev/null || true
           ;;
         *)
+          # Native macOS Notification Center (grouped by session, rich subtitle)
+          local notif_subtitle="${PEON_MSG_SUBTITLE:-}"
+          local notif_group="peon-ping-${PEON_SESSION_ID:-default}"
           if command -v terminal-notifier &>/dev/null; then
-            # terminal-notifier: custom icon + click-to-focus via -activate
             tn_icon_flag=""
             [ -f "$icon_path" ] && tn_icon_flag="-appIcon $icon_path"
             tn_activate_flag=""
             [ -n "$bundle_id" ] && tn_activate_flag="-activate $bundle_id"
+            tn_subtitle_flag=""
+            [ -n "$notif_subtitle" ] && tn_subtitle_flag="-subtitle $notif_subtitle"
+            # -group makes consecutive notifications from the same session replace each other in Notification Center
             if [ "$use_bg" = true ]; then
               # shellcheck disable=SC2086
               nohup terminal-notifier \
                 -title "$title" \
                 -message "$msg" \
+                $tn_subtitle_flag \
                 $tn_icon_flag \
                 $tn_activate_flag \
-                -group "peon-ping" >/dev/null 2>&1 &
+                -group "$notif_group" >/dev/null 2>&1 &
             else
               # shellcheck disable=SC2086
               terminal-notifier \
                 -title "$title" \
                 -message "$msg" \
+                $tn_subtitle_flag \
                 $tn_icon_flag \
                 $tn_activate_flag \
-                -group "peon-ping" >/dev/null 2>&1
+                -group "$notif_group" >/dev/null 2>&1
             fi
           else
-            # Terminal.app, Warp, Ghostty, etc. — no native escape; use osascript
+            # Fallback: osascript `display notification` — supports subtitle since 10.9
             if [ "$use_bg" = true ]; then
-              nohup osascript - "$msg" "$title" >/dev/null 2>&1 <<'APPLESCRIPT' &
+              nohup osascript - "$msg" "$title" "$notif_subtitle" >/dev/null 2>&1 <<'APPLESCRIPT' &
 on run argv
-  display notification (item 1 of argv) with title (item 2 of argv)
+  set msg to item 1 of argv
+  set tit to item 2 of argv
+  set sub to item 3 of argv
+  if sub is "" then
+    display notification msg with title tit
+  else
+    display notification msg with title tit subtitle sub
+  end if
 end run
 APPLESCRIPT
             else
-              osascript - "$msg" "$title" >/dev/null 2>&1 <<'APPLESCRIPT'
+              osascript - "$msg" "$title" "$notif_subtitle" >/dev/null 2>&1 <<'APPLESCRIPT'
 on run argv
-  display notification (item 1 of argv) with title (item 2 of argv)
+  set msg to item 1 of argv
+  set tit to item 2 of argv
+  set sub to item 3 of argv
+  if sub is "" then
+    display notification msg with title tit
+  else
+    display notification msg with title tit subtitle sub
+  end if
 end run
 APPLESCRIPT
             fi
