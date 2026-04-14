@@ -326,7 +326,7 @@ play_linux_sound() {
       ;;
     mpv)
       local mpv_vol
-      mpv_vol=$(python3 -c "print(max(0, min(100, int($vol * 100))))")
+      mpv_vol=$(PEON_ENV_VOL="$vol" python3 -c "import os; v=float(os.environ.get('PEON_ENV_VOL','0.5')); print(max(0, min(100, int(v * 100))))")
       if [ "$use_bg" = true ]; then
         nohup mpv --no-video --volume="$mpv_vol" "$file" >/dev/null 2>&1 &
       else
@@ -1095,6 +1095,8 @@ case "${1:-}" in
     fi
     export PEON_STATUS_LINUX_PLAYER="$_linux_player"
     export PEON_STATUS_RELAY_STATUS="$_relay_status"
+    export PEON_ENV_HEADPHONES_DETECTED="$_headphones_detected"
+    export PEON_ENV_VERBOSE="$_verbose_flag"
     python3 -c "
 import json, os, sys, fnmatch, datetime
 
@@ -1105,8 +1107,8 @@ peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
 platform = os.environ.get('PEON_ENV_PLATFORM', '')
 linux_player = os.environ.get('PEON_STATUS_LINUX_PLAYER', '')
 relay_status = os.environ.get('PEON_STATUS_RELAY_STATUS', '')
-headphones_detected = '$_headphones_detected' == 'true'
-verbose = '$_verbose_flag' == '--verbose'
+headphones_detected = os.environ.get('PEON_ENV_HEADPHONES_DETECTED', '') == 'true'
+verbose = os.environ.get('PEON_ENV_VERBOSE', '') == '--verbose'
 
 def pp(s=''):
     print(s)
@@ -1513,19 +1515,20 @@ print('peon-ping: notification style set to standard')
         POS_ARG="${3:-}"
         if [ -z "$POS_ARG" ]; then
           python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(config_path))
     print('peon-ping: notification position ' + cfg.get('notification_position', 'top-center'))
 except Exception:
     print('peon-ping: notification position top-center')
 "
           exit 0
         fi
-        python3 -c "
-import json, sys
-config_path = '$CONFIG_PY'
-pos = '$POS_ARG'
+        POS_ARG="$POS_ARG" python3 -c "
+import json, sys, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+pos = os.environ.get('POS_ARG', '')
 valid = ('top-center', 'top-right', 'top-left', 'bottom-right', 'bottom-left', 'bottom-center')
 if pos not in valid:
     print(f'peon-ping: invalid position \"{pos}\" — use one of: ' + ', '.join(valid), file=sys.stderr)
@@ -1544,9 +1547,10 @@ print(f'peon-ping: notification position set to {pos}')
         DISMISS_ARG="${3:-}"
         if [ -z "$DISMISS_ARG" ]; then
           python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(config_path))
     d = cfg.get('notification_dismiss_seconds', 4)
     if d <= 0:
         print('peon-ping: dismiss time persistent (click to dismiss)')
@@ -1557,13 +1561,14 @@ except Exception:
 "
           exit 0
         fi
-        python3 -c "
-import json, sys
-config_path = '$CONFIG_PY'
+        DISMISS_ARG="$DISMISS_ARG" python3 -c "
+import json, sys, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+dismiss_arg = os.environ.get('DISMISS_ARG', '')
 try:
-    secs = int('$DISMISS_ARG')
+    secs = int(dismiss_arg)
 except ValueError:
-    print('peon-ping: invalid dismiss time \"$DISMISS_ARG\" — use a number (0 = persistent)', file=sys.stderr)
+    print(f'peon-ping: invalid dismiss time \"{dismiss_arg}\" — use a number (0 = persistent)', file=sys.stderr)
     sys.exit(1)
 if secs < 0:
     print('peon-ping: dismiss time cannot be negative', file=sys.stderr)
@@ -1585,9 +1590,10 @@ else:
         LABEL_ARG="${3:-}"
         if [ -z "$LABEL_ARG" ]; then
           python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(config_path))
     lbl = cfg.get('notification_title_override', '')
     pmap = cfg.get('project_name_map', {})
     if lbl:
@@ -1605,8 +1611,8 @@ except Exception:
         fi
         if [ "$LABEL_ARG" = "reset" ]; then
           python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -1618,8 +1624,8 @@ print('peon-ping: label override cleared')
           sync_adapter_configs; exit 0
         fi
         python3 -c "
-import json, sys
-config_path = '$CONFIG_PY'
+import json, sys, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 label = sys.argv[1][:50]
 try:
     cfg = json.load(open(config_path))
@@ -1635,9 +1641,10 @@ print(f'peon-ping: label override set to "{label}"')
         MARKER_ARG="${3:-}"
         if [ -z "$MARKER_ARG" ]; then
           python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(config_path))
     m = cfg.get('notification_title_marker', '●')
     if m == '●':
         print('peon-ping: title marker: ● (default)')
@@ -1651,8 +1658,8 @@ except Exception:
           exit 0
         fi
         python3 -c "
-import json, sys
-config_path = '$GLOBAL_CONFIG_PY'
+import json, sys, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 marker = sys.argv[1]
 try:
     cfg = json.load(open(config_path))
@@ -1704,9 +1711,10 @@ print('NOTIF_ALL_SCREENS=' + ('true' if na else 'false'))
         if [ -z "$TPL_KEY" ]; then
           # Show all templates
           python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(config_path))
     tpls = cfg.get('notification_templates', {})
 except Exception:
     tpls = {}
@@ -1726,8 +1734,8 @@ else:
         fi
         if [ "$TPL_KEY" = "--reset" ]; then
           python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -1739,10 +1747,10 @@ print('peon-ping: notification templates cleared')
           sync_adapter_configs; exit 0
         fi
         # Validate key and set/show value
-        python3 -c "
-import json, sys
-config_path = '$CONFIG_PY'
-key = '$TPL_KEY'
+        TPL_KEY="$TPL_KEY" python3 -c "
+import json, sys, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+key = os.environ.get('TPL_KEY', '')
 valid = ('stop', 'permission', 'error', 'idle', 'question')
 if key not in valid:
     print(f'peon-ping: invalid template key \"{key}\" — use one of: ' + ', '.join(valid), file=sys.stderr)
@@ -2750,8 +2758,8 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
         sync_adapter_configs; exit 0 ;;
       off)
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -2765,8 +2773,8 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
         sync_adapter_configs; exit 0 ;;
       on)
         python3 -c "
-import json
-config_path = '$CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -2783,9 +2791,10 @@ print('peon-ping: mobile notifications enabled')
         _rc=$?; [ $_rc -eq 0 ] && sync_adapter_configs; exit $_rc ;;
       status)
         python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(config_path))
     mn = cfg.get('mobile_notify', {})
 except Exception:
     mn = {}
@@ -2812,9 +2821,10 @@ else:
         exit 0 ;;
       test)
         python3 -c "
-import json, sys
+import json, sys, os
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 try:
-    cfg = json.load(open('$CONFIG_PY'))
+    cfg = json.load(open(config_path))
     mn = cfg.get('mobile_notify', {})
 except Exception:
     mn = {}
@@ -2849,9 +2859,10 @@ print('service=' + mn.get('service', ''))
     SSH_MODE_ARG="${2:-}"
     if [ -z "$SSH_MODE_ARG" ]; then
       python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
-    cfg = json.load(open('$GLOBAL_CONFIG_PY'))
+    cfg = json.load(open(config_path))
 except Exception:
     cfg = {}
 print('peon-ping: ssh audio mode ' + cfg.get('ssh_audio_mode', 'relay'))
@@ -2862,10 +2873,10 @@ print('peon-ping: ssh audio mode ' + cfg.get('ssh_audio_mode', 'relay'))
       echo "Usage: peon ssh-audio [relay|auto|local]" >&2
       exit 1
     fi
-    python3 -c "
-import json
-config_path = '$GLOBAL_CONFIG_PY'
-mode = '$SSH_MODE_ARG'
+    SSH_MODE_ARG="$SSH_MODE_ARG" python3 -c "
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
+mode = os.environ.get('SSH_MODE_ARG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -2897,8 +2908,8 @@ print('peon-ping: ssh audio mode set to ' + mode)
       python3 -c "
 import json, os, sys
 
-peon_dir = '$PEON_DIR_PY'
-config_path = '$CONFIG_PY'
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 
 try:
     cfg = json.load(open(config_path))
@@ -2933,11 +2944,11 @@ for cat in sorted(categories):
       exit $? ;
     fi
     # Use Python to load config, find manifest, and list sounds for the category
-    PREVIEW_OUTPUT=$(python3 -c "
+    PREVIEW_OUTPUT=$(PREVIEW_CAT="$PREVIEW_CAT" python3 -c "
 import json, os, sys
 
-peon_dir = '$PEON_DIR_PY'
-config_path = '$CONFIG_PY'
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
 
 # Load config
 try:
@@ -2963,7 +2974,7 @@ if not manifest:
     print('ERROR:No manifest found for pack \"' + active_pack + '\".', file=sys.stderr)
     sys.exit(1)
 
-category = '$PREVIEW_CAT'
+category = os.environ.get('PREVIEW_CAT', 'session.start')
 categories = manifest.get('categories', {})
 cat_data = categories.get(category)
 if not cat_data or not cat_data.get('sounds'):
@@ -3027,7 +3038,7 @@ for i, s in enumerate(sounds):
     # Migrate config keys (active_pack → default_pack, agentskill → session_override)
     python3 -c "
 import json, os
-config_path = '$GLOBAL_CONFIG_PY'
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3324,8 +3335,8 @@ HELPEOF
     case "${1:-help}" in
       on)
         python3 -c "
-import json
-config_path = '$GLOBAL_CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3345,8 +3356,8 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
         exit 0 ;;
       off)
         python3 -c "
-import json
-config_path = '$GLOBAL_CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3362,8 +3373,8 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
         python3 -c "
 import json, datetime, sys, os, time, tempfile
 
-config_path = '$CONFIG_PY'
-state_path = '$STATE_PY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+state_path = os.environ.get('PEON_ENV_STATE', '')
 
 ${_PEON_STATE_PY_HELPERS}
 
@@ -3420,13 +3431,13 @@ for ex, goal in exercises.items():
         case "$COUNT" in
           ''|*[!0-9]*) echo "peon-ping: count must be a number" >&2; exit 1 ;;
         esac
-        python3 -c "
+        COUNT="$COUNT" EXERCISE="$EXERCISE" python3 -c "
 import json, datetime, sys, os, time, tempfile
 
-config_path = '$CONFIG_PY'
-state_path = '$STATE_PY'
-count = int('$COUNT')
-exercise = '$EXERCISE'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+state_path = os.environ.get('PEON_ENV_STATE', '')
+count = int(os.environ.get('COUNT', '0'))
+exercise = os.environ.get('EXERCISE', '')
 
 ${_PEON_STATE_PY_HELPERS}
 
@@ -3482,12 +3493,12 @@ print(f'  {bar}  {int(pct*100)}%')
           echo "       peon trainer goal <exercise> <number> Set one exercise" >&2
           exit 1
         fi
-        python3 -c "
-import json, sys
+        ARG1="$ARG1" ARG2="$ARG2" python3 -c "
+import json, sys, os
 
-config_path = '$GLOBAL_CONFIG_PY'
-arg1 = '$ARG1'
-arg2 = '$ARG2'
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
+arg1 = os.environ.get('ARG1', '')
+arg2 = os.environ.get('ARG2', '')
 
 try:
     cfg = json.load(open(config_path))
@@ -3551,8 +3562,8 @@ TRAINER_HELP
         echo "Usage: peon debug <on|off|status>"; exit 0 ;;
       on)
         python3 -c "
-import json
-config_path = '$GLOBAL_CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3568,8 +3579,8 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
         exit 0 ;;
       off)
         python3 -c "
-import json
-config_path = '$GLOBAL_CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3582,7 +3593,7 @@ json.dump(cfg, open(config_path, 'w'), indent=2)
       status)
         python3 -c "
 import json, os, glob
-config_path = '$GLOBAL_CONFIG_PY'
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3606,8 +3617,8 @@ print('peon-ping: log retention: ' + str(retention) + ' days')
     case "${1:---last}" in
       --prune)
         _retention=$(python3 -c "
-import json
-config_path = '$GLOBAL_CONFIG_PY'
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3744,6 +3755,8 @@ _peon_walk_tty() {
   echo "$_last"
 }
 _PEON_HOOK_TTY=$(_peon_walk_tty)
+export PEON_ENV_PAUSED="$PAUSED"
+export PEON_ENV_HOOK_TTY="$_PEON_HOOK_TTY"
 
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
@@ -3753,11 +3766,11 @@ import sys, json, os, re, random, time, shlex, tempfile
 q = shlex.quote
 _peon_start = time.monotonic()
 
-config_path = '$CONFIG_PY'
-state_file = '$STATE_PY'
-peon_dir = '$PEON_DIR_PY'
-paused = '$PAUSED' == 'true'
-hook_tty = '$_PEON_HOOK_TTY'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+state_file = os.environ.get('PEON_ENV_STATE', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
+paused = os.environ.get('PEON_ENV_PAUSED', '') == 'true'
+hook_tty = os.environ.get('PEON_ENV_HOOK_TTY', '')
 agent_modes = {'delegate', 'dangerouslySkipPermissions'}
 state_dirty = False
 
@@ -4776,18 +4789,20 @@ fi
 
 # --- Auto-prune old log files (non-blocking, when debug logging is enabled) ---
 if [ "${PEON_DEBUG:-0}" = "1" ] || python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
-    cfg = json.load(open('$GLOBAL_CONFIG_PY'))
+    cfg = json.load(open(config_path))
 except Exception:
     cfg = {}
 exit(0 if cfg.get('debug', False) else 1)
 " 2>/dev/null; then
   (
     _retention=$(python3 -c "
-import json
+import json, os
+config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 try:
-    cfg = json.load(open('$GLOBAL_CONFIG_PY'))
+    cfg = json.load(open(config_path))
 except Exception:
     cfg = {}
 print(cfg.get('debug_retention_days', 7))
