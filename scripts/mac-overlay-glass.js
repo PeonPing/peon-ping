@@ -20,6 +20,7 @@ function run(argv) {
   var notifType   = argv[10] || ''; // Semantic type: complete|permission|limit|idle|question
   var allScreens  = argv[11] === 'true';
   var screenIdx   = (argv[12] !== undefined && argv[12] !== '') ? parseInt(argv[12], 10) : -1;
+  var showCloseButton = (argv[13] || 'true') === 'true';
 
   // ── Type text ──
   var typeText;
@@ -287,6 +288,29 @@ function run(argv) {
   btn.setTitle($('')); btn.setBordered(false); btn.setTransparent(true);
   btn.setTarget(dh); btn.setAction('handleDismiss');
   win.contentView.addSubview(btn);
+
+  // Visible X close button — top-right corner (configurable)
+  if (showCloseButton) {
+    var xSize = 22;
+    var xPosX = padX + contentW - xSize - 2;
+    var xPosY = padY + contentH - xSize - 2;
+    var xLabel = $.NSTextField.alloc.initWithFrame($.NSMakeRect(xPosX, xPosY, xSize, xSize));
+    xLabel.setStringValue($('\u00D7'));
+    xLabel.setBezeled(false);
+    xLabel.setDrawsBackground(false);
+    xLabel.setEditable(false);
+    xLabel.setSelectable(false);
+    xLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(accentR, accentG, accentB, 0.7));
+    xLabel.setAlignment($.NSTextAlignmentCenter);
+    xLabel.setFont($.NSFont.boldSystemFontOfSize(16));
+    win.contentView.addSubview(xLabel);
+    var xBtn = $.NSButton.alloc.initWithFrame($.NSMakeRect(xPosX - 4, xPosY - 4, xSize + 8, xSize + 8));
+    xBtn.setTitle($(''));
+    xBtn.setBordered(false);
+    xBtn.setTransparent(true);
+    xBtn.setTarget(dh); xBtn.setAction('handleDismiss');
+    win.contentView.addSubview(xBtn);
+  }
 
   // ══════════════════════════════════════════════
   // ANIMATION

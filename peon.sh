@@ -755,6 +755,7 @@ send_notification() {
       fi
       export PEON_MSG_SUBTITLE="${MSG_SUBTITLE:-}"
       export PEON_NOTIFY_TYPE="${NOTIFY_TYPE:-}"
+      export PEON_NOTIF_CLOSE_BUTTON="${NOTIF_CLOSE_BUTTON:-true}"
       bash "$notify_script" "$msg" "$title" "$color" "$icon_path"
       ;;
     devcontainer|ssh)
@@ -4330,6 +4331,7 @@ print('NOTIF_POSITION=' + q(cfg.get('notification_position', 'top-center')))
 print('NOTIF_DISMISS=' + q(str(cfg.get('notification_dismiss_seconds', 4))))
 print('NOTIF_ALL_SCREENS=' + ('true' if cfg.get('notification_all_screens', True) else 'false'))
 print('NOTIF_MARKER=' + q(cfg.get('notification_title_marker', '●')))
+print('NOTIF_CLOSE_BUTTON=' + ('true' if cfg.get('notification_close_button', True) else 'false'))
 print('USE_SOUND_EFFECTS_DEVICE=' + q(str(use_sound_effects_device).lower()))
 print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))
 print('PEON_SSH_AUDIO_MODE=' + q(str(cfg.get('ssh_audio_mode', 'relay'))))
