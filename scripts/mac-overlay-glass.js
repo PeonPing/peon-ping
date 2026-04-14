@@ -100,10 +100,11 @@ function run(argv) {
       y = vf.origin.y + vf.size.height - winH - ySlotOffset;
   }
 
-  // ── Window ──
-  var win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer(
+  // ── Window (NSPanel + NonactivatingPanel so clicks don't steal focus) ──
+  var nonActivating = 1 << 7; // NSWindowStyleMaskNonactivatingPanel
+  var win = $.NSPanel.alloc.initWithContentRectStyleMaskBackingDefer(
     $.NSMakeRect(x, y, winW, winH),
-    $.NSWindowStyleMaskBorderless, $.NSBackingStoreBuffered, false
+    $.NSWindowStyleMaskBorderless | nonActivating, $.NSBackingStoreBuffered, false
   );
   win.setBackgroundColor($.NSColor.clearColor);
   win.setOpaque(false); win.setHasShadow(false); win.setAlphaValue(0.0);
@@ -268,42 +269,13 @@ function run(argv) {
   ObjC.registerSubclass({
     name: 'GlassDismissHandler', superclass: 'NSObject',
     methods: { 'handleDismiss': { types: ['void', []], implementation: function() {
-      // Focus the terminal/IDE
-      if (bundleId || idePid > 0) {
-        var activated = false;
-        if (bundleId) {
-          var ws=$.NSWorkspace.sharedWorkspace, apps=ws.runningApplications;
-          for (var i=0;i<apps.count;i++) {
-            var app=apps.objectAtIndex(i), bid=app.bundleIdentifier;
-            if (!bid.isNil() && bid.js===bundleId) {
-              app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
-              activated=true; break;
-            }
-          }
-        }
-        if (!activated && idePid > 0) {
-          var ideApp=$.NSRunningApplication.runningApplicationWithProcessIdentifier(idePid);
-          if (ideApp && !ideApp.isNil()) ideApp.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
-        }
-        // iTerm2: try tab/window-level focus after app activation (fire-and-forget)
-        if (sessionTty && bundleId === 'com.googlecode.iterm2') {
-          try {
-            var task = $.NSTask.alloc.init;
-            task.setLaunchPath($('/usr/bin/osascript'));
-            task.setArguments($(['-l', 'JavaScript', '-e',
-              'var iTerm=Application("iTerm2");var ws=iTerm.windows();var f=0;' +
-              'for(var w=0;w<ws.length&&!f;w++){var ts=ws[w].tabs();' +
-              'for(var t=0;t<ts.length&&!f;t++){var ss=ts[t].sessions();' +
-              'for(var s=0;s<ss.length&&!f;s++){try{if(ss[s].tty()==="' + sessionTty + '")' +
-              '{ts[t].select();ss[s].select();ws[w].index=1;f=1}}catch(e){}}}}'
-            ]));
-            task.launch;
-          } catch(e) {}
-        }
-      }
       // Signal ALL sibling overlays to dismiss (event-driven, no polling!)
       $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObject($(dismissNotificationName), $.NSString.string);
-      // Small delay to ensure notification is delivered before we terminate
+      // Hide windows to prevent focus shift from iTerm overlay, then exit
+      var allWindows = $.NSApp.windows;
+      for (var w = 0; w < allWindows.count; w++) {
+        allWindows.objectAtIndex(w).orderOut(null);
+      }
       $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
         0.05, $.NSApp, 'terminate:', null, false
       );
