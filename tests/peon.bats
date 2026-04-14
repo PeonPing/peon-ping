@@ -1827,6 +1827,49 @@ JSON
   [[ "$output" == *"Usage"* ]]
 }
 
+# ============================================================
+# packs rotation add --install
+# ============================================================
+
+@test "packs rotation add --install downloads and adds absent pack" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs rotation add --install test_pack_a
+  [ "$status" -eq 0 ]
+  [ -d "$TEST_DIR/packs/test_pack_a" ]
+  [ -f "$TEST_DIR/packs/test_pack_a/openpeon.json" ]
+  [[ "$output" == *"Added test_pack_a to rotation"* ]]
+  rotation=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('pack_rotation', []))")
+  [[ "$rotation" == *"test_pack_a"* ]]
+}
+
+@test "packs rotation add <name> --install works (flag after name)" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs rotation add test_pack_a --install
+  [ "$status" -eq 0 ]
+  [ -d "$TEST_DIR/packs/test_pack_a" ]
+  [[ "$output" == *"Added test_pack_a to rotation"* ]]
+}
+
+@test "packs rotation add --install errors when pack-download.sh missing" {
+  # Don't call setup_pack_download_env — no scripts/ dir
+  run bash "$PEON_SH" packs rotation add --install test_pack_a
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"pack-download.sh not found"* ]]
+}
+
+@test "packs rotation add --install with comma-separated packs" {
+  setup_pack_download_env
+  run bash "$PEON_SH" packs rotation add --install test_pack_a,test_pack_b
+  [ "$status" -eq 0 ]
+  [ -d "$TEST_DIR/packs/test_pack_a" ]
+  [ -d "$TEST_DIR/packs/test_pack_b" ]
+  [[ "$output" == *"Added test_pack_a to rotation"* ]]
+  [[ "$output" == *"Added test_pack_b to rotation"* ]]
+  rotation=$(/usr/bin/python3 -c "import json; print(json.load(open('$TEST_DIR/config.json')).get('pack_rotation', []))")
+  [[ "$rotation" == *"test_pack_a"* ]]
+  [[ "$rotation" == *"test_pack_b"* ]]
+}
+
 @test "help shows packs rotation commands" {
   run bash "$PEON_SH" help
   [ "$status" -eq 0 ]

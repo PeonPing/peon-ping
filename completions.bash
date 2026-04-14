@@ -26,6 +26,8 @@ _peon_completions() {
             names=$(find "$packs_dir" -maxdepth 2 \( -name manifest.json -o -name openpeon.json \) -exec dirname {} \; 2>/dev/null | xargs -I{} basename {} | sort)
             COMPREPLY=( $(compgen -W "$names" -- "$cur") )
           fi
+        elif [ "$cword" -eq 5 ] && [ "${words[2]}" = "rotation" ] && [ "${words[3]}" = "add" ]; then
+          COMPREPLY=( $(compgen -W "--install" -- "$cur") )
         elif [ "$cword" -eq 3 ] && [ "$prev" = "install" ]; then
           COMPREPLY=( $(compgen -W "--all --lang" -- "$cur") )
         elif [ "$cword" -eq 4 ] && [ "${words[2]}" = "install" ]; then

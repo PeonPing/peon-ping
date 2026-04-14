@@ -2427,11 +2427,24 @@ print(f'Use peon packs use {pack_name} to activate it')
         sync_adapter_configs; exit 0 ;;
       rotation)
         ROT_SUB="${3:-}"
-        ROT_ARG="${4:-}"
+        ROT_INSTALL=0
+        ROT_ARG=""
+        for arg in "${4:-}" "${5:-}"; do
+          case "$arg" in
+            --install) ROT_INSTALL=1 ;;
+            "") ;;
+            *) ROT_ARG="$arg" ;;
+          esac
+        done
         case "$ROT_SUB" in
           add)
             if [ -z "$ROT_ARG" ]; then
-              echo "Usage: peon packs rotation add <pack1,pack2,...>" >&2; exit 1
+              echo "Usage: peon packs rotation add <pack1,pack2,...> [--install]" >&2; exit 1
+            fi
+            # Download requested packs if --install
+            if [ "$ROT_INSTALL" -eq 1 ]; then
+              PACK_DL="$(resolve_pack_download)" || exit 1
+              bash "$PACK_DL" --dir="$PEON_DIR" --packs="$ROT_ARG" || exit 1
             fi
             ROT_ARG="$ROT_ARG" python3 -c "
 import json, os, sys
@@ -3276,6 +3289,7 @@ Pack management:
   packs remove --all      Remove all packs except the active one
   packs rotation list     Show current rotation list and mode
   packs rotation add <p>  Add pack(s) to rotation (comma-separated)
+  packs rotation add --install <p>  Add to rotation, installing from registry if needed
   packs rotation remove <p> Remove pack(s) from rotation
   packs rotation clear    Clear all packs from rotation
 

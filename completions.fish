@@ -60,6 +60,13 @@ complete -c peon -n "__peon_packs_subcommand rotation" -a add -d "Add pack(s) to
 complete -c peon -n "__peon_packs_subcommand rotation" -a remove -d "Remove pack(s) from rotation"
 complete -c peon -n "__peon_packs_subcommand rotation" -a clear -d "Clear all packs from rotation"
 
+# packs rotation add --install flag
+function __peon_rotation_add
+  set -l cmd (commandline -opc)
+  test (count $cmd) -ge 4; and test $cmd[2] = packs; and test $cmd[3] = rotation; and test $cmd[4] = add
+end
+complete -c peon -n __peon_rotation_add -a "--install" -d "Install from registry if needed"
+
 # packs install options
 complete -c peon -n "__peon_packs_subcommand install" -a "--all" -d "Install all packs from registry"
 complete -c peon -n "__peon_packs_subcommand install" -a "--lang" -d "Filter packs by language (e.g. --lang=en,fr)"
