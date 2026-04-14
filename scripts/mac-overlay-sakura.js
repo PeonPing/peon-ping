@@ -34,7 +34,8 @@ function run(argv) {
     default:
       // Fallback for relay.sh and other callers that don't set notifType
       if (color === 'blue')   typeText = 'TASK COMPLETE';
-      else if (color === 'red' || color === 'yellow') typeText = 'LIMIT REACHED';
+      else if (color === 'red')    typeText = 'APPROVAL NEEDED';
+      else if (color === 'yellow') typeText = 'STANDING BY';
       else                    typeText = 'INPUT REQUIRED';
   }
 

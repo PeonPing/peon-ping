@@ -4002,6 +4002,8 @@ elif category:
 if category and not cat_enabled.get(category, True):
     log('route', category=category, suppressed=True, reason='category_disabled')
     category = ''
+    notify = ''
+    notify_color = ''
 
 # --- Log route decision ---
 if category:
