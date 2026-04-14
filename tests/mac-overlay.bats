@@ -285,9 +285,10 @@ assert cfg['notification_style'] == 'standard', f'Expected standard, got {cfg[\"
 # Status display
 # ============================================================
 
-@test "peon status shows notification style" {
+@test "peon status shows notifications section" {
   output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
-  [[ "$output" == *"notification style overlay"* ]]
+  [[ "$output" == *"-- notifications --"* ]]
+  [[ "$output" == *"desktop notifications"* ]]
 }
 
 # ============================================================
@@ -338,12 +339,12 @@ JSON
 # Status display
 # ============================================================
 
-@test "peon status shows standard when configured" {
+@test "peon status reports desktop notifications on" {
   cat > "$TEST_DIR/config.json" <<'JSON'
-{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard" }
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true }
 JSON
   output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
-  [[ "$output" == *"notification style standard"* ]]
+  [[ "$output" == *"desktop notifications on"* ]]
 }
 
 # ============================================================
@@ -462,7 +463,7 @@ cfg['notification_position'] = 'top-right'
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
   output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
-  [[ "$output" == *"notification position top-right"* ]]
+  [[ "$output" == *"position: top-right"* ]]
 }
 
 @test "overlay passes position to mac-overlay.js" {
@@ -525,7 +526,7 @@ cfg['notification_dismiss_seconds'] = 8
 json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
 "
   output=$(bash "$PEON_SH" status --verbose 2>/dev/null)
-  [[ "$output" == *"dismiss time 8s"* ]]
+  [[ "$output" == *"dismiss: 8s"* ]]
 }
 
 @test "peon status shows persistent when dismiss is 0" {

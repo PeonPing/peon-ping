@@ -1068,203 +1068,391 @@ case "${1:-}" in
     _headphones_detected=true
     detect_headphones || _headphones_detected=false
     _verbose_flag="${2:-}"
+    # Linux audio player must be probed in bash (Python can't shell out
+    # to the priority chain). Other platforms map to a fixed string in Python.
+    _linux_player=""
+    if [ "$PEON_PLATFORM" = "linux" ]; then
+      _linux_player=$(detect_linux_player "${LINUX_AUDIO_PLAYER:-}" 2>/dev/null || true)
+    fi
+    # Relay status (ssh/devcontainer): kill -0 needs shell.
+    _relay_status=""
+    if [ "$PEON_PLATFORM" = "ssh" ] || [ "$PEON_PLATFORM" = "devcontainer" ]; then
+      _relay_host_default="localhost"
+      [ "$PEON_PLATFORM" = "devcontainer" ] && _relay_host_default="host.docker.internal"
+      _relay_host="${PEON_RELAY_HOST:-$_relay_host_default}"
+      _relay_port="${PEON_RELAY_PORT:-19998}"
+      _relay_pid_file="$PEON_DIR/.relay.pid"
+      if [ -f "$_relay_pid_file" ]; then
+        _rpid=$(cat "$_relay_pid_file" 2>/dev/null)
+        if [ -n "$_rpid" ] && kill -0 "$_rpid" 2>/dev/null; then
+          _relay_status="running on ${_relay_host}:${_relay_port}"
+        else
+          _relay_status="not running (stale pid file at ${_relay_pid_file})"
+        fi
+      else
+        _relay_status="not running"
+      fi
+    fi
+    export PEON_STATUS_LINUX_PLAYER="$_linux_player"
+    export PEON_STATUS_RELAY_STATUS="$_relay_status"
     python3 -c "
-import json, os, sys
+import json, os, sys, fnmatch, datetime
 
 config_path = os.environ.get('PEON_ENV_CONFIG', '')
+global_config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
+state_path = os.environ.get('PEON_ENV_STATE', '')
 peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
+platform = os.environ.get('PEON_ENV_PLATFORM', '')
+linux_player = os.environ.get('PEON_STATUS_LINUX_PLAYER', '')
+relay_status = os.environ.get('PEON_STATUS_RELAY_STATUS', '')
 headphones_detected = '$_headphones_detected' == 'true'
 verbose = '$_verbose_flag' == '--verbose'
 
-# --- Config ---
+def pp(s=''):
+    print(s)
+
+_section_open = False
+def section(name):
+    global _section_open
+    if _section_open:
+        print('')
+    _section_open = True
+    pp('-- ' + name + ' --')
+
 try:
     c = json.load(open(config_path))
 except Exception:
     c = {}
 
-if verbose:
-    dn = c.get('desktop_notifications', True)
-    dn_status = 'on' if dn else 'off (sounds still play)'
-    print('peon-ping: desktop notifications ' + dn_status)
-    ns = c.get('notification_style', 'overlay')
-    print('peon-ping: notification style ' + ns)
-    np = c.get('notification_position', 'top-center')
-    print('peon-ping: notification position ' + np)
-    nd = c.get('notification_dismiss_seconds', 4)
-    print('peon-ping: dismiss time ' + (str(nd) + 's' if nd > 0 else 'persistent (click to dismiss)'))
-    _lbl = c.get('notification_title_override', '')
-    _pmap = c.get('project_name_map', {})
-    if _lbl:
-        print('peon-ping: label override: ' + _lbl)
-    if _pmap:
-        print('peon-ping: project name map: ' + str(len(_pmap)) + ' pattern(s)')
-    _mrk = c.get('notification_title_marker', '●')
-    if _mrk != '●':
-        print('peon-ping: title marker: ' + (_mrk if _mrk else '(disabled)'))
-    _tpls = c.get('notification_templates', {})
-    if _tpls:
-        print('peon-ping: notification templates:')
-        for _tk, _tv in _tpls.items():
-            print(f'  {_tk} = "{_tv}"')
+state = {}
+try:
+    state = json.load(open(state_path)) if state_path else {}
+except Exception:
+    pass
 
-    mn = c.get('mobile_notify', {})
-    if mn and mn.get('service'):
-        enabled = mn.get('enabled', True)
-        svc = mn.get('service', '?')
-        mobile_status = 'on' if enabled else 'off'
-        print(f'peon-ping: mobile notifications {mobile_status} ({svc})')
-    else:
-        print('peon-ping: mobile notifications not configured')
+# Audio backend display string — must match play_sound() selection in this
+# file; keep in sync if a new platform is added.
+_backend_map = {
+    'mac': 'afplay',
+    'wsl': 'MediaPlayer (PowerShell)',
+    'msys2': 'MediaPlayer (PowerShell)',
+    'devcontainer': 'relay (http)',
+    'ssh': 'relay (http)',
+}
+if platform == 'linux':
+    audio_backend = linux_player or '(none found)'
+else:
+    audio_backend = _backend_map.get(platform, 'unknown')
 
-    # --- Headphones-only mode ---
-    headphones_only = c.get('headphones_only', False)
-    print('peon-ping: headphones_only: ' + ('on' if headphones_only else 'off'))
-    status_str = 'connected' if headphones_detected else 'not detected'
-    if headphones_only and not headphones_detected:
-        status_str += ' (sounds muted)'
-    print('peon-ping: headphones: ' + status_str)
+config_source = 'project-local' if config_path != global_config_path else 'global'
 
-# --- Debug logging ---
-_debug = c.get('debug', False)
-_debug_status = 'enabled' if _debug else 'disabled'
-_log_dir = os.path.join(peon_dir, 'logs')
-print('peon-ping: debug logging: ' + _debug_status)
-if verbose:
-    print('  log dir: ' + _log_dir + '/')
-    _retention = c.get('debug_retention_days', 7)
-    print('  retention: ' + str(_retention) + ' days')
-
-# --- Active pack ---
-active = c.get('default_pack', c.get('active_pack', 'peon'))
 packs_dir = os.path.join(peon_dir, 'packs')
-display_name = active
+
+def get_display_name(pack):
+    for mname in ('openpeon.json', 'manifest.json'):
+        mpath = os.path.join(packs_dir, pack, mname)
+        if os.path.exists(mpath):
+            try:
+                return json.load(open(mpath)).get('display_name', pack)
+            except Exception:
+                return pack
+    return pack
+
 pack_count = 0
 if os.path.isdir(packs_dir):
     for d in os.listdir(packs_dir):
         dpath = os.path.join(packs_dir, d)
-        if not os.path.isdir(dpath):
-            continue
-        has_manifest = (
+        if os.path.isdir(dpath) and (
             os.path.exists(os.path.join(dpath, 'openpeon.json')) or
             os.path.exists(os.path.join(dpath, 'manifest.json'))
-        )
-        if has_manifest:
+        ):
             pack_count += 1
-            if d == active:
-                for mname in ('openpeon.json', 'manifest.json'):
-                    mpath = os.path.join(dpath, mname)
-                    if os.path.exists(mpath):
-                        try:
-                            display_name = json.load(open(mpath)).get('display_name', active)
-                        except Exception:
-                            pass
-                        break
-print(f'peon-ping: default pack: {active} ({display_name})')
-print(f'peon-ping: {pack_count} pack(s) installed')
-if not verbose:
-    print('peon-ping: run \"peon status --verbose\" for full details')
-if verbose:
-    rules = c.get('path_rules', [])
-    if rules:
-        import fnmatch as _fnm
-        _cwd = os.getcwd()
-        _matched = None
-        for _r in rules:
-            _pat = _r.get('pattern', '')
-            if _cwd and _fnm.fnmatch(_cwd, _pat):
-                _matched = _r
-                break
-        if _matched:
-            _mp = _matched.get('pattern', '')
-            _mk = _matched.get('pack', '')
-            print(f'peon-ping: path rule: {_mp} -> {_mk}')
-        print(f'peon-ping: path rules: {len(rules)} configured')
 
-if verbose:
-    # --- IDE detection ---
-    home = os.path.expanduser('~')
-    claude_dir = os.environ.get('CLAUDE_CONFIG_DIR', os.path.join(home, '.claude'))
-    xdg_config = os.environ.get('XDG_CONFIG_HOME', os.path.join(home, '.config'))
-    opencode_dir = os.path.join(xdg_config, 'opencode')
+default_pack = c.get('default_pack', c.get('active_pack', 'peon'))
+default_display = get_display_name(default_pack)
 
-    ides = []
+# Hoisted: used by both resolve_active_pack() and the verbose 'packs' section.
+rotation_list = c.get('pack_rotation', []) or []
+rotation_mode = c.get('pack_rotation_mode', 'random')
+rules = c.get('path_rules', []) or []
 
-    # Claude Code: check if hooks are registered
-    claude_hooks_dir = os.path.join(claude_dir, 'hooks', 'peon-ping')
-    if os.path.isdir(claude_dir):
-        if os.path.exists(os.path.join(claude_hooks_dir, 'peon.sh')):
-            ides.append(('Claude Code', claude_dir, 'installed'))
-        else:
-            ides.append(('Claude Code', claude_dir, 'detected (not set up)'))
+# Read-only approximation of the hook's resolver — intentionally skips
+# session_packs, round-robin index mutation, and subagent inheritance
+# (those are runtime state, not answerable from cwd alone).
+def resolve_active_pack():
+    cwd = os.getcwd()
 
-    # OpenCode: check if plugin is installed
-    opencode_plugin = os.path.join(opencode_dir, 'plugins', 'peon-ping.ts')
-    if os.path.isdir(opencode_dir):
-        if os.path.exists(opencode_plugin):
-            ides.append(('OpenCode', opencode_dir, 'installed'))
-        else:
-            ides.append(('OpenCode', opencode_dir, 'detected (not set up)'))
+    # 1. Rotation (if active): path rule still beats rotation in hook code.
+    if rotation_list and rotation_mode in ('random', 'round-robin', 'shuffle'):
+        for r in rules:
+            pat = r.get('pattern', '')
+            pack = r.get('pack', '')
+            if cwd and pat and pack and fnmatch.fnmatch(cwd, pat):
+                return (pack, 'path rule: ' + pat + ' -> ' + pack, None, False)
+        # Rotation reason is redundant with the rotation list line shown below.
+        return (rotation_mode + ' rotation', None, None, True)
 
-    # Rovo Dev CLI: check if hooks are registered in config.yml
-    rovodev_dir = os.path.join(home, '.rovodev')
-    rovodev_config = os.path.join(rovodev_dir, 'config.yml')
-    rovodev_config_yaml = os.path.join(rovodev_dir, 'config.yaml')
-    if os.path.isdir(rovodev_dir):
-        config_file = rovodev_config if os.path.isfile(rovodev_config) else rovodev_config_yaml if os.path.isfile(rovodev_config_yaml) else None
-        if config_file:
-            try:
-                with open(config_file) as f:
-                    content = f.read()
-                if 'rovodev.sh' in content:
-                    ides.append(('Rovo Dev CLI', rovodev_dir, 'installed'))
-                else:
-                    ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
-            except Exception:
-                ides.append(('Rovo Dev CLI', rovodev_dir, 'detected'))
-        else:
-            ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
+    # 2. Path rules (also applies to session_override mode's fallback)
+    session_note = None
+    if rotation_mode in ('session_override', 'agentskill'):
+        session_note = 'session-override mode: per-session pack set via /peon-ping-use'
+    for r in rules:
+        pat = r.get('pattern', '')
+        pack = r.get('pack', '')
+        if cwd and pat and pack and fnmatch.fnmatch(cwd, pat):
+            return (pack, 'path rule: ' + pat + ' -> ' + pack, session_note, False)
 
-    # Gemini CLI: check if hooks are registered in settings.json
-    gemini_dir = os.environ.get('GEMINI_CONFIG_DIR', os.path.join(home, '.gemini'))
-    gemini_settings = os.path.join(gemini_dir, 'settings.json')
-    if os.path.isfile(gemini_settings):
-        try:
-            with open(gemini_settings) as f:
-                settings = json.load(f)
-                hooks = settings.get('hooks', {})
-                if any('gemini.sh' in str(h) for h in hooks.values()):
-                    ides.append(('Gemini CLI', gemini_dir, 'installed'))
-                else:
-                    ides.append(('Gemini CLI', gemini_dir, 'detected (not set up)'))
-        except Exception:
-            ides.append(('Gemini CLI', gemini_dir, 'detected'))
+    # 3. Default — no reason needed (it's literally the default).
+    return (default_pack, None, session_note, False)
 
-    # OpenAI Codex: check if notify hook points to codex adapter
-    codex_dir = os.environ.get('CODEX_HOME', os.path.join(home, '.codex'))
-    codex_config = os.path.join(codex_dir, 'config.toml')
-    if os.path.isdir(codex_dir):
-        codex_installed = False
-        if os.path.isfile(codex_config):
-            try:
-                codex_cfg_text = open(codex_config).read()
-                codex_installed = (
-                    'adapters/codex.sh' in codex_cfg_text or
-                    'adapters/codex.ps1' in codex_cfg_text
-                )
-            except Exception:
-                codex_installed = False
-        if codex_installed:
-            ides.append(('OpenAI Codex', codex_dir, 'installed'))
-        else:
-            ides.append(('OpenAI Codex', codex_dir, 'detected (not set up)'))
+resolved_pack, reason, session_note, is_rotation = resolve_active_pack()
+resolved_display = default_display if resolved_pack == default_pack else get_display_name(resolved_pack)
+differs_from_default = resolved_pack != default_pack
 
-    if ides:
-        print('peon-ping: IDEs')
-        for name, path, status in ides:
-            marker = '[x]' if status == 'installed' else '[ ]'
-            print(f'  {marker} {name:12s} {path} ({status})')
+enabled = c.get('enabled', True)
+enabled_str = 'sounds enabled' if enabled else 'sounds DISABLED'
+
+vol_raw = c.get('volume', 0.5)
+try:
+    vol_f = float(vol_raw)
+except Exception:
+    vol_f = 0.5
+vol_pct = int(vol_f * 100)
+vol_str = str(vol_pct) + '%'
+if not (0.0 <= vol_f <= 1.0):
+    vol_str += ' (out of range)'
+
+debug_enabled = c.get('debug', False)
+debug_status = 'enabled' if debug_enabled else 'disabled'
+
+def print_active_pack_line():
+    if is_rotation:
+        pp('active pack (here): ' + resolved_pack)
     else:
-        print('peon-ping: no supported IDEs detected')
+        pp('active pack (here): ' + resolved_pack + ' (' + resolved_display + ')')
+
+if not verbose:
+    pp(enabled_str)
+    pp('volume: ' + vol_str)
+    pp('default pack: ' + default_pack + ' (' + default_display + ')')
+    if is_rotation or differs_from_default:
+        print_active_pack_line()
+    pp(str(pack_count) + ' pack(s) installed')
+    pp('debug logging: ' + debug_status)
+    pp('run \"peon status --verbose\" for full details')
+    sys.exit(0)
+
+section('core')
+pp(enabled_str)
+pp('volume: ' + vol_str)
+pp('platform: ' + platform)
+pp('audio backend: ' + audio_backend)
+pp('config: ' + config_path)
+if config_source == 'project-local' and global_config_path and global_config_path != config_path:
+    pp('  (global config: ' + global_config_path + ')')
+
+section('packs')
+pp('default pack: ' + default_pack + ' (' + default_display + ')')
+print_active_pack_line()
+if reason:
+    pp('  reason: ' + reason)
+if session_note:
+    pp('  ' + session_note)
+pp('rotation mode: ' + rotation_mode)
+if rotation_list:
+    pp('rotation list: ' + ', '.join(rotation_list))
+else:
+    pp('rotation list: none')
+pp('path rules: ' + str(len(rules)) + ' configured')
+pp('installed: ' + str(pack_count) + ' pack(s)')
+
+section('categories (CESP events)')
+cats = c.get('categories', {}) or {}
+display_order = ['session.start', 'task.acknowledge', 'task.complete', 'task.error',
+                 'input.required', 'resource.limit', 'user.spam']
+seen = set()
+for cat in display_order:
+    if cat in cats:
+        mark = '[x]' if cats.get(cat) else '[ ]'
+        pp('  ' + mark + ' ' + cat)
+        seen.add(cat)
+for cat in cats:
+    if cat not in seen:
+        mark = '[x]' if cats.get(cat) else '[ ]'
+        pp('  ' + mark + ' ' + cat)
+
+section('notifications')
+dn = c.get('desktop_notifications', True)
+pp('desktop notifications ' + ('on' if dn else 'off (sounds still play)'))
+pp('position: ' + str(c.get('notification_position', 'top-center')))
+nd = c.get('notification_dismiss_seconds', 4)
+pp('dismiss: ' + (str(nd) + 's' if nd > 0 else 'persistent (click to dismiss)'))
+all_screens = c.get('notification_all_screens', True)
+pp('all screens: ' + ('yes' if all_screens else 'no'))
+_lbl = c.get('notification_title_override', '')
+if _lbl:
+    pp('label override: ' + _lbl)
+_mrk = c.get('notification_title_marker', '●')
+if _mrk != '●':
+    pp('title marker: ' + (_mrk if _mrk else '(disabled)'))
+_pmap = c.get('project_name_map', {}) or {}
+if _pmap:
+    pp('project name map: ' + str(len(_pmap)) + ' pattern(s)')
+_tpls = c.get('notification_templates', {}) or {}
+if _tpls:
+    pp('notification templates:')
+    for _tk, _tv in _tpls.items():
+        print('  ' + _tk + ' = \"' + str(_tv) + '\"')
+
+mn = c.get('mobile_notify', {}) or {}
+if mn and mn.get('service'):
+    menabled = mn.get('enabled', True)
+    svc = mn.get('service', '?')
+    pp('mobile notifications ' + ('on' if menabled else 'off') + ' (' + svc + ')')
+else:
+    pp('mobile notifications not configured')
+
+section('audio routing')
+headphones_only = c.get('headphones_only', False)
+pp('headphones_only: ' + ('on' if headphones_only else 'off'))
+hstatus = 'connected' if headphones_detected else 'not detected'
+if headphones_only and not headphones_detected:
+    hstatus += ' (sounds muted)'
+pp('headphones: ' + hstatus)
+pp('meeting detect: ' + ('on' if c.get('meeting_detect', False) else 'off'))
+pp('suppress when tab focused: ' + ('on' if c.get('suppress_sound_when_tab_focused', False) else 'off'))
+if platform in ('ssh', 'devcontainer'):
+    pp('ssh audio mode: ' + str(c.get('ssh_audio_mode', 'relay')))
+    if relay_status:
+        pp('relay: ' + relay_status)
+
+section('behavior timings')
+at = c.get('annoyed_threshold', 3)
+aw = c.get('annoyed_window_seconds', 10)
+pp('annoyed threshold: ' + str(at) + ' prompts / ' + str(aw) + 's')
+sw = c.get('silent_window_seconds', 0)
+pp('silent window: ' + (str(sw) + 's' if sw > 0 else '0s (off)'))
+ssc = c.get('session_start_cooldown_seconds', 30)
+pp('session start cooldown: ' + str(ssc) + 's')
+pp('suppress subagent complete: ' + ('on' if c.get('suppress_subagent_complete', False) else 'off'))
+pp('suppress delegate sessions: ' + ('on' if c.get('suppress_delegate_sessions', False) else 'off'))
+
+trainer_cfg = c.get('trainer', {}) or {}
+if trainer_cfg.get('enabled', False):
+    section('trainer')
+    pp('trainer: on')
+    exercises = trainer_cfg.get('exercises', {'pushups': 300, 'squats': 300}) or {}
+    today = datetime.date.today().isoformat()
+    ts = state.get('trainer', {}) or {}
+    if ts.get('date', '') == today:
+        reps = ts.get('reps', {}) or {}
+    else:
+        reps = {}
+    parts = []
+    for ex, goal in exercises.items():
+        done = reps.get(ex, 0)
+        parts.append(ex + ' ' + str(done) + '/' + str(goal))
+    if parts:
+        pp('today: ' + ', '.join(parts))
+    ri = trainer_cfg.get('reminder_interval_minutes', 20)
+    rg = trainer_cfg.get('reminder_min_gap_minutes', 5)
+    pp('reminder: every ' + str(ri) + 'm (min gap ' + str(rg) + 'm)')
+
+tts_cfg = c.get('tts', {}) or {}
+if tts_cfg.get('enabled', False):
+    section('tts')
+    backend = tts_cfg.get('backend', 'auto')
+    pp('tts: on (' + str(backend) + ')')
+    voice = tts_cfg.get('voice', 'default')
+    rate = tts_cfg.get('rate', 1.0)
+    mode = tts_cfg.get('mode', 'sound-then-speak')
+    pp('voice: ' + str(voice) + ', rate ' + str(rate) + ', mode ' + str(mode))
+
+section('debug')
+pp('debug logging: ' + debug_status)
+_log_dir = os.path.join(peon_dir, 'logs')
+pp('  log dir: ' + _log_dir + '/')
+_retention = c.get('debug_retention_days', 7)
+pp('  retention: ' + str(_retention) + ' days')
+
+section('IDEs')
+home = os.path.expanduser('~')
+claude_dir = os.environ.get('CLAUDE_CONFIG_DIR', os.path.join(home, '.claude'))
+xdg_config = os.environ.get('XDG_CONFIG_HOME', os.path.join(home, '.config'))
+opencode_dir = os.path.join(xdg_config, 'opencode')
+
+ides = []
+
+claude_hooks_dir = os.path.join(claude_dir, 'hooks', 'peon-ping')
+if os.path.isdir(claude_dir):
+    if os.path.exists(os.path.join(claude_hooks_dir, 'peon.sh')):
+        ides.append(('Claude Code', claude_dir, 'installed'))
+    else:
+        ides.append(('Claude Code', claude_dir, 'detected (not set up)'))
+
+opencode_plugin = os.path.join(opencode_dir, 'plugins', 'peon-ping.ts')
+if os.path.isdir(opencode_dir):
+    if os.path.exists(opencode_plugin):
+        ides.append(('OpenCode', opencode_dir, 'installed'))
+    else:
+        ides.append(('OpenCode', opencode_dir, 'detected (not set up)'))
+
+rovodev_dir = os.path.join(home, '.rovodev')
+rovodev_config = os.path.join(rovodev_dir, 'config.yml')
+rovodev_config_yaml = os.path.join(rovodev_dir, 'config.yaml')
+if os.path.isdir(rovodev_dir):
+    config_file = rovodev_config if os.path.isfile(rovodev_config) else rovodev_config_yaml if os.path.isfile(rovodev_config_yaml) else None
+    if config_file:
+        try:
+            with open(config_file) as f:
+                content = f.read()
+            if 'rovodev.sh' in content:
+                ides.append(('Rovo Dev CLI', rovodev_dir, 'installed'))
+            else:
+                ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
+        except Exception:
+            ides.append(('Rovo Dev CLI', rovodev_dir, 'detected'))
+    else:
+        ides.append(('Rovo Dev CLI', rovodev_dir, 'detected (not set up)'))
+
+gemini_dir = os.environ.get('GEMINI_CONFIG_DIR', os.path.join(home, '.gemini'))
+gemini_settings = os.path.join(gemini_dir, 'settings.json')
+if os.path.isfile(gemini_settings):
+    try:
+        with open(gemini_settings) as f:
+            settings = json.load(f)
+            hooks = settings.get('hooks', {})
+            if any('gemini.sh' in str(h) for h in hooks.values()):
+                ides.append(('Gemini CLI', gemini_dir, 'installed'))
+            else:
+                ides.append(('Gemini CLI', gemini_dir, 'detected (not set up)'))
+    except Exception:
+        ides.append(('Gemini CLI', gemini_dir, 'detected'))
+
+codex_dir = os.environ.get('CODEX_HOME', os.path.join(home, '.codex'))
+codex_config = os.path.join(codex_dir, 'config.toml')
+if os.path.isdir(codex_dir):
+    codex_installed = False
+    if os.path.isfile(codex_config):
+        try:
+            codex_cfg_text = open(codex_config).read()
+            codex_installed = (
+                'adapters/codex.sh' in codex_cfg_text or
+                'adapters/codex.ps1' in codex_cfg_text
+            )
+        except Exception:
+            codex_installed = False
+    if codex_installed:
+        ides.append(('OpenAI Codex', codex_dir, 'installed'))
+    else:
+        ides.append(('OpenAI Codex', codex_dir, 'detected (not set up)'))
+
+if ides:
+    for name, path, st in ides:
+        marker = '[x]' if st == 'installed' else '[ ]'
+        print(f'  {marker} {name:12s} {path} ({st})')
+else:
+    pp('no supported IDEs detected')
 "
     exit 0 ;;
   notifications)

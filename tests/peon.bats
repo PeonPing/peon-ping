@@ -894,25 +894,216 @@ TOML
   run bash "$PEON_SH" status
   [ "$status" -eq 0 ]
   [[ "$output" == *"active"* ]]
+  [[ "$output" == *"sounds enabled"* ]]
+  [[ "$output" == *"volume: 50%"* ]]
   [[ "$output" == *"default pack"* ]]
   [[ "$output" == *"pack(s) installed"* ]]
+  [[ "$output" == *"debug logging"* ]]
   [[ "$output" == *"--verbose"* ]]
   [[ "$output" != *"desktop notifications"* ]]
-  [[ "$output" != *"notification style"* ]]
+  [[ "$output" != *"-- core --"* ]]
   [[ "$output" != *"headphones_only"* ]]
   [[ "$output" != *"IDEs"* ]]
+  [[ "$output" != *"platform:"* ]]
 }
 
-@test "status --verbose shows full details" {
+@test "status shows 'sounds DISABLED' when enabled=false" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['enabled'] = False
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sounds DISABLED"* ]]
+}
+
+@test "status shows volume percentage from config" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['volume'] = 0.8
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"volume: 80%"* ]]
+}
+
+@test "status default shows 'active pack (here)' when path_rules matches cwd" {
+  # Use a pattern that matches any path ending with the test dir's basename so
+  # /private/var vs /var path prefix differences on macOS do not break matching.
+  TEST_BASENAME=$(basename "$TEST_DIR")
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['path_rules'] = [{'pattern': '*$TEST_BASENAME*', 'pack': 'sc_kerrigan'}]
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active pack (here): sc_kerrigan"* ]]
+}
+
+@test "status default shows rotation label when rotation is active" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['pack_rotation'] = ['peon', 'sc_kerrigan']
+cfg['pack_rotation_mode'] = 'round-robin'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active pack (here): round-robin rotation"* ]]
+}
+
+@test "status --verbose shows full details with section headers" {
   rm -f "$TEST_DIR/.paused"
   run bash "$PEON_SH" status --verbose
   [ "$status" -eq 0 ]
   [[ "$output" == *"active"* ]]
+  [[ "$output" == *"-- core --"* ]]
+  [[ "$output" == *"-- packs --"* ]]
+  [[ "$output" == *"-- categories (CESP events) --"* ]]
+  [[ "$output" == *"-- notifications --"* ]]
+  [[ "$output" == *"-- audio routing --"* ]]
+  [[ "$output" == *"-- behavior timings --"* ]]
+  [[ "$output" == *"-- debug --"* ]]
+  [[ "$output" == *"-- IDEs --"* ]]
+  [[ "$output" == *"platform:"* ]]
+  [[ "$output" == *"audio backend:"* ]]
+  [[ "$output" == *"config: "* ]]
   [[ "$output" == *"default pack"* ]]
   [[ "$output" == *"desktop notifications"* ]]
-  [[ "$output" == *"notification style"* ]]
   [[ "$output" == *"headphones_only"* ]]
+  [[ "$output" == *"annoyed threshold:"* ]]
   [[ "$output" != *"--verbose"* ]]
+}
+
+@test "status --verbose shows category checkboxes" {
+  rm -f "$TEST_DIR/.paused"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] session.start"* ]]
+  [[ "$output" == *"[ ] task.acknowledge"* ]]
+  [[ "$output" == *"[x] task.complete"* ]]
+}
+
+@test "status --verbose shows path-rule reason when matched" {
+  TEST_BASENAME=$(basename "$TEST_DIR")
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['path_rules'] = [{'pattern': '*$TEST_BASENAME*', 'pack': 'sc_kerrigan'}]
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active pack (here): sc_kerrigan"* ]]
+  [[ "$output" == *"reason: path rule:"* ]]
+}
+
+@test "status --verbose suppresses reason for default pack" {
+  rm -f "$TEST_DIR/.paused"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active pack (here): peon"* ]]
+  [[ "$output" != *"reason:"* ]]
+}
+
+@test "status --verbose suppresses reason for rotation (rotation list line is shown separately)" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['pack_rotation'] = ['peon', 'sc_kerrigan']
+cfg['pack_rotation_mode'] = 'round-robin'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active pack (here): round-robin rotation"* ]]
+  [[ "$output" == *"rotation list: peon, sc_kerrigan"* ]]
+  [[ "$output" != *"reason:"* ]]
+}
+
+@test "status --verbose shows random rotation label" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['pack_rotation'] = ['peon', 'sc_kerrigan']
+cfg['pack_rotation_mode'] = 'random'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"active pack (here): random rotation"* ]]
+}
+
+@test "status --verbose: session_override bypasses rotation and shows note" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['pack_rotation'] = ['peon', 'sc_kerrigan']
+cfg['pack_rotation_mode'] = 'session_override'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  # session_override resolves via default_pack, not rotation
+  [[ "$output" != *"active pack (here): session_override rotation"* ]]
+  [[ "$output" == *"active pack (here): peon"* ]]
+  [[ "$output" == *"session-override mode:"* ]]
+}
+
+@test "status --verbose shows trainer section when trainer.enabled=true" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['trainer'] = {'enabled': True, 'exercises': {'pushups': 300, 'squats': 300},
+                  'reminder_interval_minutes': 20, 'reminder_min_gap_minutes': 5}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+import datetime
+state = {'trainer': {'date': datetime.date.today().isoformat(),
+                     'reps': {'pushups': 45, 'squats': 120}}}
+json.dump(state, open('$TEST_DIR/.state.json', 'w'))
+"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"-- trainer --"* ]]
+  [[ "$output" == *"trainer: on"* ]]
+  [[ "$output" == *"pushups 45/300"* ]]
+  [[ "$output" == *"squats 120/300"* ]]
+}
+
+@test "status --verbose shows tts section when tts.enabled=true" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True, 'backend': 'native', 'voice': 'default',
+              'rate': 1.0, 'mode': 'sound-then-speak'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"-- tts --"* ]]
+  [[ "$output" == *"tts: on (native)"* ]]
+  [[ "$output" == *"mode sound-then-speak"* ]]
+}
+
+@test "status --verbose hides trainer and tts sections when disabled" {
+  rm -f "$TEST_DIR/.paused"
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"-- trainer --"* ]]
+  [[ "$output" != *"-- tts --"* ]]
+}
+
+@test "status --verbose shows config path" {
+  run bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"config: $TEST_DIR/config.json"* ]]
 }
 
 @test "paused file suppresses sound on SessionStart" {
