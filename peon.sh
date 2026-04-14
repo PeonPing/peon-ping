@@ -755,6 +755,9 @@ send_notification() {
       fi
       export PEON_MSG_SUBTITLE="${MSG_SUBTITLE:-}"
       export PEON_NOTIFY_TYPE="${NOTIFY_TYPE:-}"
+      export PEON_SESSION_ID="${SESSION_ID:-}"
+      export PEON_NOTIF_STACKING="${NOTIF_STACKING:-true}"
+      export PEON_NOTIF_CLOSE_BUTTON="${NOTIF_CLOSE_BUTTON:-true}"
       bash "$notify_script" "$msg" "$title" "$color" "$icon_path"
       ;;
     devcontainer|ssh)
@@ -2839,6 +2842,165 @@ if changed:
       curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
     fi
     exit $? ;;
+  setup)
+    echo ""
+    echo "  ╔══════════════════════════════════════╗"
+    echo "  ║       peon-ping  setup wizard        ║"
+    echo "  ╚══════════════════════════════════════╝"
+    echo ""
+    python3 -c "
+import json, sys, os
+
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+
+def ask(prompt, options, current):
+    for i, (key, label) in enumerate(options):
+        marker = ' \u2190' if key == current else ''
+        print(f'    {i+1}) {label}{marker}')
+    while True:
+        try:
+            choice = input(f'  > {prompt} [{current}]: ').strip()
+        except (EOFError, KeyboardInterrupt):
+            print(); sys.exit(0)
+        if not choice:
+            return current
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(options):
+                return options[idx][0]
+        except ValueError:
+            for key, label in options:
+                if choice.lower() in (key, label.lower()):
+                    return key
+        print('    Invalid choice, try again.')
+
+def ask_bool(prompt, current):
+    label = 'on' if current else 'off'
+    while True:
+        try:
+            choice = input(f'  > {prompt} [on/off] ({label}): ').strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print(); sys.exit(0)
+        if not choice:
+            return current
+        if choice in ('on', 'true', 'yes', 'y', '1', 'oui'):
+            return True
+        if choice in ('off', 'false', 'no', 'n', '0', 'non'):
+            return False
+        print('    on or off?')
+
+def ask_number(prompt, current, min_val=0, max_val=100):
+    while True:
+        try:
+            choice = input(f'  > {prompt} ({current}): ').strip()
+        except (EOFError, KeyboardInterrupt):
+            print(); sys.exit(0)
+        if not choice:
+            return current
+        try:
+            val = float(choice)
+            if min_val <= val <= max_val:
+                return val if val != int(val) else int(val)
+            print(f'    Must be between {min_val} and {max_val}.')
+        except ValueError:
+            print('    Enter a number.')
+
+# == Volume ==
+print('  \u2500\u2500 Volume \u2500\u2500')
+cfg['volume'] = ask_number('Volume (0.0 - 1.0)', cfg.get('volume', 0.5), 0, 1)
+print()
+
+# == Categories ==
+print('  \u2500\u2500 Sound categories \u2500\u2500')
+cats = cfg.get('categories', {})
+cat_list = [
+    ('session.start', 'Session start'),
+    ('task.acknowledge', 'Task acknowledge'),
+    ('task.complete', 'Task complete'),
+    ('task.error', 'Task error'),
+    ('input.required', 'Input required (permissions, questions)'),
+    ('resource.limit', 'Resource limit (context compaction)'),
+    ('user.spam', 'User spam (rapid prompts)'),
+]
+defaults_off = {'task.acknowledge'}
+for key, label in cat_list:
+    default = False if key in defaults_off else True
+    current = cats.get(key, default)
+    cats[key] = ask_bool(f'  {label}', current)
+cfg['categories'] = cats
+print()
+
+# == Notifications ==
+print('  \u2500\u2500 Notifications \u2500\u2500')
+cfg['desktop_notifications'] = ask_bool('Desktop notifications', cfg.get('desktop_notifications', True))
+
+if cfg['desktop_notifications']:
+    themes = [
+        ('neon', 'Neon (cyberpunk)'),
+        ('glass', 'Glass (translucent)'),
+        ('sakura', 'Sakura (cherry blossom)'),
+        ('jarvis', 'Jarvis (iron man)'),
+    ]
+    print()
+    print('  Overlay theme:')
+    cfg['overlay_theme'] = ask('Theme', themes, cfg.get('overlay_theme', 'neon'))
+
+    positions = [
+        ('top-center', 'Top center'),
+        ('top-right', 'Top right'),
+        ('top-left', 'Top left'),
+        ('bottom-center', 'Bottom center'),
+        ('bottom-right', 'Bottom right'),
+        ('bottom-left', 'Bottom left'),
+    ]
+    print()
+    print('  Notification position:')
+    cfg['notification_position'] = ask('Position', positions, cfg.get('notification_position', 'top-center'))
+
+    print()
+    dismiss_opts = [
+        (0, 'Persistent (click to dismiss)'),
+        (3, '3 seconds'),
+        (4, '4 seconds'),
+        (5, '5 seconds'),
+        (8, '8 seconds'),
+    ]
+    print('  Auto-dismiss:')
+    cfg['notification_dismiss_seconds'] = ask('Dismiss time', dismiss_opts, cfg.get('notification_dismiss_seconds', 4))
+
+    print()
+    cfg['notification_stacking'] = ask_bool('Stack notifications from same session (with count badge)', cfg.get('notification_stacking', True))
+
+    print()
+    cfg['notification_close_button'] = ask_bool('Show X close button on notifications', cfg.get('notification_close_button', True))
+
+print()
+
+# == Save ==
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print('  \u2713 Configuration saved!')
+print()
+
+print('  \u2500\u2500 Summary \u2500\u2500')
+print(f'    Volume:        {cfg[\"volume\"]}')
+dn = 'on' if cfg.get('desktop_notifications', True) else 'off'
+print(f'    Notifications: {dn}')
+if cfg.get('desktop_notifications', True):
+    print(f'    Theme:         {cfg.get(\"overlay_theme\", \"neon\")}')
+    print(f'    Position:      {cfg.get(\"notification_position\", \"top-center\")}')
+    d = cfg.get('notification_dismiss_seconds', 4)
+    print(f'    Dismiss:       {\"persistent\" if d == 0 else str(d) + \"s\"}')
+    print(f'    Stacking:      {\"on\" if cfg.get(\"notification_stacking\", True) else \"off\"}')
+    print(f'    Close button:  {\"on\" if cfg.get(\"notification_close_button\", True) else \"off\"}')
+cats_on = [k for k, v in cfg.get('categories', {}).items() if v]
+print(f'    Categories:    {\", \".join(cats_on)}')
+print()
+"
+    sync_adapter_configs; exit 0 ;;
   help|--help|-h)
     cat <<'HELPEOF'
 Usage: peon <command>
@@ -2876,6 +3038,7 @@ Commands:
   logs --session ID    Filter today's log by session ID
   logs --session ID --all  Search across all log files for session ID
   logs --clear         Delete all log files (with confirmation)
+  setup                Interactive setup wizard
   update               Update peon-ping and refresh all sound packs
   help                 Show this help
 
@@ -4002,6 +4165,8 @@ elif category:
 if category and not cat_enabled.get(category, True):
     log('route', category=category, suppressed=True, reason='category_disabled')
     category = ''
+    notify = ''
+    notify_color = ''
 
 # --- Log route decision ---
 if category:
@@ -4281,6 +4446,9 @@ print('DESKTOP_NOTIF=' + ('true' if desktop_notif else 'false'))
 print('NOTIF_STYLE=' + q(cfg.get('notification_style', 'overlay')))
 print('NOTIF_POSITION=' + q(cfg.get('notification_position', 'top-center')))
 print('NOTIF_DISMISS=' + q(str(cfg.get('notification_dismiss_seconds', 4))))
+print('NOTIF_STACKING=' + ('true' if cfg.get('notification_stacking', True) else 'false'))
+print('NOTIF_CLOSE_BUTTON=' + ('true' if cfg.get('notification_close_button', True) else 'false'))
+print('SESSION_ID=' + q(session_id))
 print('NOTIF_ALL_SCREENS=' + ('true' if cfg.get('notification_all_screens', True) else 'false'))
 print('USE_SOUND_EFFECTS_DEVICE=' + q(str(use_sound_effects_device).lower()))
 print('LINUX_AUDIO_PLAYER=' + q(linux_audio_player))

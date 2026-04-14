@@ -20,6 +20,7 @@ function run(argv) {
   var notifType   = argv[10] || ''; // Semantic type: complete|permission|limit|idle|question
   var allScreens  = argv[11] === 'true';
   var screenIdx   = (argv[12] !== undefined && argv[12] !== '') ? parseInt(argv[12], 10) : -1;
+  var showCloseButton = (argv[13] || 'true') === 'true';
 
   var accentR = 0.0, accentG = 0.75, accentB = 1.0;
   switch (color) {
@@ -37,9 +38,9 @@ function run(argv) {
     case 'idle':       typeText = 'STANDING BY';     break;
     case 'question':   typeText = 'INPUT REQUIRED';  break;
     default:
-      // Fallback for relay.sh and other callers that don't set notifType
       if (color === 'blue')   typeText = 'TASK COMPLETE';
-      else if (color === 'red' || color === 'yellow') typeText = 'LIMIT REACHED';
+      else if (color === 'red')    typeText = 'APPROVAL NEEDED';
+      else if (color === 'yellow') typeText = 'STANDING BY';
       else                    typeText = 'INPUT REQUIRED';
   }
 
@@ -107,9 +108,10 @@ function run(argv) {
       y = vf.origin.y + vf.size.height - winSize - ySlotOffset;
   }
 
-  var win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer(
+  var nonActivating = 1 << 7; // NSWindowStyleMaskNonactivatingPanel
+  var win = $.NSPanel.alloc.initWithContentRectStyleMaskBackingDefer(
     $.NSMakeRect(x, y, winSize, winSize),
-    $.NSWindowStyleMaskBorderless, $.NSBackingStoreBuffered, false
+    $.NSWindowStyleMaskBorderless | nonActivating, $.NSBackingStoreBuffered, false
   );
   win.setBackgroundColor($.NSColor.clearColor);
   win.setOpaque(false); win.setHasShadow(false); win.setAlphaValue(0.0);
@@ -512,45 +514,12 @@ function run(argv) {
   ObjC.registerSubclass({
     name: 'JarvisDismissHandler', superclass: 'NSObject',
     methods: { 'handleDismiss': { types: ['void', []], implementation: function() {
-      // Focus the terminal/IDE
-      if (bundleId || idePid > 0) {
-        var activated = false;
-        if (bundleId) {
-          var ws=$.NSWorkspace.sharedWorkspace, apps=ws.runningApplications;
-          for (var i=0;i<apps.count;i++) {
-            var app=apps.objectAtIndex(i), bid=app.bundleIdentifier;
-            if (!bid.isNil() && bid.js===bundleId) {
-              app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
-              activated=true; break;
-            }
-          }
-        }
-        if (!activated && idePid > 0) {
-          var ideApp=$.NSRunningApplication.runningApplicationWithProcessIdentifier(idePid);
-          if (ideApp && !ideApp.isNil()) ideApp.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
-        }
-        // iTerm2: try tab/window-level focus after app activation (fire-and-forget)
-        if (sessionTty && bundleId === 'com.googlecode.iterm2') {
-          try {
-            var task = $.NSTask.alloc.init;
-            task.setLaunchPath($('/usr/bin/osascript'));
-            task.setArguments($(['-l', 'JavaScript', '-e',
-              'var iTerm=Application("iTerm2");var ws=iTerm.windows();var f=0;' +
-              'for(var w=0;w<ws.length&&!f;w++){var ts=ws[w].tabs();' +
-              'for(var t=0;t<ts.length&&!f;t++){var ss=ts[t].sessions();' +
-              'for(var s=0;s<ss.length&&!f;s++){try{if(ss[s].tty()==="' + sessionTty + '")' +
-              '{ts[t].select();ss[s].select();ws[w].index=1;f=1}}catch(e){}}}}'
-            ]));
-            task.launch;
-          } catch(e) {}
-        }
+      // Hide windows first to prevent focus shift from iTerm overlay
+      var allWindows = $.NSApp.windows;
+      for (var w = 0; w < allWindows.count; w++) {
+        allWindows.objectAtIndex(w).orderOut(null);
       }
-      // Signal ALL sibling overlays to dismiss (event-driven, no polling!)
-      $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObject($(dismissNotificationName), $.NSString.string);
-      // Small delay to ensure notification is delivered before we terminate
-      $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
-        0.05, $.NSApp, 'terminate:', null, false
-      );
+      $.NSApp.stop(null);
     }}}
   });
   var dh=$.JarvisDismissHandler.alloc.init;
@@ -558,6 +527,29 @@ function run(argv) {
   btn.setTitle($('')); btn.setBordered(false); btn.setTransparent(true);
   btn.setTarget(dh); btn.setAction('handleDismiss');
   win.contentView.addSubview(btn);
+
+  // Visible X close button (configurable)
+  if (showCloseButton) {
+    var xSize = 22;
+    var xPosX = padding + circleSize - xSize - 2;
+    var xPosY = padding + circleSize - xSize - 2;
+    var xLabel = $.NSTextField.alloc.initWithFrame($.NSMakeRect(xPosX, xPosY, xSize, xSize));
+    xLabel.setStringValue($('\u00D7'));
+    xLabel.setBezeled(false);
+    xLabel.setDrawsBackground(false);
+    xLabel.setEditable(false);
+    xLabel.setSelectable(false);
+    xLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(accentR, accentG, accentB, 0.6));
+    xLabel.setAlignment($.NSTextAlignmentCenter);
+    xLabel.setFont($.NSFont.boldSystemFontOfSize(16));
+    win.contentView.addSubview(xLabel);
+    var xBtn = $.NSButton.alloc.initWithFrame($.NSMakeRect(xPosX - 4, xPosY - 4, xSize + 8, xSize + 8));
+    xBtn.setTitle($(''));
+    xBtn.setBordered(false);
+    xBtn.setTransparent(true);
+    xBtn.setTarget(dh); xBtn.setAction('handleDismiss');
+    win.contentView.addSubview(xBtn);
+  }
 
   // ══════════════════════════════════════════════
   // ANIMATION
