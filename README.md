@@ -233,6 +233,7 @@ Need to mute sounds and notifications during a meeting or pairing session? Two o
 Other CLI commands:
 
 ```bash
+peon setup                # Interactive setup wizard (volume, categories, notifications)
 peon pause                # Mute sounds
 peon resume               # Unmute sounds
 peon mute                 # Alias for 'pause'
@@ -293,7 +294,74 @@ Pausing mutes sounds and desktop notifications instantly. Persists across sessio
 
 ## Configuration
 
-peon-ping installs slash commands in Claude Code:
+### Quickstart — `peon setup`
+
+The fastest way to configure peon-ping is the interactive wizard:
+
+```bash
+peon setup
+```
+
+It walks you through every common setting in one go — press **Enter** at any prompt to keep the current value:
+
+```
+  ╔══════════════════════════════════════╗
+  ║       peon-ping  setup wizard        ║
+  ╚══════════════════════════════════════╝
+
+  ── Volume ──
+  > Volume (0.0 - 1.0) (0.5):
+
+  ── Sound categories ──
+  >   Session start [on/off] (on):
+  >   Task acknowledge [on/off] (off):
+  >   Task complete [on/off] (on):
+  >   Task error [on/off] (on):
+  >   Input required (permissions, questions) [on/off] (on):
+  >   Resource limit (context compaction) [on/off] (on):
+  >   User spam (rapid prompts) [on/off] (on):
+
+  ── Notifications ──
+  > Desktop notifications [on/off] (on):
+
+  Overlay theme:
+    1) Neon (cyberpunk)
+    2) Glass (translucent)
+    3) Sakura (cherry blossom)
+    4) Jarvis (iron man)
+  > Theme [neon]:
+
+  Notification position:
+    1) Top center
+    2) Top right
+    ...
+  > Position [top-center]:
+
+  Auto-dismiss:
+    1) Persistent (click to dismiss)
+    2) 3 seconds
+    3) 4 seconds
+    ...
+  > Dismiss time [4]:
+
+  ✓ Configuration saved!
+```
+
+**What the wizard covers:**
+- **Volume** — playback volume (0.0 – 1.0)
+- **Sound categories** — enable/disable each CESP category individually (session start, task complete, permission prompts, errors, etc.)
+- **Desktop notifications** — master switch for overlay banners
+- **Overlay theme** — choose the visual style (neon, glass, sakura, jarvis)
+- **Position** — where notifications appear (top-center, top-right, etc.)
+- **Auto-dismiss** — how long notifications stay visible (`0` = persistent, click to dismiss)
+
+When you're done, the wizard prints a summary and saves everything to `~/.claude/hooks/peon-ping/config.json`. You can rerun `peon setup` anytime to tweak settings — it always shows your current values as defaults.
+
+> **Tip:** All individual `peon` subcommands (`peon volume`, `peon notifications position top-right`, etc.) still work if you prefer scripting or tweaking one setting at a time — see the [Quick controls](#quick-controls) section.
+
+### Slash commands and manual config
+
+peon-ping also installs slash commands in Claude Code:
 
 - `/peon-ping-toggle` — mute/unmute sounds
 - `/peon-ping-config` — change any setting (volume, packs, categories, etc.)
