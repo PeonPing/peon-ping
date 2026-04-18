@@ -469,8 +469,28 @@ peon trainer status          # 進捗を確認
 | `peon trainer off` | トレーナーモードを無効化 |
 | `peon trainer status` | 今日の進捗を表示 |
 | `peon trainer log <n> <exercise>` | 回数を記録（例: `log 25 pushups`） |
-| `peon trainer goal <n>` | すべてのエクササイズの目標を設定 |
-| `peon trainer goal <exercise> <n>` | 単一エクササイズの目標を設定 |
+| `peon trainer goal <n>` | すべてのエクササイズの一律な日次目標を設定 |
+| `peon trainer goal <exercise> <n>` | 単一エクササイズの一律な日次目標を設定 |
+| `peon trainer goal <exercise> <day> <n>` | 特定の曜日（mon, tue など）の目標を設定 |
+| `peon trainer goal <day> <n>` | 特定の曜日のすべてのエクササイズを設定 |
+
+### スケジュールと一律目標
+
+エクササイズには **一律の日次目標**（毎日同じ）か、**曜日別スケジュール**（曜日ごとに異なる目標）のいずれかを設定できます。両者は排他的です：
+
+- 一律目標を設定すると、そのエクササイズの既存スケジュールは削除されます
+- 曜日別目標を設定すると、そのエクササイズの一律目標は削除されます
+
+曜日は短縮形を使用：`mon`、`tue`、`wed`、`thu`、`fri`、`sat`、`sun`
+
+```bash
+peon trainer goal pushups 300         # 毎日300回（一律）
+peon trainer goal pushups mon 400     # 上書き：月曜日のみ400回（スケジュール作成）
+peon trainer goal squats sun 0        # 日曜はスクワット休息日
+peon trainer goal fri 150             # 金曜は全エクササイズを軽めに
+```
+
+休息日（goal=0）にはリマインダーがスキップされ、ステータスに `[REST DAY]` と表示されます。希望すれば休息日でも回数を記録できます。
 
 ### Claude Code スキル
 

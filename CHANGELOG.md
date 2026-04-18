@@ -1,3 +1,11 @@
+## v2.21.0 (2026-04-17)
+
+### Added
+- **Day-of-week trainer schedule**. New `schedule` config block under `trainer` lets you set per-weekday goals (e.g. pushups Mon/Wed/Fri, squats Tue/Thu/Sat). Setting a goal of `0` marks a rest day, which skips reminders and shows `[REST DAY]` in `peon trainer status`. New CLI commands: `peon trainer goal <exercise> <day> <n>` and `peon trainer goal <day> <n>`. Backwards-compatible with existing uniform `exercises` config. PR #474, closes #323. Thanks @garfieldnate.
+
+### Docs
+- Japanese README updated with the new trainer schedule commands and rest-day behavior.
+
 ## v2.20.1 (2026-04-16)
 
 ### Fixed
