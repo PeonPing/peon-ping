@@ -472,8 +472,28 @@ peon trainer status          # 查看进度
 | `peon trainer off` | 禁用教练模式 |
 | `peon trainer status` | 显示今日进度 |
 | `peon trainer log <n> <exercise>` | 记录次数（例如 `log 25 pushups`） |
-| `peon trainer goal <n>` | 设置所有运动的目标 |
-| `peon trainer goal <exercise> <n>` | 设置单项运动的目标 |
+| `peon trainer goal <n>` | 设置所有运动的统一每日目标 |
+| `peon trainer goal <exercise> <n>` | 设置单项运动的统一每日目标 |
+| `peon trainer goal <exercise> <day> <n>` | 设置特定日期的目标（mon、tue 等） |
+| `peon trainer goal <day> <n>` | 设置某天所有运动的目标 |
+
+### 日程表与统一目标
+
+运动可以设置**统一每日目标**（每天相同）或**按日日程表**（不同日期不同目标）。两者互斥：
+
+- 设置统一目标会移除该运动的所有日程安排
+- 设置特定日期目标会移除该运动的统一目标
+
+日期使用缩写：`mon`、`tue`、`wed`、`thu`、`fri`、`sat`、`sun`
+
+```bash
+peon trainer goal pushups 300         # 每天 300 俯卧撑（统一目标）
+peon trainer goal pushups mon 400     # 覆盖：周一 400（创建日程表）
+peon trainer goal squats sun 0        # 周日深蹲休息
+peon trainer goal fri 150             # 周五所有运动轻松日
+```
+
+在休息日（目标=0），提醒会被跳过，状态显示 `[REST DAY]`。如果你愿意，仍然可以在休息日记录运动次数。
 
 ### Claude Code 技能
 

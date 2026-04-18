@@ -37,6 +37,7 @@ complete -c peon -n __peon_no_subcommand -a mobile -d "Configure mobile push not
 complete -c peon -n __peon_no_subcommand -a debug -d "Toggle debug logging"
 complete -c peon -n __peon_no_subcommand -a logs -d "View or manage log files"
 complete -c peon -n __peon_no_subcommand -a relay -d "Start audio relay for devcontainers"
+complete -c peon -n __peon_no_subcommand -a trainer -d "Exercise trainer mode"
 complete -c peon -n __peon_no_subcommand -a update -d "Update peon-ping and refresh sound packs"
 complete -c peon -n __peon_no_subcommand -a help -d "Show help message"
 
@@ -165,3 +166,26 @@ complete -c peon -n "__peon_notif_subcommand label" -a reset -d "Clear label ove
 
 # logs --session --all (conditional: only after --session)
 complete -c peon -n "__peon_using_subcommand logs; and __fish_seen_argument -l session" -a "--all" -d "Search across all log files"
+
+# trainer subcommands
+complete -c peon -n "__peon_using_subcommand trainer" -a on -d "Enable trainer mode"
+complete -c peon -n "__peon_using_subcommand trainer" -a off -d "Disable trainer mode"
+complete -c peon -n "__peon_using_subcommand trainer" -a status -d "Show today's progress"
+complete -c peon -n "__peon_using_subcommand trainer" -a log -d "Log completed reps"
+complete -c peon -n "__peon_using_subcommand trainer" -a goal -d "Set exercise goals"
+complete -c peon -n "__peon_using_subcommand trainer" -a help -d "Show trainer help"
+
+# Helper: true when trainer goal subcommand is active
+function __peon_trainer_goal
+  set -l cmd (commandline -opc)
+  test (count $cmd) -ge 3; and test $cmd[2] = trainer; and test $cmd[3] = goal
+end
+
+# trainer goal weekday completions (short names)
+complete -c peon -n __peon_trainer_goal -a mon -d "Monday"
+complete -c peon -n __peon_trainer_goal -a tue -d "Tuesday"
+complete -c peon -n __peon_trainer_goal -a wed -d "Wednesday"
+complete -c peon -n __peon_trainer_goal -a thu -d "Thursday"
+complete -c peon -n __peon_trainer_goal -a fri -d "Friday"
+complete -c peon -n __peon_trainer_goal -a sat -d "Saturday"
+complete -c peon -n __peon_trainer_goal -a sun -d "Sunday"

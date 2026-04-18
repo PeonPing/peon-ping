@@ -287,3 +287,148 @@ json.dump(s, open('$TEST_DIR/.state.json', 'w'))
   count=$(afplay_call_count)
   [ "$count" = "1" ]
 }
+
+# ============================================================
+# Day-specific schedule goals
+# ============================================================
+
+@test "trainer goal sets day-specific goal in schedule" {
+  bash "$PEON_SH" trainer on
+  run bash "$PEON_SH" trainer goal pushups mon 400
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"mon"* ]]
+  [[ "$output" == *"400"* ]]
+
+  # Verify schedule structure
+  mon_goal=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); s=c.get('trainer',{}).get('schedule',{}); print(s.get('mon',{}).get('pushups',0))")
+  [ "$mon_goal" = "400" ]
+
+  # Pushups should be removed from uniform exercises (mutual exclusion)
+  in_exercises=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print('pushups' in c.get('trainer',{}).get('exercises',{}))")
+  [ "$in_exercises" = "False" ]
+}
+
+@test "trainer goal accepts full weekday names" {
+  bash "$PEON_SH" trainer on
+  run bash "$PEON_SH" trainer goal pushups monday 400
+  [ "$status" -eq 0 ]
+
+  # Should be stored with short name
+  mon_goal=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); s=c.get('trainer',{}).get('schedule',{}); print(s.get('mon',{}).get('pushups',0))")
+  [ "$mon_goal" = "400" ]
+}
+
+@test "trainer uniform goal removes exercise from schedule" {
+  bash "$PEON_SH" trainer on
+  # First set day-specific goals
+  bash "$PEON_SH" trainer goal pushups mon 400
+  bash "$PEON_SH" trainer goal pushups sun 0
+  # Then reset to uniform goal
+  run bash "$PEON_SH" trainer goal pushups 250
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"250"* ]]
+  [[ "$output" == *"cleared schedule"* ]]
+
+  # Verify pushups is in exercises as simple int
+  goal=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(c.get('trainer',{}).get('exercises',{}).get('pushups',0))")
+  [ "$goal" = "250" ]
+
+  # Verify pushups is NOT in schedule
+  in_schedule=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); s=c.get('trainer',{}).get('schedule',{}); print(any('pushups' in d for d in s.values()))")
+  [ "$in_schedule" = "False" ]
+}
+
+@test "trainer goal <weekday> <n> sets all exercises for that day" {
+  bash "$PEON_SH" trainer on
+  run bash "$PEON_SH" trainer goal fri 150
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"fri"* ]]
+  [[ "$output" == *"150"* ]]
+
+  pushups_fri=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); s=c.get('trainer',{}).get('schedule',{}); print(s.get('fri',{}).get('pushups',0))")
+  squats_fri=$(python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); s=c.get('trainer',{}).get('schedule',{}); print(s.get('fri',{}).get('squats',0))")
+  [ "$pushups_fri" = "150" ]
+  [ "$squats_fri" = "150" ]
+}
+
+@test "trainer status shows REST DAY for goal=0" {
+  bash "$PEON_SH" trainer on
+  # Get current weekday abbreviation
+  weekday=$(python3 -c "import datetime; d={'monday':'mon','tuesday':'tue','wednesday':'wed','thursday':'thu','friday':'fri','saturday':'sat','sunday':'sun'}; print(d[datetime.date.today().strftime('%A').lower()])")
+  # Set current weekday to rest day
+  bash "$PEON_SH" trainer goal pushups "$weekday" 0
+
+  run bash "$PEON_SH" trainer status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"REST DAY"* ]]
+}
+
+@test "trainer status shows weekday in header" {
+  bash "$PEON_SH" trainer on
+  run bash "$PEON_SH" trainer status
+  [ "$status" -eq 0 ]
+  # Output should contain the weekday name (capitalized)
+  weekday_cap=$(python3 -c "import datetime; print(datetime.date.today().strftime('%A'))")
+  [[ "$output" == *"$weekday_cap"* ]]
+}
+
+@test "trainer log shows rest day message when goal=0" {
+  bash "$PEON_SH" trainer on
+  weekday=$(python3 -c "import datetime; d={'monday':'mon','tuesday':'tue','wednesday':'wed','thursday':'thu','friday':'fri','saturday':'sat','sunday':'sun'}; print(d[datetime.date.today().strftime('%A').lower()])")
+  bash "$PEON_SH" trainer goal pushups "$weekday" 0
+
+  run bash "$PEON_SH" trainer log 10 pushups
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"rest day"* ]]
+}
+
+@test "trainer log accumulates reps on rest day" {
+  bash "$PEON_SH" trainer on
+  weekday=$(python3 -c "import datetime; d={'monday':'mon','tuesday':'tue','wednesday':'wed','thursday':'thu','friday':'fri','saturday':'sat','sunday':'sun'}; print(d[datetime.date.today().strftime('%A').lower()])")
+  bash "$PEON_SH" trainer goal pushups "$weekday" 0
+
+  bash "$PEON_SH" trainer log 10 pushups
+  run bash "$PEON_SH" trainer log 15 pushups
+  [ "$status" -eq 0 ]
+
+  reps=$(python3 -c "import json; s=json.load(open('$TEST_DIR/.state.json')); print(s.get('trainer',{}).get('reps',{}).get('pushups',0))")
+  [ "$reps" = "25" ]
+}
+
+@test "hook skips trainer reminder on full rest day" {
+  bash "$PEON_SH" trainer on
+  weekday=$(python3 -c "import datetime; d={'monday':'mon','tuesday':'tue','wednesday':'wed','thursday':'thu','friday':'fri','saturday':'sat','sunday':'sun'}; print(d[datetime.date.today().strftime('%A').lower()])")
+  # Set both exercises to rest day
+  bash "$PEON_SH" trainer goal pushups "$weekday" 0
+  bash "$PEON_SH" trainer goal squats "$weekday" 0
+
+  python3 -c "
+import json, time
+s = json.load(open('$TEST_DIR/.state.json'))
+s['trainer'] = {'date': '$(date +%Y-%m-%d)', 'reps': {'pushups': 0, 'squats': 0}, 'last_reminder_ts': int(time.time()) - 3600}
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # Only 1 sound (main event), no trainer reminder
+  count=$(afplay_call_count)
+  [ "$count" = "1" ]
+}
+
+@test "trainer backwards compatibility with simple integer goals" {
+  bash "$PEON_SH" trainer on
+  # Set simple integer goals
+  bash "$PEON_SH" trainer goal pushups 200
+  bash "$PEON_SH" trainer goal squats 150
+
+  # Status should work
+  run bash "$PEON_SH" trainer status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"200"* ]]
+  [[ "$output" == *"150"* ]]
+
+  # Log should work
+  run bash "$PEON_SH" trainer log 50 pushups
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"50/200"* ]]
+}

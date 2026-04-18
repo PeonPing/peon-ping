@@ -3394,6 +3394,26 @@ state_path = os.environ.get('PEON_ENV_STATE', '')
 
 ${_PEON_STATE_PY_HELPERS}
 
+WEEKDAY_ABBREV = {
+    'monday': 'mon', 'tuesday': 'tue', 'wednesday': 'wed',
+    'thursday': 'thu', 'friday': 'fri', 'saturday': 'sat', 'sunday': 'sun'
+}
+
+def resolve_goal(exercise, exercises, schedule, day_abbrev):
+    \"\"\"Resolve exercise goal: check schedule first, then uniform goal.\"\"\"
+    # Check schedule for this day
+    if day_abbrev in schedule and exercise in schedule[day_abbrev]:
+        return schedule[day_abbrev][exercise]
+    # Fall back to uniform daily goal
+    return exercises.get(exercise, 0)
+
+def get_all_exercises(exercises, schedule):
+    \"\"\"Get union of all exercises from both exercises and schedule.\"\"\"
+    all_ex = set(exercises.keys())
+    for day_goals in schedule.values():
+        all_ex.update(day_goals.keys())
+    return sorted(all_ex)
+
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3406,32 +3426,46 @@ if not trainer_cfg.get('enabled', False):
     sys.exit(0)
 
 exercises = trainer_cfg.get('exercises', {'pushups': 300, 'squats': 300})
+schedule = trainer_cfg.get('schedule', {})
+all_exercises = get_all_exercises(exercises, schedule)
 
 state = _read_state(state_path)
 
 trainer_state = state.get('trainer', {})
-today = datetime.date.today().isoformat()
+today = datetime.date.today()
+today_iso = today.isoformat()
+weekday_full = today.strftime('%A').lower()
+weekday_cap = today.strftime('%A')
+day_abbrev = WEEKDAY_ABBREV[weekday_full]
 
 # Auto-reset if date changed
-if trainer_state.get('date', '') != today:
-    trainer_state = {'date': today, 'reps': {k: 0 for k in exercises}, 'last_reminder_ts': 0}
+if trainer_state.get('date', '') != today_iso:
+    trainer_state = {'date': today_iso, 'reps': {k: 0 for k in all_exercises}, 'last_reminder_ts': 0}
     state['trainer'] = trainer_state
     _write_state(state, state_path, indent=2)
 
 reps = trainer_state.get('reps', {})
 
-print('peon-ping: trainer status (' + today + ')')
+print(f'peon-ping: trainer status ({today_iso}, {weekday_cap})')
 print('')
 
 bar_width = 16
-for ex, goal in exercises.items():
+for ex in all_exercises:
+    goal = resolve_goal(ex, exercises, schedule, day_abbrev)
     done = reps.get(ex, 0)
-    pct = min(done / goal, 1.0) if goal > 0 else 0
-    filled = int(pct * bar_width)
-    empty = bar_width - filled
-    bar = '\u2588' * filled + '\u2591' * empty
-    pct_str = str(int(pct * 100))
-    print(f'{ex}:  {bar}  {done}/{goal}  ({pct_str}%)')
+    if goal == 0:
+        # Rest day for this exercise
+        if done > 0:
+            print(f'{ex}:  [REST DAY] ({done} logged)')
+        else:
+            print(f'{ex}:  [REST DAY]')
+    else:
+        pct = min(done / goal, 1.0)
+        filled = int(pct * bar_width)
+        empty = bar_width - filled
+        bar = '\u2588' * filled + '\u2591' * empty
+        pct_str = str(int(pct * 100))
+        print(f'{ex}:  {bar}  {done}/{goal}  ({pct_str}%)')
 "
         exit 0 ;;
       log)
@@ -3457,6 +3491,24 @@ exercise = os.environ.get('EXERCISE', '')
 
 ${_PEON_STATE_PY_HELPERS}
 
+WEEKDAY_ABBREV = {
+    'monday': 'mon', 'tuesday': 'tue', 'wednesday': 'wed',
+    'thursday': 'thu', 'friday': 'fri', 'saturday': 'sat', 'sunday': 'sun'
+}
+
+def resolve_goal(ex, exercises, schedule, day_abbrev):
+    \"\"\"Resolve exercise goal: check schedule first, then uniform goal.\"\"\"
+    if day_abbrev in schedule and ex in schedule[day_abbrev]:
+        return schedule[day_abbrev][ex]
+    return exercises.get(ex, 0)
+
+def get_all_exercises(exercises, schedule):
+    \"\"\"Get union of all exercises from both exercises and schedule.\"\"\"
+    all_ex = set(exercises.keys())
+    for day_goals in schedule.values():
+        all_ex.update(day_goals.keys())
+    return sorted(all_ex)
+
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -3464,57 +3516,115 @@ except Exception:
 
 trainer_cfg = cfg.get('trainer', {})
 exercises = trainer_cfg.get('exercises', {'pushups': 300, 'squats': 300})
+schedule = trainer_cfg.get('schedule', {})
+all_exercises = get_all_exercises(exercises, schedule)
 
-if exercise not in exercises:
+if exercise not in all_exercises:
     print('peon-ping: unknown exercise \"' + exercise + '\"', file=sys.stderr)
-    if exercises:
-        print('Known exercises: ' + ', '.join(exercises.keys()), file=sys.stderr)
+    if all_exercises:
+        print('Known exercises: ' + ', '.join(all_exercises), file=sys.stderr)
     print('Add it first: peon trainer goal ' + exercise + ' <daily-goal>', file=sys.stderr)
     sys.exit(1)
 
-goal = exercises[exercise]
+today = datetime.date.today()
+today_iso = today.isoformat()
+weekday_full = today.strftime('%A').lower()
+day_abbrev = WEEKDAY_ABBREV[weekday_full]
+goal = resolve_goal(exercise, exercises, schedule, day_abbrev)
 
 state = _read_state(state_path)
 
 trainer_state = state.get('trainer', {})
-today = datetime.date.today().isoformat()
 
 # Auto-reset if date changed
-if trainer_state.get('date', '') != today:
-    trainer_state = {'date': today, 'reps': {k: 0 for k in exercises}, 'last_reminder_ts': 0}
+if trainer_state.get('date', '') != today_iso:
+    trainer_state = {'date': today_iso, 'reps': {k: 0 for k in all_exercises}, 'last_reminder_ts': 0}
 
 reps = trainer_state.get('reps', {})
 reps[exercise] = reps.get(exercise, 0) + count
 trainer_state['reps'] = reps
-trainer_state['date'] = today
+trainer_state['date'] = today_iso
 state['trainer'] = trainer_state
 _write_state(state, state_path, indent=2)
 
 done = reps[exercise]
-pct = min(done / goal, 1.0) if goal > 0 else 0
-bar_width = 16
-filled = int(pct * bar_width)
-empty = bar_width - filled
-bar = '\u2588' * filled + '\u2591' * empty
-print(f'peon-ping: logged {count} {exercise} ({done}/{goal})')
-print(f'  {bar}  {int(pct*100)}%')
+
+if goal == 0:
+    # Rest day - allow logging but show info message
+    print(f'peon-ping: logged {count} {exercise} ({done} total)')
+    print(f'  (Today is a rest day for {exercise})')
+else:
+    pct = min(done / goal, 1.0)
+    bar_width = 16
+    filled = int(pct * bar_width)
+    empty = bar_width - filled
+    bar = '\u2588' * filled + '\u2591' * empty
+    print(f'peon-ping: logged {count} {exercise} ({done}/{goal})')
+    print(f'  {bar}  {int(pct*100)}%')
 "
         exit $? ;;
       goal)
         shift
         ARG1="${1:-}"
         ARG2="${2:-}"
+        ARG3="${3:-}"
         if [ -z "$ARG1" ]; then
-          echo "Usage: peon trainer goal <number>           Set all exercises" >&2
-          echo "       peon trainer goal <exercise> <number> Set one exercise" >&2
+          echo "Usage: peon trainer goal <number>                  Set all exercises (every day)" >&2
+          echo "       peon trainer goal <exercise> <number>       Set uniform daily goal" >&2
+          echo "       peon trainer goal <exercise> <weekday> <n>  Set goal for specific day" >&2
+          echo "       peon trainer goal <weekday> <number>        Set all exercises for that day" >&2
           exit 1
         fi
-        ARG1="$ARG1" ARG2="$ARG2" python3 -c "
+        ARG1="$ARG1" ARG2="$ARG2" ARG3="$ARG3" python3 -c "
 import json, sys, os
 
 config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
 arg1 = os.environ.get('ARG1', '')
 arg2 = os.environ.get('ARG2', '')
+arg3 = os.environ.get('ARG3', '')
+
+# Short weekday abbreviations
+WEEKDAYS = {'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'}
+WEEKDAY_FULL = {
+    'monday': 'mon', 'tuesday': 'tue', 'wednesday': 'wed',
+    'thursday': 'thu', 'friday': 'fri', 'saturday': 'sat', 'sunday': 'sun'
+}
+
+def normalize_weekday(s):
+    \"\"\"Convert weekday input to short form (mon, tue, etc.).\"\"\"
+    s = s.lower()
+    if s in WEEKDAYS:
+        return s
+    if s in WEEKDAY_FULL:
+        return WEEKDAY_FULL[s]
+    return None
+
+def is_weekday(s):
+    return normalize_weekday(s) is not None
+
+def is_number(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+def get_all_exercises(exercises, schedule):
+    \"\"\"Get union of all exercises from both exercises and schedule.\"\"\"
+    all_ex = set(exercises.keys())
+    for day_goals in schedule.values():
+        all_ex.update(day_goals.keys())
+    return sorted(all_ex)
+
+def remove_from_schedule(schedule, exercise):
+    \"\"\"Remove an exercise from all days in schedule.\"\"\"
+    for day in schedule:
+        if exercise in schedule[day]:
+            del schedule[day][exercise]
+    # Clean up empty days
+    empty_days = [d for d, goals in schedule.items() if not goals]
+    for d in empty_days:
+        del schedule[d]
 
 try:
     cfg = json.load(open(config_path))
@@ -3523,33 +3633,91 @@ except Exception:
 
 trainer = cfg.get('trainer', {})
 exercises = trainer.get('exercises', {'pushups': 300, 'squats': 300})
+schedule = trainer.get('schedule', {})
 
-if arg2:
-    # goal <exercise> <number>
+# Determine which form was used based on arguments
+if arg3:
+    # goal <exercise> <weekday> <n>
     exercise = arg1
+    day_abbrev = normalize_weekday(arg2)
+    if day_abbrev is None:
+        print(f'peon-ping: unknown weekday \"{arg2}\"', file=sys.stderr)
+        print('Valid weekdays: mon, tue, wed, thu, fri, sat, sun', file=sys.stderr)
+        sys.exit(1)
     try:
-        num = int(arg2)
+        num = int(arg3)
     except ValueError:
         print('peon-ping: goal must be a number', file=sys.stderr)
         sys.exit(1)
-    is_new = exercise not in exercises
-    exercises[exercise] = num
-    if is_new:
-        print(f'peon-ping: new exercise added — {exercise} goal set to {num}')
+
+    # Add to schedule
+    if day_abbrev not in schedule:
+        schedule[day_abbrev] = {}
+    schedule[day_abbrev][exercise] = num
+
+    # Remove from uniform exercises (mutual exclusion)
+    if exercise in exercises:
+        del exercises[exercise]
+        print(f'peon-ping: {exercise} {day_abbrev} goal set to {num} (removed uniform goal)')
     else:
-        print(f'peon-ping: {exercise} goal set to {num}')
+        print(f'peon-ping: {exercise} {day_abbrev} goal set to {num}')
+
+elif arg2:
+    if is_weekday(arg1) and is_number(arg2):
+        # goal <weekday> <n> — set all current exercises for that weekday
+        day_abbrev = normalize_weekday(arg1)
+        num = int(arg2)
+        all_ex = get_all_exercises(exercises, schedule)
+        if not all_ex:
+            print('peon-ping: no exercises configured', file=sys.stderr)
+            sys.exit(1)
+        if day_abbrev not in schedule:
+            schedule[day_abbrev] = {}
+        for ex in all_ex:
+            schedule[day_abbrev][ex] = num
+            # Remove from uniform exercises
+            if ex in exercises:
+                del exercises[ex]
+        print(f'peon-ping: all exercises on {day_abbrev} set to {num}')
+    elif is_number(arg2):
+        # goal <exercise> <n> — set uniform daily goal
+        exercise = arg1
+        num = int(arg2)
+        is_new = exercise not in get_all_exercises(exercises, schedule)
+
+        # Set uniform goal
+        exercises[exercise] = num
+
+        # Remove from schedule (mutual exclusion)
+        had_schedule = any(exercise in schedule.get(d, {}) for d in schedule)
+        remove_from_schedule(schedule, exercise)
+
+        if is_new:
+            print(f'peon-ping: new exercise added — {exercise} goal set to {num}')
+        elif had_schedule:
+            print(f'peon-ping: {exercise} goal set to {num} (cleared schedule)')
+        else:
+            print(f'peon-ping: {exercise} goal set to {num}')
+    else:
+        print('peon-ping: goal must be a number', file=sys.stderr)
+        sys.exit(1)
+
 else:
-    # goal <number>
+    # goal <n> — reset all exercises to uniform, clear schedule
     try:
         num = int(arg1)
     except ValueError:
         print('peon-ping: goal must be a number', file=sys.stderr)
         sys.exit(1)
-    for k in exercises:
-        exercises[k] = num
-    print(f'peon-ping: all exercise goals set to {num}')
+    all_ex = get_all_exercises(exercises, schedule)
+    if not all_ex:
+        all_ex = ['pushups', 'squats']  # Default if nothing configured
+    exercises = {ex: num for ex in all_ex}
+    schedule = {}  # Clear all schedules
+    print(f'peon-ping: all exercise goals set to {num} (cleared schedule)')
 
 trainer['exercises'] = exercises
+trainer['schedule'] = schedule
 cfg['trainer'] = trainer
 json.dump(cfg, open(config_path, 'w'), indent=2)
 "
@@ -3563,11 +3731,28 @@ Commands:
   off                  Disable trainer mode
   status               Show today's progress
   log <count> <exercise>  Log completed reps (e.g. log 25 pushups)
-  goal <number>        Set daily goal for all exercises
-  goal <exercise> <n>  Set daily goal for one exercise
+  goal <number>        Set daily goal for all exercises (uniform)
+  goal <exercise> <n>  Set uniform daily goal for one exercise
+  goal <exercise> <day> <n>  Set goal for specific day of week
+  goal <day> <n>       Set all exercises for a specific day
   help                 Show this help
 
-Exercises: pushups, squats
+Schedule vs Uniform Goals:
+  Exercises can have either a uniform daily goal OR a per-day schedule.
+  Setting a uniform goal removes any schedule for that exercise.
+  Setting a day-specific goal removes any uniform goal.
+
+  Days: mon, tue, wed, thu, fri, sat, sun
+
+  Examples:
+    peon trainer goal pushups 300         # 300 pushups every day
+    peon trainer goal pushups mon 400     # Override: 400 on Monday
+    peon trainer goal squats sun 0        # Rest day for squats on Sunday
+    peon trainer goal fri 150             # Light day for all exercises
+
+  On rest days (goal=0), reminders are skipped and status shows "[REST DAY]".
+
+Exercises: pushups, squats (add more with goal <name> <n>)
 TRAINER_HELP
         exit 0 ;;
     esac ;;
@@ -4519,17 +4704,48 @@ trainer_sound = ''
 trainer_msg = ''
 trainer_cfg = cfg.get('trainer', {})
 if trainer_cfg.get('enabled', False):
+    import datetime
     from datetime import date as _date
     today = _date.today().isoformat()
+    weekday_full = _date.today().strftime('%A').lower()
+    _weekday_abbrev = {
+        'monday': 'mon', 'tuesday': 'tue', 'wednesday': 'wed',
+        'thursday': 'thu', 'friday': 'fri', 'saturday': 'sat', 'sunday': 'sun'
+    }
+    day_abbrev = _weekday_abbrev[weekday_full]
+
+    def resolve_goal(ex, exercises, schedule, day):
+        # Check schedule first, then uniform goal
+        if day in schedule and ex in schedule[day]:
+            return schedule[day][ex]
+        return exercises.get(ex, 0)
+
+    def get_all_exercises(exercises, schedule):
+        all_ex = set(exercises.keys())
+        for dg in schedule.values():
+            all_ex.update(dg.keys())
+        return sorted(all_ex)
+
     trainer_state = state.get('trainer', {})
     _default_ex = dict(pushups=300, squats=300)
-    if trainer_state.get('date') != today:
-        exercises = trainer_cfg.get('exercises', _default_ex)
-        trainer_state = dict(date=today, reps=dict.fromkeys(exercises, 0), last_reminder_ts=0)
     exercises = trainer_cfg.get('exercises', _default_ex)
+    schedule = trainer_cfg.get('schedule', {})
+    all_exercises = get_all_exercises(exercises, schedule)
+    if trainer_state.get('date') != today:
+        trainer_state = dict(date=today, reps=dict.fromkeys(all_exercises, 0), last_reminder_ts=0)
     reps = trainer_state.get('reps', {})
-    all_done = all(reps.get(ex, 0) >= goal for ex, goal in exercises.items())
-    if not all_done:
+    # Resolve goals for today
+    resolved_goals = {}
+    for ex in all_exercises:
+        resolved_goals[ex] = resolve_goal(ex, exercises, schedule, day_abbrev)
+    # Check if all exercises with goal > 0 are done
+    active_exercises = {}
+    for ex, g in resolved_goals.items():
+        if g > 0:
+            active_exercises[ex] = g
+    all_done = all(reps.get(ex, 0) >= goal for ex, goal in active_exercises.items()) if active_exercises else True
+    # Skip reminder if all goals are 0 (full rest day)
+    if not all_done and active_exercises:
         now_ts = time.time()
         last_ts = trainer_state.get('last_reminder_ts', 0)
         interval = trainer_cfg.get('reminder_interval_minutes', 20) * 60
@@ -4543,10 +4759,9 @@ if trainer_cfg.get('enabled', False):
                 if is_session_start:
                     tcat = 'trainer.session_start'
                 else:
-                    import datetime
                     hour = datetime.datetime.now().hour
-                    total_reps = sum(reps.get(ex, 0) for ex in exercises)
-                    total_goal = sum(exercises.values())
+                    total_reps = sum(reps.get(ex, 0) for ex in active_exercises)
+                    total_goal = sum(active_exercises.values())
                     pct = total_reps / total_goal if total_goal > 0 else 1.0
                     if hour >= 12 and pct < 0.25:
                         tcat = 'trainer.slacking'
@@ -4559,9 +4774,10 @@ if trainer_cfg.get('enabled', False):
                     if os.path.isfile(sfile):
                         trainer_sound = sfile
                         parts = []
-                        for ex, goal in exercises.items():
-                            done = reps.get(ex, 0)
-                            parts.append(f'{ex}: {done}/{goal}')
+                        for ex, goal in resolved_goals.items():
+                            if goal > 0:
+                                done = reps.get(ex, 0)
+                                parts.append(f'{ex}: {done}/{goal}')
                         trainer_msg = ' | '.join(parts)
             except Exception:
                 pass

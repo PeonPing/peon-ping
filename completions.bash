@@ -84,12 +84,21 @@ _peon_completions() {
           COMPREPLY=( $(compgen -W "--all" -- "$cur") )
         fi
         return 0 ;;
+      trainer)
+        if [ "$cword" -eq 2 ]; then
+          COMPREPLY=( $(compgen -W "on off status log goal help" -- "$cur") )
+        elif [ "$cword" -ge 3 ] && [ "${words[2]}" = "goal" ]; then
+          # trainer goal completions: short weekday names
+          local weekdays="mon tue wed thu fri sat sun"
+          COMPREPLY=( $(compgen -W "$weekdays" -- "$cur") )
+        fi
+        return 0 ;;
     esac
     return 0
   fi
 
   # Top-level commands
-  COMPREPLY=( $(compgen -W "pause resume mute unmute toggle status volume rotation packs notifications mobile relay debug logs update help" -- "$cur") )
+  COMPREPLY=( $(compgen -W "pause resume mute unmute toggle status volume rotation packs notifications mobile relay debug logs trainer update help" -- "$cur") )
   return 0
 }
 

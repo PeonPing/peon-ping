@@ -548,8 +548,28 @@ Trainer reminders piggyback on your coding session. When you start a new session
 | `peon trainer off` | Disable trainer mode |
 | `peon trainer status` | Show today's progress |
 | `peon trainer log <n> <exercise>` | Log reps (e.g. `log 25 pushups`) |
-| `peon trainer goal <n>` | Set goal for all exercises |
-| `peon trainer goal <exercise> <n>` | Set goal for one exercise |
+| `peon trainer goal <n>` | Set uniform daily goal for all exercises |
+| `peon trainer goal <exercise> <n>` | Set uniform daily goal for one exercise |
+| `peon trainer goal <exercise> <day> <n>` | Set goal for specific day (mon, tue, etc.) |
+| `peon trainer goal <day> <n>` | Set all exercises for a specific day |
+
+### Schedule vs uniform goals
+
+Exercises can have either a **uniform daily goal** (same every day) or a **per-day schedule** (different goals on different days). These are mutually exclusive:
+
+- Setting a uniform goal removes any schedule for that exercise
+- Setting a day-specific goal removes any uniform goal for that exercise
+
+Days use short names: `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`
+
+```bash
+peon trainer goal pushups 300         # 300 pushups every day (uniform)
+peon trainer goal pushups mon 400     # Override: 400 on Monday (creates schedule)
+peon trainer goal squats sun 0        # Rest day for squats on Sunday
+peon trainer goal fri 150             # Light day for all exercises on Friday
+```
+
+On rest days (goal=0), reminders are skipped and status shows `[REST DAY]`. You can still log reps on rest days if you want.
 
 ### Claude Code skill
 
