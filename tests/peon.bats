@@ -4438,6 +4438,46 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ "$tts_text" = "myproject is done" ]
 }
 
+@test "TTS: stop template summary falls back to last_assistant_message" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+cfg['notification_templates'] = {'stop': '{summary}'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","last_assistant_message":"Fixed the hook payload fallback"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  tts_text=$(cat "$TEST_DIR/.tts_text")
+  [ "$tts_text" = "Fixed the hook payload fallback" ]
+}
+
+@test "TTS: stop template summary falls back to codex payload field" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+cfg['notification_templates'] = {'stop': '{summary}'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"codex-stop","last-assistant-message":"Codex says the branch is ready"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(cat "$TEST_DIR/.tts_text")" = "Codex says the branch is ready" ]
+}
+
+@test "TTS: stop template summary falls back to gemini payload field" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tts'] = {'enabled': True}
+cfg['notification_templates'] = {'stop': '{summary}'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"gemini-stop","prompt_response":"Gemini says the branch is ready"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(cat "$TEST_DIR/.tts_text")" = "Gemini says the branch is ready" ]
+}
+
 @test "TTS: falls back to default template when no notification template" {
   # Enable TTS but no notification templates
   /usr/bin/python3 -c "

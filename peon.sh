@@ -4834,6 +4834,21 @@ if tab_color_enabled:
 
 # --- Notification message template resolution ---
 from collections import defaultdict as _defaultdict
+def _template_summary(d):
+    for key in (
+        'last_assistant_message',
+        'last-assistant-message',
+        'prompt_response',
+        'transcript_summary',
+        'message',
+    ):
+        value = d.get(key, '')
+        if isinstance(value, str):
+            value = value.strip()
+            if value:
+                return value[:120]
+    return ''
+
 _templates = cfg.get('notification_templates', {})
 _tpl_key_map = {
     'task.complete': 'stop',
@@ -4848,7 +4863,7 @@ elif event == 'PermissionRequest':
 _tpl = _templates.get(_tpl_key, '')
 _tpl_vars = _defaultdict(str, {
     'project': project,
-    'summary': event_data.get('transcript_summary', '').strip()[:120],
+    'summary': _template_summary(event_data),
     'tool_name': event_data.get('tool_name', ''),
     'status': status,
     'event': event,

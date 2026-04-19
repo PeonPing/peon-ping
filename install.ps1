@@ -598,6 +598,26 @@ function Resolve-NotificationTemplate {
     return $rendered
 }
 
+function Resolve-TemplateSummary {
+    param([object]$Event)
+
+    foreach ($key in @('last_assistant_message', 'last-assistant-message', 'prompt_response', 'transcript_summary', 'message')) {
+        $prop = $Event.PSObject.Properties[$key]
+        if ($prop) {
+            $value = [string]$prop.Value
+            if ($value) {
+                $value = $value.Trim()
+                if ($value) {
+                    if ($value.Length -gt 120) { return $value.Substring(0, 120) }
+                    return $value
+                }
+            }
+        }
+    }
+
+    return ''
+}
+
 # --- TTS backend resolution ---
 function Resolve-TtsBackend {
     param([string]$Backend = "auto")
@@ -2181,7 +2201,7 @@ $resolvedTemplate = ""
 if ($category) {
     $tplCfg0 = $config.notification_templates
     if ($tplCfg0) {
-        $tplSum0 = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+        $tplSum0 = Resolve-TemplateSummary $event
         $tplTool0 = if ($event.tool_name) { [string]$event.tool_name } else { '' }
         $resolvedTemplate = Resolve-NotificationTemplate `
             -Templates $tplCfg0 `
@@ -2384,8 +2404,7 @@ if ($ttsEnabled -and $category) {
     # rendering block (~lines 1710-1725). Intentional for now to keep TTS text
     # resolution self-contained. If this area is touched again, consolidate into
     # a shared $tplVars hashtable built once and reused by both paths.
-    $tplSummary = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
-    if ($tplSummary -and $tplSummary.Length -gt 120) { $tplSummary = $tplSummary.Substring(0, 120) }
+    $tplSummary = Resolve-TemplateSummary $event
     $tplToolName = if ($event.tool_name) { [string]$event.tool_name } else { '' }
     $ttsVars = @{
         project   = $project
@@ -2595,7 +2614,7 @@ if ($trainerMsg) {
 if ($notify) {
     $tplCfg = $config.notification_templates
     if ($tplCfg) {
-        $tplSummary = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+        $tplSummary = Resolve-TemplateSummary $event
         $tplToolName = if ($event.tool_name) { [string]$event.tool_name } else { '' }
         $resolved = Resolve-NotificationTemplate `
             -Templates $tplCfg `
@@ -2648,7 +2667,7 @@ if ($ttsEnabled -and $category) {
     # Interpolate template variables (same set as notification templates)
     $ttsVars = @{
         project   = $project
-        summary   = if ($event.transcript_summary) { [string]$event.transcript_summary } else { '' }
+        summary   = Resolve-TemplateSummary $event
         tool_name = if ($event.tool_name) { [string]$event.tool_name } else { '' }
         status    = $notifyStatus
         event     = $hookEvent
