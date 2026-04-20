@@ -80,7 +80,7 @@ Describe "session_override + path_rules + ide_rules interaction" {
     It "ide_rules evaluation runs after path_rules and before rotation" {
         $pathIdx = $script:PackSelectionBlock.IndexOf('$pathRules = $config.path_rules')
         $ideIdx = $script:PackSelectionBlock.IndexOf('$ideRules = $config.ide_rules')
-        $rotIdx = $script:PackSelectionBlock.IndexOf('$config.pack_rotation')
+        $rotIdx = $script:PackSelectionBlock.IndexOf('$config.pack_rotation.Count -gt 0')
         $pathIdx | Should -BeLessThan $ideIdx
         $ideIdx | Should -BeLessThan $rotIdx
     }
@@ -263,7 +263,8 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
         $result = & powershell.exe -NoProfile -Command "`$env:PEON_IDE='codex'; Set-Location '$script:ProjectDir'; & '$script:PeonPath' --status --verbose 2>&1"
         $output = $result -join "`n"
         $output | Should -Match "IDE source \(status\): codex"
-        $output | Should -Match "path rules skipped here \(exclude_dirs\):"
+        $output | Should -Match "path rules: 1 configured"
+        $output | Should -Match "excluded paths: 1 configured"
         $output | Should -Match "active IDE rule: codex -> sc_kerrigan"
     }
 }

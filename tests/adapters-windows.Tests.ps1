@@ -1700,7 +1700,7 @@ Describe "install.ps1 Default Config" {
     }
 
     It "bindings marks active rule with asterisk" {
-        $script:peonHookContent | Should -Match '\$marker.*-like.*\$rule\.pattern'
+        $script:peonHookContent | Should -Match '\$marker.*Test-PathRuleMatch\s+\$PWD\.Path\s+\$rule\.pattern'
     }
 
     It "bindings shows message when no rules configured" {
@@ -1883,7 +1883,7 @@ Describe "path_rules: Runtime Matching Engine" {
     # --- Matching engine structural tests ---
 
     It "evaluates path_rules against event cwd" {
-        $script:peonHookContent | Should -Match 'cwd.*-like.*\$pattern'
+        $script:peonHookContent | Should -Match 'Test-PathRuleMatch\s+\$cwd\s+\$pattern'
     }
 
     It "checks that matched pack directory exists before selecting" {
@@ -1979,7 +1979,7 @@ Describe "path_rules: CLI Commands - Structural" {
     }
 
     It "bindings marks active rule with asterisk" {
-        $script:peonHookContent | Should -Match '\$marker.*-like.*\$rule\.pattern'
+        $script:peonHookContent | Should -Match '\$marker.*Test-PathRuleMatch\s+\$PWD\.Path\s+\$rule\.pattern'
     }
 
     It "bindings shows message when no rules configured" {
@@ -2447,7 +2447,7 @@ Describe "path_rules: CLI Commands - Structural" {
     }
 
     It "bindings marks active rule with asterisk" {
-        $script:peonHookContent | Should -Match '\$marker.*-like.*\$rule\.pattern'
+        $script:peonHookContent | Should -Match '\$marker.*Test-PathRuleMatch\s+\$PWD\.Path\s+\$rule\.pattern'
     }
 
     It "bindings shows message when no rules configured" {
