@@ -1,3 +1,13 @@
+## v2.22.0 (2026-04-19)
+
+### Added
+- **IDE-based pack rules**. New `ide_rules` config layer and `peon packs ide-bind/unbind/bindings` CLI for assigning packs by IDE/source, e.g. `peon packs ide-bind codex glados`. Adapters now emit a `source` field so routing is explicit. Useful when multiple agents share a workspace (Conductor, CodexBar, parallel agent teams). PR #475, closes #298. Thanks @kibermaks.
+- **Path exclusions for path_rules**. New `exclude_dirs` config and `peon packs exclude add/remove/list` CLI to skip `path_rules` for specific globs or directory trees. Pairs with `ide_rules` for workspaces that share paths across IDEs. PR #475.
+- Pack selection hierarchy expanded to 6 layers: session_override, path_rules, ide_rules, pack_rotation, default_pack, hardcoded. First valid installed pack wins. If `exclude_dirs` matches the current cwd, the `path_rules` layer is skipped for that invocation.
+
+### Fixed
+- **`{summary}` template variable empty for Claude, Codex, and Gemini turn-complete hooks**. `peon.sh` now falls through `last_assistant_message`, `last-assistant-message`, `prompt_response`, `transcript_summary`, `message` when resolving `{summary}` for notification and TTS templates. Windows `install.ps1` parity. PR #477, closes #476. Thanks @pandego, @Jorjon.
+
 ## v2.21.0 (2026-04-17)
 
 ### Added
