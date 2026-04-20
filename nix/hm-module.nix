@@ -5,6 +5,7 @@ with lib;
 let
   cfg = config.programs.peon-ping;
   jsonFormat = pkgs.formats.json { };
+  claudeHooksJsonFormat = pkgs.formats.json { };
 
   ogPacksVersion = "1.4.0";
 
@@ -118,6 +119,15 @@ in
         Whether to enable Bash completions and alias.
       '';
     };
+
+    claudeCodeIntegration = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Whether to install Claude Code hook files under ~/.claude/hooks/peon-ping
+        and merge peon-ping hook registrations into ~/.claude/settings.json.
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
@@ -140,6 +150,110 @@ in
     # Create the config file at the location peon-ping expects.
     # Overrides any config.json that may be present in the package.
     home.file.".openpeon/config.json".source = jsonFormat.generate "peon-ping-config" cfg.settings;
+
+    home.file = mkIf cfg.claudeCodeIntegration {
+      ".claude/hooks/peon-ping/peon.sh".source = "${cfg.package}/bin/peon";
+      ".claude/hooks/peon-ping/scripts/hook-handle-use.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-use.sh";
+      ".claude/hooks/peon-ping/scripts/hook-handle-rename.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-rename.sh";
+    };
+
+    home.activation.peonPingClaudeCodeHooks = mkIf cfg.claudeCodeIntegration (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      hooks_json='${claudeHooksJsonFormat.generate "peon-claude-hooks" {
+        hooks = {
+          SessionStart = [{
+            matcher = "";
+            hooks = [{
+              type = "command";
+              command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh";
+              timeout = 10;
+            }];
+          }];
+          SessionEnd = [{
+            matcher = "";
+            hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+          }];
+          SubagentStart = [{
+            matcher = "";
+            hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+          }];
+          UserPromptSubmit = [
+            {
+              matcher = "";
+              hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+            }
+            {
+              matcher = "";
+              hooks = [
+                { type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/scripts/hook-handle-use.sh"; timeout = 5; }
+                { type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/scripts/hook-handle-rename.sh"; timeout = 5; }
+              ];
+            }
+          ];
+          Stop = [{
+            matcher = "";
+            hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+          }];
+          Notification = [{
+            matcher = "";
+            hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+          }];
+          PermissionRequest = [{
+            matcher = "";
+            hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+          }];
+          PostToolUseFailure = [{
+            matcher = "Bash";
+            hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+          }];
+          PreCompact = [{
+            matcher = "";
+            hooks = [{ type = "command"; command = "${config.home.homeDirectory}/.claude/hooks/peon-ping/peon.sh"; timeout = 10; async = true; }];
+          }];
+        };
+      }}'
+
+      settings_path="$HOME/.claude/settings.json"
+      mkdir -p "$(dirname "$settings_path")"
+
+      ${pkgs.python3}/bin/python3 - "$settings_path" "$hooks_json" <<'PY'
+import json
+import pathlib
+import sys
+
+settings_path = pathlib.Path(sys.argv[1]).expanduser()
+hooks_path = pathlib.Path(sys.argv[2])
+
+if settings_path.exists():
+    settings = json.loads(settings_path.read_text())
+else:
+    settings = {}
+
+incoming = json.loads(hooks_path.read_text())["hooks"]
+hooks = settings.setdefault("hooks", {})
+
+def command_contains(entry, needles):
+    return any(any(needle in hook.get("command", "") for needle in needles) for hook in entry.get("hooks", []))
+
+for event, event_hooks in incoming.items():
+    existing = hooks.get(event, [])
+    if event == "UserPromptSubmit":
+        existing = [
+            entry for entry in existing
+            if not command_contains(entry, ("peon.sh", "hook-handle-use", "hook-handle-rename"))
+        ]
+    elif event == "PostToolUseFailure":
+        existing = [entry for entry in existing if not command_contains(entry, ("peon.sh", "notify.sh"))]
+    else:
+        existing = [entry for entry in existing if not command_contains(entry, ("peon.sh", "notify.sh"))]
+    hooks[event] = existing + event_hooks
+
+    if event == "UserPromptSubmit" and "beforeSubmitPrompt" in hooks:
+        hooks.pop("beforeSubmitPrompt", None)
+
+settings["hooks"] = hooks
+settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+PY
+    '');
 
     # Install sound packs from og-packs and/or custom sources
     home.file.".openpeon/packs" = lib.mkIf (cfg.installPacks != [ ]) (let

@@ -133,6 +133,7 @@ in {
   programs.peon-ping = {
     enable = true;
     package = inputs.peon-ping.packages.${pkgs.system}.default;
+    claudeCodeIntegration = true;
 
     settings = {
       default_pack = "glados";
@@ -169,7 +170,7 @@ in {
     enableZshIntegration = true;
   };
 
-  # Cursor hooks
+  # Optional extra IDE hooks, like Cursor
   home.file.".cursor/hooks.json".text = builtins.toJSON {
     version = 1;
     hooks = {
@@ -197,13 +198,13 @@ For packs listed on [openpeon.com](https://openpeon.com/), find the GitHub repos
 }
 ```
 
-**IDE hooks**: peon-ping Home Manager module will not setup your IDE hooks to avoid conflicting updates. You must define these hooks yourself (see example above) depending on how you usually manage your IDE configuration.
-- peon-ping provide adapters scripts for various IDE such as `cursor.sh` - see [`adapters/`](https://github.com/PeonPing/peon-ping/tree/main/adapters)
-- You need to call them as your hook such command like
+**Claude Code hooks**: set `programs.peon-ping.claudeCodeIntegration = true;` to install the Claude Code hook scripts under `~/.claude/hooks/peon-ping/` and merge the standard peon-ping hook entries into `~/.claude/settings.json`.
+
+**Other IDE hooks**: adapters for other IDEs are still opt-in so the module does not overwrite unrelated IDE settings. peon-ping provides adapter scripts such as `cursor.sh` in [`adapters/`](https://github.com/PeonPing/peon-ping/tree/main/adapters), and you can wire them like this:
   ```sh
   ${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
   ```
-  See Cursor example above
+  See the Cursor example above.
 
 ## What you'll hear
 
