@@ -41,21 +41,28 @@ if (Test-Path $SettingsFile) {
 
             foreach ($event in $eventNames) {
                 $entries = @($hooksObj.$event)
-                $originalCount = $entries.Count
+                $originalInnerTotal = 0
+                foreach ($entry in $entries) { $originalInnerTotal += @($entry.hooks).Count }
 
-                # Filter out entries that contain peon.ps1, peon.sh, notify.sh, or hook-handle-use
-                $filtered = @($entries | Where-Object {
-                    $hasPeon = $false
-                    foreach ($h in $_.hooks) {
-                        if ($h.command -and ($h.command -match "peon\.ps1" -or $h.command -match "peon\.sh" -or $h.command -match "notify\.sh" -or $h.command -match "hook-handle-use")) {
-                            $hasPeon = $true
-                            break
+                # Strip only peon/notify/hook-handle-use hooks from each matcher
+                # entry; keep sibling hooks users registered alongside ours.
+                # Drop a matcher entry only if its hooks list becomes empty.
+                $filtered = @($entries | ForEach-Object {
+                    $entry = $_
+                    $keptHooks = @(@($entry.hooks) | Where-Object {
+                        -not ($_.command -and ($_.command -match "peon\.ps1" -or $_.command -match "peon\.sh" -or $_.command -match "notify\.sh" -or $_.command -match "hook-handle-use"))
+                    })
+                    if ($keptHooks.Count -gt 0) {
+                        [PSCustomObject]@{
+                            matcher = $entry.matcher
+                            hooks   = $keptHooks
                         }
                     }
-                    -not $hasPeon
-                })
+                } | Where-Object { $_ -ne $null })
 
-                if ($filtered.Count -lt $originalCount) {
+                $keptInnerTotal = 0
+                foreach ($entry in $filtered) { $keptInnerTotal += @($entry.hooks).Count }
+                if ($keptInnerTotal -lt $originalInnerTotal) {
                     $eventsChanged += $event
                 }
 

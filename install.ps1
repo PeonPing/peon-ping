@@ -3196,16 +3196,21 @@ $events = @("SessionStart", "SessionEnd", "SubagentStart", "Stop", "Notification
 foreach ($evt in $events) {
     $eventHooks = @()
     if ($settings.hooks | Get-Member -Name $evt -MemberType NoteProperty) {
-        # Remove existing peon entries, keep others
-        $eventHooks = @($settings.hooks.$evt | Where-Object {
-            $dominated = $false
-            foreach ($h in $_.hooks) {
-                if ($h.command -and ($h.command -match "peon" -or $h.command -match "notify\.sh")) {
-                    $dominated = $true
+        # Strip only peon/notify hooks from each matcher entry; keep sibling
+        # hooks users registered alongside ours. Drop a matcher entry only if
+        # its hooks list becomes empty.
+        $eventHooks = @($settings.hooks.$evt | ForEach-Object {
+            $entry = $_
+            $keptHooks = @($entry.hooks | Where-Object {
+                -not ($_.command -and ($_.command -match "peon\.(ps1|sh)" -or $_.command -match "notify\.sh"))
+            })
+            if ($keptHooks.Count -gt 0) {
+                [PSCustomObject]@{
+                    matcher = $entry.matcher
+                    hooks   = $keptHooks
                 }
             }
-            -not $dominated
-        })
+        } | Where-Object { $_ -ne $null })
     }
     $eventHooks += $peonEntry
 
@@ -3243,16 +3248,21 @@ $beforeSubmitEntry = [PSCustomObject]@{
 # Register under UserPromptSubmit (valid Claude Code event)
 $eventHooks = @()
 if ($settings.hooks | Get-Member -Name "UserPromptSubmit" -MemberType NoteProperty) {
-    # Remove existing handle-use entries, keep peon.ps1 entries
-    $eventHooks = @($settings.hooks.UserPromptSubmit | Where-Object {
-        $dominated = $false
-        foreach ($h in $_.hooks) {
-            if ($h.command -and $h.command -match "hook-handle-use") {
-                $dominated = $true
+    # Strip only handle-use hooks from each matcher entry; keep sibling hooks
+    # (peon.ps1 and any user-registered hooks). Drop a matcher entry only if
+    # its hooks list becomes empty.
+    $eventHooks = @($settings.hooks.UserPromptSubmit | ForEach-Object {
+        $entry = $_
+        $keptHooks = @($entry.hooks | Where-Object {
+            -not ($_.command -and $_.command -match "hook-handle-use")
+        })
+        if ($keptHooks.Count -gt 0) {
+            [PSCustomObject]@{
+                matcher = $entry.matcher
+                hooks   = $keptHooks
             }
         }
-        -not $dominated
-    })
+    } | Where-Object { $_ -ne $null })
 }
 $eventHooks += $beforeSubmitEntry
 

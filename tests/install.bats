@@ -135,6 +135,45 @@ print('OK')
 "
 }
 
+@test "update preserves sibling custom hooks registered under same matcher entry (issue #484)" {
+  # First install to establish peon hooks
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$TEST_HOME/.claude/settings.json" ]
+
+  # Simulate a user adding a custom hook *inside* peon's SessionStart matcher entry.
+  # Also add a custom entry in UserPromptSubmit alongside hook-handle-use.
+  /usr/bin/python3 -c "
+import json
+p = '$TEST_HOME/.claude/settings.json'
+s = json.load(open(p))
+for entry in s['hooks']['SessionStart']:
+    if any('peon.sh' in h.get('command','') for h in entry.get('hooks', [])):
+        entry['hooks'].append({'type': 'command', 'command': '~/.claude/hooks/my-custom/sync.sh'})
+        break
+for entry in s['hooks']['UserPromptSubmit']:
+    if any('hook-handle-use' in h.get('command','') for h in entry.get('hooks', [])):
+        entry['hooks'].append({'type': 'command', 'command': '~/.claude/hooks/my-custom/prompt.sh'})
+        break
+json.dump(s, open(p, 'w'), indent=2)
+"
+
+  # Re-run install (simulates peon update)
+  bash "$CLONE_DIR/install.sh"
+
+  # Custom sibling hooks should still be present
+  /usr/bin/python3 -c "
+import json
+s = json.load(open('$TEST_HOME/.claude/settings.json'))
+session_cmds = [h.get('command','') for entry in s['hooks']['SessionStart'] for h in entry.get('hooks', [])]
+prompt_cmds = [h.get('command','') for entry in s['hooks']['UserPromptSubmit'] for h in entry.get('hooks', [])]
+assert any('my-custom/sync.sh' in c for c in session_cmds), 'Custom SessionStart hook was wiped: ' + repr(session_cmds)
+assert any('my-custom/prompt.sh' in c for c in prompt_cmds), 'Custom UserPromptSubmit hook was wiped: ' + repr(prompt_cmds)
+assert any('peon.sh' in c for c in session_cmds), 'peon.sh missing from SessionStart after update'
+assert any('hook-handle-use' in c for c in prompt_cmds), 'hook-handle-use missing from UserPromptSubmit after update'
+print('OK')
+"
+}
+
 @test "fresh install creates VERSION file" {
   bash "$CLONE_DIR/install.sh"
   [ -f "$INSTALL_DIR/VERSION" ]

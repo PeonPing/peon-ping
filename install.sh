@@ -1035,14 +1035,20 @@ for event in events:
     else:
         peon_entry = dict(matcher='', hooks=[hook])
     event_hooks = hooks.get(event, [])
-    # Remove any existing notify.sh or peon.sh entries
-    event_hooks = [
-        h for h in event_hooks
-        if not any(
-            'notify.sh' in hk.get('command', '') or 'peon.sh' in hk.get('command', '')
-            for hk in h.get('hooks', [])
-        )
-    ]
+    # Strip only peon.sh/notify.sh hooks from each matcher entry; keep sibling
+    # hooks that users registered alongside ours. Drop the matcher entry only
+    # if its hooks list is emptied out.
+    cleaned = []
+    for h in event_hooks:
+        h = dict(h)
+        h['hooks'] = [
+            hk for hk in h.get('hooks', [])
+            if 'notify.sh' not in hk.get('command', '')
+            and 'peon.sh' not in hk.get('command', '')
+        ]
+        if h['hooks']:
+            cleaned.append(h)
+    event_hooks = cleaned
     event_hooks.append(peon_entry)
     hooks[event] = event_hooks
 
@@ -1101,14 +1107,20 @@ before_submit_entry = {
 
 # Register under UserPromptSubmit (valid Claude Code event)
 event_hooks = hooks.get('UserPromptSubmit', [])
-# Remove any existing hook-handle-use/rename entries (keep peon.sh entries)
-event_hooks = [
-    h for h in event_hooks
-    if not any(
-        'hook-handle-use' in hk.get('command', '') or 'hook-handle-rename' in hk.get('command', '')
-        for hk in h.get('hooks', [])
-    )
-]
+# Strip only hook-handle-use/rename hooks from each matcher entry; keep
+# sibling hooks (including peon.sh and any user-registered hooks). Drop the
+# matcher entry only if its hooks list is emptied out.
+cleaned = []
+for h in event_hooks:
+    h = dict(h)
+    h['hooks'] = [
+        hk for hk in h.get('hooks', [])
+        if 'hook-handle-use' not in hk.get('command', '')
+        and 'hook-handle-rename' not in hk.get('command', '')
+    ]
+    if h['hooks']:
+        cleaned.append(h)
+event_hooks = cleaned
 event_hooks.append(before_submit_entry)
 hooks['UserPromptSubmit'] = event_hooks
 

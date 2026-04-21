@@ -38,18 +38,28 @@ hooks = settings.get('hooks', {})
 events_cleaned = []
 
 for event, entries in list(hooks.items()):
-    original_count = len(entries)
-    entries = [
-        h for h in entries
-        if not any(
-            'peon.sh' in hk.get('command', '') or 'hook-handle-use.sh' in hk.get('command', '')
-            for hk in h.get('hooks', [])
-        )
-    ]
-    if len(entries) < original_count:
+    changed = False
+    cleaned = []
+    for h in entries:
+        original_inner = h.get('hooks', [])
+        kept = [
+            hk for hk in original_inner
+            if 'peon.sh' not in hk.get('command', '')
+            and 'hook-handle-use.sh' not in hk.get('command', '')
+            and 'notify.sh' not in hk.get('command', '')
+        ]
+        if len(kept) != len(original_inner):
+            changed = True
+        # Preserve entries that started empty (malformed/stale but not ours to
+        # drop); only skip entries we emptied by stripping peon hooks.
+        if kept or not original_inner:
+            new_entry = dict(h)
+            new_entry['hooks'] = kept
+            cleaned.append(new_entry)
+    if changed:
         events_cleaned.append(event)
-    if entries:
-        hooks[event] = entries
+    if cleaned:
+        hooks[event] = cleaned
     else:
         del hooks[event]
 
