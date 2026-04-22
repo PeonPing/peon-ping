@@ -188,12 +188,17 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
         $script:ProjectDir = Join-Path $script:WorktreesDir "project-a"
         New-Item -ItemType Directory -Path $script:ProjectDir -Force | Out-Null
         # Canonicalize to the long-path form. On GH Windows runners $env:TEMP
-        # resolves to a short-name path (C:\Users\RUNNER~1\...), while Set-Location
-        # + $PWD.Path inside the spawned shell returns the long form. Without this,
-        # Test-PathRuleMatch would compare short-form config values against
-        # long-form PWD and miss the match.
-        $script:WorktreesDir = (Resolve-Path -LiteralPath $script:WorktreesDir).Path
-        $script:ProjectDir   = (Resolve-Path -LiteralPath $script:ProjectDir).Path
+        # resolves to a short-name path (C:\Users\RUNNER~1\...). Resolve-Path
+        # preserves 8.3 short names, but Set-Location + $PWD.Path expands them
+        # to the long form — which is what peon.ps1 sees when the spawned shell
+        # does Set-Location. Use the Set-Location round-trip so config values
+        # and $PWD.Path stay in the same form.
+        Push-Location -LiteralPath $script:WorktreesDir
+        $script:WorktreesDir = $PWD.Path
+        Pop-Location
+        Push-Location -LiteralPath $script:ProjectDir
+        $script:ProjectDir = $PWD.Path
+        Pop-Location
     }
 
     AfterEach {
@@ -267,7 +272,7 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
         $cfg.ide_rules = @([pscustomobject]@{ ide = "codex"; pack = "sc_kerrigan" })
         $cfg | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $script:TestDir "config.json") -Encoding UTF8
 
-        $result = & powershell.exe -NoProfile -Command "`$env:PEON_IDE='codex'; Set-Location '$script:ProjectDir'; & '$script:PeonPath' --status --verbose 2>&1"
+        $result = & powershell.exe -NoProfile -Command "`$env:PEON_IDE='codex'; Set-Location -LiteralPath '$script:ProjectDir'; & '$script:PeonPath' --status --verbose 2>&1"
         $output = $result -join "`n"
         $output | Should -Match "IDE source \(status\): codex"
         $output | Should -Match "path rules: 1 configured"
