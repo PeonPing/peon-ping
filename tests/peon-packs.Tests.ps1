@@ -187,6 +187,13 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
         $script:WorktreesDir = Join-Path $script:TestDir "worktrees"
         $script:ProjectDir = Join-Path $script:WorktreesDir "project-a"
         New-Item -ItemType Directory -Path $script:ProjectDir -Force | Out-Null
+        # Canonicalize to the long-path form. On GH Windows runners $env:TEMP
+        # resolves to a short-name path (C:\Users\RUNNER~1\...), while Set-Location
+        # + $PWD.Path inside the spawned shell returns the long form. Without this,
+        # Test-PathRuleMatch would compare short-form config values against
+        # long-form PWD and miss the match.
+        $script:WorktreesDir = (Resolve-Path -LiteralPath $script:WorktreesDir).Path
+        $script:ProjectDir   = (Resolve-Path -LiteralPath $script:ProjectDir).Path
     }
 
     AfterEach {
