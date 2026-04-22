@@ -1,5 +1,19 @@
 # Common test setup for peon-ping bats tests
 
+# Resolve python3 via PATH (not the Linux-only /usr/bin/python3) so the
+# harness works on macOS, Linux, and Git Bash for Windows without
+# hardcoded absolute paths. See card w3ciyq.
+if [ -z "${PEON_PY:-}" ]; then
+  if PEON_PY="$(command -v python3 2>/dev/null)" && [ -n "$PEON_PY" ]; then
+    export PEON_PY
+  elif PEON_PY="$(command -v python 2>/dev/null)" && [ -n "$PEON_PY" ]; then
+    export PEON_PY
+  else
+    printf 'setup.bash: python3 not found on PATH; install Python 3 to run these tests\n' >&2
+    return 1 2>/dev/null || exit 1
+  fi
+fi
+
 # Create isolated test environment so we never touch real config
 setup_test_env() {
   TEST_DIR="$(mktemp -d)"
@@ -453,7 +467,7 @@ run_peon_tts() {
   local tts_enabled="${4:-true}"
 
   # Write TTS section into config.json so the Python block picks it up
-  /usr/bin/python3 -c "
+  "$PEON_PY" -c "
 import json, sys
 cfg = json.load(open('$TEST_DIR/config.json'))
 cfg['tts'] = {
@@ -470,12 +484,12 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   # Inject speech_text into manifest sound entries so the Python TTS
   # resolution chain finds it.  An empty string means no speech_text field.
   if [ -n "$speech_text" ]; then
-    /usr/bin/python3 -c "
+    "$PEON_PY" -c "
 import json
 m = json.load(open('$TEST_DIR/packs/peon/manifest.json'))
 for cat in m.get('categories', {}).values():
     for entry in cat.get('sounds', []):
-        entry['speech_text'] = $(printf '%s' "$speech_text" | /usr/bin/python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+        entry['speech_text'] = $(printf '%s' "$speech_text" | "$PEON_PY" -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
 json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
 "
   fi
@@ -614,7 +628,7 @@ mobile_cmdline() {
 # Helper: enable debug logging in the test config
 # Replaces the copy-pasted python3 JSON manipulation boilerplate
 enable_debug_logging() {
-  /usr/bin/python3 -c "
+  "$PEON_PY" -c "
 import json
 cfg = json.load(open('$TEST_DIR/config.json'))
 cfg['debug'] = True
