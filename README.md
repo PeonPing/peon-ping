@@ -63,30 +63,37 @@ sudo apt update; sudo apt install -y ffmpeg
 ### Option 3: Installer for Windows
 
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.ps1" -UseBasicParsing | Invoke-Expression
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.ps1" -OutFile ".\install.ps1" -UseBasicParsing
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Installs 5 curated packs by default (Warcraft, StarCraft, Portal). Re-run to update while preserving config/state. Or **[pick your packs interactively at peonping.com](https://peonping.com/#picker)** and get a custom install command.
+Installs a curated starter set of packs by default. Re-run to update while preserving config/state. Or **[pick your packs interactively at peonping.com](https://peonping.com/#picker)** and get a custom install command.
 
-Useful installer flags:
+Windows installer parameters:
 
-- `--all` — install all available packs
-- `--packs=peon,sc_kerrigan,...` — install specific packs only
-- `--local` — install packs, config, and hooks into `./.claude/` for the current project
-- `--global` — explicit global install (same as default)
-- `--init-local-config` — create `./.claude/hooks/peon-ping/config.json` only
+- `-All` — install all available packs
+- `-Packs peon,sc_kerrigan,...` — install specific packs only
+- `-Lang en,fr,...` — install only packs matching language(s)
+- `-Local` — install packs, config, hooks, and skills into `./.claude/` for the current project
+- `-Global` — explicit global install (same as default)
+- `-InitLocalConfig` — create `./.claude/hooks/peon-ping/config.json` only
 
-`--local` does not modify your shell rc files (no global `peon` alias/completion injection). Hooks are registered in the project-level `./.claude/settings.json` with absolute paths so they work from any working directory within the project.
+`-Local` does not install the global `peon` CLI shim or modify your user `PATH`. Hooks are registered in the project-level `./.claude/settings.json` with absolute paths so they work from any working directory within the project.
 
-Examples:
+Windows examples:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --all
-curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --packs=peon,sc_kerrigan
-curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --local
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -All
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Packs peon,sc_kerrigan
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Local
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -InitLocalConfig
 ```
 
-If a global install exists and you install local (or vice versa), the installer prompts you to remove the existing one to avoid conflicts.
+If the initial download fails with a TLS error on older Windows PowerShell, run this once in the same session and retry:
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+```
 
 ### Option 4: Clone and inspect first
 
@@ -94,6 +101,14 @@ If a global install exists and you install local (or vice versa), the installer 
 git clone https://github.com/PeonPing/peon-ping.git
 cd peon-ping
 ./install.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+git clone https://github.com/PeonPing/peon-ping.git
+Set-Location peon-ping
+.\install.ps1
 ```
 
 ### Option 5: Nix (macOS, Linux)
@@ -232,6 +247,8 @@ Need to mute sounds and notifications during a meeting or pairing session? Two o
 | **CLI** | `peon toggle` | From any terminal tab |
 
 Other CLI commands:
+
+> Windows note: Windows currently supports the day-one controls (`status`, `toggle`, `volume`, core `packs`, `notifications on/off`, `debug`, `logs`, `trainer`). More advanced commands like `setup`, `rotation`, `preview`, and `mobile` are tracked as follow-up Windows parity work.
 
 ```bash
 peon setup                # Interactive setup wizard (volume, categories, notifications)
@@ -1207,7 +1224,7 @@ Mobile notifications fire on every event regardless of window focus — they're 
 
 ## Sound packs
 
-165 packs across Warcraft, StarCraft, Red Alert, Portal, Zelda, Dota 2, Helldivers 2, Elder Scrolls, and more. The default install includes 5 curated packs:
+165 packs across Warcraft, StarCraft, Red Alert, Portal, Zelda, Dota 2, Helldivers 2, Elder Scrolls, and more. The default install includes a curated starter set; commonly used packs include:
 
 | Pack | Character | Sounds |
 |---|---|---|

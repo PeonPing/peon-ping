@@ -5,9 +5,12 @@
 
 param(
     [Parameter()]
-    $Packs = @(),
+    [string[]]$Packs = @(),
     [switch]$All,
-    [string]$Lang = ""
+    [string]$Lang = "",
+    [switch]$Local,
+    [switch]$Global,
+    [switch]$InitLocalConfig
 )
 
 # When run via Invoke-Expression (one-liner install), $PSScriptRoot is empty.
@@ -15,6 +18,22 @@ param(
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
 
 $ErrorActionPreference = "Stop"
+
+if ($Local -and $Global) {
+    throw "Use either -Local or -Global, not both."
+}
+
+# Windows PowerShell 5.1 can default to older TLS versions, which breaks the
+# one-liner install against GitHub raw URLs on some systems.
+if ($PSVersionTable.PSEdition -ne "Core") {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = `
+            [Net.ServicePointManager]::SecurityProtocol -bor `
+            [Net.SecurityProtocolType]::Tls12
+    } catch {
+        # Best effort only.
+    }
+}
 
 # --- Input validation & config helpers (dot-sourced from scripts/install-utils.ps1) ---
 if (-not $PSScriptRoot) {
@@ -45,11 +64,39 @@ if ($policy -eq "Restricted") {
 
 
 # --- Paths ---
-$ClaudeDir = Join-Path $env:USERPROFILE ".claude"
+$GlobalClaudeDir = Join-Path $env:USERPROFILE ".claude"
+$LocalClaudeDir = Join-Path $PWD.Path ".claude"
+$ClaudeDir = if ($Local) { $LocalClaudeDir } else { $GlobalClaudeDir }
 $InstallDir = Join-Path $ClaudeDir "hooks\peon-ping"
 $SettingsFile = Join-Path $ClaudeDir "settings.json"
 $RegistryUrl = "https://peonping.github.io/registry/index.json"
 $RepoBase = "https://raw.githubusercontent.com/PeonPing/peon-ping/main"
+
+# --- Local config bootstrap ---
+if ($InitLocalConfig) {
+    $localConfigDir = Join-Path $LocalClaudeDir "hooks\peon-ping"
+    $localConfigFile = Join-Path $localConfigDir "config.json"
+    New-Item -ItemType Directory -Path $localConfigDir -Force | Out-Null
+
+    if (Test-Path $localConfigFile) {
+        Write-Host "Local config already exists: $localConfigFile" -ForegroundColor Yellow
+        return
+    }
+
+    $globalConfigFile = Join-Path $GlobalClaudeDir "hooks\peon-ping\config.json"
+    $repoConfigFile = if ($PSScriptRoot) { Join-Path $ScriptDir "config.json" } else { $null }
+
+    if (Test-Path $globalConfigFile) {
+        Copy-Item -Path $globalConfigFile -Destination $localConfigFile -Force
+    } elseif ($repoConfigFile -and (Test-Path $repoConfigFile)) {
+        Copy-Item -Path $repoConfigFile -Destination $localConfigFile -Force
+    } else {
+        Invoke-WebRequest -Uri "$RepoBase/config.json" -OutFile $localConfigFile -UseBasicParsing -ErrorAction Stop
+    }
+
+    Write-Host "Created local config: $localConfigFile" -ForegroundColor Green
+    return
+}
 
 # --- Check Claude Code is installed ---
 $Updating = $false
@@ -59,7 +106,12 @@ if (Test-Path (Join-Path $InstallDir "peon.ps1")) {
 }
 
 $ClaudeCodeDetected = $true
-if (-not (Test-Path $ClaudeDir)) {
+if ($Local) {
+    if (-not (Test-Path $ClaudeDir)) {
+        Write-Host "Creating project-local Claude config at $ClaudeDir" -ForegroundColor DarkGray
+        New-Item -ItemType Directory -Path $ClaudeDir -Force | Out-Null
+    }
+} elseif (-not (Test-Path $ClaudeDir)) {
     $ClaudeCodeDetected = $false
     Write-Host "Note: $ClaudeDir not found (Claude Code may not be installed)." -ForegroundColor Yellow
     Write-Host "Installing adapters and packs only. Claude Code hooks will be skipped." -ForegroundColor Yellow
@@ -513,21 +565,65 @@ function Detect-SessionIde {
 }
 
 # Install a pack from the registry by name. Returns $true on success, $false on failure.
-function Install-PackFromRegistry {
-    param([string]$PackName, [string]$PacksDir)
+function Get-PackRegistry {
     $regUrl = "https://peonping.github.io/registry/index.json"
     try {
         $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
-        $reg = $regResp.Content | ConvertFrom-Json
+        return ($regResp.Content | ConvertFrom-Json)
     } catch {
         Write-Host "Error: could not fetch registry." -ForegroundColor Red
-        return $false
+        return $null
     }
-    $packInfo = $reg.packs | Where-Object { $_.name -eq $PackName }
-    if (-not $packInfo) { return $false }
-    $srcRepo = $packInfo.source_repo
-    $srcRef = $packInfo.source_ref
-    $srcPath = $packInfo.source_path
+}
+
+function Get-InstalledPackNames {
+    param([string]$PacksDir)
+
+    if (-not (Test-Path $PacksDir)) {
+        return @()
+    }
+
+    return @(Get-ChildItem -Path $PacksDir -Directory | Where-Object {
+        (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
+    } | ForEach-Object { $_.Name } | Sort-Object)
+}
+
+function Get-NextPackName {
+    param([string[]]$Available, [string]$CurrentPack)
+
+    if (-not $Available -or $Available.Count -eq 0) {
+        return $null
+    }
+
+    $idx = [array]::IndexOf($Available, $CurrentPack)
+    if ($idx -lt 0) {
+        return $Available[0]
+    }
+
+    return $Available[($idx + 1) % $Available.Count]
+}
+
+function Set-SelectedPack {
+    param([string]$ConfigPath, [string]$PackName)
+
+    $raw = Get-Content $ConfigPath -Raw
+    $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$PackName`""
+    $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$PackName`""
+    if ($updated -ne $raw) {
+        Set-Content $ConfigPath -Value $updated -Encoding UTF8
+    }
+}
+
+function Install-PackFromRegistryEntry {
+    param($PackInfo, [string]$PacksDir)
+
+    if (-not $PackInfo -or -not $PackInfo.name) { return $false }
+
+    $PackName = $PackInfo.name
+    $regUrl = "https://peonping.github.io/registry/index.json"
+    $srcRepo = $PackInfo.source_repo
+    $srcRef = $PackInfo.source_ref
+    $srcPath = $PackInfo.source_path
     if (-not $srcRepo -or -not $srcRef -or ($null -eq $srcPath)) {
         Write-Host "Error: incomplete registry entry for '$PackName'." -ForegroundColor Red
         return $false
@@ -561,6 +657,57 @@ function Install-PackFromRegistry {
     }
     Write-Host "`r[$PackName] $total/$total done.          "
     return $true
+}
+
+function Install-PackFromRegistry {
+    param([string]$PackName, [string]$PacksDir)
+
+    $reg = Get-PackRegistry
+    if (-not $reg) { return $false }
+
+    $packInfo = $reg.packs | Where-Object { $_.name -eq $PackName }
+    if (-not $packInfo) { return $false }
+
+    return (Install-PackFromRegistryEntry -PackInfo $packInfo -PacksDir $PacksDir)
+}
+
+function Install-PackFromLocal {
+    param([string]$SourceDir, [string]$PacksDir)
+
+    if (-not $SourceDir) {
+        Write-Host "Usage: peon packs install-local <path>" -ForegroundColor Yellow
+        return $null
+    }
+
+    if (-not (Test-Path $SourceDir -PathType Container)) {
+        Write-Host "Error: local pack path not found: $SourceDir" -ForegroundColor Red
+        return $null
+    }
+
+    $resolvedSource = (Resolve-Path -LiteralPath $SourceDir).Path
+    $manifestPath = Join-Path $resolvedSource "openpeon.json"
+    $legacyManifestPath = Join-Path $resolvedSource "manifest.json"
+    $soundsDir = Join-Path $resolvedSource "sounds"
+
+    if (-not (Test-Path $soundsDir -PathType Container)) {
+        Write-Host "Error: local pack must contain a sounds directory." -ForegroundColor Red
+        return $null
+    }
+
+    if (-not (Test-Path $manifestPath) -and -not (Test-Path $legacyManifestPath)) {
+        Write-Host "Error: local pack must contain openpeon.json or manifest.json." -ForegroundColor Red
+        return $null
+    }
+
+    $packName = Split-Path $resolvedSource -Leaf
+    $targetDir = Join-Path $PacksDir $packName
+
+    if (Test-Path $targetDir) {
+        Remove-Item -Path $targetDir -Recurse -Force
+    }
+
+    Copy-Item -Path $resolvedSource -Destination $targetDir -Recurse -Force
+    return $packName
 }
 
 # Helper function to convert PSCustomObject to hashtable (PS 5.1 compat)
@@ -802,7 +949,7 @@ if ($Command) {
     }
 
     switch -Regex ($Command) {
-        "^--toggle$" {
+        "^(--)?toggle$" {
             $raw = Get-PeonConfigRaw $ConfigPath
             $cfg = $raw | ConvertFrom-Json
             $newState = -not $cfg.enabled
@@ -813,24 +960,24 @@ if ($Command) {
             Write-Host "peon-ping: $state" -ForegroundColor Cyan
             return
         }
-        "^--(pause|mute)$" {
+        "^(--)?(pause|mute)$" {
             $raw = Get-Content $ConfigPath -Raw
             $updated = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": false'
             if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
             Write-Host "peon-ping: PAUSED" -ForegroundColor Yellow
             return
         }
-        "^--(resume|unmute)$" {
+        "^(--)?(resume|unmute)$" {
             $raw = Get-Content $ConfigPath -Raw
             $updated = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": true'
             if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
             Write-Host "peon-ping: ENABLED" -ForegroundColor Green
             return
         }
-        "^--status$" {
+        "^(--)?status$" {
             try {
                 $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
-                $isVerbose = ($Arg1 -eq "--verbose")
+                $isVerbose = ($Arg1 -eq "--verbose" -or $Arg1 -eq "verbose")
 
                 # --- Essential info (always shown) ---
                 $state = if ($cfg.enabled) { "ENABLED" } else { "PAUSED" }
@@ -957,46 +1104,129 @@ if ($Command) {
             }
             return
         }
-        "^--packs$" {
+        "^(--)?packs$" {
             $packsDir = Join-Path $InstallDir "packs"
             $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
-            $available = Get-ChildItem -Path $packsDir -Directory | Where-Object {
-                (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
-            } | ForEach-Object { $_.Name } | Sort-Object
+            $available = Get-InstalledPackNames -PacksDir $packsDir
+            $packsAction = if ($Arg1) { $Arg1 } else { "list" }
+            if ($packsAction -eq "list" -and $Arg2 -eq "--registry") {
+                $packsAction = "community"
+            }
 
-            switch ($Arg1) {
+            switch ($packsAction) {
                 "use" {
-                    if (-not $Arg2) {
-                        Write-Host "Usage: peon packs use <pack-name>" -ForegroundColor Yellow
+                    $installRequested = $false
+                    if ($Arg2 -eq "--install") {
+                        $installRequested = $true
+                        $newPack = if ($ExtraArgs.Count -gt 0) { $ExtraArgs[0] } else { "" }
+                    } else {
+                        $newPack = $Arg2
+                    }
+
+                    if (-not $newPack) {
+                        Write-Host "Usage: peon packs use [--install] <pack-name>" -ForegroundColor Yellow
                         return
                     }
-                    $newPack = $Arg2
-                    if ($newPack -notin $available) {
+
+                    if ($installRequested -or $newPack -notin $available) {
                         Write-Host "Pack '$newPack' not installed locally. Fetching from registry..." -ForegroundColor Yellow
                         $ok = Install-PackFromRegistry -PackName $newPack -PacksDir $packsDir
                         if (-not $ok) {
                             Write-Host "Pack '$newPack' not found in registry." -ForegroundColor Red
                             return
                         }
+                        $available = Get-InstalledPackNames -PacksDir $packsDir
                         Write-Host "peon-ping: installed and switched to '$newPack'" -ForegroundColor Green
                     } else {
                         Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
                     }
-                    $raw = Get-Content $ConfigPath -Raw
-                    $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
-                    $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
-                    if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
+                    Set-SelectedPack -ConfigPath $ConfigPath -PackName $newPack
+                    return
+                }
+                "install" {
+                    if (-not $Arg2) {
+                        Write-Host "Usage: peon packs install <pack1,pack2> | --all" -ForegroundColor Yellow
+                        return
+                    }
+
+                    $targets = @()
+                    if ($Arg2 -eq "--all") {
+                        $reg = Get-PackRegistry
+                        if (-not $reg) { return }
+                        $targets = @($reg.packs | ForEach-Object { $_.name })
+                    } else {
+                        $targets = @($Arg2 -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+                    }
+
+                    if ($targets.Count -eq 0) {
+                        Write-Host "Usage: peon packs install <pack1,pack2> | --all" -ForegroundColor Yellow
+                        return
+                    }
+
+                    $failed = @()
+                    foreach ($packName in $targets) {
+                        if (Install-PackFromRegistry -PackName $packName -PacksDir $packsDir) {
+                            Write-Host "peon-ping: installed '$packName'" -ForegroundColor Green
+                        } else {
+                            $failed += $packName
+                        }
+                    }
+
+                    if ($failed.Count -gt 0) {
+                        Write-Host "Error: failed to install: $($failed -join ', ')" -ForegroundColor Red
+                    }
+                    return
+                }
+                "install-local" {
+                    $installedPack = Install-PackFromLocal -SourceDir $Arg2 -PacksDir $packsDir
+                    if ($installedPack) {
+                        Write-Host "peon-ping: installed local pack '$installedPack'" -ForegroundColor Green
+                    }
                     return
                 }
                 "next" {
                     $currentPack = Get-ActivePack $cfg
-                    $idx = [array]::IndexOf($available, $currentPack)
-                    $newPack = $available[($idx + 1) % $available.Count]
-                    $raw = Get-Content $ConfigPath -Raw
-                    $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
-                    $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
-                    if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
+                    $newPack = Get-NextPackName -Available $available -CurrentPack $currentPack
+                    if (-not $newPack) {
+                        Write-Host "No packs installed." -ForegroundColor Yellow
+                        return
+                    }
+                    Set-SelectedPack -ConfigPath $ConfigPath -PackName $newPack
                     Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
+                    return
+                }
+                "remove" {
+                    if (-not $Arg2) {
+                        Write-Host "Usage: peon packs remove <pack1,pack2>" -ForegroundColor Yellow
+                        return
+                    }
+
+                    $targets = @($Arg2 -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+                    $currentPack = Get-ActivePack $cfg
+                    $removedCurrent = $false
+                    foreach ($packName in $targets) {
+                        if ($packName -notmatch '^[A-Za-z0-9_-]+$') {
+                            Write-Host "Error: invalid pack name '$packName'." -ForegroundColor Red
+                            continue
+                        }
+                        $packPath = Join-Path $packsDir $packName
+                        if (-not (Test-Path $packPath -PathType Container)) {
+                            Write-Host "Warning: pack '$packName' is not installed." -ForegroundColor Yellow
+                            continue
+                        }
+                        Remove-Item -LiteralPath $packPath -Recurse -Force
+                        Write-Host "peon-ping: removed '$packName'" -ForegroundColor Green
+                        if ($packName -eq $currentPack) {
+                            $removedCurrent = $true
+                        }
+                    }
+
+                    if ($removedCurrent) {
+                        $available = Get-InstalledPackNames -PacksDir $packsDir
+                        $fallbackPack = if ($available.Count -gt 0) { $available[0] } else { "peon" }
+                        Set-SelectedPack -ConfigPath $ConfigPath -PackName $fallbackPack
+                        Write-Host "peon-ping: active pack removed, switched to '$fallbackPack'" -ForegroundColor Yellow
+                    }
                     return
                 }
                 "bind" {
@@ -1027,45 +1257,9 @@ if ($Command) {
 
                     # If --install, download pack first
                     if ($bindInstall) {
-                        # Download the pack using the installer's pack download logic
-                        $regUrl = "https://peonping.github.io/registry/index.json"
-                        try {
-                            $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
-                            $reg = $regResp.Content | ConvertFrom-Json
-                            $packInfo = $reg.packs | Where-Object { $_.name -eq $packName }
-                            if ($packInfo) {
-                                $srcRepo = $packInfo.source_repo
-                                $srcRef = $packInfo.source_ref
-                                $srcPath = $packInfo.source_path
-                                $packBase = "https://raw.githubusercontent.com/$srcRepo/$srcRef/$srcPath"
-                                $pDir = Join-Path $packsDir $packName
-                                $sDir = Join-Path $pDir "sounds"
-                                New-Item -ItemType Directory -Path $sDir -Force | Out-Null
-                                Invoke-WebRequest -Uri "$packBase/openpeon.json" -OutFile (Join-Path $pDir "openpeon.json") -UseBasicParsing -ErrorAction Stop
-                                $mf = Get-Content (Join-Path $pDir "openpeon.json") -Raw | ConvertFrom-Json
-                                $total = 0
-                                $downloaded = 0
-                                foreach ($catN in $mf.categories.PSObject.Properties.Name) {
-                                    $total += $mf.categories.$catN.sounds.Count
-                                }
-                                foreach ($catN in $mf.categories.PSObject.Properties.Name) {
-                                    foreach ($snd in $mf.categories.$catN.sounds) {
-                                        $sf = Split-Path $snd.file -Leaf
-                                        $sp = Join-Path $sDir $sf
-                                        $downloaded++
-                                        if (-not (Test-Path $sp)) {
-                                            Write-Host "`r[$packName] $downloaded/$total downloading..." -NoNewline
-                                            Invoke-WebRequest -Uri "$packBase/sounds/$sf" -OutFile $sp -UseBasicParsing -ErrorAction SilentlyContinue
-                                        }
-                                    }
-                                }
-                                Write-Host "`r[$packName] $total/$total done.          "
-                                # Refresh available list
-                                $available = Get-ChildItem -Path $packsDir -Directory | Where-Object {
-                                    (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
-                                } | ForEach-Object { $_.Name } | Sort-Object
-                            }
-                        } catch {
+                        if (Install-PackFromRegistry -PackName $packName -PacksDir $packsDir) {
+                            $available = Get-InstalledPackNames -PacksDir $packsDir
+                        } else {
                             Write-Host "Warning: could not download pack '$packName'" -ForegroundColor Yellow
                         }
                     }
@@ -1362,14 +1556,8 @@ if ($Command) {
                     }
                 }
                 "community" {
-                    $regUrl = "https://peonping.github.io/registry/index.json"
-                    try {
-                        $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
-                        $reg = $regResp.Content | ConvertFrom-Json
-                    } catch {
-                        Write-Host "Error: could not fetch registry." -ForegroundColor Red
-                        return
-                    }
+                    $reg = Get-PackRegistry
+                    if (-not $reg) { return }
                     $packs = $reg.packs
                     Write-Host ""
                     Write-Host "  Registry packs ($($packs.Count) available)" -ForegroundColor Cyan
@@ -1418,14 +1606,8 @@ if ($Command) {
                         return
                     }
                     $query = $Arg2.ToLower()
-                    $regUrl = "https://peonping.github.io/registry/index.json"
-                    try {
-                        $regResp = Invoke-WebRequest -Uri $regUrl -UseBasicParsing -ErrorAction Stop
-                        $reg = $regResp.Content | ConvertFrom-Json
-                    } catch {
-                        Write-Host "Error: could not fetch registry." -ForegroundColor Red
-                        return
-                    }
+                    $reg = Get-PackRegistry
+                    if (-not $reg) { return }
                     $matches = @($reg.packs | Where-Object { $_.name.ToLower().Contains($query) })
                     if ($matches.Count -eq 0) {
                         Write-Host "No packs matching '$Arg2'." -ForegroundColor Yellow
@@ -1456,9 +1638,12 @@ if ($Command) {
                     }
                     return
                 }
-                default {
-                    # "list" or no subcommand - show available packs
+                "list" {
                     Write-Host "Available packs:" -ForegroundColor Cyan
+                    if ($available.Count -eq 0) {
+                        Write-Host "  No packs installed." -ForegroundColor Yellow
+                        return
+                    }
                     $currentPack = Get-ActivePack $cfg
                     foreach ($packName in $available) {
                         $soundCount = (Get-ChildItem -Path (Join-Path $packsDir "$packName\sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count
@@ -1467,16 +1652,22 @@ if ($Command) {
                     }
                     return
                 }
+                default {
+                    Write-Host "Usage: peon packs <list|use|install|install-local|next|remove|community|search|bind|unbind|bindings|ide-bind|ide-unbind|ide-bindings|exclude>" -ForegroundColor Yellow
+                    return
+                }
             }
         }
-        "^--pack$" {
+        "^(--)?pack$" {
             $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
             $packsDir = Join-Path $InstallDir "packs"
-            $available = Get-ChildItem -Path $packsDir -Directory | Where-Object {
-                (Get-ChildItem -Path (Join-Path $_.FullName "sounds") -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0
-            } | ForEach-Object { $_.Name } | Sort-Object
+            $available = Get-InstalledPackNames -PacksDir $packsDir
 
             $currentPack = Get-ActivePack $cfg
+            if ($available.Count -eq 0) {
+                Write-Host "No packs installed." -ForegroundColor Yellow
+                return
+            }
             if ($Arg1 -eq "use") {
                 # "peon pack use <name>" - treat Arg2 as the pack name
                 if (-not $Arg2) {
@@ -1486,13 +1677,11 @@ if ($Command) {
                 $newPack = $Arg2
             } elseif ($Arg1 -eq "next") {
                 # "peon pack next" - cycle to next
-                $idx = [array]::IndexOf($available, $currentPack)
-                $newPack = $available[($idx + 1) % $available.Count]
+                $newPack = Get-NextPackName -Available $available -CurrentPack $currentPack
             } elseif ($Arg1) {
                 $newPack = $Arg1
             } else {
-                $idx = [array]::IndexOf($available, $currentPack)
-                $newPack = $available[($idx + 1) % $available.Count]
+                $newPack = Get-NextPackName -Available $available -CurrentPack $currentPack
             }
 
             if ($newPack -notin $available) {
@@ -1500,14 +1689,11 @@ if ($Command) {
                 return
             }
 
-            $raw = Get-Content $ConfigPath -Raw
-            $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$newPack`""
-            $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$newPack`""
-            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
+            Set-SelectedPack -ConfigPath $ConfigPath -PackName $newPack
             Write-Host "peon-ping: switched to '$newPack'" -ForegroundColor Green
             return
         }
-        "^--volume$" {
+        "^(--)?volume$" {
             if ($Arg1) {
                 $vol = [math]::Round([math]::Max(0.0, [math]::Min(1.0, [double]::Parse($Arg1.Trim(), [System.Globalization.CultureInfo]::InvariantCulture))), 2)
                 $volStr = $vol.ToString([System.Globalization.CultureInfo]::InvariantCulture)
@@ -1516,7 +1702,8 @@ if ($Command) {
                 if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
                 Write-Host "peon-ping: volume set to $vol" -ForegroundColor Green
             } else {
-                Write-Host "Usage: peon --volume 0.5" -ForegroundColor Yellow
+                $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
+                Write-Host "peon-ping: volume $($cfg.volume)" -ForegroundColor Cyan
             }
             return
         }
@@ -1735,7 +1922,7 @@ if ($Command) {
                 }
             }
         }
-        "^--update$" {
+        "^(--)?update$" {
             Write-Host "Updating peon-ping..." -ForegroundColor Cyan
             # Migrate config keys (active_pack → default_pack, agentskill → session_override)
             $cfgObj = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
@@ -1781,32 +1968,40 @@ if ($Command) {
             }
             return
         }
-        "^--help$" {
+        "^(--)?help$" {
             Write-Host "peon-ping commands:" -ForegroundColor Cyan
-            Write-Host "  --toggle              Toggle enabled/paused"
-            Write-Host "  --pause               Pause sounds"
-            Write-Host "  --resume              Resume sounds"
-            Write-Host "  --mute                Alias for --pause"
-            Write-Host "  --unmute              Alias for --resume"
-            Write-Host "  --status              Show current status"
-            Write-Host "  --volume N            Set volume (0.0-1.0)"
-            Write-Host "  --update              Update peon-ping (migrate config + reinstall)"
-            Write-Host "  --help                Show this help"
+            Write-Host "  peon toggle           Toggle enabled/paused"
+            Write-Host "  peon pause            Pause sounds"
+            Write-Host "  peon resume           Resume sounds"
+            Write-Host "  peon mute             Alias for pause"
+            Write-Host "  peon unmute           Alias for resume"
+            Write-Host "  peon status           Show current status"
+            Write-Host "  peon status --verbose Show expanded status details"
+            Write-Host "  peon volume           Show current volume"
+            Write-Host "  peon volume N         Set volume (0.0-1.0)"
+            Write-Host "  peon update           Update peon-ping (migrate config + reinstall)"
+            Write-Host "  peon help             Show this help"
             Write-Host ""
             Write-Host "Pack management:" -ForegroundColor Cyan
-            Write-Host "  --packs               List installed sound packs"
-            Write-Host "  --packs use <name>    Switch to pack (auto-installs from registry)"
-            Write-Host "  --packs next          Cycle to the next pack"
-            Write-Host "  --packs community     List all packs from registry"
-            Write-Host "  --packs search <q>    Search registry packs by name"
-            Write-Host "  --packs bind          Bind a pack to current directory"
-            Write-Host "  --packs unbind        Remove a pack binding"
-            Write-Host "  --packs bindings      List all pack bindings"
-            Write-Host "  --packs ide-bind      Bind a pack to an IDE id"
-            Write-Host "  --packs ide-unbind    Remove an IDE binding"
-            Write-Host "  --packs ide-bindings  List all IDE bindings"
-            Write-Host "  --packs exclude       Manage excluded paths for path_rules"
-            Write-Host "  --pack [name]         Switch pack (or cycle)"
+            Write-Host "  peon packs list              List installed sound packs"
+            Write-Host "  peon packs list --registry   List all packs from registry"
+            Write-Host "  peon packs use <name>        Switch to pack (auto-installs from registry)"
+            Write-Host "  peon packs use --install <name> Install/update then switch"
+            Write-Host "  peon packs install <p1,p2>   Install pack(s) from registry"
+            Write-Host "  peon packs install --all     Install every registry pack"
+            Write-Host "  peon packs install-local <path> Install a local pack directory"
+            Write-Host "  peon packs next              Cycle to the next pack"
+            Write-Host "  peon packs remove <p1,p2>    Remove installed pack(s)"
+            Write-Host "  peon packs community         List all packs from registry"
+            Write-Host "  peon packs search <q>        Search registry packs by name"
+            Write-Host "  peon packs bind              Bind a pack to current directory"
+            Write-Host "  peon packs unbind            Remove a pack binding"
+            Write-Host "  peon packs bindings          List all pack bindings"
+            Write-Host "  peon packs ide-bind          Bind a pack to an IDE id"
+            Write-Host "  peon packs ide-unbind        Remove an IDE binding"
+            Write-Host "  peon packs ide-bindings      List all IDE bindings"
+            Write-Host "  peon packs exclude           Manage excluded paths for path_rules"
+            Write-Host "  peon pack [name]             Switch pack (or cycle)"
             Write-Host ""
             Write-Host "Trainer:" -ForegroundColor Cyan
             Write-Host "  trainer on            Enable trainer mode"
@@ -1818,12 +2013,12 @@ if ($Command) {
             Write-Host "  trainer help          Show trainer help"
             Write-Host ""
             Write-Host "Notifications:" -ForegroundColor Cyan
-            Write-Host "  --notifications on    Enable desktop notifications"
-            Write-Host "  --notifications off   Disable desktop notifications"
-            Write-Host "  --notifications template            Show all templates"
-            Write-Host "  --notifications template <key> <fmt> Set a template"
-            Write-Host "  --notifications template --reset    Clear all templates"
-            Write-Host "  --popups on/off       Alias for --notifications on/off"
+            Write-Host "  peon notifications on         Enable desktop notifications"
+            Write-Host "  peon notifications off        Disable desktop notifications"
+            Write-Host "  peon notifications template               Show all templates"
+            Write-Host "  peon notifications template <key> <fmt>  Set a template"
+            Write-Host "  peon notifications template --reset      Clear all templates"
+            Write-Host "  peon popups on/off            Alias for notifications on/off"
             Write-Host ""
             Write-Host "Debug & Logs:" -ForegroundColor Cyan
             Write-Host "  debug on              Enable debug logging"
@@ -1835,9 +2030,11 @@ if ($Command) {
             Write-Host "  logs --session ID --all  Search all log files for session ID"
             Write-Host "  logs --prune          Delete logs older than debug_retention_days"
             Write-Host "  logs --clear          Delete all log files"
+            Write-Host ""
+            Write-Host "Legacy --status/--toggle/--packs/--volume forms still work." -ForegroundColor DarkGray
             return
         }
-        "^--(notifications|popups)$" {
+        "^(--)?(notifications|popups)$" {
             $notifSub = if ($Arg1) { $Arg1 } else { "help" }
             switch ($notifSub) {
                 "on" {
@@ -3127,35 +3324,33 @@ foreach ($adapterFile in $adapterFiles) {
 }
 Write-Host "  Installed $($adapterFiles.Count) adapter scripts to $adaptersDir"
 
-# --- Install CLI shortcut ---
+# --- Install CLI shortcut (global installs only) ---
 # Prefer pwsh (PowerShell 7+) when available, fall back to Windows PowerShell 5.1.
 # pwsh has its own clean module path; powershell.exe can fail when PSModulePath
 # leaks PS 7 module dirs in front of the 5.1 inbox modules (seen on dev
-# environments where CloudSDK or similar polluted PSModulePath) — symptom is
+# environments where CloudSDK or similar polluted PSModulePath), symptom is
 # "Microsoft.PowerShell.Security module could not be loaded" on Get-ExecutionPolicy.
-$peonCli = @"
+$peonPs1Path = Join-Path $InstallDir "peon.ps1"
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+if (-not $Local) {
+    $peonCli = @"
 @echo off
 where pwsh >nul 2>&1
 if %ERRORLEVEL% equ 0 (
-    pwsh -NoProfile -NonInteractive -Command "& '%USERPROFILE%\.claude\hooks\peon-ping\peon.ps1' %*"
+    pwsh -NoProfile -NonInteractive -Command "& '$peonPs1Path' %*"
 ) else (
-    powershell -NoProfile -NonInteractive -Command "& '%USERPROFILE%\.claude\hooks\peon-ping\peon.ps1' %*"
+    powershell -NoProfile -NonInteractive -Command "& '$peonPs1Path' %*"
 )
 "@
-$cliBinDir = Join-Path $env:USERPROFILE ".local\bin"
-if (-not (Test-Path $cliBinDir)) {
-    New-Item -ItemType Directory -Path $cliBinDir -Force | Out-Null
-}
-$cliBatPath = Join-Path $cliBinDir "peon.cmd"
-# Use UTF-8 without BOM to support special characters while avoiding BOM issues
-$utf8NoBom = New-Object System.Text.UTF8Encoding $false
-[System.IO.File]::WriteAllLines($cliBatPath, $peonCli.Split("`n"), $utf8NoBom)
+    $cliBinDir = Join-Path $env:USERPROFILE ".local\bin"
+    if (-not (Test-Path $cliBinDir)) {
+        New-Item -ItemType Directory -Path $cliBinDir -Force | Out-Null
+    }
+    $cliBatPath = Join-Path $cliBinDir "peon.cmd"
+    [System.IO.File]::WriteAllLines($cliBatPath, $peonCli.Split("`n"), $utf8NoBom)
 
-# Also create a bash-compatible script for Git Bash / WSL.
-# Use the actual Windows path (resolved at install time) to avoid path translation issues.
-# Same pwsh-then-powershell preference as peon.cmd above.
-$peonPs1Path = Join-Path $InstallDir "peon.ps1"
-$peonShScript = @"
+    # Also create a bash-compatible script for Git Bash / WSL
+    $peonShScript = @"
 #!/usr/bin/env bash
 # peon-ping CLI wrapper for Git Bash / WSL / Unix shells on Windows
 if command -v pwsh >/dev/null 2>&1; then
@@ -3165,19 +3360,34 @@ else
 fi
 "`$PS_EXE" -NoProfile -NonInteractive -Command "& '$peonPs1Path' `$*"
 "@
-$peonShPath = Join-Path $cliBinDir "peon"
-[System.IO.File]::WriteAllLines($peonShPath, $peonShScript.Split("`n"), $utf8NoBom)
-# Make executable (for Git Bash)
-if (Get-Command "icacls" -ErrorAction SilentlyContinue) {
-    icacls $peonShPath /grant:r "$env:USERNAME:(RX)" | Out-Null
-}
+    $peonShPath = Join-Path $cliBinDir "peon"
+    [System.IO.File]::WriteAllLines($peonShPath, $peonShScript.Split("`n"), $utf8NoBom)
 
-# Add to PATH if not already there
-$userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-if ($userPath -notlike "*$cliBinDir*") {
-    [Environment]::SetEnvironmentVariable("PATH", "$userPath;$cliBinDir", "User")
-    Write-Host ""
-    Write-Host "  Added $cliBinDir to PATH" -ForegroundColor Green
+    # Make executable (for Git Bash)
+    if (Get-Command "icacls" -ErrorAction SilentlyContinue) {
+        $aclPrincipal = "$($env:USERNAME):(RX)"
+        $null = & icacls $peonShPath /grant:r $aclPrincipal 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  Warning: Could not mark Git Bash shim as executable. Run 'chmod +x $peonShPath' manually if needed." -ForegroundColor Yellow
+        }
+    }
+
+    # Add to PATH if not already there
+    try {
+        $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+        if ([string]::IsNullOrWhiteSpace($userPath)) {
+            [Environment]::SetEnvironmentVariable("PATH", $cliBinDir, "User")
+            Write-Host ""
+            Write-Host "  Added $cliBinDir to PATH" -ForegroundColor Green
+        } elseif ($userPath -notlike "*$cliBinDir*") {
+            [Environment]::SetEnvironmentVariable("PATH", "$userPath;$cliBinDir", "User")
+            Write-Host ""
+            Write-Host "  Added $cliBinDir to PATH" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host ""
+        Write-Host "  Warning: Could not update PATH automatically. Add $cliBinDir manually if 'peon' is not found." -ForegroundColor Yellow
+    }
 }
 
 # --- Update Claude Code settings.json with hooks ---
@@ -3317,7 +3527,7 @@ Write-Host "  UserPromptSubmit hook registered for /peon-ping-use" -ForegroundCo
 $CursorDir = Join-Path $env:USERPROFILE ".cursor"
 $CursorHooksFile = Join-Path $CursorDir "hooks.json"
 
-if (Test-Path $CursorDir) {
+if ((-not $Local) -and (Test-Path $CursorDir)) {
     Write-Host ""
     Write-Host "Detected Cursor IDE installation, registering hooks..."
     
@@ -3395,7 +3605,7 @@ if (Test-Path $CursorDir) {
 $DeepagentsDir = Join-Path $env:USERPROFILE ".deepagents"
 $DeepagentsHooksFile = Join-Path $DeepagentsDir "hooks.json"
 
-if (Test-Path $DeepagentsDir) {
+if ((-not $Local) -and (Test-Path $DeepagentsDir)) {
     Write-Host ""
     Write-Host "Detected deepagents-cli installation, registering hooks..."
 
@@ -3579,16 +3789,21 @@ if ($Updating) {
     Write-Host "  Active pack: $activePack" -ForegroundColor Cyan
     Write-Host "  Volume: 0.5" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  Commands (open a new terminal first):" -ForegroundColor White
-    Write-Host "    peon --status     Show status"
-    Write-Host "    peon --packs      List sound packs"
-    Write-Host "    peon --pack NAME  Switch pack"
-    Write-Host "    peon --volume N   Set volume (0.0-1.0)"
-    Write-Host "    peon --pause      Mute sounds"
-    Write-Host "    peon --resume     Unmute sounds"
-    Write-Host "    peon --mute       Alias for --pause"
-    Write-Host "    peon --unmute     Alias for --resume"
-    Write-Host "    peon --toggle     Toggle on/off"
+    if ($Local) {
+        Write-Host "  Project-local install: Claude Code hooks and skills were written to $ClaudeDir" -ForegroundColor White
+        Write-Host "  Global 'peon' CLI shim was not installed in local mode." -ForegroundColor DarkGray
+    } else {
+        Write-Host "  Commands (open a new terminal first):" -ForegroundColor White
+        Write-Host "    peon status         Show status"
+        Write-Host "    peon packs list     List sound packs"
+        Write-Host "    peon packs use NAME Switch pack"
+        Write-Host "    peon volume N       Set volume (0.0-1.0)"
+        Write-Host "    peon pause          Mute sounds"
+        Write-Host "    peon resume         Unmute sounds"
+        Write-Host "    peon mute           Alias for pause"
+        Write-Host "    peon unmute         Alias for resume"
+        Write-Host "    peon toggle         Toggle on/off"
+    }
     Write-Host ""
     Write-Host "  Start Claude Code and you'll hear: `"Ready to work?`"" -ForegroundColor Yellow
     Write-Host ""
@@ -3604,6 +3819,8 @@ if ($Updating) {
     }
     Write-Host "  To install specific packs: .\install.ps1 -Packs peon,glados,peasant" -ForegroundColor DarkGray
     Write-Host "  To install ALL packs: .\install.ps1 -All" -ForegroundColor DarkGray
+    Write-Host "  To install project-locally: .\install.ps1 -Local" -ForegroundColor DarkGray
+    Write-Host "  To create only project-local config: .\install.ps1 -InitLocalConfig" -ForegroundColor DarkGray
     Write-Host "  To uninstall: powershell -File `"$InstallDir\uninstall.ps1`"" -ForegroundColor DarkGray
 }
 Write-Host ""
