@@ -833,11 +833,23 @@ terminal_is_focused() {
     linux)
       # Only use xdotool on X11; fallback to always notify on Wayland or if xdotool is missing
       if [ "${XDG_SESSION_TYPE:-}" = "x11" ] && command -v xdotool &>/dev/null; then
-        local win_name
+        local win_name win_class win_name_lower win_class_lower
         win_name=$(xdotool getactivewindow getwindowname 2>/dev/null || echo "")
-        if [[ "$win_name" =~ (terminal|konsole|alacritty|kitty|wezterm|foot|tilix|gnome-terminal|xterm|xfce4-terminal|sakura|terminator|st|urxvt|ghostty) ]]; then
-          return 0
-        fi
+        win_class=$(xdotool getactivewindow getwindowclassname 2>/dev/null || echo "")
+        win_name_lower=$(printf '%s' "$win_name" | tr '[:upper:]' '[:lower:]')
+        win_class_lower=$(printf '%s' "$win_class" | tr '[:upper:]' '[:lower:]')
+
+        case "$win_class_lower" in
+          alacritty|kitty|org.wezfurlong.wezterm|wezterm|foot|tilix|gnome-terminal|gnome-terminal-server|xterm|xfce4-terminal|sakura|terminator|st|st-256color|urxvt|ghostty|konsole)
+            return 0
+            ;;
+        esac
+
+        case "$win_name_lower" in
+          *terminal*|*konsole*|*alacritty*|*kitty*|*wezterm*|*foot*|*tilix*|*gnome-terminal*|*xterm*|*xfce4-terminal*|*sakura*|*terminator*|*urxvt*|*ghostty*)
+            return 0
+            ;;
+        esac
       fi
       return 1
       ;;

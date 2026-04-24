@@ -4264,6 +4264,40 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+@test "Linux focus detection uses xdotool window class for zellij in Alacritty" {
+  export PEON_PLATFORM=linux
+  export XDG_SESSION_TYPE=x11
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  echo "zellij: dev" > "$TEST_DIR/.mock_xdotool_window_name"
+  echo "Alacritty" > "$TEST_DIR/.mock_xdotool_window_class"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! linux_audio_was_called
+}
+
+@test "Linux focus detection does not treat generic titles like start as st terminal" {
+  export PEON_PLATFORM=linux
+  export XDG_SESSION_TYPE=x11
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  echo "start" > "$TEST_DIR/.mock_xdotool_window_name"
+  echo "firefox" > "$TEST_DIR/.mock_xdotool_window_class"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  linux_audio_was_called
+}
+
 # ============================================================
 # packs bind / unbind / bindings CLI
 # ============================================================

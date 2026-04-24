@@ -139,6 +139,24 @@ SCRIPT
     chmod +x "$MOCK_BIN/$player"
   done
 
+  # Mock xdotool for Linux focus detection tests
+  cat > "$MOCK_BIN/xdotool" <<'SCRIPT'
+#!/bin/bash
+if [ -f "${CLAUDE_PEON_DIR}/.disabled_xdotool" ]; then
+  exit 127
+fi
+if [[ "$*" == *"getwindowclassname"* ]]; then
+  cat "${CLAUDE_PEON_DIR}/.mock_xdotool_window_class" 2>/dev/null
+  exit 0
+fi
+if [[ "$*" == *"getwindowname"* ]]; then
+  cat "${CLAUDE_PEON_DIR}/.mock_xdotool_window_name" 2>/dev/null
+  exit 0
+fi
+exit 0
+SCRIPT
+  chmod +x "$MOCK_BIN/xdotool"
+
   # Mock terminal-notifier — log calls instead of sending real notifications
   cat > "$MOCK_BIN/terminal-notifier" <<'SCRIPT'
 #!/bin/bash
