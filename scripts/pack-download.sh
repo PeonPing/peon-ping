@@ -377,7 +377,9 @@ for p in data.get('packs', []):
     SOURCE_PATH=""
   fi
 
-  if [ -z "$SOURCE_REPO" ] || [ -z "$SOURCE_REF" ] || [ -z "$SOURCE_PATH" ]; then
+  # Note: empty SOURCE_PATH is valid — it means the manifest is at the repo root.
+  # Only fall back when repo or ref are missing.
+  if [ -z "$SOURCE_REPO" ] || [ -z "$SOURCE_REF" ]; then
     SOURCE_REPO="$FALLBACK_REPO"
     SOURCE_REF="$FALLBACK_REF"
     SOURCE_PATH="$pack"
