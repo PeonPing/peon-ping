@@ -647,6 +647,7 @@ Describe "Category C: Kilo Installer" {
 Describe "install.ps1 Adapter Installation" {
     BeforeAll {
         $script:installContent = Get-Content (Join-Path $script:RepoRoot "install.ps1") -Raw
+        $script:readmeContent = Get-Content (Join-Path $script:RepoRoot "README.md") -Raw
     }
 
     It "installs adapter scripts to adapters/ directory" {
@@ -677,9 +678,63 @@ Describe "install.ps1 Adapter Installation" {
         $script:installContent | Should -Match 'Restricted'
     }
 
+    It "supports local, global, and init-local-config installer parameters" {
+        $script:installContent | Should -Match '\[switch\]\$Local'
+        $script:installContent | Should -Match '\[switch\]\$Global'
+        $script:installContent | Should -Match '\[switch\]\$InitLocalConfig'
+    }
+
+    It "bootstraps TLS 1.2 for legacy Windows PowerShell web requests" {
+        $script:installContent | Should -Match 'SecurityProtocol'
+        $script:installContent | Should -Match 'Tls12'
+    }
+
+    It "documents a simple Windows download-and-run flow with explicit TLS fallback" {
+        $script:readmeContent | Should -Match 'Invoke-WebRequest -Uri "https://raw\.githubusercontent\.com/PeonPing/peon-ping/main/install\.ps1" -OutFile "\.\\install\.ps1"'
+        $script:readmeContent | Should -Match 'powershell -ExecutionPolicy Bypass -File \.\\install\.ps1'
+        $script:readmeContent | Should -Match 'TLS error on older Windows PowerShell'
+        $script:readmeContent | Should -Match 'SecurityProtocol = \[Net\.ServicePointManager\]::SecurityProtocol -bor \[Net\.SecurityProtocolType\]::Tls12'
+    }
+
     It "handles missing Claude Code gracefully" {
         $script:installContent | Should -Match 'ClaudeCodeDetected'
         $script:installContent | Should -Match 'Skipping Claude Code hook registration'
+    }
+
+    It "creates project-local config without running a full install" {
+        $script:installContent | Should -Match 'Created local config'
+        $script:installContent | Should -Match 'InitLocalConfig'
+        $script:installContent | Should -Match '\$repoConfigFile = if \(\$PSScriptRoot\)'
+        $script:installContent | Should -Match '\$repoConfigFile -and \(Test-Path \$repoConfigFile\)'
+        $script:installContent | Should -Match '(?s)if \(\$InitLocalConfig\) \{.*?return\s*\}\s*# --- Check Claude Code is installed ---'
+        $script:installContent | Should -Not -Match '(?s)if \(\$InitLocalConfig\) \{.*?exit 0.*?# --- Check Claude Code is installed ---'
+    }
+
+    It "skips the global CLI shim and PATH mutation in local mode" {
+        $script:installContent | Should -Match 'if \(-not \$Local\)'
+        $script:installContent | Should -Match "Global 'peon' CLI shim was not installed in local mode"
+    }
+
+    It "generates peon.cmd via PowerShell -Command so Windows args reach peon.ps1" {
+        $script:installContent | Should -Match 'peon\.cmd'
+        $script:installContent | Should -Match 'powershell -NoProfile -NonInteractive -Command "& ''\$peonPs1Path'' %\*"'
+        $script:installContent | Should -Not -Match 'peon\.cmd[\s\S]*?-File "\$peonPs1Path" %\*'
+    }
+
+    It "uses correct username interpolation for icacls ACLs" {
+        $script:installContent | Should -Match '\$\(\$env:USERNAME\):\(RX\)'
+    }
+
+    It "warns instead of failing when PATH auto-update is unavailable" {
+        $script:installContent | Should -Match 'Could not update PATH automatically'
+    }
+
+    It "prints README-style first-run commands after install" {
+        $script:installContent | Should -Match 'peon status'
+        $script:installContent | Should -Match 'peon packs list'
+        $script:installContent | Should -Match 'peon packs use NAME'
+        $script:installContent | Should -Match 'peon volume N'
+        $script:installContent | Should -Match 'peon toggle'
     }
 
     It "installs win-notify.ps1 alongside win-play.ps1" {
@@ -1311,43 +1366,51 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Match 'WindowStyle Hidden'
     }
 
-    # --- CLI Commands (mirrors BATS: peon --toggle/--pause/--resume/--status) ---
+    # --- CLI Commands (README-style plus legacy --flags) ---
 
-    It "supports --toggle CLI command" {
-        $script:peonHookContent | Should -Match '--toggle'
+    It "supports toggle CLI command in README-style and legacy form" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?toggle\$"'
         $script:peonHookContent | Should -Match '-not \$cfg\.enabled'
     }
 
-    It "supports --pause CLI command" {
-        $script:peonHookContent | Should -Match '--pause'
+    It "supports pause CLI command in README-style and legacy form" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?\(pause\|mute\)\$"'
         $script:peonHookContent | Should -Match '"enabled": false'
     }
 
-    It "supports --resume CLI command" {
-        $script:peonHookContent | Should -Match '--resume'
+    It "supports resume CLI command in README-style and legacy form" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?\(resume\|unmute\)\$"'
         $script:peonHookContent | Should -Match '"enabled": true'
     }
 
-    It "supports --status CLI command" {
-        $script:peonHookContent | Should -Match '--status'
+    It "supports status CLI command in README-style and legacy form" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?status\$"'
         $script:peonHookContent | Should -Match 'ENABLED'
         $script:peonHookContent | Should -Match 'PAUSED'
     }
 
-    It "--status shows version from VERSION file" {
+    It "status shows version from VERSION file" {
         $script:peonHookContent | Should -Match 'VERSION'
         $script:peonHookContent | Should -Match 'version'
     }
 
-    It "--status --verbose shows debug logging state" {
+    It "status --verbose shows debug logging state and README hint" {
         $script:peonHookContent | Should -Match 'debug logging'
         $script:peonHookContent | Should -Match 'PEON_DEBUG'
+        $script:peonHookContent | Should -Match 'peon status --verbose'
     }
 
-    It "supports --packs CLI command with use/next/list subcommands" {
-        $script:peonHookContent | Should -Match '--packs'
+    It "supports packs CLI command in README-style and legacy form" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?packs\$"'
+        $script:peonHookContent | Should -Match '"list"'
         $script:peonHookContent | Should -Match '"use"'
+        $script:peonHookContent | Should -Match '"install"'
+        $script:peonHookContent | Should -Match '"install-local"'
         $script:peonHookContent | Should -Match '"next"'
+        $script:peonHookContent | Should -Match '"remove"'
+        $script:peonHookContent | Should -Match 'No packs installed'
+        $script:peonHookContent | Should -Match 'Get-InstalledPackNames'
+        $script:peonHookContent | Should -Match 'Get-NextPackName'
     }
 
     It "Install-PackFromRegistry allows empty source_path for repo-root packs" {
@@ -1357,20 +1420,29 @@ Describe "Embedded peon.ps1 Hook Script" {
         $script:peonHookContent | Should -Not -Match '-not \$srcPath'
     }
 
-    It "supports --volume CLI command with clamping" {
-        $script:peonHookContent | Should -Match '--volume'
+    It "supports volume CLI command with getter and clamping setter" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?volume\$"'
         $script:peonHookContent | Should -Match 'Max.*0\.0.*Min.*1\.0'
+        $script:peonHookContent | Should -Match 'peon-ping: volume'
     }
 
-    It "supports --help CLI command" {
-        $script:peonHookContent | Should -Match '--help'
+    It "supports help CLI command with README-style examples" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?help\$"'
+        $script:peonHookContent | Should -Match 'peon packs list'
+        $script:peonHookContent | Should -Match 'Legacy --status/--toggle/--packs/--volume forms still work'
     }
 
-    It "supports --update CLI command with config migration" {
-        $script:peonHookContent | Should -Match '--update'
+    It "supports update CLI command with config migration" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?update\$"'
         $script:peonHookContent | Should -Match 'active_pack'
         $script:peonHookContent | Should -Match 'default_pack'
         $script:peonHookContent | Should -Match 'Updating peon-ping'
+    }
+
+    It "supports notifications CLI command in README-style and legacy form" {
+        $script:peonHookContent | Should -Match '"\^\(--\)\?\(notifications\|popups\)\$"'
+        $script:peonHookContent | Should -Match 'desktop notifications on'
+        $script:peonHookContent | Should -Match 'desktop notifications off'
     }
 
     # --- State Persistence ---
@@ -1747,8 +1819,8 @@ Describe "install.ps1 Default Config" {
         # Get-ExecutionPolicy. If pwsh is installed, prefer it; else use
         # powershell.exe. Structural test on the install.ps1 here-string.
         $script:installContent | Should -Match 'where pwsh'
-        $script:installContent | Should -Match 'pwsh -NoProfile -NonInteractive -Command "& ''%USERPROFILE%\\.claude\\hooks\\peon-ping\\peon\.ps1'''
-        $script:installContent | Should -Match 'powershell -NoProfile -NonInteractive -Command "& ''%USERPROFILE%\\.claude\\hooks\\peon-ping\\peon\.ps1'''
+        $script:installContent | Should -Match ([regex]::Escape('pwsh -NoProfile -NonInteractive -Command "& ''$peonPs1Path'' %*"'))
+        $script:installContent | Should -Match ([regex]::Escape('powershell -NoProfile -NonInteractive -Command "& ''$peonPs1Path'' %*"'))
     }
 
     It "peon bash shim probes for pwsh before falling back to powershell" {
@@ -1758,6 +1830,7 @@ Describe "install.ps1 Default Config" {
         $script:installContent | Should -Match 'command -v pwsh'
         $script:installContent | Should -Match 'PS_EXE=pwsh'
         $script:installContent | Should -Match 'PS_EXE=powershell\.exe'
+        $script:installContent | Should -Match ([regex]::Escape('"`$PS_EXE" -NoProfile -NonInteractive -Command "& ''$peonPs1Path'' `$*"'))
     }
 
     It "validates pack names with safe charset" {
@@ -1807,8 +1880,8 @@ Describe "install.ps1 Default Config" {
     }
 
     It "help text has aligned columns and pack management section" {
-        $script:installContent | Should -Match '--packs use <name>'
-        $script:installContent | Should -Match '--packs next'
+        $script:installContent | Should -Match 'peon packs use <name>'
+        $script:installContent | Should -Match 'peon packs next'
         $script:installContent | Should -Match 'Pack management:'
     }
 
@@ -1833,9 +1906,9 @@ Describe "install.ps1 Default Config" {
     }
 
     It "help text includes bind/unbind/bindings" {
-        $script:peonHookContent | Should -Match '--packs bind'
-        $script:peonHookContent | Should -Match '--packs unbind'
-        $script:peonHookContent | Should -Match '--packs bindings'
+        $script:peonHookContent | Should -Match 'peon packs bind'
+        $script:peonHookContent | Should -Match 'peon packs unbind'
+        $script:peonHookContent | Should -Match 'peon packs bindings'
     }
 }
 
@@ -2112,9 +2185,9 @@ Describe "path_rules: CLI Commands - Structural" {
     }
 
     It "help text includes bind/unbind/bindings" {
-        $script:peonHookContent | Should -Match '--packs bind'
-        $script:peonHookContent | Should -Match '--packs unbind'
-        $script:peonHookContent | Should -Match '--packs bindings'
+        $script:peonHookContent | Should -Match 'peon packs bind'
+        $script:peonHookContent | Should -Match 'peon packs unbind'
+        $script:peonHookContent | Should -Match 'peon packs bindings'
     }
 }
 
@@ -2271,10 +2344,10 @@ Describe "Windows IDE rules and exclude_dirs parity" {
     }
 
     It "help text includes IDE and exclude pack commands" {
-        $script:installContent | Should -Match '--packs ide-bind'
-        $script:installContent | Should -Match '--packs ide-unbind'
-        $script:installContent | Should -Match '--packs ide-bindings'
-        $script:installContent | Should -Match '--packs exclude'
+        $script:installContent | Should -Match 'peon packs ide-bind'
+        $script:installContent | Should -Match 'peon packs ide-unbind'
+        $script:installContent | Should -Match 'peon packs ide-bindings'
+        $script:installContent | Should -Match 'peon packs exclude'
     }
 
     It "embedded hook defines IDE/path helper functions" {
@@ -2580,9 +2653,9 @@ Describe "path_rules: CLI Commands - Structural" {
     }
 
     It "help text includes bind/unbind/bindings" {
-        $script:peonHookContent | Should -Match '--packs bind'
-        $script:peonHookContent | Should -Match '--packs unbind'
-        $script:peonHookContent | Should -Match '--packs bindings'
+        $script:peonHookContent | Should -Match 'peon packs bind'
+        $script:peonHookContent | Should -Match 'peon packs unbind'
+        $script:peonHookContent | Should -Match 'peon packs bindings'
     }
 }
 
