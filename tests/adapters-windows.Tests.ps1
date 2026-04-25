@@ -1816,8 +1816,8 @@ Describe "install.ps1 Default Config" {
         # Get-ExecutionPolicy. If pwsh is installed, prefer it; else use
         # powershell.exe. Structural test on the install.ps1 here-string.
         $script:installContent | Should -Match 'where pwsh'
-        $script:installContent | Should -Match 'pwsh -NoProfile -NonInteractive -Command "& ''%USERPROFILE%\\.claude\\hooks\\peon-ping\\peon\.ps1'''
-        $script:installContent | Should -Match 'powershell -NoProfile -NonInteractive -Command "& ''%USERPROFILE%\\.claude\\hooks\\peon-ping\\peon\.ps1'''
+        $script:installContent | Should -Match ([regex]::Escape('pwsh -NoProfile -NonInteractive -Command "& ''$peonPs1Path'' %*"'))
+        $script:installContent | Should -Match ([regex]::Escape('powershell -NoProfile -NonInteractive -Command "& ''$peonPs1Path'' %*"'))
     }
 
     It "peon bash shim probes for pwsh before falling back to powershell" {
@@ -1827,6 +1827,7 @@ Describe "install.ps1 Default Config" {
         $script:installContent | Should -Match 'command -v pwsh'
         $script:installContent | Should -Match 'PS_EXE=pwsh'
         $script:installContent | Should -Match 'PS_EXE=powershell\.exe'
+        $script:installContent | Should -Match ([regex]::Escape('"`$PS_EXE" -NoProfile -NonInteractive -Command "& ''$peonPs1Path'' `$*"'))
     }
 
     It "validates pack names with safe charset" {

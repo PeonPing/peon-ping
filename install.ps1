@@ -2019,6 +2019,8 @@ if ($Command) {
             Write-Host "  peon notifications template <key> <fmt>  Set a template"
             Write-Host "  peon notifications template --reset      Clear all templates"
             Write-Host "  peon popups on/off            Alias for notifications on/off"
+            Write-Host "  --notifications on/off        Legacy alias for peon notifications on/off"
+            Write-Host "  --popups on/off               Legacy alias for peon popups on/off"
             Write-Host ""
             Write-Host "Debug & Logs:" -ForegroundColor Cyan
             Write-Host "  debug on              Enable debug logging"
