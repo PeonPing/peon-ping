@@ -1,3 +1,13 @@
+## v2.24.0 (2026-04-25)
+
+### Fixed
+- **TTS now actually speaks**. The TTS pipeline landed earlier in the v2.20.x series was calling two backend scripts (`scripts/tts-native.sh` and `scripts/tts-native.ps1`) that had never been written to disk, so flipping `tts.enabled: true` produced no voice, no error, no log line. This release ships those backends. macOS `say`, Linux piper-with-model or espeak-ng (in that priority order), MSYS2/MINGW bridges to the Windows backend, native Windows SAPI5. After upgrading, `peon tts on` actually speaks. Defense-in-depth on text quoting (speech text comes in on stdin, never as argv) and numeric injection (rate / volume go through `awk -v`, not into awk source). PR #487, thanks @muunkky.
+- **Windows `peon` CLI shim now prefers `pwsh` over `powershell.exe`**. On dev environments where `PSModulePath` has PowerShell 7 module dirs ahead of the PS 5.1 inbox paths (CloudSDK, Az, similar tooling having touched the env), Windows PowerShell 5.1 tries to load PS 7's incompatible `Microsoft.PowerShell.Security` and `Get-ExecutionPolicy` blows up, breaking every `peon …` invocation. The generated `peon.cmd` and bash shim now probe for `pwsh` first and fall back to `powershell.exe` only when pwsh is absent. PR #487.
+- **Pester `removes hooks from settings.json` regression**. Test regex anchored on plain-dot literals (`peon\.ps1.*peon\.sh...`) had been failing on main since #485 narrowed the inner-hook filter from a bare `peon` string to escaped regex literals (`peon\\.ps1`, `peon\\.sh`). Loosened the assertion to allow the optional escaped backslash so both source forms match.
+
+### Tests
+- BATS test harness now resolves Python via `command -v python3` then `command -v python` instead of hardcoding `/usr/bin/python3` (four call sites in `tests/setup.bash`). Pester test setup canonicalizes `$env:TEMP` through `Push-Location` to expand 8.3 short names on GitHub Windows runners (`C:\Users\RUNNER~1\…`), and switches one `Set-Location` to `Set-Location -LiteralPath` so paths with bracket characters are handled correctly. PR #487.
+
 ## v2.23.0 (2026-04-25)
 
 ### Added
