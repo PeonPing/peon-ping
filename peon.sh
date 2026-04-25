@@ -4356,7 +4356,14 @@ export PEON_ENV_HOOK_TTY="$_PEON_HOOK_TTY"
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
 # Outputs shell variables consumed by the bash play/notify/title logic below.
-_PEON_PYOUT=$(python3 -c "
+#
+# Body is written to a tempfile and invoked by path. Passing this block via
+# `python3 -c` overflows the Windows CreateProcess argv limit (~32 KB) on
+# msys2/git-bash, causing silent E2BIG and a hook that exits 0 with no logs.
+# See https://github.com/PeonPing/peon-ping/issues/488
+_PEON_PY_TMP=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/peon-py-$$.py")
+trap 'rm -f "$_PEON_PY_TMP"' EXIT
+cat > "$_PEON_PY_TMP" <<PEON_LOCAL_PY_EOF
 import sys, json, os, re, random, time, shlex, tempfile, fnmatch
 q = shlex.quote
 _peon_start = time.monotonic()
@@ -5509,7 +5516,10 @@ print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 _auto_debug = cfg.get('debug', False) or os.environ.get('PEON_DEBUG') == '1'
 if _auto_debug:
     print('PEON_AUTO_PRUNE=' + q(str(cfg.get('debug_retention_days', 7))))
-" <<< "$INPUT" 2>/dev/null)
+PEON_LOCAL_PY_EOF
+# Stderr intentionally NOT suppressed: silent failures here masked issue #488
+# for multiple releases. Any future exec error will surface in `peon debug`.
+_PEON_PYOUT=$(python3 "$_PEON_PY_TMP" <<< "$INPUT")
 eval "$_PEON_PYOUT"
 
 # --- Bash-side debug log function for [play] and [notify] phases ---

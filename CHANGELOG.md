@@ -1,3 +1,8 @@
+## Unreleased
+
+### Fixed
+- **`peon.sh` silently failed on Windows msys2/git-bash because the consolidated Python block exceeded `CreateProcess`'s ~32 KB argv limit.** The block had grown to ~47 KB after the state-helper injection, so `python3 -c "<block>"` returned `E2BIG` and the hook exited 0 with no logs, breaking every event (`Stop`, `Notification`, `PermissionRequest`, etc.) on git-bash. Hook now writes the block to a tempfile and invokes `python3 <path>` instead, with a `trap` for defensive cleanup. Stderr on this path is no longer suppressed so any future exec failure surfaces in `peon debug status`. Linux/macOS were unaffected (argv limits are in the megabytes); native Windows (`peon.ps1`) does not use this path. Closes #488.
+
 ## v2.24.0 (2026-04-25)
 
 ### Fixed
