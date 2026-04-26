@@ -3489,6 +3489,14 @@ if 'notification_title_marker' not in cfg:
     cfg['notification_title_marker'] = '●'
     changed = True
     migrations.append('notification_title_marker')
+if 'suppress_idle_prompt_repeats' not in cfg:
+    cfg['suppress_idle_prompt_repeats'] = True
+    changed = True
+    migrations.append('suppress_idle_prompt_repeats')
+if 'idle_prompt_suppress_window_seconds' not in cfg:
+    cfg['idle_prompt_suppress_window_seconds'] = 3600
+    changed = True
+    migrations.append('idle_prompt_suppress_window_seconds')
 if changed:
     json.dump(cfg, open(config_path, 'w'), indent=2)
     print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
@@ -5113,7 +5121,7 @@ elif event == 'PreCompact':
     msg = project + '  \u2014  Context compacting'
 elif event == 'SessionEnd':
     # Clean up state for this session
-    for key in ('session_packs', 'prompt_timestamps', 'session_start_times', 'prompt_start_times', 'subagent_sessions'):
+    for key in ('session_packs', 'prompt_timestamps', 'session_start_times', 'prompt_start_times', 'subagent_sessions', 'last_task_complete'):
         d = state.get(key, {})
         if session_id in d:
             del d[session_id]
@@ -5151,6 +5159,29 @@ if event == 'Stop':
     state['last_stop_time'] = now
     state_dirty = True
 
+# --- Dedupe idle_prompt repeats against a recent task.complete (issue #486) ---
+# Claude Code re-fires Notification+idle_prompt every ~60s while the terminal is
+# unfocused. Without dedupe, the task.complete sound replays on every poke. Suppress
+# when a task.complete already fired for the same session inside the configured window.
+# Skip when session_id is empty: adapters that omit it would otherwise share a single
+# bucket and cross-suppress unrelated terminals.
+if (event == 'Notification' and ntype == 'idle_prompt'
+        and category == 'task.complete'
+        and session_id
+        and cfg.get('suppress_idle_prompt_repeats', True)):
+    _idle_window = float(cfg.get('idle_prompt_suppress_window_seconds', 3600) or 0)
+    if _idle_window > 0:
+        _last_tc_map = state.get('last_task_complete', {}) or {}
+        try:
+            _prev_tc = float(_last_tc_map.get(session_id, 0) or 0)
+        except (TypeError, ValueError):
+            # Hand-edited state with a non-numeric value — treat as no record.
+            _prev_tc = 0.0
+        if _prev_tc and (time.time() - _prev_tc) < _idle_window:
+            log('route', category='task.complete', suppressed=True, reason='idle_prompt_repeat')
+            category = ''
+            notify = ''
+
 # --- Suppress sounds during session replay (claude -c) ---
 # When continuing a session, Claude fires SessionStart then immediately replays
 # old events. Suppress all sounds within 3s of SessionStart for the same session.
@@ -5186,6 +5217,24 @@ if category and not cat_enabled.get(category, True):
     category = ''
     notify = ''
     notify_color = ''
+
+# --- Track most recent task.complete fire per session (powers idle_prompt dedupe) ---
+# Only record when session_id is non-empty so unrelated sessions without an id
+# (some adapters omit it) don't clobber each other's bucket.
+if category == 'task.complete' and session_id and not paused:
+    _last_tc_map = state.get('last_task_complete', {}) or {}
+    _last_tc_map[session_id] = time.time()
+    # Prune entries older than the suppression window to avoid unbounded growth
+    # (mirrors the subagent_sessions pruning pattern above).
+    _prune_window = float(cfg.get('idle_prompt_suppress_window_seconds', 3600) or 0)
+    if _prune_window > 0:
+        _now_ts = time.time()
+        _last_tc_map = dict(
+            (sid, ts) for sid, ts in _last_tc_map.items()
+            if isinstance(ts, (int, float)) and _now_ts - ts < _prune_window
+        )
+    state['last_task_complete'] = _last_tc_map
+    state_dirty = True
 
 # --- Log route decision ---
 if category:
