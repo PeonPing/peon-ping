@@ -24,6 +24,19 @@ function run(argv) {
   var position    = argv[9] || 'top-center';
   var allScreens  = argv[11] === 'true';
   var screenIdx   = (argv[12] !== undefined && argv[12] !== '') ? parseInt(argv[12], 10) : -1;
+  var env = $.NSProcessInfo.processInfo.environment;
+  var clickCommandValue = env.objectForKey($('PEON_CLICK_COMMAND'));
+  var clickCommand = clickCommandValue && !clickCommandValue.isNil() ? ObjC.unwrap(clickCommandValue) : '';
+  var cmuxFocusHelperValue = env.objectForKey($('PEON_CMUX_FOCUS_HELPER'));
+  var cmuxFocusCliValue = env.objectForKey($('PEON_CMUX_FOCUS_CLI'));
+  var cmuxFocusSocketValue = env.objectForKey($('PEON_CMUX_FOCUS_SOCKET'));
+  var cmuxFocusWorkspaceValue = env.objectForKey($('PEON_CMUX_FOCUS_WORKSPACE'));
+  var cmuxFocusSurfaceValue = env.objectForKey($('PEON_CMUX_FOCUS_SURFACE'));
+  var cmuxFocusHelper = cmuxFocusHelperValue && !cmuxFocusHelperValue.isNil() ? ObjC.unwrap(cmuxFocusHelperValue) : '';
+  var cmuxFocusCli = cmuxFocusCliValue && !cmuxFocusCliValue.isNil() ? ObjC.unwrap(cmuxFocusCliValue) : '';
+  var cmuxFocusSocket = cmuxFocusSocketValue && !cmuxFocusSocketValue.isNil() ? ObjC.unwrap(cmuxFocusSocketValue) : '';
+  var cmuxFocusWorkspace = cmuxFocusWorkspaceValue && !cmuxFocusWorkspaceValue.isNil() ? ObjC.unwrap(cmuxFocusWorkspaceValue) : '';
+  var cmuxFocusSurface = cmuxFocusSurfaceValue && !cmuxFocusSurfaceValue.isNil() ? ObjC.unwrap(cmuxFocusSurfaceValue) : '';
 
   // Color map
   var r = 180/255, g = 0, b = 0;
@@ -48,13 +61,81 @@ function run(argv) {
   // Register a click handler if we have a target bundle ID, IDE PID, or persistent mode
   var clickHandler = null;
   if (bundleId || idePid > 0 || persistent) {
+    function activateBundle(targetBundleId) {
+      if (!targetBundleId) return false;
+      var ws = $.NSWorkspace.sharedWorkspace;
+      var apps = ws.runningApplications;
+      var count = apps.count;
+      for (var i = 0; i < count; i++) {
+        var app = apps.objectAtIndex(i);
+        var bid = app.bundleIdentifier;
+        if (!bid.isNil() && bid.js === targetBundleId) {
+          app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function runClickCommand(command) {
+      if (!command) return false;
+      try {
+        var task = $.NSTask.alloc.init;
+        task.setLaunchPath($('/bin/bash'));
+        task.setArguments($(['-lc', command]));
+        task.launch;
+        task.waitUntilExit;
+        return task.terminationStatus === 0;
+      } catch(e) {
+        return false;
+      }
+    }
+
+    function runCmuxFocusTask() {
+      if (!cmuxFocusHelper || !cmuxFocusCli || !cmuxFocusSurface) return false;
+      try {
+        var args = [cmuxFocusCli];
+        if (cmuxFocusSocket) args.push(cmuxFocusSocket);
+        if (cmuxFocusWorkspace) args.push(cmuxFocusWorkspace);
+        args.push(cmuxFocusSurface);
+        var task = $.NSTask.alloc.init;
+        task.setLaunchPath($(cmuxFocusHelper));
+        task.setArguments($(args));
+        task.launch;
+        task.waitUntilExit;
+        return task.terminationStatus === 0;
+      } catch (e) {
+        return false;
+      }
+    }
+
     ObjC.registerSubclass({
       name: 'PeonClickHandler',
       superclass: 'NSObject',
       methods: {
-        'handleClick': {
-          types: ['void', []],
-          implementation: function() {
+        'handleClick:': {
+          types: ['void', ['id']],
+          implementation: function(_sender) {
+            if (cmuxFocusHelper && cmuxFocusCli && cmuxFocusSurface) {
+              activateBundle(bundleId);
+              runCmuxFocusTask();
+              $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObject($(dismissNotificationName), $.NSString.string);
+              $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
+                0.05, $.NSApp, 'terminate:', null, false
+              );
+              return;
+            }
+
+            if (clickCommand) {
+              activateBundle(bundleId);
+              runClickCommand(clickCommand);
+              $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObject($(dismissNotificationName), $.NSString.string);
+              $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
+                0.05, $.NSApp, 'terminate:', null, false
+              );
+              return;
+            }
+
             // iTerm2: raise the specific window containing our session
             if (sessionTty && bundleId === 'com.googlecode.iterm2') {
               var task = $.NSTask.alloc.init;
@@ -81,21 +162,7 @@ function run(argv) {
             }
             var activated = false;
             // Primary: activate by bundle ID
-            var activated = false;
-            if (bundleId) {
-              var ws = $.NSWorkspace.sharedWorkspace;
-              var apps = ws.runningApplications;
-              var count = apps.count;
-              for (var i = 0; i < count; i++) {
-                var app = apps.objectAtIndex(i);
-                var bid = app.bundleIdentifier;
-                if (!bid.isNil() && bid.js === bundleId) {
-                  app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
-                  activated = true;
-                  break;
-                }
-              }
-            }
+            if (bundleId) activated = activateBundle(bundleId);
             // Fallback: activate by IDE PID (for embedded terminals)
             if (!activated && idePid > 0) {
               var ideApp = $.NSRunningApplication.runningApplicationWithProcessIdentifier(idePid);
@@ -278,7 +345,7 @@ function run(argv) {
       btn.setBordered(false);
       btn.setTransparent(true);
       btn.setTarget(clickHandler);
-      btn.setAction('handleClick');
+      btn.setAction('handleClick:');
       contentView.addSubview(btn);
     }
 

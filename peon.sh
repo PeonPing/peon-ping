@@ -602,7 +602,12 @@ play_sound() {
 # mac-overlay.js click handler to focus the right terminal on notification click.
 _mac_terminal_bundle_id() {
   case "${TERM_PROGRAM:-}" in
-    ghostty)        echo "com.mitchellh.ghostty" ;;
+    ghostty)
+      if _is_cmux_session; then
+        _mac_cmux_bundle_id
+      else
+        echo "com.mitchellh.ghostty"
+      fi ;;
     iTerm.app)      echo "com.googlecode.iterm2" ;;
     WarpTerminal)   echo "dev.warp.Warp-Stable" ;;
     Apple_Terminal) echo "com.apple.Terminal" ;;
@@ -619,7 +624,9 @@ _mac_terminal_bundle_id() {
       echo "" ;;
     *)
       # Fallback: detect terminal via env vars that survive tmux/screen
-      if [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
+      if _is_cmux_session; then
+        _mac_cmux_bundle_id
+      elif [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
         echo "com.mitchellh.ghostty"
       elif [ -n "${ITERM_SESSION_ID:-}" ]; then
         echo "com.googlecode.iterm2"
@@ -629,6 +636,208 @@ _mac_terminal_bundle_id() {
         echo ""
       fi ;;
   esac
+}
+
+_is_cmux_session() {
+  { [ -n "${CMUX_SURFACE_ID:-}" ] || [ -n "${CMUX_PANEL_ID:-}" ]; } && { [ -n "${CMUX_SOCKET_PATH:-}" ] || [ -n "${CMUX_SOCKET:-}" ]; }
+}
+
+_cmux_should_manage_status() {
+  # cmux has its own native Claude Code integration. Avoid duplicating its
+  # sidebar status pill when peon-ping is running inside Claude Code itself.
+  _is_cmux_session || return 1
+  case "${SESSION_ID:-}" in
+    codex-*) return 0 ;;
+  esac
+  [ -z "${CLAUDE_CODE_ENTRYPOINT:-}" ]
+}
+
+_cmux_cli_path() {
+  if [ -n "${CMUX_BUNDLED_CLI_PATH:-}" ] && [ -x "${CMUX_BUNDLED_CLI_PATH:-}" ]; then
+    printf '%s\n' "$CMUX_BUNDLED_CLI_PATH"
+    return
+  fi
+  command -v cmux 2>/dev/null || true
+}
+
+_cmux_workspace_ref() {
+  local cmux_cli="$1"
+  local cmux_workspace_id="${2:-}"
+  [ -n "$cmux_cli" ] || return 1
+  [ -n "$cmux_workspace_id" ] || return 1
+
+  local cmux_workspace_field_helper
+  cmux_workspace_field_helper="$(find_bundled_script "cmux-workspace-field.sh")" 2>/dev/null || return 1
+  "$cmux_workspace_field_helper" ref "$cmux_cli" "" "$cmux_workspace_id" 2>/dev/null
+}
+
+_cmux_status_call() {
+  local cmux_cli="$1"
+  shift
+
+  local -a cmd=("$cmux_cli")
+
+  local attempt out rc
+  for attempt in 1 2 3 4; do
+    out=$("${cmd[@]}" "$@" 2>&1)
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+      return 0
+    fi
+
+    case "$out" in
+      *"Broken pipe"*|*"errno 32"*)
+        [ "$attempt" -lt 4 ] || return "$rc"
+        sleep 0.2
+        ;;
+      *)
+        return "$rc"
+        ;;
+    esac
+  done
+
+  return 1
+}
+
+_mac_cmux_bundle_id() {
+  [ -n "${PEON_CMUX_BUNDLE_ID:-}" ] && { echo "$PEON_CMUX_BUNDLE_ID"; return; }
+
+  local _name _bid
+  for _name in cmux "cmux DEV" "cmux NIGHTLY"; do
+    _bid=$(osascript -e "tell application \"System Events\" to get bundle identifier of first process whose name is \"$_name\"" 2>/dev/null) && [ -n "$_bid" ] && { echo "$_bid"; return; }
+  done
+
+  echo "com.cmuxterm.app"
+}
+
+_cmux_surface_is_current() {
+  local cmux_cli
+  cmux_cli="$(_cmux_cli_path)"
+  [ -n "$cmux_cli" ] || return 1
+  [ -n "${CMUX_SURFACE_ID:-}" ] || return 1
+
+  local identify_json
+  if [ -n "${CMUX_WORKSPACE_ID:-}" ]; then
+    identify_json=$("$cmux_cli" --json identify --workspace "$CMUX_WORKSPACE_ID" --surface "$CMUX_SURFACE_ID" 2>/dev/null || true)
+  else
+    identify_json=$("$cmux_cli" --json identify --surface "$CMUX_SURFACE_ID" 2>/dev/null || true)
+  fi
+  [ -n "$identify_json" ] || return 1
+
+  IDENTIFY_JSON="$identify_json" python3 - "$CMUX_SURFACE_ID" "${CMUX_WORKSPACE_ID:-}" <<'PY' >/dev/null 2>&1
+import json
+import os
+import sys
+
+expected_surface = sys.argv[1]
+expected_workspace = sys.argv[2] if len(sys.argv) > 2 else ""
+
+try:
+    payload = json.loads(os.environ.get("IDENTIFY_JSON", ""))
+except Exception:
+    sys.exit(1)
+
+focused = payload.get("focused") or {}
+caller = payload.get("caller") or {}
+if not isinstance(focused, dict):
+    sys.exit(1)
+if not isinstance(caller, dict):
+    caller = {}
+
+focused_surface = focused.get("surface_id") or focused.get("surface_ref") or focused.get("tab_id") or focused.get("tab_ref")
+caller_surface = caller.get("surface_id") or caller.get("surface_ref") or caller.get("tab_id") or caller.get("tab_ref") or expected_surface
+focused_workspace = focused.get("workspace_id") or focused.get("workspace_ref")
+caller_workspace = caller.get("workspace_id") or caller.get("workspace_ref") or expected_workspace
+
+if focused_surface and caller_surface and focused_surface == caller_surface:
+    if not caller_workspace or not focused_workspace or focused_workspace == caller_workspace:
+        sys.exit(0)
+
+sys.exit(1)
+PY
+}
+
+# --- Update the cmux sidebar status pill for this workspace ---
+# Mirrors the tab-title status ("ready"/"working"/"done"/"needs approval"/
+# "question"/"error"/"compacting") as a pill in cmux's workspace sidebar.
+# No-op outside cmux sessions or when the CLI isn't on PATH.
+_cmux_update_status() {
+  if ! _cmux_should_manage_status; then
+    return 0
+  fi
+  local cmux_cli
+  cmux_cli="$(_cmux_cli_path)"
+  if [ -z "$cmux_cli" ]; then
+    return 0
+  fi
+
+  local key="peon"
+  local cmux_status_args=()
+  local cmux_workspace_arg=""
+  if [ -n "${CMUX_WORKSPACE_ID:-}" ]; then
+    cmux_workspace_arg="$(_cmux_workspace_ref "$cmux_cli" "$CMUX_WORKSPACE_ID" 2>/dev/null || true)"
+    [ -z "$cmux_workspace_arg" ] && cmux_workspace_arg="$CMUX_WORKSPACE_ID"
+    cmux_status_args+=(--workspace "$cmux_workspace_arg")
+  fi
+  if [ "${EVENT:-}" = "SessionEnd" ]; then
+    _cmux_status_call "$cmux_cli" clear-status "$key" "${cmux_status_args[@]}" >/dev/null 2>&1
+    return 0
+  fi
+
+  local value="${STATUS:-}"
+  if [ -z "$value" ]; then
+    return 0
+  fi
+
+  local icon="" color=""
+  local display_value="$value"
+  case "$value" in
+    ready|working)
+      display_value="Running"
+      icon="bolt.fill"
+      color="#4C8DFF"
+      ;;
+    done)
+      display_value="Idle"
+      icon="pause.circle.fill"
+      color=""
+      ;;
+    "needs approval"|question)
+      display_value="Needs input"
+      icon="bell.fill"
+      color="#4C8DFF"
+      ;;
+    error)
+      display_value="Error"
+      icon="exclamationmark.triangle.fill"
+      color=""
+      ;;
+    compacting)
+      display_value="Running"
+      icon="archivebox.fill"
+      color="#AC8D00"
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+
+  if [ -n "${NOTIF_TITLE:-}" ]; then
+    display_value="${NOTIF_TITLE}: ${display_value}"
+  fi
+
+  local cmux_call_args=(set-status "$key" "$display_value")
+  [ -n "$icon" ] && cmux_call_args+=(--icon "$icon")
+  [ -n "$color" ] && cmux_call_args+=(--color "$color")
+  _cmux_status_call "$cmux_cli" "${cmux_call_args[@]}" "${cmux_status_args[@]}" >/dev/null 2>&1
+}
+
+_cmux_update_status_async() {
+  if [ "${PEON_TEST:-0}" = "1" ]; then
+    _cmux_update_status
+  else
+    ( _cmux_update_status ) >/dev/null 2>&1 &
+  fi
 }
 
 # --- IDE ancestor PID detection (macOS click-to-focus for GUI IDEs) ---
@@ -746,6 +955,19 @@ send_notification() {
       if [ "$PEON_PLATFORM" = "mac" ]; then
         export PEON_BUNDLE_ID="$(_mac_terminal_bundle_id)"
         export PEON_IDE_PID="$(_mac_ide_pid)"
+        if _is_cmux_session; then
+          export PEON_CMUX_WORKSPACE_ID="${CMUX_WORKSPACE_ID:-}"
+          export PEON_CMUX_SURFACE_ID="${CMUX_SURFACE_ID:-${CMUX_PANEL_ID:-}}"
+          export PEON_CMUX_SOCKET_PATH="${CMUX_SOCKET_PATH:-${CMUX_SOCKET:-}}"
+          export PEON_CMUX_CLI="$(_cmux_cli_path)"
+          export PEON_NOTIF_TITLE="${NOTIF_TITLE:-}"
+        else
+          export PEON_CMUX_WORKSPACE_ID=""
+          export PEON_CMUX_SURFACE_ID=""
+          export PEON_CMUX_SOCKET_PATH=""
+          export PEON_CMUX_CLI=""
+          export PEON_NOTIF_TITLE=""
+        fi
         # Fallback: if no terminal bundle ID but we found an IDE ancestor,
         # derive the bundle ID from the IDE PID (for embedded terminals like Cursor)
         if [ -z "$PEON_BUNDLE_ID" ] && [ "${PEON_IDE_PID:-0}" != "0" ]; then
@@ -818,6 +1040,13 @@ terminal_is_focused() {
           return 1  # Different tab/pane is active in all windows — notify
           ;;
         Ghostty|ghostty) _ghostty_terminal_is_current ; return $? ;;
+        cmux|cmux\ *)
+          if _is_cmux_session; then
+            _cmux_surface_is_current
+            return $?
+          fi
+          return 0
+          ;;
         Terminal|Warp|Alacritty|kitty|WezTerm) return 0 ;;
         *) return 1 ;;
       esac
@@ -4836,6 +5065,69 @@ if not project:
         project = 'claude'
 project = re.sub(r'[^a-zA-Z0-9 ._-]', '', project)
 
+def adapter_display_title(session_source, session_id, project):
+    src = str(session_source or '').strip().lower()
+    sid = str(session_id or '').strip().lower()
+    project_l = str(project or '').strip().lower()
+
+    def _matches(*tokens):
+        return any(
+            src == t or sid.startswith(t + '-') or project_l == t
+            for t in tokens
+        )
+
+    if _matches('rovodev'):
+        return 'Rovo Dev'
+    if _matches('codex'):
+        return 'Codex'
+    if _matches('opencode'):
+        return 'OpenCode'
+    if _matches('gemini'):
+        return 'Gemini CLI'
+    if _matches('cursor'):
+        return 'Cursor'
+    if _matches('kiro'):
+        return 'Kiro'
+    if _matches('copilot'):
+        return 'GitHub Copilot'
+    if _matches('deepagents'):
+        return 'Deepagents'
+    if _matches('openclaw'):
+        return 'OpenClaw'
+    return 'Claude Code'
+
+notif_title = adapter_display_title(session_source, session_id, project)
+
+def first_excerpt(*values):
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        cleaned = re.sub(r'\s+', ' ', value).strip()
+        if cleaned:
+            return cleaned[:120]
+    return ''
+
+message_excerpt = first_excerpt(
+    event_data.get('transcript_summary', ''),
+    event_data.get('summary', ''),
+    event_data.get('last-assistant-message', ''),
+    event_data.get('last_assistant_message', ''),
+    event_data.get('message', ''),
+    event_data.get('body', ''),
+    event_data.get('text', ''),
+)
+
+cmux_session = (
+    bool(os.environ.get('CMUX_SURFACE_ID') or os.environ.get('CMUX_PANEL_ID')) and
+    bool(os.environ.get('CMUX_SOCKET_PATH') or os.environ.get('CMUX_SOCKET'))
+)
+cmux_notification_path = cmux_session and cfg.get('notification_style', 'overlay') == 'standard'
+
+def cmux_notify_body(default_text):
+    if cmux_notification_path:
+        return message_excerpt or default_text
+    return project
+
 # --- Event routing ---
 category = ''
 status = ''
@@ -4923,7 +5215,7 @@ elif event == 'Stop':
         marker = '\u25cf '
         notify = '1'
         notify_color = 'blue'
-        msg = project
+        msg = cmux_notify_body('Idle')
         msg_subtitle = ''
     else:
         category = ''
@@ -4938,14 +5230,14 @@ elif event == 'Notification':
         marker = '\u25cf '
         notify = '1'
         notify_color = 'yellow'
-        msg = project
+        msg = cmux_notify_body('Idle')
     elif ntype == 'elicitation_dialog':
         category = 'input.required'
         status = 'question'
         marker = '\u25cf '
         notify = '1'
         notify_color = 'blue'
-        msg = project
+        msg = cmux_notify_body('Question pending')
         msg_subtitle = 'Question pending'
     else:
         # Unknown notification type — maintain tab title (e.g. plan mode events)
@@ -4969,7 +5261,7 @@ elif event == 'PermissionRequest':
     marker = '\u25cf '
     notify = '1'
     notify_color = 'red'
-    msg = project
+    msg = cmux_notify_body('Requires permissions')
     _tool = event_data.get('tool_name', '')
     msg_subtitle = _tool
 elif event == 'PostToolUseFailure':
@@ -5023,7 +5315,7 @@ elif event == 'SubagentStart':
 elif event == 'PreCompact':
     # Context window filling up — compaction about to start
     category = 'resource.limit'
-    status = 'working'
+    status = 'compacting'
     marker = '\u25cf '
     notify = '1'
     notify_color = 'red'
@@ -5347,6 +5639,7 @@ _tpl = _templates.get(_tpl_key, '')
 _tpl_vars = _defaultdict(str, {
     'project': project,
     'summary': _template_summary(event_data),
+    'excerpt': message_excerpt,
     'tool_name': event_data.get('tool_name', ''),
     'status': status,
     'event': event,
@@ -5409,6 +5702,7 @@ print('PEON_EXIT=false')
 print('EVENT=' + q(event))
 print('VOLUME=' + q(str(volume)))
 print('PROJECT=' + q(project))
+print('NOTIF_TITLE=' + q(notif_title))
 print('CWD=' + q(cwd))
 print('STATUS=' + q(status))
 print('MARKER=' + q(marker))
@@ -5462,6 +5756,19 @@ if _auto_debug:
 " <<< "$INPUT" 2>/dev/null)
 eval "$_PEON_PYOUT"
 
+# --- Override PROJECT with cmux workspace title ---
+# A cmux workspace's title is set by the user and doesn't have to match cwd/git
+# remote, so ask cmux directly when CMUX_WORKSPACE_ID is in the env.
+if [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then
+  _cmux_workspace_field_helper="$(find_bundled_script "cmux-workspace-field.sh")" 2>/dev/null || _cmux_workspace_field_helper=""
+  if [ -n "$_cmux_workspace_field_helper" ]; then
+    _cmux_title=$(bash "$_cmux_workspace_field_helper" title "$(_cmux_cli_path)" "" "$CMUX_WORKSPACE_ID" 2>/dev/null)
+    if [ -n "$_cmux_title" ]; then
+      PROJECT="$_cmux_title"
+    fi
+  fi
+fi
+
 # --- Bash-side debug log function for [play] and [notify] phases ---
 if [ -n "${_PEON_LOG_FILE:-}" ]; then
   # Detect millisecond timestamp capability once at definition time.
@@ -5514,6 +5821,7 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
   if [ -n "${PROJECT:-}" ] && [ "${EVENT:-}" != "SessionEnd" ]; then
     { printf '\033]0;%s\007' "${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS:-working}" > /dev/tty; } 2>/dev/null || true
   fi
+  _cmux_update_status_async
   exit 0
 fi
 
@@ -5635,8 +5943,12 @@ if [ "$EVENT" = "SessionStart" ] && { [ "$PEON_PLATFORM" = "devcontainer" ] || [
   fi
 fi
 
-# --- Build tab title ---
+# --- Build notification title ---
 TITLE="${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS}"
+NOTIFICATION_TITLE="$TITLE"
+if _is_cmux_session && [ -n "${NOTIF_TITLE:-}" ] && [ -n "${PROJECT:-}" ]; then
+  NOTIFICATION_TITLE="${NOTIF_TITLE} (${PROJECT})"
+fi
 
 # --- Resolve TTY for escape sequences ---
 # Write to /dev/tty so the escape sequence reaches the terminal directly.
@@ -5665,6 +5977,9 @@ _peon_esc() {
 if [ -n "$TITLE" ]; then
   _peon_esc "$(printf '\033]0;%s\007' "$TITLE")"
 fi
+
+# --- Mirror the status into cmux's sidebar pill ---
+_cmux_update_status_async
 
 # --- Set iTerm2 tab color (OSC 6) ---
 # Detects iTerm2 via ITERM_SESSION_ID (persists inside tmux where TERM_PROGRAM=tmux).
@@ -5760,8 +6075,18 @@ _run_sound_and_notify() {
 
   # --- Smart notification: only when terminal is NOT frontmost ---
   if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
+    local _force_cmux_standard_notify=false
+    if [ "$PEON_PLATFORM" = "mac" ] && [ "${NOTIF_STYLE:-overlay}" = "standard" ] && _is_cmux_session; then
+      _force_cmux_standard_notify=true
+    fi
     [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
-    [ "$_focused" != "true" ] && send_notification "$MSG" "$TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
+    _peon_log notify "gate event=${EVENT:-} focused=$_focused paused=$PAUSED desktop=${DESKTOP_NOTIF:-true} style=${NOTIF_STYLE:-overlay} cmux_standard=$_force_cmux_standard_notify title=$(printf '%q' "$NOTIFICATION_TITLE") msg=$(printf '%q' "$MSG")"
+    if [ "$_focused" != "true" ] || [ "$_force_cmux_standard_notify" = "true" ]; then
+      _peon_log notify "dispatch event=${EVENT:-} focused=$_focused style=${NOTIF_STYLE:-overlay} cmux_standard=$_force_cmux_standard_notify"
+      send_notification "$MSG" "$NOTIFICATION_TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
+    else
+      _peon_log notify "suppressed event=${EVENT:-} focused=$_focused style=${NOTIF_STYLE:-overlay}"
+    fi
   fi
 
   # --- Mobile push notification (always sends when configured, regardless of focus) ---
