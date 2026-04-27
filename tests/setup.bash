@@ -119,6 +119,7 @@ JSON
   },
   "annoyed_threshold": 3,
   "annoyed_window_seconds": 10,
+  "terminal_tab_title": true,
   "session_start_cooldown_seconds": 0
 }
 JSON

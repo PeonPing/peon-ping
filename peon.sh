@@ -4436,6 +4436,7 @@ suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).l
 suppress_delegate = str(cfg.get('suppress_delegate_sessions', False)).lower() == 'true'
 headphones_only = str(cfg.get('headphones_only', False)).lower() == 'true'
 meeting_detect = str(cfg.get('meeting_detect', False)).lower() == 'true'
+terminal_tab_title = str(cfg.get('terminal_tab_title', True)).lower() != 'false'
 suppress_sound_when_tab_focused = str(cfg.get('suppress_sound_when_tab_focused', False)).lower() == 'true'
 
 log('config', loaded=config_path, volume=volume, pack=active_pack, enabled=True)
@@ -5441,6 +5442,7 @@ mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
 print('HEADPHONES_ONLY=' + ('true' if headphones_only else 'false'))
 print('MEETING_DETECT=' + ('true' if meeting_detect else 'false'))
+print('TERMINAL_TAB_TITLE=' + ('true' if terminal_tab_title else 'false'))
 print('SUPPRESS_SOUND_WHEN_TAB_FOCUSED=' + ('true' if suppress_sound_when_tab_focused else 'false'))
 print('SOUND_FILE=' + q(sound_file))
 print('ICON_PATH=' + q(icon_path))
@@ -5511,8 +5513,10 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
   fi
   # Maintain tab title even on suppressed events (plan mode, unknown events, subagent start).
   # PROJECT is only emitted by paths that should maintain the title; agent/disabled paths omit it.
-  if [ -n "${PROJECT:-}" ] && [ "${EVENT:-}" != "SessionEnd" ]; then
-    { printf '\033]0;%s\007' "${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS:-working}" > /dev/tty; } 2>/dev/null || true
+  if [ "${TERMINAL_TAB_TITLE:-true}" = "true" ] && [ -n "${PROJECT:-}" ] && [ "${EVENT:-}" != "SessionEnd" ]; then
+    _peon_title="${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS:-working}"
+    [ "${PEON_TEST:-0}" = "1" ] && printf '%s\n' "$_peon_title" > "$PEON_DIR/.tab_title"
+    { printf '\033]0;%s\007' "$_peon_title" > /dev/tty; } 2>/dev/null || true
   fi
   exit 0
 fi
@@ -5662,7 +5666,8 @@ _peon_esc() {
 }
 
 # --- Set tab title via ANSI escape (works in Warp, iTerm2, Terminal.app, etc.) ---
-if [ -n "$TITLE" ]; then
+if [ "${TERMINAL_TAB_TITLE:-true}" = "true" ] && [ -n "$TITLE" ]; then
+  [ "${PEON_TEST:-0}" = "1" ] && printf '%s\n' "$TITLE" > "$PEON_DIR/.tab_title"
   _peon_esc "$(printf '\033]0;%s\007' "$TITLE")"
 fi
 

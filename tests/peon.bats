@@ -606,9 +606,23 @@ JSON
 # ============================================================
 
 @test "project name extracted from cwd" {
-  run_peon '{"hook_event_name":"SessionStart","cwd":"/Users/dev/my-cool-project","session_id":"s1","permission_mode":"default"}'
+  run_peon '{"hook_event_name":"Stop","cwd":"/Users/dev/my-cool-project","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
-  # Can't easily check printf escape output, but at least it didn't crash
+  [ -f "$TEST_DIR/.tab_title" ]
+  grep -q "my-cool-project: done" "$TEST_DIR/.tab_title"
+}
+
+@test "terminal_tab_title false skips tab title updates" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['terminal_tab_title'] = False
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  rm -f "$TEST_DIR/.tab_title"
+  run_peon '{"hook_event_name":"Stop","cwd":"/Users/dev/my-cool-project","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$TEST_DIR/.tab_title" ]
 }
 
 @test "empty cwd falls back to 'claude'" {
