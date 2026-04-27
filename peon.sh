@@ -1018,6 +1018,29 @@ for key in SHARED_KEYS:
         dst[key] = src[key]
         changed = True
 
+src_categories = src.get('categories')
+if isinstance(src_categories, dict):
+    dst_categories = dst.get('categories')
+    if not isinstance(dst_categories, dict):
+        dst_categories = {}
+    merged_categories = dict(dst_categories)
+    for key, value in src_categories.items():
+        if merged_categories.get(key) != value:
+            merged_categories[key] = value
+            changed = True
+    if merged_categories != dst.get('categories'):
+        dst['categories'] = merged_categories
+        changed = True
+
+threshold_map = (
+    ('annoyed_threshold', 'spam_threshold'),
+    ('annoyed_window_seconds', 'spam_window_seconds'),
+)
+for src_key, dst_key in threshold_map:
+    if src_key in src and src[src_key] != dst.get(dst_key):
+        dst[dst_key] = src[src_key]
+        changed = True
+
 if changed:
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     json.dump(dst, open(dst_path, 'w'), indent=2)
@@ -4421,6 +4444,35 @@ else:
 if _config_error:
     log('config', error=_config_error, fallback='defaults')
 
+# --- Parse event JSON from stdin ---
+event_data = json.load(sys.stdin)
+raw_event = event_data.get('hook_event_name', '')
+session_source = event_data.get('source', '')
+
+opencode_cfg = os.path.join(os.environ.get('XDG_CONFIG_HOME', os.path.join(os.path.expanduser('~'), '.config')), 'opencode', 'peon-ping', 'config.json')
+session_source_key = str(session_source or '').strip().lower().replace(' ', '-').replace('_', '-')
+if session_source_key in ('opencode', 'open-code'):
+    session_source_key = 'opencode'
+if session_source_key == 'opencode' and os.path.isfile(opencode_cfg):
+    try:
+        opencode_override = json.load(open(opencode_cfg))
+    except Exception:
+        opencode_override = {}
+    if isinstance(opencode_override, dict):
+        for key in ('default_pack', 'active_pack', 'volume', 'enabled', 'desktop_notifications',
+                    'pack_rotation', 'pack_rotation_mode', 'path_rules', 'exclude_dirs',
+                    'ide_rules', 'mobile_notify'):
+            if key in opencode_override:
+                cfg[key] = opencode_override[key]
+        if isinstance(opencode_override.get('categories'), dict):
+            merged_categories = dict(cfg.get('categories', {}) or {})
+            merged_categories.update(opencode_override['categories'])
+            cfg['categories'] = merged_categories
+        if 'spam_threshold' in opencode_override:
+            cfg['annoyed_threshold'] = opencode_override['spam_threshold']
+        if 'spam_window_seconds' in opencode_override:
+            cfg['annoyed_window_seconds'] = opencode_override['spam_window_seconds']
+
 volume = cfg.get('volume', 0.5)
 desktop_notif = cfg.get('desktop_notifications', True)
 use_sound_effects_device = cfg.get('use_sound_effects_device', True)
@@ -4429,8 +4481,8 @@ tab_color_cfg = cfg.get('tab_color', {})
 tab_color_enabled = str(tab_color_cfg.get('enabled', True)).lower() != 'false'
 active_pack = cfg.get('default_pack', cfg.get('active_pack', 'peon'))
 pack_rotation = cfg.get('pack_rotation', [])
-annoyed_threshold = int(cfg.get('annoyed_threshold', 3))
-annoyed_window = float(cfg.get('annoyed_window_seconds', 10))
+annoyed_threshold = int(cfg.get('annoyed_threshold', cfg.get('spam_threshold', 3)))
+annoyed_window = float(cfg.get('annoyed_window_seconds', cfg.get('spam_window_seconds', 10)))
 silent_window = float(cfg.get('silent_window_seconds', 0))
 suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).lower() == 'true'
 suppress_delegate = str(cfg.get('suppress_delegate_sessions', False)).lower() == 'true'
@@ -4446,10 +4498,6 @@ default_off = {'task.acknowledge'}
 for c in ['session.start','task.acknowledge','task.complete','task.error','input.required','resource.limit','user.spam']:
     default = False if c in default_off else True
     cat_enabled[c] = str(cats.get(c, default)).lower() == 'true'
-
-# --- Parse event JSON from stdin ---
-event_data = json.load(sys.stdin)
-raw_event = event_data.get('hook_event_name', '')
 
 # Cursor IDE sends lowercase camelCase event names via its Third-party skills
 # (Claude Code compatibility) mode. Map them to the PascalCase names used below.

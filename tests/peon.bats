@@ -2828,6 +2828,27 @@ assert cfg['categories']['session.end'] == True, 'session.end category should be
 "
 }
 
+@test "packs use syncs categories and spam settings to OpenCode adapter config" {
+  setup_adapter_sync
+  python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['categories']['user.spam'] = False
+cfg['annoyed_threshold'] = 7
+cfg['annoyed_window_seconds'] = 22
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  bash "$PEON_SH" packs use sc_kerrigan
+  python3 -c "
+import json
+cfg = json.load(open('$XDG_CONFIG_HOME/opencode/peon-ping/config.json'))
+assert cfg['categories']['user.spam'] == False, 'expected user.spam category synced'
+assert cfg['spam_threshold'] == 7, 'expected spam_threshold synced from annoyed_threshold'
+assert cfg['spam_window_seconds'] == 22, 'expected spam_window_seconds synced from annoyed_window_seconds'
+assert cfg['debounce_ms'] == 500, 'debounce_ms should still be preserved'
+"
+}
+
 @test "packs next syncs default_pack to OpenCode adapter config" {
   setup_adapter_sync
   bash "$PEON_SH" packs next
@@ -3083,6 +3104,21 @@ JSON
   afplay_was_called
   sound=$(afplay_sound)
   [[ "$sound" == *"/packs/peon/sounds/Ack"* ]]
+}
+
+@test "OpenCode events respect OpenCode config categories" {
+  export XDG_CONFIG_HOME="$TEST_DIR/xdg_config"
+  mkdir -p "$XDG_CONFIG_HOME/opencode/peon-ping"
+  cat > "$XDG_CONFIG_HOME/opencode/peon-ping/config.json" <<'JSON'
+{
+  "categories": {
+    "session.start": false
+  }
+}
+JSON
+  run_peon '{"hook_event_name":"SessionStart","source":"opencode","cwd":"/tmp/myproject","session_id":"oc-1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
 }
 
 # ============================================================
