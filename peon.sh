@@ -642,61 +642,12 @@ _is_cmux_session() {
   { [ -n "${CMUX_SURFACE_ID:-}" ] || [ -n "${CMUX_PANEL_ID:-}" ]; } && { [ -n "${CMUX_SOCKET_PATH:-}" ] || [ -n "${CMUX_SOCKET:-}" ]; }
 }
 
-_cmux_should_manage_status() {
-  # cmux has its own native Claude Code integration. Avoid duplicating its
-  # sidebar status pill when peon-ping is running inside Claude Code itself.
-  _is_cmux_session || return 1
-  case "${SESSION_ID:-}" in
-    codex-*) return 0 ;;
-  esac
-  [ -z "${CLAUDE_CODE_ENTRYPOINT:-}" ]
-}
-
 _cmux_cli_path() {
   if [ -n "${CMUX_BUNDLED_CLI_PATH:-}" ] && [ -x "${CMUX_BUNDLED_CLI_PATH:-}" ]; then
     printf '%s\n' "$CMUX_BUNDLED_CLI_PATH"
     return
   fi
   command -v cmux 2>/dev/null || true
-}
-
-_cmux_workspace_ref() {
-  local cmux_cli="$1"
-  local cmux_workspace_id="${2:-}"
-  [ -n "$cmux_cli" ] || return 1
-  [ -n "$cmux_workspace_id" ] || return 1
-
-  local cmux_workspace_field_helper
-  cmux_workspace_field_helper="$(find_bundled_script "cmux-workspace-field.sh")" 2>/dev/null || return 1
-  "$cmux_workspace_field_helper" ref "$cmux_cli" "" "$cmux_workspace_id" 2>/dev/null
-}
-
-_cmux_status_call() {
-  local cmux_cli="$1"
-  shift
-
-  local -a cmd=("$cmux_cli")
-
-  local attempt out rc
-  for attempt in 1 2 3 4; do
-    out=$("${cmd[@]}" "$@" 2>&1)
-    rc=$?
-    if [ "$rc" -eq 0 ]; then
-      return 0
-    fi
-
-    case "$out" in
-      *"Broken pipe"*|*"errno 32"*)
-        [ "$attempt" -lt 4 ] || return "$rc"
-        sleep 0.2
-        ;;
-      *)
-        return "$rc"
-        ;;
-    esac
-  done
-
-  return 1
 }
 
 _mac_cmux_bundle_id() {
@@ -724,6 +675,8 @@ _cmux_surface_is_current() {
   fi
   [ -n "$identify_json" ] || return 1
 
+  # cmux identify payloads have used both surface/panel and id/ref fields. Accept
+  # all known shapes so focus suppression does not depend on one CLI revision.
   IDENTIFY_JSON="$identify_json" python3 - "$CMUX_SURFACE_ID" "${CMUX_WORKSPACE_ID:-}" <<'PY' >/dev/null 2>&1
 import json
 import os
@@ -758,84 +711,20 @@ PY
 }
 
 # --- Update the cmux sidebar status pill for this workspace ---
-# Mirrors the tab-title status ("ready"/"working"/"done"/"needs approval"/
-# "question"/"error"/"compacting") as a pill in cmux's workspace sidebar.
-# No-op outside cmux sessions or when the CLI isn't on PATH.
+# The helper owns cmux-specific policy and CLI calls; peon.sh only forwards the
+# upstream status context it already computed.
 _cmux_update_status() {
-  if ! _cmux_should_manage_status; then
-    return 0
-  fi
-  local cmux_cli
-  cmux_cli="$(_cmux_cli_path)"
-  if [ -z "$cmux_cli" ]; then
-    return 0
-  fi
-
-  local key="peon"
-  local cmux_status_args=()
-  local cmux_workspace_arg=""
-  if [ -n "${CMUX_WORKSPACE_ID:-}" ]; then
-    cmux_workspace_arg="$(_cmux_workspace_ref "$cmux_cli" "$CMUX_WORKSPACE_ID" 2>/dev/null || true)"
-    [ -z "$cmux_workspace_arg" ] && cmux_workspace_arg="$CMUX_WORKSPACE_ID"
-    cmux_status_args+=(--workspace "$cmux_workspace_arg")
-  fi
-  if [ "${EVENT:-}" = "SessionEnd" ]; then
-    _cmux_status_call "$cmux_cli" clear-status "$key" "${cmux_status_args[@]}" >/dev/null 2>&1
-    return 0
-  fi
-
-  local value="${STATUS:-}"
-  if [ -z "$value" ]; then
-    return 0
-  fi
-
-  local icon="" color=""
-  local display_value="$value"
-  case "$value" in
-    ready|working)
-      display_value="Running"
-      icon="bolt.fill"
-      color="#4C8DFF"
-      ;;
-    done)
-      display_value="Idle"
-      icon="pause.circle.fill"
-      color=""
-      ;;
-    "needs approval"|question)
-      display_value="Needs input"
-      icon="bell.fill"
-      color="#4C8DFF"
-      ;;
-    error)
-      display_value="Error"
-      icon="exclamationmark.triangle.fill"
-      color=""
-      ;;
-    compacting)
-      display_value="Running"
-      icon="archivebox.fill"
-      color="#AC8D00"
-      ;;
-    *)
-      return 0
-      ;;
-  esac
-
-  if [ -n "${IDE_LABEL:-}" ]; then
-    display_value="${IDE_LABEL}: ${display_value}"
-  fi
-
-  local cmux_call_args=(set-status "$key" "$display_value")
-  [ -n "$icon" ] && cmux_call_args+=(--icon "$icon")
-  [ -n "$color" ] && cmux_call_args+=(--color "$color")
-  _cmux_status_call "$cmux_cli" "${cmux_call_args[@]}" "${cmux_status_args[@]}" >/dev/null 2>&1
+  local cmux_status_presentation
+  cmux_status_presentation="$(find_bundled_script "cmux-status-presentation.sh")" 2>/dev/null || return 0
+  "$cmux_status_presentation" update "${EVENT:-}" "${STATUS:-}" "${IDE_LABEL:-}" "${SESSION_ID:-}" >/dev/null 2>&1 || true
 }
 
 _cmux_update_status_async() {
   if [ "${PEON_TEST:-0}" = "1" ]; then
     _cmux_update_status
   else
+    # Status mirroring is cosmetic; it should not delay sounds, notifications,
+    # or the hook process returning control to the IDE.
     ( _cmux_update_status ) >/dev/null 2>&1 &
   fi
 }
@@ -955,11 +844,13 @@ send_notification() {
       if [ "$PEON_PLATFORM" = "mac" ]; then
         export PEON_BUNDLE_ID="$(_mac_terminal_bundle_id)"
         export PEON_IDE_PID="$(_mac_ide_pid)"
-        if _is_cmux_session; then
+        _peon_cmux_surface="${CMUX_SURFACE_ID:-${CMUX_PANEL_ID:-}}"
+        _peon_cmux_cli="$(_cmux_cli_path)"
+        if [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "$_peon_cmux_surface" ] && [ -n "$_peon_cmux_cli" ]; then
           export PEON_CMUX_WORKSPACE_ID="${CMUX_WORKSPACE_ID:-}"
-          export PEON_CMUX_SURFACE_ID="${CMUX_SURFACE_ID:-${CMUX_PANEL_ID:-}}"
+          export PEON_CMUX_SURFACE_ID="$_peon_cmux_surface"
           export PEON_CMUX_SOCKET_PATH="${CMUX_SOCKET_PATH:-${CMUX_SOCKET:-}}"
-          export PEON_CMUX_CLI="$(_cmux_cli_path)"
+          export PEON_CMUX_CLI="$_peon_cmux_cli"
         else
           export PEON_CMUX_WORKSPACE_ID=""
           export PEON_CMUX_SURFACE_ID=""
@@ -5104,6 +4995,7 @@ state_dirty = True
 
 # --- Project name (priority chain: session_names[id] > CLAUDE_SESSION_NAME > .peon-label > notification_title_script > project_name_map > title_override > git repo > folder) ---
 project = None
+project_from_title_override = False
 
 # -1. State-based session name (set via /peon-ping-rename, highest priority)
 if session_id:
@@ -5157,7 +5049,9 @@ if not project:
 # 3. Static override
 if not project:
     _ov = cfg.get('notification_title_override', '')
-    if _ov: project = str(_ov)[:50]
+    if _ov:
+        project = str(_ov)[:50]
+        project_from_title_override = True
 
 # 4. Git repo name
 if not project and cwd:
@@ -5186,13 +5080,11 @@ project = re.sub(r'[^a-zA-Z0-9 ._-]', '', project)
 ide_label = display_ide_name(session_ide)
 notification_project = f'{project} - {ide_label}' if cfg.get('notification_title_ide', False) and ide_label else project
 
-def notification_message(status_value, *details):
-    parts = [str(status_value or '').strip()]
-    parts.extend(str(detail or '').strip() for detail in details)
-    parts = [part for part in parts if part]
-    if len(parts) <= 1:
-        return parts[0] if parts else ''
-    return parts[0] + ': ' + ' - '.join(parts[1:])
+cmux_session = (
+    bool(os.environ.get('CMUX_SURFACE_ID') or os.environ.get('CMUX_PANEL_ID')) and
+    bool(os.environ.get('CMUX_WORKSPACE_ID'))
+)
+cmux_notification_path = cmux_session and cfg.get('notification_style', 'overlay') == 'standard'
 
 def first_excerpt(*values):
     for value in values:
@@ -5213,16 +5105,23 @@ message_excerpt = first_excerpt(
     event_data.get('text', ''),
 )
 
-cmux_session = (
-    bool(os.environ.get('CMUX_SURFACE_ID') or os.environ.get('CMUX_PANEL_ID')) and
-    bool(os.environ.get('CMUX_SOCKET_PATH') or os.environ.get('CMUX_SOCKET'))
-)
-cmux_notification_path = cmux_session and cfg.get('notification_style', 'overlay') == 'standard'
-
-def cmux_notify_body(default_text, fallback_text):
+def notification_message(status_value, *details):
+    parts = [str(status_value or '').strip()]
+    parts.extend(str(detail or '').strip() for detail in details)
+    parts = [part for part in parts if part]
     if cmux_notification_path:
-        return message_excerpt or default_text
-    return fallback_text
+        if message_excerpt:
+            return message_excerpt
+        if parts:
+            if parts[0] == 'done':
+                return 'Idle'
+            if parts[0] == 'question':
+                return parts[1] if len(parts) > 1 else 'Question pending'
+            if parts[0] == 'needs approval':
+                return 'Requires permissions'
+    if len(parts) <= 1:
+        return parts[0] if parts else ''
+    return parts[0] + ': ' + ' - '.join(parts[1:])
 
 # --- Event routing ---
 category = ''
@@ -5311,7 +5210,7 @@ elif event == 'Stop':
         marker = '\u25cf '
         notify = '1'
         notify_color = 'blue'
-        msg = cmux_notify_body('Idle', notification_message(status))
+        msg = notification_message(status)
         msg_subtitle = ''
     else:
         category = ''
@@ -5326,14 +5225,14 @@ elif event == 'Notification':
         marker = '\u25cf '
         notify = '1'
         notify_color = 'yellow'
-        msg = cmux_notify_body('Idle', notification_message(status))
+        msg = notification_message(status)
     elif ntype == 'elicitation_dialog':
         category = 'input.required'
         status = 'question'
         marker = '\u25cf '
         notify = '1'
         notify_color = 'blue'
-        msg = cmux_notify_body('Question pending', notification_message(status, 'Question pending'))
+        msg = notification_message(status, 'Question pending')
         msg_subtitle = 'Question pending'
     else:
         # Unknown notification type — maintain tab title (e.g. plan mode events)
@@ -5358,7 +5257,7 @@ elif event == 'PermissionRequest':
     notify = '1'
     notify_color = 'red'
     _tool = event_data.get('tool_name', '')
-    msg = cmux_notify_body('Requires permissions', notification_message(status, _tool))
+    msg = notification_message(status, _tool)
 elif event == 'PostToolUseFailure':
     # Bash failures arrive here with error field (e.g. Exit code 1)
     tool_name = event_data.get('tool_name', '')
@@ -5840,6 +5739,7 @@ print('PEON_EXIT=false')
 print('EVENT=' + q(event))
 print('VOLUME=' + q(str(volume)))
 print('PROJECT=' + q(project))
+print('PROJECT_FROM_TITLE_OVERRIDE=' + ('true' if project_from_title_override else 'false'))
 print('IDE_LABEL=' + q(ide_label))
 print('NOTIFICATION_TITLE_IDE=' + ('true' if cfg.get('notification_title_ide', False) else 'false'))
 print('CWD=' + q(cwd))
@@ -5903,7 +5803,7 @@ eval "$_PEON_PYOUT"
 # --- Override PROJECT with cmux workspace title ---
 # A cmux workspace's title is set by the user and doesn't have to match cwd/git
 # remote, so ask cmux directly when CMUX_WORKSPACE_ID is in the env.
-if [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then
+if [ "${PROJECT_FROM_TITLE_OVERRIDE:-false}" != "true" ] && [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then
   _cmux_workspace_field_helper="$(find_bundled_script "cmux-workspace-field.sh")" 2>/dev/null || _cmux_workspace_field_helper=""
   if [ -n "$_cmux_workspace_field_helper" ]; then
     _cmux_title=$(bash "$_cmux_workspace_field_helper" title "$(_cmux_cli_path)" "" "$CMUX_WORKSPACE_ID" 2>/dev/null)
@@ -5912,7 +5812,7 @@ if [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then
     fi
   fi
 fi
-if _is_cmux_session && [ -n "${MSG:-}" ] && [ -n "${PROJECT:-}" ]; then
+if [ -n "${MSG:-}" ] && [ -n "${PROJECT:-}" ]; then
   NOTIFY_PROJECT="$PROJECT"
   if [ "${NOTIFICATION_TITLE_IDE:-false}" = "true" ] && [ -n "${IDE_LABEL:-}" ]; then
     NOTIFY_PROJECT="${PROJECT} - ${IDE_LABEL}"
@@ -6097,7 +5997,7 @@ fi
 
 # --- Build notification title ---
 TITLE="${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS}"
-NOTIFY_TITLE="${NOTIF_MARKER-${MARKER}}${NOTIFY_PROJECT:-$PROJECT}"
+NOTIFY_TITLE="${NOTIFY_PROJECT:-$PROJECT}"
 
 # --- Resolve TTY for escape sequences ---
 # Write to /dev/tty so the escape sequence reaches the terminal directly.

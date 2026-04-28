@@ -1434,7 +1434,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   [ "$val" = "🔔" ]
 }
 
-@test "notification_title_marker appears in notification title" {
+@test "notification_title_marker appears in tab title but not notification title" {
   /usr/bin/python3 -c "
 import json
 cfg = json.load(open('$TEST_DIR/config.json'))
@@ -1444,7 +1444,9 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
-  grep -q "●" "$TEST_DIR/terminal_notifier.log"
+  [ -f "$TEST_DIR/.tab_title" ]
+  grep -q "●myproject: done" "$TEST_DIR/.tab_title"
+  ! grep -q "●" "$TEST_DIR/terminal_notifier.log"
 }
 
 @test "notification_title_marker empty removes marker from title" {
@@ -4759,9 +4761,50 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
 
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/cmux.log" ]
-  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title ●test - OpenAI Codex"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title test - OpenAI Codex"* ]]
   [[ "$(cat "$TEST_DIR/cmux.log")" == *"--body Idle"* ]]
   ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title"*": Idle"* ]]
+}
+
+@test "cmux notification title uses workspace and IDE without socket env" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_style'] = 'standard'
+c['notification_title_ide'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-title","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title test - OpenAI Codex"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--body Idle"* ]]
+}
+
+@test "cmux notification title override beats workspace title" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_style'] = 'standard'
+c['notification_title_override'] = 'Manual Title'
+c['notification_title_ide'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"","session_id":"codex-title","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title Manual Title - OpenAI Codex"* ]]
+  ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title test"* ]]
 }
 
 # ============================================================

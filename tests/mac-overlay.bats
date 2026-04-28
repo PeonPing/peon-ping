@@ -179,6 +179,24 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   ! [[ "$(overlay_log)" == *" Idle "* ]]
 }
 
+@test "macOS overlay uses cmux workspace and IDE title without socket env" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_title_ide'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-overlay-title","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"test - OpenAI Codex"* ]]
+  ! [[ "$(overlay_log)" == *" Idle "* ]]
+}
+
 @test "overlay click helper focuses targeted cmux panel" {
   run "$TEST_DIR/scripts/cmux-focus.sh" "$MOCK_BIN/cmux" "/tmp/cmux-test.sock" "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222"
   [ "$status" -eq 0 ]

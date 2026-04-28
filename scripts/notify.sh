@@ -258,6 +258,8 @@ case "$PEON_PLATFORM" in
     cmux_surface_id="${PEON_CMUX_SURFACE_ID:-}"
     cmux_socket_path="${PEON_CMUX_SOCKET_PATH:-}"
     cmux_cli="${PEON_CMUX_CLI:-}"
+    cmux_target_ready=false
+    [ -n "$cmux_cli" ] && [ -n "$cmux_workspace_id" ] && [ -n "$cmux_surface_id" ] && cmux_target_ready=true
     click_command="${PEON_CLICK_COMMAND:-}"
     cmux_focus_helper="$(_find_cmux_focus_helper)" 2>/dev/null || true
     if [ -z "$click_command" ]; then
@@ -269,7 +271,7 @@ case "$PEON_PLATFORM" in
       local_icon_arg=""
       [ -f "$icon_path" ] && local_icon_arg="$icon_path"
       overlay_msg="$msg"
-      if [ -n "$cmux_cli" ] && [ -n "$cmux_workspace_id" ] && [ -n "$cmux_surface_id" ] && [ -n "$title" ]; then
+      if [ "$cmux_target_ready" = "true" ] && [ -n "$title" ]; then
         overlay_msg="$title"
       fi
       _run_overlay() (
@@ -440,7 +442,7 @@ case "$PEON_PLATFORM" in
           ;;
         *)
           notif_subtitle="${PEON_MSG_SUBTITLE:-}"
-          if [ -n "$cmux_cli" ] && [ -n "$cmux_workspace_id" ] && [ -n "$cmux_surface_id" ]; then
+          if [ "$cmux_target_ready" = "true" ]; then
             if [ "$use_bg" = true ]; then
               cmux_notify_args=()
               cmux_notify_args+=(notify --title "$title")

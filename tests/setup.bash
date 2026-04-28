@@ -456,6 +456,10 @@ SCRIPT
     cp "$_src_dir/scripts/cmux-focus.sh" "$TEST_DIR/scripts/cmux-focus.sh"
     chmod +x "$TEST_DIR/scripts/cmux-focus.sh"
   fi
+  if [ -f "$_src_dir/scripts/cmux-status-presentation.sh" ]; then
+    cp "$_src_dir/scripts/cmux-status-presentation.sh" "$TEST_DIR/scripts/cmux-status-presentation.sh"
+    chmod +x "$TEST_DIR/scripts/cmux-status-presentation.sh"
+  fi
   if [ -f "$_src_dir/scripts/cmux-workspace-field.sh" ]; then
     cp "$_src_dir/scripts/cmux-workspace-field.sh" "$TEST_DIR/scripts/cmux-workspace-field.sh"
     chmod +x "$TEST_DIR/scripts/cmux-workspace-field.sh"
