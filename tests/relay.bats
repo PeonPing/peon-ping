@@ -85,6 +85,17 @@ start_relay() {
   [ "$output" = "OK" ]
 }
 
+@test "relay /play uses notification media role with pw-play on Linux" {
+  start_relay
+  run "$REAL_CURL" -sf "http://127.0.0.1:$RELAY_PORT/play?file=packs/peon/sounds/Hello1.wav" \
+    -H "X-Volume: 0.7"
+  [ "$status" -eq 0 ]
+  [ "$output" = "OK" ]
+  sleep 0.2
+  [ -f "$TEST_DIR/linux_audio.log" ]
+  [[ "$(linux_audio_cmdline)" == *"--media-role=Notification"* ]]
+}
+
 @test "relay /play returns 400 without file parameter" {
   start_relay
   run "$REAL_CURL" -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$RELAY_PORT/play"

@@ -301,9 +301,9 @@ play_linux_sound() {
     pw-play)
       # pw-play (PipeWire) expects volume as float 0.0-1.0 (unlike paplay 0-65536, ffplay/mpv 0-100)
       if [ "$use_bg" = true ]; then
-        nohup env LC_ALL=C pw-play --volume "$vol" "$file" >/dev/null 2>&1 &
+        nohup env LC_ALL=C pw-play --media-role=Notification --volume "$vol" "$file" >/dev/null 2>&1 &
       else
-        LC_ALL=C pw-play --volume "$vol" "$file" >/dev/null 2>&1
+        LC_ALL=C pw-play --media-role=Notification --volume "$vol" "$file" >/dev/null 2>&1
       fi
       ;;
     paplay)

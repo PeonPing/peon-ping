@@ -2280,7 +2280,7 @@ PYTHON
 # Linux volume handling per backend
 # ============================================================
 
-@test "Linux pw-play uses --volume with decimal" {
+@test "Linux pw-play uses notification media role and decimal volume" {
   export PEON_PLATFORM=linux
   for player in paplay ffplay mpv play aplay; do
     touch "$TEST_DIR/.disabled_${player}"
@@ -2291,6 +2291,7 @@ JSON
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   linux_audio_was_called
   cmdline=$(linux_audio_cmdline)
+  [[ "$cmdline" == *"--media-role=Notification"* ]]
   [[ "$cmdline" == *"--volume 0.3"* ]]
 }
 
