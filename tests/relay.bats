@@ -92,8 +92,9 @@ start_relay() {
   [ "$status" -eq 0 ]
   [ "$output" = "OK" ]
   sleep 0.2
-  [ -f "$TEST_DIR/linux_audio.log" ]
-  [[ "$(linux_audio_cmdline)" == *"--media-role=Notification"* ]]
+  linux_audio_was_called
+  cmdline=$(linux_audio_cmdline)
+  [[ "$cmdline" == *"--media-role=Notification"* ]]
 }
 
 @test "relay /play returns 400 without file parameter" {
