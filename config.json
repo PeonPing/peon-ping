@@ -16,6 +16,8 @@
   "annoyed_window_seconds": 10,
   "silent_window_seconds": 0,
   "session_start_cooldown_seconds": 30,
+  "suppress_idle_prompt_repeats": true,
+  "idle_prompt_suppress_window_seconds": 3600,
   "suppress_subagent_complete": false,
   "suppress_delegate_sessions": false,
   "no_rc": false,

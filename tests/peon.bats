@@ -87,6 +87,137 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
   [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
 }
 
+@test "idle_prompt is deduped against a recent task.complete in the same session (issue #486)" {
+  # Stop fires task.complete and stamps last_task_complete[s1]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # Subsequent idle_prompt for the same session must NOT replay the sound
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "1" ]
+}
+
+@test "idle_prompt dedupe is per-session (different session still plays)" {
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # idle_prompt in a different session id should still fire — its session has no last_task_complete record
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+}
+
+@test "idle_prompt plays again once the suppress window expires" {
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  # Push last_task_complete[s1] back beyond the configured window (default 3600s)
+  "$PEON_PY" -c "
+import json, time
+p = '$TEST_DIR/.state.json'
+state = json.load(open(p))
+state.setdefault('last_task_complete', {})['s1'] = time.time() - 4000
+# Also clear the unrelated 5s Stop debounce so we can fire fresh events
+state['last_stop_time'] = 0
+json.dump(state, open(p, 'w'))
+"
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count=$(afplay_call_count)
+  [ "$count" = "2" ]
+}
+
+@test "suppress_idle_prompt_repeats=false restores periodic idle_prompt sound" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "categories": {
+    "session.start": true,
+    "task.acknowledge": false,
+    "task.complete": true,
+    "task.error": true,
+    "input.required": true,
+    "resource.limit": true,
+    "user.spam": true
+  },
+  "annoyed_threshold": 3,
+  "annoyed_window_seconds": 10,
+  "session_start_cooldown_seconds": 0,
+  "suppress_idle_prompt_repeats": false
+}
+JSON
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+}
+
+@test "Notification elicitation_dialog is not affected by idle_prompt dedupe" {
+  # A prior task.complete must not silence a different Notification subtype
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"elicitation_dialog","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Perm"* ]]
+}
+
+@test "idle_prompt dedupe does not cross-suppress sessions that omit session_id" {
+  # Some adapters don't pass session_id. Each invocation should still play through
+  # rather than sharing a single bucket via session_id=''.
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # Push last_stop_time back so the unrelated 5s Stop debounce doesn't mask the dedupe behaviour.
+  "$PEON_PY" -c "
+import json
+p = '$TEST_DIR/.state.json'
+state = json.load(open(p))
+state['last_stop_time'] = 0
+json.dump(state, open(p, 'w'))
+"
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+}
+
+@test "debug log contains route suppression reason for idle_prompt_repeat" {
+  enable_debug_logging
+  # First Stop fires task.complete and stamps last_task_complete[s1]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # Subsequent idle_prompt within the window should be suppressed with idle_prompt_repeat
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  grep -q 'reason=idle_prompt_repeat' "$logfile"
+  grep 'reason=idle_prompt_repeat' "$logfile" | grep -q '\[route\]'
+}
+
 @test "Stop plays a complete sound" {
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
