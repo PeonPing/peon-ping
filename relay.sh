@@ -333,7 +333,7 @@ def play_sound_on_host(path, volume):
     elif HOST_PLATFORM == "linux":
         # Try players in priority order (same as peon.sh)
         players = [
-            (["pw-play", "--volume", vol, path], "pw-play"),
+            (["pw-play", "--media-role=Notification", "--volume", vol, path], "pw-play"),
             (["paplay", f"--volume={max(0, min(65536, int(float(vol) * 65536)))}", path], "paplay"),
             (["ffplay", "-nodisp", "-autoexit", "-volume", str(max(0, min(100, int(float(vol) * 100)))), path], "ffplay"),
             (["mpv", "--no-video", f"--volume={max(0, min(100, int(float(vol) * 100)))}", path], "mpv"),
