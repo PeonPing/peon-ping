@@ -822,8 +822,8 @@ _cmux_update_status() {
       ;;
   esac
 
-  if [ -n "${NOTIF_TITLE:-}" ]; then
-    display_value="${NOTIF_TITLE}: ${display_value}"
+  if [ -n "${IDE_LABEL:-}" ]; then
+    display_value="${IDE_LABEL}: ${display_value}"
   fi
 
   local cmux_call_args=(set-status "$key" "$display_value")
@@ -960,13 +960,11 @@ send_notification() {
           export PEON_CMUX_SURFACE_ID="${CMUX_SURFACE_ID:-${CMUX_PANEL_ID:-}}"
           export PEON_CMUX_SOCKET_PATH="${CMUX_SOCKET_PATH:-${CMUX_SOCKET:-}}"
           export PEON_CMUX_CLI="$(_cmux_cli_path)"
-          export PEON_NOTIF_TITLE="${NOTIF_TITLE:-}"
         else
           export PEON_CMUX_WORKSPACE_ID=""
           export PEON_CMUX_SURFACE_ID=""
           export PEON_CMUX_SOCKET_PATH=""
           export PEON_CMUX_CLI=""
-          export PEON_NOTIF_TITLE=""
         fi
         # Fallback: if no terminal bundle ID but we found an IDE ancestor,
         # derive the bundle ID from the IDE PID (for embedded terminals like Cursor)
@@ -1247,6 +1245,29 @@ for key in SHARED_KEYS:
         dst[key] = src[key]
         changed = True
 
+src_categories = src.get('categories')
+if isinstance(src_categories, dict):
+    dst_categories = dst.get('categories')
+    if not isinstance(dst_categories, dict):
+        dst_categories = {}
+    merged_categories = dict(dst_categories)
+    for key, value in src_categories.items():
+        if merged_categories.get(key) != value:
+            merged_categories[key] = value
+            changed = True
+    if merged_categories != dst.get('categories'):
+        dst['categories'] = merged_categories
+        changed = True
+
+threshold_map = (
+    ('annoyed_threshold', 'spam_threshold'),
+    ('annoyed_window_seconds', 'spam_window_seconds'),
+)
+for src_key, dst_key in threshold_map:
+    if src_key in src and src[src_key] != dst.get(dst_key):
+        dst[dst_key] = src[src_key]
+        changed = True
+
 if changed:
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     json.dump(dst, open(dst_path, 'w'), indent=2)
@@ -1493,35 +1514,34 @@ status_ide = normalize_ide_id(
 # (those are runtime state, not answerable from cwd alone).
 def resolve_active_pack():
     cwd = os.getcwd()
-    excluded_pattern = next((pat for pat in exclude_dirs if path_pattern_matches(cwd, pat)), None)
+    silenced_pattern = next((pat for pat in exclude_dirs if path_pattern_matches(cwd, pat)), None)
 
-    # 1. Path rules (unless the cwd is explicitly excluded).
-    if not excluded_pattern:
-        for r in rules:
-            pat = r.get('pattern', '')
-            pack = r.get('pack', '')
-            if cwd and pat and pack and path_pattern_matches(cwd, pat):
-                return (pack, 'path rule: ' + pat + ' -> ' + pack, None, False, excluded_pattern)
+    # 1. Path rules.
+    for r in rules:
+        pat = r.get('pattern', '')
+        pack = r.get('pack', '')
+        if cwd and pat and pack and path_pattern_matches(cwd, pat):
+            return (pack, 'path rule: ' + pat + ' -> ' + pack, None, False, silenced_pattern)
 
     # 2. IDE rules.
     for r in ide_rules:
         ide = normalize_ide_id(r.get('ide', ''))
         pack = r.get('pack', '')
         if status_ide and ide and pack and status_ide == ide:
-            return (pack, 'IDE rule: ' + ide + ' -> ' + pack, None, False, excluded_pattern)
+            return (pack, 'IDE rule: ' + ide + ' -> ' + pack, None, False, silenced_pattern)
 
     # 3. Rotation (if active).
     if rotation_list and rotation_mode in ('random', 'round-robin', 'shuffle'):
         # Rotation reason is redundant with the rotation list line shown below.
-        return (rotation_mode + ' rotation', None, None, True, excluded_pattern)
+        return (rotation_mode + ' rotation', None, None, True, silenced_pattern)
 
     # 4. Default (session_override note only).
     session_note = None
     if rotation_mode in ('session_override', 'agentskill'):
         session_note = 'session-override mode: per-session pack set via /peon-ping-use'
-    return (default_pack, None, session_note, False, excluded_pattern)
+    return (default_pack, None, session_note, False, silenced_pattern)
 
-resolved_pack, reason, session_note, is_rotation, excluded_pattern = resolve_active_pack()
+resolved_pack, reason, session_note, is_rotation, silenced_pattern = resolve_active_pack()
 resolved_display = default_display if resolved_pack == default_pack else get_display_name(resolved_pack)
 differs_from_default = resolved_pack != default_pack
 
@@ -1581,9 +1601,9 @@ else:
     pp('rotation list: none')
 pp('IDE source (status): ' + status_ide)
 pp('path rules: ' + str(len(rules)) + ' configured')
-if excluded_pattern:
-    pp('  path rules skipped here: cwd matched exclude_dirs -> ' + excluded_pattern)
-pp('excluded paths: ' + str(len(exclude_dirs)) + ' configured')
+pp('silenced dirs (exclude_dirs): ' + str(len(exclude_dirs)) + ' configured')
+if silenced_pattern:
+    pp('  SILENCED here: cwd matched exclude_dirs -> ' + silenced_pattern)
 pp('IDE rules: ' + str(len(ide_rules)) + ' configured')
 pp('installed: ' + str(pack_count) + ' pack(s)')
 
@@ -1610,6 +1630,7 @@ nd = c.get('notification_dismiss_seconds', 4)
 pp('dismiss: ' + (str(nd) + 's' if nd > 0 else 'persistent (click to dismiss)'))
 all_screens = c.get('notification_all_screens', True)
 pp('all screens: ' + ('yes' if all_screens else 'no'))
+pp('title includes IDE: ' + ('yes' if c.get('notification_title_ide', False) else 'no'))
 _lbl = c.get('notification_title_override', '')
 if _lbl:
     pp('label override: ' + _lbl)
@@ -2500,6 +2521,22 @@ import json, os, fnmatch
 config_path = os.environ.get('PEON_ENV_CONFIG', '')
 cwd = os.getcwd()
 
+def _normalize_rule_path(value):
+    if not value:
+        return ''
+    expanded = os.path.expanduser(os.path.expandvars(str(value)))
+    norm = os.path.normpath(expanded).replace('\\\\', '/')
+    return norm.rstrip('/')
+
+def path_pattern_matches(path_value, pattern):
+    if not path_value or not pattern:
+        return False
+    p = _normalize_rule_path(path_value)
+    pat = _normalize_rule_path(pattern)
+    if any(ch in pat for ch in ['*', '?', '[']):
+        return fnmatch.fnmatch(p, pat)
+    return p == pat or p.startswith(pat + '/')
+
 try:
     cfg = json.load(open(config_path))
 except Exception:
@@ -2512,7 +2549,7 @@ else:
     for rule in path_rules:
         pattern = rule.get('pattern', '')
         pack = rule.get('pack', '')
-        marker = ' *' if fnmatch.fnmatch(cwd, pattern) else ''
+        marker = ' *' if path_pattern_matches(cwd, pattern) else ''
         print(f'  {pattern} -> {pack}{marker}')
 "
         exit 0 ;;
@@ -2749,27 +2786,28 @@ if action == 'add':
         print('Usage: peon packs exclude add <glob-or-dir>', file=sys.stderr)
         sys.exit(1)
     if pattern in exclude_dirs:
-        print(f'peon-ping: exclude path already present: {pattern}')
+        print(f'peon-ping: already silencing sounds in: {pattern}')
     else:
         exclude_dirs.append(pattern)
         cfg['exclude_dirs'] = exclude_dirs
         json.dump(cfg, open(config_path, 'w'), indent=2)
-        print(f'peon-ping: excluded path rule matching for {pattern}')
+        print(f'peon-ping: sounds & notifications silenced for {pattern}')
 elif action == 'remove':
     if not pattern:
         print('Usage: peon packs exclude remove <glob-or-dir>', file=sys.stderr)
         sys.exit(1)
     new_dirs = [item for item in exclude_dirs if item != pattern]
     if len(new_dirs) == len(exclude_dirs):
-        print(f'No excluded path found for \"{pattern}\".')
+        print(f'No silenced path found for \"{pattern}\".')
     else:
         cfg['exclude_dirs'] = new_dirs
         json.dump(cfg, open(config_path, 'w'), indent=2)
-        print(f'peon-ping: removed excluded path {pattern}')
+        print(f'peon-ping: no longer silencing {pattern}')
 elif action == 'list':
     if not exclude_dirs:
-        print('No excluded paths configured.')
+        print('No silenced paths configured.')
     else:
+        print('Silenced paths (no sounds or notifications when cwd matches):')
         for item in exclude_dirs:
             marker = ' *' if path_pattern_matches(cwd, item) else ''
             print(f'  {item}{marker}')
@@ -3679,6 +3717,18 @@ if 'notification_title_marker' not in cfg:
     cfg['notification_title_marker'] = '●'
     changed = True
     migrations.append('notification_title_marker')
+if 'suppress_idle_prompt_repeats' not in cfg:
+    cfg['suppress_idle_prompt_repeats'] = True
+    changed = True
+    migrations.append('suppress_idle_prompt_repeats')
+if 'idle_prompt_suppress_window_seconds' not in cfg:
+    cfg['idle_prompt_suppress_window_seconds'] = 3600
+    changed = True
+    migrations.append('idle_prompt_suppress_window_seconds')
+if 'notification_title_ide' not in cfg:
+    cfg['notification_title_ide'] = False
+    changed = True
+    migrations.append('notification_title_ide')
 if changed:
     json.dump(cfg, open(config_path, 'w'), indent=2)
     print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
@@ -3897,9 +3947,9 @@ Pack management:
   packs ide-bind <ide> <pack> [--install]  Bind a pack to an IDE id
   packs ide-unbind <ide>  Remove an IDE binding
   packs ide-bindings      List all IDE-based pack bindings
-  packs exclude add <g>   Skip path_rules when cwd matches a glob or directory
-  packs exclude remove <g> Remove an excluded path
-  packs exclude list      List excluded paths
+  packs exclude add <g>   Silence sounds & notifications when cwd matches
+  packs exclude remove <g> Stop silencing the given path
+  packs exclude list      List silenced paths
   packs rotation list     Show current rotation list and mode
   packs rotation add <p>  Add pack(s) to rotation (comma-separated)
   packs rotation add --install <p>  Add to rotation, installing from registry if needed
@@ -4562,7 +4612,14 @@ export PEON_ENV_HOOK_TTY="$_PEON_HOOK_TTY"
 # --- Single Python call: config, event parsing, agent detection, category routing, sound picking ---
 # Consolidates 5 separate python3 invocations into one for ~120-200ms faster hook response.
 # Outputs shell variables consumed by the bash play/notify/title logic below.
-_PEON_PYOUT=$(python3 -c "
+#
+# Body is written to a tempfile and invoked by path. Passing this block via
+# `python3 -c` overflows the Windows CreateProcess argv limit (~32 KB) on
+# msys2/git-bash, causing silent E2BIG and a hook that exits 0 with no logs.
+# See https://github.com/PeonPing/peon-ping/issues/488
+_PEON_PY_TMP=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/peon-py-$$.py")
+trap 'rm -f "$_PEON_PY_TMP"' EXIT
+cat > "$_PEON_PY_TMP" <<PEON_LOCAL_PY_EOF
 import sys, json, os, re, random, time, shlex, tempfile, fnmatch
 q = shlex.quote
 _peon_start = time.monotonic()
@@ -4650,6 +4707,35 @@ else:
 if _config_error:
     log('config', error=_config_error, fallback='defaults')
 
+# --- Parse event JSON from stdin ---
+event_data = json.load(sys.stdin)
+raw_event = event_data.get('hook_event_name', '')
+session_source = event_data.get('source', '')
+
+opencode_cfg = os.path.join(os.environ.get('XDG_CONFIG_HOME', os.path.join(os.path.expanduser('~'), '.config')), 'opencode', 'peon-ping', 'config.json')
+session_source_key = str(session_source or '').strip().lower().replace(' ', '-').replace('_', '-')
+if session_source_key in ('opencode', 'open-code'):
+    session_source_key = 'opencode'
+if session_source_key == 'opencode' and os.path.isfile(opencode_cfg):
+    try:
+        opencode_override = json.load(open(opencode_cfg))
+    except Exception:
+        opencode_override = {}
+    if isinstance(opencode_override, dict):
+        for key in ('default_pack', 'active_pack', 'volume', 'enabled', 'desktop_notifications',
+                    'pack_rotation', 'pack_rotation_mode', 'path_rules', 'exclude_dirs',
+                    'ide_rules', 'mobile_notify'):
+            if key in opencode_override:
+                cfg[key] = opencode_override[key]
+        if isinstance(opencode_override.get('categories'), dict):
+            merged_categories = dict(cfg.get('categories', {}) or {})
+            merged_categories.update(opencode_override['categories'])
+            cfg['categories'] = merged_categories
+        if 'spam_threshold' in opencode_override:
+            cfg['annoyed_threshold'] = opencode_override['spam_threshold']
+        if 'spam_window_seconds' in opencode_override:
+            cfg['annoyed_window_seconds'] = opencode_override['spam_window_seconds']
+
 volume = cfg.get('volume', 0.5)
 desktop_notif = cfg.get('desktop_notifications', True)
 use_sound_effects_device = cfg.get('use_sound_effects_device', True)
@@ -4658,13 +4744,14 @@ tab_color_cfg = cfg.get('tab_color', {})
 tab_color_enabled = str(tab_color_cfg.get('enabled', True)).lower() != 'false'
 active_pack = cfg.get('default_pack', cfg.get('active_pack', 'peon'))
 pack_rotation = cfg.get('pack_rotation', [])
-annoyed_threshold = int(cfg.get('annoyed_threshold', 3))
-annoyed_window = float(cfg.get('annoyed_window_seconds', 10))
+annoyed_threshold = int(cfg.get('annoyed_threshold', cfg.get('spam_threshold', 3)))
+annoyed_window = float(cfg.get('annoyed_window_seconds', cfg.get('spam_window_seconds', 10)))
 silent_window = float(cfg.get('silent_window_seconds', 0))
 suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).lower() == 'true'
 suppress_delegate = str(cfg.get('suppress_delegate_sessions', False)).lower() == 'true'
 headphones_only = str(cfg.get('headphones_only', False)).lower() == 'true'
 meeting_detect = str(cfg.get('meeting_detect', False)).lower() == 'true'
+terminal_tab_title = str(cfg.get('terminal_tab_title', True)).lower() != 'false'
 suppress_sound_when_tab_focused = str(cfg.get('suppress_sound_when_tab_focused', False)).lower() == 'true'
 
 log('config', loaded=config_path, volume=volume, pack=active_pack, enabled=True)
@@ -4675,10 +4762,6 @@ default_off = {'task.acknowledge'}
 for c in ['session.start','task.acknowledge','task.complete','task.error','input.required','resource.limit','user.spam']:
     default = False if c in default_off else True
     cat_enabled[c] = str(cats.get(c, default)).lower() == 'true'
-
-# --- Parse event JSON from stdin ---
-event_data = json.load(sys.stdin)
-raw_event = event_data.get('hook_event_name', '')
 
 # Cursor IDE sends lowercase camelCase event names via its Third-party skills
 # (Claude Code compatibility) mode. Map them to the PascalCase names used below.
@@ -4769,6 +4852,30 @@ def detect_session_ide(source_value, event_payload, session_value):
             return ide
     return 'claude'
 
+IDE_DISPLAY_NAMES = {
+    'claude': 'Claude Code',
+    'codex': 'OpenAI Codex',
+    'cursor': 'Cursor',
+    'opencode': 'OpenCode',
+    'kilo': 'Kilo CLI',
+    'kiro': 'Kiro',
+    'gemini': 'Gemini CLI',
+    'copilot': 'GitHub Copilot',
+    'windsurf': 'Windsurf',
+    'kimi': 'Kimi Code',
+    'antigravity': 'Antigravity',
+    'amp': 'Amp',
+    'deepagents': 'DeepAgents',
+    'openclaw': 'OpenClaw',
+    'rovodev': 'Rovo Dev CLI',
+}
+
+def display_ide_name(ide_id):
+    key = normalize_ide_id(ide_id)
+    if not key:
+        return ''
+    return IDE_DISPLAY_NAMES.get(key, key.replace('-', ' ').title())
+
 def normalize_path_value(value):
     raw = str(value or '').strip()
     if not raw:
@@ -4791,6 +4898,18 @@ def path_pattern_matches(path_value, pattern):
 session_ide = detect_session_ide(session_source, event_data, session_id)
 
 log('hook', event=event, session=session_id, cwd=cwd, paused=paused)
+
+# --- exclude_dirs: silence all sounds/notifications when cwd matches ---
+# Checked before state load so excluded dirs are cheap no-ops.
+_excluded_dir_pattern = next(
+    (pat for pat in (cfg.get('exclude_dirs', []) or []) if path_pattern_matches(cwd, pat)),
+    None,
+)
+if _excluded_dir_pattern:
+    log('route', category='none', suppressed=True, reason='excluded_dir', pattern=_excluded_dir_pattern)
+    log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
+    print('PEON_EXIT=true')
+    sys.exit(0)
 
 # --- Load state ---
 state = read_state(state_file)
@@ -4855,17 +4974,16 @@ if recent_ide_sources != state.get('recent_ide_sources', {}):
 rotation_mode = cfg.get('pack_rotation_mode', 'random')
 
 # --- Path rules and IDE rules: first match wins in each layer ---
-# session_override > path_rules (unless excluded) > ide_rules > rotation > default_pack
+# session_override > path_rules > ide_rules > rotation > default_pack
+# Note: exclude_dirs is handled earlier as a full silence short-circuit.
 _path_rule_pack = None
-_path_rule_excluded = next((pat for pat in cfg.get('exclude_dirs', []) if path_pattern_matches(cwd, pat)), None)
-if not _path_rule_excluded:
-    for _rule in cfg.get('path_rules', []):
-        _pat = _rule.get('pattern', '')
-        _candidate = _rule.get('pack', '')
-        if cwd and _pat and _candidate and path_pattern_matches(cwd, _pat):
-            if os.path.isdir(os.path.join(peon_dir, 'packs', _candidate)):
-                _path_rule_pack = _candidate
-                break
+for _rule in cfg.get('path_rules', []):
+    _pat = _rule.get('pattern', '')
+    _candidate = _rule.get('pack', '')
+    if cwd and _pat and _candidate and path_pattern_matches(cwd, _pat):
+        if os.path.isdir(os.path.join(peon_dir, 'packs', _candidate)):
+            _path_rule_pack = _candidate
+            break
 
 _ide_rule_pack = None
 for _rule in cfg.get('ide_rules', []):
@@ -5021,7 +5139,8 @@ if not project:
         try:
             import subprocess as _sp
             _env = {**os.environ, 'PEON_SESSION_ID': session_id or '', 'PEON_CWD': cwd or '',
-                    'PEON_HOOK_EVENT': event or '', 'PEON_SESSION_NAME': os.environ.get('CLAUDE_SESSION_NAME', '')}
+                    'PEON_HOOK_EVENT': event or '', 'PEON_IDE': session_ide or '',
+                    'PEON_SESSION_NAME': os.environ.get('CLAUDE_SESSION_NAME', '')}
             _r = _sp.run(_script, shell=True, capture_output=True, text=True, timeout=2, env=_env)
             _out = _r.stdout.strip()[:50]
             if _r.returncode == 0 and _out:
@@ -5064,39 +5183,16 @@ if not project:
     else:
         project = 'claude'
 project = re.sub(r'[^a-zA-Z0-9 ._-]', '', project)
+ide_label = display_ide_name(session_ide)
+notification_project = f'{project} - {ide_label}' if cfg.get('notification_title_ide', False) and ide_label else project
 
-def adapter_display_title(session_source, session_id, project):
-    src = str(session_source or '').strip().lower()
-    sid = str(session_id or '').strip().lower()
-    project_l = str(project or '').strip().lower()
-
-    def _matches(*tokens):
-        return any(
-            src == t or sid.startswith(t + '-') or project_l == t
-            for t in tokens
-        )
-
-    if _matches('rovodev'):
-        return 'Rovo Dev'
-    if _matches('codex'):
-        return 'Codex'
-    if _matches('opencode'):
-        return 'OpenCode'
-    if _matches('gemini'):
-        return 'Gemini CLI'
-    if _matches('cursor'):
-        return 'Cursor'
-    if _matches('kiro'):
-        return 'Kiro'
-    if _matches('copilot'):
-        return 'GitHub Copilot'
-    if _matches('deepagents'):
-        return 'Deepagents'
-    if _matches('openclaw'):
-        return 'OpenClaw'
-    return 'Claude Code'
-
-notif_title = adapter_display_title(session_source, session_id, project)
+def notification_message(status_value, *details):
+    parts = [str(status_value or '').strip()]
+    parts.extend(str(detail or '').strip() for detail in details)
+    parts = [part for part in parts if part]
+    if len(parts) <= 1:
+        return parts[0] if parts else ''
+    return parts[0] + ': ' + ' - '.join(parts[1:])
 
 def first_excerpt(*values):
     for value in values:
@@ -5123,10 +5219,10 @@ cmux_session = (
 )
 cmux_notification_path = cmux_session and cfg.get('notification_style', 'overlay') == 'standard'
 
-def cmux_notify_body(default_text):
+def cmux_notify_body(default_text, fallback_text):
     if cmux_notification_path:
         return message_excerpt or default_text
-    return project
+    return fallback_text
 
 # --- Event routing ---
 category = ''
@@ -5215,7 +5311,7 @@ elif event == 'Stop':
         marker = '\u25cf '
         notify = '1'
         notify_color = 'blue'
-        msg = cmux_notify_body('Idle')
+        msg = cmux_notify_body('Idle', notification_message(status))
         msg_subtitle = ''
     else:
         category = ''
@@ -5230,14 +5326,14 @@ elif event == 'Notification':
         marker = '\u25cf '
         notify = '1'
         notify_color = 'yellow'
-        msg = cmux_notify_body('Idle')
+        msg = cmux_notify_body('Idle', notification_message(status))
     elif ntype == 'elicitation_dialog':
         category = 'input.required'
         status = 'question'
         marker = '\u25cf '
         notify = '1'
         notify_color = 'blue'
-        msg = cmux_notify_body('Question pending')
+        msg = cmux_notify_body('Question pending', notification_message(status, 'Question pending'))
         msg_subtitle = 'Question pending'
     else:
         # Unknown notification type — maintain tab title (e.g. plan mode events)
@@ -5261,9 +5357,8 @@ elif event == 'PermissionRequest':
     marker = '\u25cf '
     notify = '1'
     notify_color = 'red'
-    msg = cmux_notify_body('Requires permissions')
     _tool = event_data.get('tool_name', '')
-    msg_subtitle = _tool
+    msg = cmux_notify_body('Requires permissions', notification_message(status, _tool))
 elif event == 'PostToolUseFailure':
     # Bash failures arrive here with error field (e.g. Exit code 1)
     tool_name = event_data.get('tool_name', '')
@@ -5297,7 +5392,7 @@ elif event == 'SubagentStop':
     marker = '\u25cf '
     notify = '1'
     notify_color = 'blue'
-    msg = project
+    msg = notification_message(status)
     msg_subtitle = ''
 elif event == 'SubagentStart':
     # Record parent's pack so spawned subagent sessions inherit it, then stay silent
@@ -5319,10 +5414,10 @@ elif event == 'PreCompact':
     marker = '\u25cf '
     notify = '1'
     notify_color = 'red'
-    msg = project + '  \u2014  Context compacting'
+    msg = notification_message(status, 'Context compacting')
 elif event == 'SessionEnd':
     # Clean up state for this session
-    for key in ('session_packs', 'prompt_timestamps', 'session_start_times', 'prompt_start_times', 'subagent_sessions'):
+    for key in ('session_packs', 'prompt_timestamps', 'session_start_times', 'prompt_start_times', 'subagent_sessions', 'last_task_complete'):
         d = state.get(key, {})
         if session_id in d:
             del d[session_id]
@@ -5360,6 +5455,29 @@ if event == 'Stop':
     state['last_stop_time'] = now
     state_dirty = True
 
+# --- Dedupe idle_prompt repeats against a recent task.complete (issue #486) ---
+# Claude Code re-fires Notification+idle_prompt every ~60s while the terminal is
+# unfocused. Without dedupe, the task.complete sound replays on every poke. Suppress
+# when a task.complete already fired for the same session inside the configured window.
+# Skip when session_id is empty: adapters that omit it would otherwise share a single
+# bucket and cross-suppress unrelated terminals.
+if (event == 'Notification' and ntype == 'idle_prompt'
+        and category == 'task.complete'
+        and session_id
+        and cfg.get('suppress_idle_prompt_repeats', True)):
+    _idle_window = float(cfg.get('idle_prompt_suppress_window_seconds', 3600) or 0)
+    if _idle_window > 0:
+        _last_tc_map = state.get('last_task_complete', {}) or {}
+        try:
+            _prev_tc = float(_last_tc_map.get(session_id, 0) or 0)
+        except (TypeError, ValueError):
+            # Hand-edited state with a non-numeric value — treat as no record.
+            _prev_tc = 0.0
+        if _prev_tc and (time.time() - _prev_tc) < _idle_window:
+            log('route', category='task.complete', suppressed=True, reason='idle_prompt_repeat')
+            category = ''
+            notify = ''
+
 # --- Suppress sounds during session replay (claude -c) ---
 # When continuing a session, Claude fires SessionStart then immediately replays
 # old events. Suppress all sounds within 3s of SessionStart for the same session.
@@ -5395,6 +5513,24 @@ if category and not cat_enabled.get(category, True):
     category = ''
     notify = ''
     notify_color = ''
+
+# --- Track most recent task.complete fire per session (powers idle_prompt dedupe) ---
+# Only record when session_id is non-empty so unrelated sessions without an id
+# (some adapters omit it) don't clobber each other's bucket.
+if category == 'task.complete' and session_id and not paused:
+    _last_tc_map = state.get('last_task_complete', {}) or {}
+    _last_tc_map[session_id] = time.time()
+    # Prune entries older than the suppression window to avoid unbounded growth
+    # (mirrors the subagent_sessions pruning pattern above).
+    _prune_window = float(cfg.get('idle_prompt_suppress_window_seconds', 3600) or 0)
+    if _prune_window > 0:
+        _now_ts = time.time()
+        _last_tc_map = dict(
+            (sid, ts) for sid, ts in _last_tc_map.items()
+            if isinstance(ts, (int, float)) and _now_ts - ts < _prune_window
+        )
+    state['last_task_complete'] = _last_tc_map
+    state_dirty = True
 
 # --- Log route decision ---
 if category:
@@ -5643,6 +5779,8 @@ _tpl_vars = _defaultdict(str, {
     'tool_name': event_data.get('tool_name', ''),
     'status': status,
     'event': event,
+    'ide': ide_label,
+    'ide_id': session_ide,
 })
 if _tpl:
     try:
@@ -5702,7 +5840,8 @@ print('PEON_EXIT=false')
 print('EVENT=' + q(event))
 print('VOLUME=' + q(str(volume)))
 print('PROJECT=' + q(project))
-print('NOTIF_TITLE=' + q(notif_title))
+print('IDE_LABEL=' + q(ide_label))
+print('NOTIFICATION_TITLE_IDE=' + ('true' if cfg.get('notification_title_ide', False) else 'false'))
 print('CWD=' + q(cwd))
 print('STATUS=' + q(status))
 print('MARKER=' + q(marker))
@@ -5717,6 +5856,7 @@ elif event == 'Notification':
     elif ntype == 'elicitation_dialog': _notify_type = 'question'
 print('NOTIFY_TYPE=' + q(_notify_type))
 print('MSG=' + q(msg))
+print('NOTIFY_PROJECT=' + q(notification_project))
 print('MSG_SUBTITLE=' + q(msg_subtitle))
 print('DESKTOP_NOTIF=' + ('true' if desktop_notif else 'false'))
 print('NOTIF_STYLE=' + q(cfg.get('notification_style', 'overlay')))
@@ -5735,6 +5875,7 @@ mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
 print('HEADPHONES_ONLY=' + ('true' if headphones_only else 'false'))
 print('MEETING_DETECT=' + ('true' if meeting_detect else 'false'))
+print('TERMINAL_TAB_TITLE=' + ('true' if terminal_tab_title else 'false'))
 print('SUPPRESS_SOUND_WHEN_TAB_FOCUSED=' + ('true' if suppress_sound_when_tab_focused else 'false'))
 print('SOUND_FILE=' + q(sound_file))
 print('ICON_PATH=' + q(icon_path))
@@ -5753,7 +5894,10 @@ print('TAB_COLOR_RGB=' + q(tab_color_rgb))
 _auto_debug = cfg.get('debug', False) or os.environ.get('PEON_DEBUG') == '1'
 if _auto_debug:
     print('PEON_AUTO_PRUNE=' + q(str(cfg.get('debug_retention_days', 7))))
-" <<< "$INPUT" 2>/dev/null)
+PEON_LOCAL_PY_EOF
+# Stderr intentionally NOT suppressed: silent failures here masked issue #488
+# for multiple releases. Any future exec error will surface in `peon debug`.
+_PEON_PYOUT=$(python3 "$_PEON_PY_TMP" <<< "$INPUT")
 eval "$_PEON_PYOUT"
 
 # --- Override PROJECT with cmux workspace title ---
@@ -5766,6 +5910,12 @@ if [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then
     if [ -n "$_cmux_title" ]; then
       PROJECT="$_cmux_title"
     fi
+  fi
+fi
+if _is_cmux_session && [ -n "${MSG:-}" ] && [ -n "${PROJECT:-}" ]; then
+  NOTIFY_PROJECT="$PROJECT"
+  if [ "${NOTIFICATION_TITLE_IDE:-false}" = "true" ] && [ -n "${IDE_LABEL:-}" ]; then
+    NOTIFY_PROJECT="${PROJECT} - ${IDE_LABEL}"
   fi
 fi
 
@@ -5818,8 +5968,10 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
   fi
   # Maintain tab title even on suppressed events (plan mode, unknown events, subagent start).
   # PROJECT is only emitted by paths that should maintain the title; agent/disabled paths omit it.
-  if [ -n "${PROJECT:-}" ] && [ "${EVENT:-}" != "SessionEnd" ]; then
-    { printf '\033]0;%s\007' "${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS:-working}" > /dev/tty; } 2>/dev/null || true
+  if [ "${TERMINAL_TAB_TITLE:-true}" = "true" ] && [ -n "${PROJECT:-}" ] && [ "${EVENT:-}" != "SessionEnd" ]; then
+    _peon_title="${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS:-working}"
+    [ "${PEON_TEST:-0}" = "1" ] && printf '%s\n' "$_peon_title" > "$PEON_DIR/.tab_title"
+    { printf '\033]0;%s\007' "$_peon_title" > /dev/tty; } 2>/dev/null || true
   fi
   _cmux_update_status_async
   exit 0
@@ -5945,10 +6097,7 @@ fi
 
 # --- Build notification title ---
 TITLE="${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS}"
-NOTIFICATION_TITLE="$TITLE"
-if _is_cmux_session && [ -n "${NOTIF_TITLE:-}" ] && [ -n "${PROJECT:-}" ]; then
-  NOTIFICATION_TITLE="${NOTIF_TITLE} (${PROJECT})"
-fi
+NOTIFY_TITLE="${NOTIF_MARKER-${MARKER}}${NOTIFY_PROJECT:-$PROJECT}"
 
 # --- Resolve TTY for escape sequences ---
 # Write to /dev/tty so the escape sequence reaches the terminal directly.
@@ -5974,7 +6123,8 @@ _peon_esc() {
 }
 
 # --- Set tab title via ANSI escape (works in Warp, iTerm2, Terminal.app, etc.) ---
-if [ -n "$TITLE" ]; then
+if [ "${TERMINAL_TAB_TITLE:-true}" = "true" ] && [ -n "$TITLE" ]; then
+  [ "${PEON_TEST:-0}" = "1" ] && printf '%s\n' "$TITLE" > "$PEON_DIR/.tab_title"
   _peon_esc "$(printf '\033]0;%s\007' "$TITLE")"
 fi
 
@@ -6080,10 +6230,10 @@ _run_sound_and_notify() {
       _force_cmux_standard_notify=true
     fi
     [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
-    _peon_log notify "gate event=${EVENT:-} focused=$_focused paused=$PAUSED desktop=${DESKTOP_NOTIF:-true} style=${NOTIF_STYLE:-overlay} cmux_standard=$_force_cmux_standard_notify title=$(printf '%q' "$NOTIFICATION_TITLE") msg=$(printf '%q' "$MSG")"
+    _peon_log notify "gate event=${EVENT:-} focused=$_focused paused=$PAUSED desktop=${DESKTOP_NOTIF:-true} style=${NOTIF_STYLE:-overlay} cmux_standard=$_force_cmux_standard_notify title=$(printf '%q' "$NOTIFY_TITLE") msg=$(printf '%q' "$MSG")"
     if [ "$_focused" != "true" ] || [ "$_force_cmux_standard_notify" = "true" ]; then
       _peon_log notify "dispatch event=${EVENT:-} focused=$_focused style=${NOTIF_STYLE:-overlay} cmux_standard=$_force_cmux_standard_notify"
-      send_notification "$MSG" "$NOTIFICATION_TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
+      send_notification "$MSG" "$NOTIFY_TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
     else
       _peon_log notify "suppressed event=${EVENT:-} focused=$_focused style=${NOTIF_STYLE:-overlay}"
     fi
@@ -6091,7 +6241,7 @@ _run_sound_and_notify() {
 
   # --- Mobile push notification (always sends when configured, regardless of focus) ---
   if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${MOBILE_NOTIF:-false}" = "true" ]; then
-    send_mobile_notification "$MSG" "$TITLE" "${NOTIFY_COLOR:-red}"
+    send_mobile_notification "$MSG" "$NOTIFY_TITLE" "${NOTIFY_COLOR:-red}"
   fi
 }
 

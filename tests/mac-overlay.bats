@@ -101,7 +101,7 @@ JSON
   run_peon '{"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
-  [[ "$(overlay_log)" == *"Claude Code (DC Archive)"* ]]
+  [[ "$(overlay_log)" == *"DC Archive"* ]]
   ! [[ "$(overlay_log)" == *"Requires permissions"* ]]
 }
 
@@ -175,7 +175,7 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-overlay-title","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
-  [[ "$(overlay_log)" == *"Codex (test)"* ]]
+  [[ "$(overlay_log)" == *"test"* ]]
   ! [[ "$(overlay_log)" == *" Idle "* ]]
 }
 
@@ -440,7 +440,7 @@ JSON
   [ "$PEON_EXIT" -eq 0 ]
   ! overlay_was_called
   [ -f "$TEST_DIR/terminal_notifier.log" ]
-  [[ "$(terminal_notifier_log)" == *"-message myproject"* ]]
+  [[ "$(terminal_notifier_log)" == *"-message done"* ]]
   ! [[ "$(terminal_notifier_log)" == *"-message Idle"* ]]
   ! [ -f "$TEST_DIR/osascript.log" ]
 }
@@ -463,8 +463,7 @@ JSON
     PEON_CMUX_SOCKET_PATH="/tmp/cmux-test.sock" \
     PEON_CMUX_WORKSPACE_ID="11111111-1111-1111-1111-111111111111" \
     PEON_CMUX_SURFACE_ID="22222222-2222-2222-2222-222222222222" \
-    PEON_NOTIF_TITLE="Rovo Dev" \
-    bash "$notify_script" "test msg" "fallback title" "blue" ""
+    bash "$notify_script" "test msg" "Rovo Dev (test)" "blue" ""
   [ -f "$TEST_DIR/cmux.log" ]
   [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify"* ]]
   [[ "$(cat "$TEST_DIR/cmux.log")" == *"--title Rovo Dev (test)"* ]]
@@ -811,6 +810,19 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
   [[ "$(overlay_log)" == *"myproject: Fixed the login bug"* ]]
+}
+
+@test "template: Stop with {ide} renders detected IDE label" {
+  python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_templates'] = {'stop': '{ide}: {project}'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
+"
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"OpenAI Codex: myproject"* ]]
 }
 
 @test "template: Stop without transcript_summary renders empty summary" {

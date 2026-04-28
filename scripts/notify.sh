@@ -336,8 +336,18 @@ case "$PEON_PLATFORM" in
           fi
         fi
 
+        # Prepend count badge if stacked
+        if [ "$count" -gt 1 ]; then
+          msg="($count) $msg"
+        fi
+
         local session_tty="${PEON_SESSION_TTY:-}"
+        local overlay_msg="$msg"
         local subtitle="${PEON_MSG_SUBTITLE:-}"
+        if [ -n "$title" ]; then
+          overlay_msg="$title"
+          [ -n "$msg" ] && [ -z "$subtitle" ] && subtitle="$msg"
+        fi
         local dismiss_secs="${PEON_NOTIF_DISMISS:-4}"
         local notif_position="${PEON_NOTIF_POSITION:-top-center}"
         local notify_type="${PEON_NOTIFY_TYPE:-}"
@@ -431,19 +441,14 @@ case "$PEON_PLATFORM" in
         *)
           notif_subtitle="${PEON_MSG_SUBTITLE:-}"
           if [ -n "$cmux_cli" ] && [ -n "$cmux_workspace_id" ] && [ -n "$cmux_surface_id" ]; then
-            cmux_notify_title="${PEON_NOTIF_TITLE:-$title}"
-            cmux_workspace_title="$(_cmux_workspace_title "$cmux_cli" "$cmux_workspace_id" || true)"
-            if [ -n "$cmux_workspace_title" ] && [ -n "${PEON_NOTIF_TITLE:-}" ]; then
-              cmux_notify_title="${PEON_NOTIF_TITLE} (${cmux_workspace_title})"
-            fi
             if [ "$use_bg" = true ]; then
               cmux_notify_args=()
-              cmux_notify_args+=(notify --title "$cmux_notify_title")
+              cmux_notify_args+=(notify --title "$title")
               [ -n "$notif_subtitle" ] && cmux_notify_args+=(--subtitle "$notif_subtitle")
               cmux_notify_args+=(--body "$msg" --workspace "$cmux_workspace_id" --surface "$cmux_surface_id")
               nohup "$cmux_cli" "${cmux_notify_args[@]}" >/dev/null 2>&1 &
             else
-              _cmux_notify "$cmux_cli" "$cmux_workspace_id" "$cmux_surface_id" "$cmux_notify_title" "$notif_subtitle" "$msg" || true
+              _cmux_notify "$cmux_cli" "$cmux_workspace_id" "$cmux_surface_id" "$title" "$notif_subtitle" "$msg" || true
             fi
           else
             # Native macOS Notification Center (grouped by session, rich subtitle)

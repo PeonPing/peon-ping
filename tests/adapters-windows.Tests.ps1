@@ -2284,25 +2284,62 @@ Describe "Windows IDE rules and exclude_dirs parity" {
         $script:installContent | Should -Match 'function Detect-SessionIde'
     }
 
-    It "installer template and migration include exclude_dirs and ide_rules" {
+    It "installer template and migration include exclude_dirs ide_rules and notification_title_ide" {
         $script:installContent | Should -Match 'exclude_dirs = @\(\)'
         $script:installContent | Should -Match 'ide_rules = @\(\)'
+        $script:installContent | Should -Match 'notification_title_ide = \$false'
         $script:installContent | Should -Match "Add-Member -NotePropertyName 'exclude_dirs'"
         $script:installContent | Should -Match "Add-Member -NotePropertyName 'ide_rules'"
+        $script:installContent | Should -Match "Add-Member -NotePropertyName 'notification_title_ide'"
     }
 
     It "status output surfaces IDE source excluded paths and IDE rule counts" {
         $script:installContent | Should -Match 'IDE source \(status\):'
-        $script:installContent | Should -Match 'path rules skipped here \(exclude_dirs\):'
-        $script:installContent | Should -Match 'excluded paths: \$\(\$excludeDirs.Count\) configured'
+        $script:installContent | Should -Match 'silenced dirs \(exclude_dirs\): \$\(\$excludeDirs.Count\) configured'
+        $script:installContent | Should -Match 'SILENCED here: cwd matched exclude_dirs ->'
         $script:installContent | Should -Match 'IDE rules: \$\(\$ideRules.Count\) configured'
     }
 
     It "pack selection hierarchy includes ide_rules after path_rules" {
-        $script:installContent | Should -Match 'session_override > path_rules \(unless excluded\) > ide_rules > rotation > default_pack'
+        $script:installContent | Should -Match 'session_override > path_rules > ide_rules > rotation > default_pack'
         $script:installContent | Should -Match 'if \(\$sessionIde -and \$ideRules\)'
         $script:installContent | Should -Match 'elseif \(\$pathRulePack\)'
         $script:installContent | Should -Match 'elseif \(\$ideRulePack\)'
+    }
+
+    It "embedded hook defines IDE display names map for desktop notifications" {
+        $script:installContent | Should -Match '\$ideDisplayNames = @\{'
+        $script:installContent | Should -Match "'codex' = 'OpenAI Codex'"
+        $script:installContent | Should -Match "'claude' = 'Claude Code'"
+        $script:installContent | Should -Match "'cursor' = 'Cursor'"
+    }
+
+    It "embedded hook computes ideLabel from sessionIde with title-case fallback" {
+        $script:installContent | Should -Match '\$ideLabel = '''''
+        $script:installContent | Should -Match '\$ideKey = \(Normalize-IdeId \$sessionIde\)'
+        $script:installContent | Should -Match '\$ideDisplayNames\.ContainsKey\(\$ideKey\)'
+        # Unknown IDE id falls back to titlecase of the id
+        $script:installContent | Should -Match 'Get-Culture\)\.TextInfo\.ToTitleCase'
+    }
+
+    It "notificationProject includes IDE label only when notification_title_ide is enabled" {
+        $script:installContent | Should -Match '\$notificationProject = if \(\$config\.notification_title_ide -and \$ideLabel\)'
+        $script:installContent | Should -Match '\{ "\$project - \$ideLabel" \} else \{ \$project \}'
+    }
+
+    It "desktop notification title uses notificationProject and drops trailing status" {
+        # Title is now "marker project[ - IDE]"; status info has moved to the body.
+        $script:installContent | Should -Match '\$notifTitle = "\$marker \$notificationProject"'
+        $script:installContent | Should -Not -Match '\$notifTitle = "\$marker \$project`: \$notifyStatus"'
+    }
+
+    It "notifyMsg body carries status (and details) instead of repeating project" {
+        # On Stop the body should be just the status word (e.g. "done"), not the project name.
+        $script:installContent | Should -Match '\$notifyStatus = "done"\s+\$notifyMsg = \$notifyStatus'
+        # PermissionRequest should append the tool name as detail.
+        $script:installContent | Should -Match '\$notifyMsg = if \(\$_tool\) \{ "\$notifyStatus`: \$_tool" \} else \{ \$notifyStatus \}'
+        # PreCompact should explain the resource limit.
+        $script:installContent | Should -Match '\$notifyMsg = "\$notifyStatus`: Context compacting"'
     }
 
     It "PowerShell adapters tag emitted events with a source id" -ForEach @(

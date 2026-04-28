@@ -87,6 +87,137 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
   [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
 }
 
+@test "idle_prompt is deduped against a recent task.complete in the same session (issue #486)" {
+  # Stop fires task.complete and stamps last_task_complete[s1]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # Subsequent idle_prompt for the same session must NOT replay the sound
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "1" ]
+}
+
+@test "idle_prompt dedupe is per-session (different session still plays)" {
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # idle_prompt in a different session id should still fire — its session has no last_task_complete record
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+}
+
+@test "idle_prompt plays again once the suppress window expires" {
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  # Push last_task_complete[s1] back beyond the configured window (default 3600s)
+  "$PEON_PY" -c "
+import json, time
+p = '$TEST_DIR/.state.json'
+state = json.load(open(p))
+state.setdefault('last_task_complete', {})['s1'] = time.time() - 4000
+# Also clear the unrelated 5s Stop debounce so we can fire fresh events
+state['last_stop_time'] = 0
+json.dump(state, open(p, 'w'))
+"
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count=$(afplay_call_count)
+  [ "$count" = "2" ]
+}
+
+@test "suppress_idle_prompt_repeats=false restores periodic idle_prompt sound" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "categories": {
+    "session.start": true,
+    "task.acknowledge": false,
+    "task.complete": true,
+    "task.error": true,
+    "input.required": true,
+    "resource.limit": true,
+    "user.spam": true
+  },
+  "annoyed_threshold": 3,
+  "annoyed_window_seconds": 10,
+  "session_start_cooldown_seconds": 0,
+  "suppress_idle_prompt_repeats": false
+}
+JSON
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+}
+
+@test "Notification elicitation_dialog is not affected by idle_prompt dedupe" {
+  # A prior task.complete must not silence a different Notification subtype
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"elicitation_dialog","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Perm"* ]]
+}
+
+@test "idle_prompt dedupe does not cross-suppress sessions that omit session_id" {
+  # Some adapters don't pass session_id. Each invocation should still play through
+  # rather than sharing a single bucket via session_id=''.
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","permission_mode":"default"}'
+  count1=$(afplay_call_count)
+  [ "$count1" = "1" ]
+
+  # Push last_stop_time back so the unrelated 5s Stop debounce doesn't mask the dedupe behaviour.
+  "$PEON_PY" -c "
+import json
+p = '$TEST_DIR/.state.json'
+state = json.load(open(p))
+state['last_stop_time'] = 0
+json.dump(state, open(p, 'w'))
+"
+
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count2=$(afplay_call_count)
+  [ "$count2" = "2" ]
+}
+
+@test "debug log contains route suppression reason for idle_prompt_repeat" {
+  enable_debug_logging
+  # First Stop fires task.complete and stamps last_task_complete[s1]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # Subsequent idle_prompt within the window should be suppressed with idle_prompt_repeat
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+
+  local today
+  today=$(date '+%Y-%m-%d')
+  local logfile="$TEST_DIR/logs/peon-ping-${today}.log"
+  grep -q 'reason=idle_prompt_repeat' "$logfile"
+  grep 'reason=idle_prompt_repeat' "$logfile" | grep -q '\[route\]'
+}
+
 @test "Stop plays a complete sound" {
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -606,9 +737,23 @@ JSON
 # ============================================================
 
 @test "project name extracted from cwd" {
-  run_peon '{"hook_event_name":"SessionStart","cwd":"/Users/dev/my-cool-project","session_id":"s1","permission_mode":"default"}'
+  run_peon '{"hook_event_name":"Stop","cwd":"/Users/dev/my-cool-project","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
-  # Can't easily check printf escape output, but at least it didn't crash
+  [ -f "$TEST_DIR/.tab_title" ]
+  grep -q "my-cool-project: done" "$TEST_DIR/.tab_title"
+}
+
+@test "terminal_tab_title false skips tab title updates" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['terminal_tab_title'] = False
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  rm -f "$TEST_DIR/.tab_title"
+  run_peon '{"hook_event_name":"Stop","cwd":"/Users/dev/my-cool-project","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$TEST_DIR/.tab_title" ]
 }
 
 @test "empty cwd falls back to 'claude'" {
@@ -627,6 +772,90 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   grep -q "codex" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "desktop notification title omits IDE label by default" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"codex-456","source":"codex","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  grep -q "myproject" "$TEST_DIR/terminal_notifier.log"
+  ! grep -q "myproject - OpenAI Codex" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message done" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "desktop notification title includes detected IDE label when enabled" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_ide'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"codex-456","source":"codex","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  grep -q "myproject - OpenAI Codex" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message done" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "desktop notification message includes status and details" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"codex-789","source":"codex","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  grep -q "myproject" "$TEST_DIR/terminal_notifier.log"
+  ! grep -q "myproject - OpenAI Codex" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message needs approval: Bash" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "desktop notification title renders Claude Code label for claude source" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_ide'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"claude-1","source":"claude","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q "myproject - Claude Code" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "desktop notification title titlecases unknown IDE id when flag enabled" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_ide'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"x-1","source":"my-cool-ide","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q "myproject - My Cool Ide" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "{ide_id} template variable renders the raw normalized id" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_templates'] = {'stop': '{ide_id}/{ide}: done'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"codex-9","source":"codex","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-message codex/OpenAI Codex: done" "$TEST_DIR/terminal_notifier.log"
 }
 
 @test "state session_names overrides project name (set via /peon-ping-rename)" {
@@ -705,6 +934,22 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   grep -q "Scripted" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_title_script receives PEON_IDE" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_script'] = 'printf \"%s\" \"\$PEON_IDE\"'
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  grep -q "codex" "$TEST_DIR/terminal_notifier.log"
+  ! grep -q "OpenAI Codex" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message done" "$TEST_DIR/terminal_notifier.log"
 }
 
 @test "notification_title_script non-zero exit falls through to next tier" {
@@ -2828,6 +3073,27 @@ assert cfg['categories']['session.end'] == True, 'session.end category should be
 "
 }
 
+@test "packs use syncs categories and spam settings to OpenCode adapter config" {
+  setup_adapter_sync
+  python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['categories']['user.spam'] = False
+cfg['annoyed_threshold'] = 7
+cfg['annoyed_window_seconds'] = 22
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  bash "$PEON_SH" packs use sc_kerrigan
+  python3 -c "
+import json
+cfg = json.load(open('$XDG_CONFIG_HOME/opencode/peon-ping/config.json'))
+assert cfg['categories']['user.spam'] == False, 'expected user.spam category synced'
+assert cfg['spam_threshold'] == 7, 'expected spam_threshold synced from annoyed_threshold'
+assert cfg['spam_window_seconds'] == 22, 'expected spam_window_seconds synced from annoyed_window_seconds'
+assert cfg['debounce_ms'] == 500, 'debounce_ms should still be preserved'
+"
+}
+
 @test "packs next syncs default_pack to OpenCode adapter config" {
   setup_adapter_sync
   bash "$PEON_SH" packs next
@@ -3083,6 +3349,21 @@ JSON
   afplay_was_called
   sound=$(afplay_sound)
   [[ "$sound" == *"/packs/peon/sounds/Ack"* ]]
+}
+
+@test "OpenCode events respect OpenCode config categories" {
+  export XDG_CONFIG_HOME="$TEST_DIR/xdg_config"
+  mkdir -p "$XDG_CONFIG_HOME/opencode/peon-ping"
+  cat > "$XDG_CONFIG_HOME/opencode/peon-ping/config.json" <<'JSON'
+{
+  "categories": {
+    "session.start": false
+  }
+}
+JSON
+  run_peon '{"hook_event_name":"SessionStart","source":"opencode","cwd":"/tmp/myproject","session_id":"oc-1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
 }
 
 # ============================================================
@@ -3462,7 +3743,7 @@ JSON
   [[ "$sound" == *"/packs/peon/sounds/"* ]]
 }
 
-@test "exclude_dirs: bare directory pattern skips path_rules for descendants" {
+@test "exclude_dirs: bare directory pattern silences all sounds for descendants" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
   "default_pack": "peon", "volume": 0.5, "enabled": true,
@@ -3477,9 +3758,22 @@ JSON
 JSON
   run_peon '{"hook_event_name":"Stop","cwd":"'"$HOME"'/conductor/workspaces/peon-ping/windhoek","session_id":"ex1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
-  afplay_was_called
-  sound=$(afplay_sound)
-  [[ "$sound" == *"/packs/peon/sounds/"* ]]
+  ! afplay_was_called
+}
+
+@test "exclude_dirs: glob pattern silences matching cwd (CodexBar/ClaudeProbe case)" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true,
+  "categories": { "session.start": true },
+  "exclude_dirs": [
+    "~/Library/Application Support/CodexBar*"
+  ]
+}
+JSON
+  run_peon '{"hook_event_name":"SessionStart","cwd":"'"$HOME"'/Library/Application Support/CodexBar/ClaudeProbe","session_id":"codexbar1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
 }
 
 @test "ide_rules: matching source uses the specified pack" {
@@ -3519,7 +3813,7 @@ JSON
   [[ "$sound" == *"/packs/peon/sounds/"* ]]
 }
 
-@test "exclude_dirs: ide_rules still apply when path_rules are skipped" {
+@test "exclude_dirs: silences even when ide_rules would otherwise match" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
   "default_pack": "peon", "volume": 0.5, "enabled": true,
@@ -3537,9 +3831,7 @@ JSON
 JSON
   run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"'"$HOME"'/conductor/workspaces/peon-ping/windhoek","session_id":"ex2","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
-  afplay_was_called
-  sound=$(afplay_sound)
-  [[ "$sound" == *"/packs/sc_kerrigan/sounds/"* ]]
+  ! afplay_was_called
 }
 
 # ============================================================
@@ -4397,7 +4689,7 @@ JSON
 
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/cmux.log" ]
-  [[ "$(cat "$TEST_DIR/cmux.log")" == *"set-status peon Codex: Idle"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"set-status peon OpenAI Codex: Idle"* ]]
   [[ "$(cat "$TEST_DIR/cmux.log")" == *"--icon pause.circle.fill"* ]]
   ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"--color "* ]]
   [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
@@ -4450,11 +4742,12 @@ JSON
   [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
 }
 
-@test "cmux Codex notification title uses adapter and workspace title" {
+@test "cmux Codex notification title uses upstream IDE title with workspace title" {
   /usr/bin/python3 -c "
 import json
 c = json.load(open('$TEST_DIR/config.json'))
 c['notification_style'] = 'standard'
+c['notification_title_ide'] = True
 json.dump(c, open('$TEST_DIR/config.json', 'w'))
 "
   export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
@@ -4466,7 +4759,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
 
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/cmux.log" ]
-  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title Codex (test)"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title ●test - OpenAI Codex"* ]]
   [[ "$(cat "$TEST_DIR/cmux.log")" == *"--body Idle"* ]]
   ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title"*": Idle"* ]]
 }
@@ -4587,7 +4880,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
 @test "packs exclude add stores exclude_dirs entry" {
   run bash "$PEON_SH" packs exclude add "~/conductor/workspaces"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"excluded path rule matching"* ]]
+  [[ "$output" == *"sounds & notifications silenced for ~/conductor/workspaces"* ]]
   rules=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(len(c.get('exclude_dirs', [])))")
   [ "$rules" = "1" ]
 }
@@ -4596,7 +4889,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   bash "$PEON_SH" packs exclude add "~/conductor/workspaces" >/dev/null
   run bash "$PEON_SH" packs exclude remove "~/conductor/workspaces"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"removed excluded path"* ]]
+  [[ "$output" == *"no longer silencing ~/conductor/workspaces"* ]]
   rules=$(/usr/bin/python3 -c "import json; c=json.load(open('$TEST_DIR/config.json')); print(len(c.get('exclude_dirs', [])))")
   [ "$rules" = "0" ]
 }

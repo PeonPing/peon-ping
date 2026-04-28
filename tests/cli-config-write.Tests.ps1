@@ -64,6 +64,8 @@ BeforeAll {
             notification_position = "top-center"
             notification_dismiss_seconds = 4
             notification_title_override = ""
+            notification_title_marker = "●"
+            notification_title_ide = $false
             notification_title_script = ""
             project_name_map = @{}
         }

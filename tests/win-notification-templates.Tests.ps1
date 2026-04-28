@@ -378,8 +378,8 @@ Describe "Notifications: template rendering - PermissionRequest with tool_name" 
     }
 }
 
-Describe "Notifications: no template falls back to project name" {
-    It "uses project name when no template configured" {
+Describe "Notifications: no template falls back to status body and project title" {
+    It "puts status word in body and project name in title when no template configured" {
         $testDir = New-TestInstall -Config @{
             desktop_notifications = $true
         }
@@ -397,7 +397,10 @@ Describe "Notifications: no template falls back to project name" {
                 Start-Sleep -Milliseconds 100
             }
             $notifyLog = Get-NotifyLog -TestDir $testDir
-            $notifyLog | Should -Match "BODY=myproject"
+            # Body now carries the status word, not the project name. Title carries the project.
+            $notifyLog | Should -Match "BODY=done"
+            $notifyLog | Should -Match "TITLE=.* myproject"
+            $notifyLog | Should -Not -Match "BODY=myproject"
         } finally {
             Remove-Item $testDir -Recurse -Force -ErrorAction SilentlyContinue
         }

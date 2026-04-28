@@ -251,6 +251,7 @@ if (-not $Updating) {
         path_rules = @()
         exclude_dirs = @()
         ide_rules = @()
+        notification_title_ide = $false
         tts = @{
             enabled = $false
             backend = "auto"
@@ -899,21 +900,19 @@ if ($Command) {
                     if ($cfg.path_rules) { $rules = @($cfg.path_rules) }
                     $excludeDirs = @()
                     if ($cfg.exclude_dirs) { $excludeDirs = @($cfg.exclude_dirs) }
-                    $excludedPath = $null
+                    $silencedPath = $null
                     foreach ($pattern in $excludeDirs) {
                         if (Test-PathRuleMatch $PWD.Path $pattern) {
-                            $excludedPath = $pattern
+                            $silencedPath = $pattern
                             break
                         }
                     }
                     if ($rules.Count -gt 0) {
                         $activeRule = $null
-                        if (-not $excludedPath) {
-                            foreach ($r in $rules) {
-                                if (Test-PathRuleMatch $PWD.Path $r.pattern) {
-                                    $activeRule = $r
-                                    break
-                                }
+                        foreach ($r in $rules) {
+                            if (Test-PathRuleMatch $PWD.Path $r.pattern) {
+                                $activeRule = $r
+                                break
                             }
                         }
                         if ($activeRule) {
@@ -921,10 +920,10 @@ if ($Command) {
                         }
                         Write-Host "peon-ping: path rules: $($rules.Count) configured" -ForegroundColor Cyan
                     }
-                    if ($excludedPath) {
-                        Write-Host "peon-ping: path rules skipped here (exclude_dirs): $excludedPath" -ForegroundColor Cyan
+                    Write-Host "peon-ping: silenced dirs (exclude_dirs): $($excludeDirs.Count) configured" -ForegroundColor Cyan
+                    if ($silencedPath) {
+                        Write-Host "peon-ping: SILENCED here: cwd matched exclude_dirs -> $silencedPath" -ForegroundColor Yellow
                     }
-                    Write-Host "peon-ping: excluded paths: $($excludeDirs.Count) configured" -ForegroundColor Cyan
 
                     $ideRules = @()
                     if ($cfg.ide_rules) { $ideRules = @($cfg.ide_rules) }
@@ -1312,7 +1311,7 @@ if ($Command) {
                                 return
                             }
                             if ($pattern -in $excludeDirs) {
-                                Write-Host "peon-ping: exclude path already present: $pattern"
+                                Write-Host "peon-ping: already silencing sounds in: $pattern"
                                 return
                             }
                             $excludeDirs += $pattern
@@ -1322,7 +1321,7 @@ if ($Command) {
                                 $cfgObj | Add-Member -NotePropertyName 'exclude_dirs' -NotePropertyValue $excludeDirs
                             }
                             Set-PeonConfig $cfgObj $ConfigPath
-                            Write-Host "peon-ping: excluded path rule matching for $pattern"
+                            Write-Host "peon-ping: sounds & notifications silenced for $pattern"
                             return
                         }
                         "remove" {
@@ -1332,7 +1331,7 @@ if ($Command) {
                             }
                             $newDirs = @($excludeDirs | Where-Object { $_ -ne $pattern })
                             if ($newDirs.Count -eq $excludeDirs.Count) {
-                                Write-Host "No excluded path found for `"$pattern`"."
+                                Write-Host "No silenced path found for `"$pattern`"."
                                 return
                             }
                             if ($cfgObj.PSObject.Properties['exclude_dirs']) {
@@ -1341,14 +1340,15 @@ if ($Command) {
                                 $cfgObj | Add-Member -NotePropertyName 'exclude_dirs' -NotePropertyValue $newDirs
                             }
                             Set-PeonConfig $cfgObj $ConfigPath
-                            Write-Host "peon-ping: removed excluded path $pattern"
+                            Write-Host "peon-ping: no longer silencing $pattern"
                             return
                         }
                         "list" {
                             if ($excludeDirs.Count -eq 0) {
-                                Write-Host "No excluded paths configured."
+                                Write-Host "No silenced paths configured."
                                 return
                             }
+                            Write-Host "Silenced paths (no sounds or notifications when cwd matches):"
                             foreach ($item in $excludeDirs) {
                                 $marker = if (Test-PathRuleMatch $PWD.Path $item) { " *" } else { "" }
                                 Write-Host "  $item$marker"
@@ -1760,9 +1760,13 @@ if ($Command) {
                 $cfgObj | Add-Member -NotePropertyName 'ide_rules' -NotePropertyValue @() -Force
                 $changed = $true
             }
+            if (-not $cfgObj.PSObject.Properties['notification_title_ide']) {
+                $cfgObj | Add-Member -NotePropertyName 'notification_title_ide' -NotePropertyValue $false -Force
+                $changed = $true
+            }
             if ($changed) {
                 $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
-                Write-Host "peon-ping: config migrated (active_pack -> default_pack, agentskill -> session_override, exclude_dirs, ide_rules)" -ForegroundColor Green
+                Write-Host "peon-ping: config migrated (active_pack -> default_pack, agentskill -> session_override, exclude_dirs, ide_rules, notification_title_ide)" -ForegroundColor Green
             }
             # Re-run install.ps1 from a temp directory. Download install-utils.ps1
             # alongside it so the dot-source resolves correctly via $PSScriptRoot.
@@ -1805,7 +1809,7 @@ if ($Command) {
             Write-Host "  --packs ide-bind      Bind a pack to an IDE id"
             Write-Host "  --packs ide-unbind    Remove an IDE binding"
             Write-Host "  --packs ide-bindings  List all IDE bindings"
-            Write-Host "  --packs exclude       Manage excluded paths for path_rules"
+            Write-Host "  --packs exclude       Silence sounds & notifications for matching paths"
             Write-Host "  --pack [name]         Switch pack (or cycle)"
             Write-Host ""
             Write-Host "Trainer:" -ForegroundColor Cyan
@@ -2207,7 +2211,7 @@ try {
 } catch {
     $_configError = "$_"
 # Fall back to minimal defaults so the hook can still run (logging requires PEON_DEBUG=1 when config is broken)
-    $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7; notification_title_marker = '●' }
+    $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7; notification_title_marker = '●'; notification_title_ide = $false }
 }
 
 # NOTE: enabled check moved below logging init so paused invocations are visible in debug logs
@@ -2326,6 +2330,35 @@ $project = if ($cwd) { Split-Path $cwd -Leaf } else { "" }
 if (-not $project) { $project = "claude" }
 $project = $project -replace '[^a-zA-Z0-9 ._-]', ''
 
+# IDE display names (parity with peon.sh IDE_DISPLAY_NAMES)
+$ideDisplayNames = @{
+    'claude' = 'Claude Code'
+    'codex' = 'OpenAI Codex'
+    'cursor' = 'Cursor'
+    'opencode' = 'OpenCode'
+    'kilo' = 'Kilo CLI'
+    'kiro' = 'Kiro'
+    'gemini' = 'Gemini CLI'
+    'copilot' = 'GitHub Copilot'
+    'windsurf' = 'Windsurf'
+    'kimi' = 'Kimi Code'
+    'antigravity' = 'Antigravity'
+    'amp' = 'Amp'
+    'deepagents' = 'DeepAgents'
+    'openclaw' = 'OpenClaw'
+    'rovodev' = 'Rovo Dev CLI'
+}
+$ideLabel = ''
+if ($sessionIde) {
+    $ideKey = (Normalize-IdeId $sessionIde)
+    if ($ideKey -and $ideDisplayNames.ContainsKey($ideKey)) {
+        $ideLabel = $ideDisplayNames[$ideKey]
+    } elseif ($ideKey) {
+        $ideLabel = (Get-Culture).TextInfo.ToTitleCase(($ideKey -replace '-', ' '))
+    }
+}
+$notificationProject = if ($config.notification_title_ide -and $ideLabel) { "$project - $ideLabel" } else { $project }
+
 # Log hook phase
 $_isPaused = if ($config.enabled) { 'False' } else { 'True' }
 & $peonLog 'hook' @{ event = $hookEvent; session = $sessionId; cwd = $cwd; paused = $_isPaused }
@@ -2399,6 +2432,23 @@ if ($_permMode -and $_agentModes -contains $_permMode) {
     exit 0
 }
 
+# --- exclude_dirs: silence sounds & notifications when cwd matches ---
+$_excludedDirPattern = $null
+if ($cwd -and $config.exclude_dirs) {
+    foreach ($_pat in $config.exclude_dirs) {
+        if ($_pat -and (Test-PathRuleMatch $cwd $_pat)) {
+            $_excludedDirPattern = $_pat
+            break
+        }
+    }
+}
+if ($_excludedDirPattern) {
+    & $peonLog 'route' @{ category = 'none'; suppressed = 'True'; reason = 'excluded_dir'; pattern = $_excludedDirPattern }
+    & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+    try { if ($stateDirty) { Write-StateAtomic -State $state -Path $StatePath } } catch { <# state write best-effort #> }
+    exit 0
+}
+
 # --- Map Claude Code hook event -> CESP manifest category ---
 $category = $null
 $ntype = $event.notification_type
@@ -2432,8 +2482,8 @@ switch ($hookEvent) {
         } else {
             $notify = $true
             $notifyColor = "blue"
-            $notifyMsg = $project
             $notifyStatus = "done"
+            $notifyMsg = $notifyStatus
         }
         $state["last_stop_time"] = $now
     }
@@ -2446,14 +2496,14 @@ switch ($hookEvent) {
             $category = $null
             $notify = $true
             $notifyColor = "yellow"
-            $notifyMsg = $project
             $notifyStatus = "done"
+            $notifyMsg = $notifyStatus
         } elseif ($ntype -eq "elicitation_dialog") {
             $category = "input.required"
             $notify = $true
             $notifyColor = "blue"
-            $notifyMsg = $project
             $notifyStatus = "question"
+            $notifyMsg = "$notifyStatus`: Question pending"
         } else {
             # Other notification types (e.g., tool results) map to task.complete
             $category = "task.complete"
@@ -2463,15 +2513,16 @@ switch ($hookEvent) {
         $category = "input.required"
         $notify = $true
         $notifyColor = "red"
-        $notifyMsg = $project
         $notifyStatus = "needs approval"
+        $_tool = if ($event.tool_name) { [string]$event.tool_name } else { "" }
+        $notifyMsg = if ($_tool) { "$notifyStatus`: $_tool" } else { $notifyStatus }
     }
     "PreCompact" {
         $category = "resource.limit"
         $notify = $true
         $notifyColor = "red"
-        $notifyMsg = $project
         $notifyStatus = "context limit"
+        $notifyMsg = "$notifyStatus`: Context compacting"
     }
     "UserPromptSubmit" {
         # Detect rapid prompts for "annoyed" easter egg
@@ -2575,20 +2626,11 @@ $rotationMode = $config.pack_rotation_mode
 if (-not $rotationMode) { $rotationMode = "random" }
 
 # --- Path rules and IDE rules: first matching layer wins ---
-# session_override > path_rules (unless excluded) > ide_rules > rotation > default_pack
+# session_override > path_rules > ide_rules > rotation > default_pack
+# Note: exclude_dirs is handled earlier as a full silence short-circuit.
 $pathRulePack = $null
-$pathRuleExcluded = $null
-$excludeDirs = $config.exclude_dirs
-if ($cwd -and $excludeDirs) {
-    foreach ($excludePattern in $excludeDirs) {
-        if (Test-PathRuleMatch $cwd $excludePattern) {
-            $pathRuleExcluded = $excludePattern
-            break
-        }
-    }
-}
 $pathRules = $config.path_rules
-if ($cwd -and $pathRules -and -not $pathRuleExcluded) {
+if ($cwd -and $pathRules) {
     foreach ($rule in $pathRules) {
         $pattern = $rule.pattern
         $candidate = $rule.pack
@@ -3064,7 +3106,7 @@ if ($notify -and $desktopNotif) {
     $winNotifyScript = Join-Path $InstallDir "scripts\win-notify.ps1"
     if (Test-Path $winNotifyScript) {
 $marker = if ($config.notification_title_marker) { $config.notification_title_marker } else { [char]0x25CF }
-        $notifTitle = "$marker $project`: $notifyStatus"
+        $notifTitle = "$marker $notificationProject"
         $dismissSecs = if ($config.notification_dismiss_seconds) { $config.notification_dismiss_seconds } else { 4 }
         # Resolve parent PID (the IDE/terminal that spawned Claude Code) for click-to-focus
         $parentPid = 0

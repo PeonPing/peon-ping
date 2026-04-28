@@ -98,10 +98,19 @@ Describe "session_override + path_rules + ide_rules interaction" {
         $script:PackSelectionBlock | Should -Match 'Path rule wins over IDE rules, rotation, and default'
     }
 
-    It "exclude_dirs can skip path_rules entirely" {
-        $script:PackSelectionBlock | Should -Match '\$pathRuleExcluded = \$null'
-        $script:PackSelectionBlock | Should -Match 'Test-PathRuleMatch \$cwd \$excludePattern'
-        $script:PackSelectionBlock | Should -Match '-and -not \$pathRuleExcluded'
+    It "exclude_dirs silences before pack selection" {
+        # Silencing is a hook-wide short-circuit that runs BEFORE the pack selection block,
+        # not inside it. Assert the early-exit exists, references exclude_dirs, and lives
+        # earlier in the hook than the "# --- Pick a sound ---" marker.
+        $script:EmbeddedHook | Should -Match "# --- exclude_dirs: silence"
+        $script:EmbeddedHook | Should -Match '\$_excludedDirPattern'
+        $script:EmbeddedHook | Should -Match "reason = 'excluded_dir'"
+
+        $silenceIdx = $script:EmbeddedHook.IndexOf('# --- exclude_dirs: silence')
+        $packIdx = $script:EmbeddedHook.IndexOf('# --- Pick a sound ---')
+        $silenceIdx | Should -BeGreaterThan -1
+        $packIdx | Should -BeGreaterThan -1
+        $silenceIdx | Should -BeLessThan $packIdx
     }
 }
 
@@ -222,7 +231,7 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
 
     It "packs exclude add stores an exclude_dirs entry" {
         $result = & powershell.exe -NoProfile -Command "& '$script:PeonPath' --packs exclude add '$script:WorktreesDir' 2>&1"
-        ($result -join "`n") | Should -Match "excluded path rule matching"
+        ($result -join "`n") | Should -Match "sounds & notifications silenced for"
 
         $cfg = Get-PeonConfig -TestDir $script:TestDir
         $cfg.exclude_dirs.Count | Should -Be 1
@@ -246,7 +255,7 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
         ($result.AudioLog -join "`n") | Should -Match 'packs[\\/]sc_kerrigan[\\/]sounds'
     }
 
-    It "runtime skips path_rules under exclude_dirs and still applies ide_rules" {
+    It "runtime silences invocation entirely under exclude_dirs" {
         $cfg = Get-PeonConfig -TestDir $script:TestDir
         $cfg.path_rules = @([pscustomobject]@{ pattern = $script:WorktreesDir; pack = "peon" })
         $cfg.exclude_dirs = @($script:WorktreesDir)
@@ -262,7 +271,7 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
 
         $result = Invoke-PeonHook -TestDir $script:TestDir -JsonPayload $payload
         $result.ExitCode | Should -Be 0
-        ($result.AudioLog -join "`n") | Should -Match 'packs[\\/]sc_kerrigan[\\/]sounds'
+        ($result.AudioLog -join "`n") | Should -Be ""
     }
 
     It "status --verbose shows IDE rule and excluded path context" {
@@ -275,8 +284,6 @@ Describe "Windows CLI + runtime parity for ide_rules and exclude_dirs" {
         $result = & powershell.exe -NoProfile -Command "`$env:PEON_IDE='codex'; Set-Location -LiteralPath '$script:ProjectDir'; & '$script:PeonPath' --status --verbose 2>&1"
         $output = $result -join "`n"
         $output | Should -Match "IDE source \(status\): codex"
-        $output | Should -Match "path rules: 1 configured"
-        $output | Should -Match "excluded paths: 1 configured"
-        $output | Should -Match "active IDE rule: codex -> sc_kerrigan"
+        $output | Should -Match "SILENCED here: cwd matched exclude_dirs"
     }
 }

@@ -263,9 +263,9 @@ peon packs bindings       # List all assigned bindings
 peon packs ide-bind <ide> <name> # Bind a pack to an IDE id, e.g. codex
 peon packs ide-unbind <ide> # Remove an IDE binding
 peon packs ide-bindings   # List all IDE-based bindings
-peon packs exclude add <path> # Skip path_rules for a glob or directory
-peon packs exclude remove <path> # Remove an excluded path
-peon packs exclude list   # List excluded paths
+peon packs exclude add <path> # Silence sounds & notifications for a glob or directory
+peon packs exclude remove <path> # Stop silencing the given path
+peon packs exclude list   # List silenced paths
 peon notifications on     # Enable desktop notifications
 peon notifications off    # Disable desktop notifications
 peon notifications overlay   # Use large overlay banners (default)
@@ -424,6 +424,8 @@ This means you can:
 - **annoyed_threshold / annoyed_window_seconds**: How many prompts in N seconds triggers the `user.spam` easter egg
 - **silent_window_seconds**: Suppress `task.complete` sounds and notifications for tasks shorter than N seconds. (e.g. `10` to only hear sounds for tasks that take longer than 10 seconds)
 - **session_start_cooldown_seconds** (number, default: `30`): Deduplicates greeting sounds when multiple workspaces start at the same time (e.g. opening OpenCode or Cursor with many folders). Only the first session start plays the greeting; subsequent ones within this window stay silent. Set to `0` to disable deduplication and always play a greeting.
+- **suppress_idle_prompt_repeats** (boolean, default: `true`): Claude Code re-fires its `idle_prompt` notification every ~60s while the terminal is unfocused. peon-ping routes `idle_prompt` to `task.complete` so you still get a sound when input is needed — but without dedupe the same sound replays on every poke. When `true`, an `idle_prompt` is suppressed if a `task.complete` for the same session already fired inside `idle_prompt_suppress_window_seconds`. Set to `false` to restore the periodic nudge.
+- **idle_prompt_suppress_window_seconds** (number, default: `3600`): Window used by `suppress_idle_prompt_repeats`. After a `task.complete` fires for a session, subsequent `idle_prompt` notifications for that session stay silent for this many seconds. Set to `0` to disable the window (effectively the same as `suppress_idle_prompt_repeats: false`).
 - **suppress_subagent_complete** (boolean, default: `false`): Suppress `task.complete` sounds and notifications when a sub-agent session finishes. When Claude Code's Task tool dispatches parallel sub-agents, each one fires a completion sound — set this to `true` to hear only the parent session's completion sound.
 - **default_pack**: The fallback pack used when no more specific rule applies (default: `"peon"`). Replaces the old `active_pack` key — existing configs are migrated automatically on `peon update`.
 - **path_rules**: Array of `{ "pattern": "...", "pack": "..." }` objects. Assigns a pack to sessions based on the working directory using glob matching (`*`, `?`). First matching rule wins. Beats `pack_rotation` and `default_pack`; overridden by `session_override` assignments.
@@ -433,7 +435,7 @@ This means you can:
     { "pattern": "*/personal/*",      "pack": "peon" }
   ]
   ```
-- **exclude_dirs**: Array of glob or directory patterns. If the current working directory matches one of these entries, `path_rules` are skipped and peon-ping falls through to `ide_rules`, rotation, or `default_pack`. Bare directory paths also match descendants, so `"~/conductor/workspaces"` excludes everything under that tree.
+- **exclude_dirs**: Array of glob or directory patterns. If the current working directory matches one of these entries, **all sounds and notifications are silenced** for that invocation (the hook logs `suppressed=True reason=excluded_dir pattern=<match>`). Bare directory paths also match descendants, so `"~/conductor/workspaces"` silences everything under that tree. Use this for noisy background agents (e.g. `CodexBar/ClaudeProbe`), throwaway scratch dirs, or sensitive workspaces where audio alerts are unwanted.
   ```json
   "exclude_dirs": [
     "~/conductor/workspaces",
@@ -451,6 +453,7 @@ This means you can:
 - **pack_rotation_mode**: `"random"` (default), `"round-robin"`, or `"session_override"`. With `random`/`round-robin`, each session picks one pack from `pack_rotation`. With `session_override`, the `/peon-ping-use <pack>` command assigns a pack per session. Invalid or missing packs fall back through the hierarchy. (`"agentskill"` is accepted as a legacy alias for `"session_override"`.)
 - **session_ttl_days** (number, default: 7): Expire stale per-session pack assignments older than N days. Keeps `.state.json` from growing unbounded when using `session_override` mode.
 - **headphones_only** (boolean, default: `false`): Only play sounds when headphones or external audio devices are detected. When enabled, sounds are suppressed if built-in speakers are the active output — useful for open offices. Check status with `peon status`. Supported on macOS (via `system_profiler`) and Linux (via PipeWire `wpctl` or PulseAudio `pactl`).
+- **terminal_tab_title** (boolean, default: `true`): Update the terminal tab title with the current session status (for example `● project: done`). Set to `false` if you already manage tab titles with your own shell prompt or terminal automation and only want peon-ping's sounds/notifications.
 - **suppress_sound_when_tab_focused** (boolean, default: `false`): Skip sound playback when the terminal tab that generated the hook event is the currently active/focused tab. Sounds still play for background tabs as an alert that something happened elsewhere. Desktop and mobile notifications are unaffected. Useful when you only want audio cues from tabs you're not watching. macOS only (uses `osascript` to check frontmost app and iTerm2 tab focus).
 - **meeting_detect** Detects if the microphone is currently being used and temporarily suppresses the audio only until the microphone is no longer in use. Notification still appears.
 - **notification_position** (string, default: `"top-center"`): Where overlay notifications appear on screen. Options: `"top-left"`, `"top-center"`, `"top-right"`, `"bottom-left"`, `"bottom-center"`, `"bottom-right"`.
@@ -458,10 +461,11 @@ This means you can:
 - **notification_all_screens** (boolean, default: `true`): Show overlay notifications on all screens (`true`) or only the main screen (`false`). Themed overlays (`glass`, `jarvis`, `sakura`) previously only showed on one screen — existing configs with those themes are migrated to `false` automatically. macOS only.
 - **`CLAUDE_SESSION_NAME` env var**: Set before launching `claude` to give a session a custom name. Shows in both desktop notification titles and terminal tab titles. Priority over all config-based naming. Example: `CLAUDE_SESSION_NAME="Auth Refactor" claude` or `export CLAUDE_SESSION_NAME="Feature: Auth"` then `claude`. Each terminal gets its own title automatically since peon-ping runs as a child of that Claude instance.
 - **notification_title_override** (string, default: `""`): Override the project name shown in notification titles. When empty, the project name is auto-detected from `/peon-ping-rename` > `CLAUDE_SESSION_NAME` > `.peon-label` > `notification_title_script` > `project_name_map` > git repo name > folder name.
-- **notification_title_marker** (string, default: `"●"`): Character(s) shown before the project name in notification titles and terminal tab titles. Set to `""` to disable. Example: `"🔔"`.
-- **notification_title_script** (string, default: `""`): Shell command run at event time to compute the project name dynamically. Receives env vars: `PEON_SESSION_ID`, `PEON_CWD`, `PEON_HOOK_EVENT`, `PEON_SESSION_NAME`. Use stdout (trimmed, max 50 chars); non-zero exit falls through to the next tier. Example: `"basename $PEON_CWD"`.
+- **notification_title_marker** (string, default: `"●"`): Character(s) shown before the project name in notification titles and terminal tab titles. Desktop notification titles use `Project` by default; terminal tab titles keep `Project: status`. Set to `""` to disable. Example: `"🔔"`.
+- **notification_title_ide** (boolean, default: `false`): Include the normalized IDE label in desktop notification titles as `Project - IDE`. When disabled, the title stays `Project` and the message/body carries the status/details.
+- **notification_title_script** (string, default: `""`): Shell command run at event time to compute the project name dynamically. Receives env vars: `PEON_SESSION_ID`, `PEON_CWD`, `PEON_HOOK_EVENT`, `PEON_IDE`, `PEON_SESSION_NAME`. Use stdout (trimmed, max 50 chars); non-zero exit falls through to the next tier. `PEON_IDE` is the normalized IDE/source id such as `codex` or `claude`. Example: `"basename $PEON_CWD"`.
 - **project_name_map** (object, default: `{}`): Map directory paths to custom project labels for notifications. Keys are path patterns, values are display names. Example: `{ "/home/user/work/client-a": "Client A" }`.
-- **notification_templates** (object, default: `{}`): Custom message format strings for notification events. Keys are event types (`stop`, `permission`, `error`, `idle`, `question`), values are template strings with variable substitution. Available variables: `{project}`, `{summary}`, `{tool_name}`, `{status}`, `{event}`. Example: `{ "stop": "{project}: {summary}", "permission": "{project}: {tool_name} needs approval" }`.
+- **notification_templates** (object, default: `{}`): Custom message/body format strings for notification events. Keys are event types (`stop`, `permission`, `error`, `idle`, `question`), values are template strings with variable substitution. Available variables: `{project}`, `{ide}`, `{ide_id}`, `{summary}`, `{tool_name}`, `{status}`, `{event}`. Example: `{ "stop": "{status}: {summary}", "permission": "{status}: {tool_name}" }`.
 
 ### Pack Selection Hierarchy
 
@@ -477,7 +481,7 @@ peon-ping resolves which sound pack to use through a 6-layer hierarchy. The firs
 | 6 (lowest) | **hardcoded** | Built-in default | `"peon"` |
 
 If a layer references a pack that is not installed, it falls through to the next layer.
-If `exclude_dirs` matches the current working directory, the `path_rules` layer is skipped for that invocation.
+If `exclude_dirs` matches the current working directory, the entire invocation is silenced — no sound, no notification.
 
 ### Per-Project Pack Assignment (path_rules)
 
@@ -517,24 +521,18 @@ peon packs ide-bind codex glados        # Use glados for Codex sessions
 peon packs ide-bind claude peon         # Use peon for Claude Code
 peon packs ide-unbind codex             # Remove one IDE rule
 peon packs ide-bindings                 # List IDE rules and recent detections
-peon packs exclude add "~/conductor/workspaces"  # Skip path_rules under this tree
-peon packs exclude list                 # Show excluded paths
 ```
 
 **Manual config:**
 
 ```json
-"exclude_dirs": [
-  "~/conductor/workspaces",
-  "~/Library/Application Support/CodexBar*"
-],
 "ide_rules": [
   { "ide": "codex",  "pack": "glados" },
   { "ide": "claude", "pack": "peon" }
 ]
 ```
 
-`ide_rules` run after `path_rules`. Use `exclude_dirs` when you want to bypass path matching for specific workspaces or session directories.
+`ide_rules` run after `path_rules`.
 
 ## Common Use Cases
 
