@@ -591,6 +591,9 @@ else
   curl -fsSL "$REPO_BASE/scripts/pack-download.sh" -o "$INSTALL_DIR/scripts/pack-download.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/mac-overlay.js" -o "$INSTALL_DIR/scripts/mac-overlay.js" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/notify.sh" -o "$INSTALL_DIR/scripts/notify.sh" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/scripts/cmux-focus.sh" -o "$INSTALL_DIR/scripts/cmux-focus.sh" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/scripts/cmux-status-presentation.sh" -o "$INSTALL_DIR/scripts/cmux-status-presentation.sh" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/scripts/cmux-workspace-field.sh" -o "$INSTALL_DIR/scripts/cmux-workspace-field.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/tts-native.sh" -o "$INSTALL_DIR/scripts/tts-native.sh" 2>/dev/null || true
   mkdir -p "$INSTALL_DIR/docs"
   curl -fsSL "$REPO_BASE/docs/peon-icon.png" -o "$INSTALL_DIR/docs/peon-icon.png" 2>/dev/null || true
@@ -675,6 +678,9 @@ chmod +x "$INSTALL_DIR/scripts/hook-handle-use.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/scripts/hook-handle-rename.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/scripts/pack-download.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/scripts/notify.sh" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/scripts/cmux-focus.sh" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/scripts/cmux-status-presentation.sh" 2>/dev/null || true
+chmod +x "$INSTALL_DIR/scripts/cmux-workspace-field.sh" 2>/dev/null || true
 chmod +x "$INSTALL_DIR/scripts/tts-native.sh" 2>/dev/null || true
 
 # --- Build peon-play (macOS Sound Effects device support) ---

@@ -1434,7 +1434,7 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   [ "$val" = "🔔" ]
 }
 
-@test "notification_title_marker appears in notification title" {
+@test "notification_title_marker appears in tab title but not notification title" {
   /usr/bin/python3 -c "
 import json
 cfg = json.load(open('$TEST_DIR/config.json'))
@@ -1444,7 +1444,9 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
-  grep -q "●" "$TEST_DIR/terminal_notifier.log"
+  [ -f "$TEST_DIR/.tab_title" ]
+  grep -q "●myproject: done" "$TEST_DIR/.tab_title"
+  ! grep -q "●" "$TEST_DIR/terminal_notifier.log"
 }
 
 @test "notification_title_marker empty removes marker from title" {
@@ -4588,6 +4590,221 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   linux_audio_was_called
+}
+
+@test "suppress_sound_when_tab_focused: cmux uses focused surface instead of Ghostty AppleScript" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  echo "cmux" > "$TEST_DIR/.mock_terminal_focused"
+  cat > "$TEST_DIR/.mock_cmux_identify_json" <<'JSON'
+{"focused":{"workspace_id":"11111111-1111-1111-1111-111111111111","surface_id":"22222222-2222-2222-2222-222222222222"},"caller":{"workspace_id":"11111111-1111-1111-1111-111111111111","surface_id":"22222222-2222-2222-2222-222222222222"}}
+JSON
+
+  export TERM_PROGRAM=ghostty
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"identify"* ]]
+  ! grep -q 'Ghostty' "$TEST_DIR/osascript.log" 2>/dev/null
+}
+
+@test "suppress_sound_when_tab_focused: cmux background surface still plays sound" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  echo "cmux" > "$TEST_DIR/.mock_terminal_focused"
+  cat > "$TEST_DIR/.mock_cmux_identify_json" <<'JSON'
+{"focused":{"workspace_id":"11111111-1111-1111-1111-111111111111","surface_id":"33333333-3333-3333-3333-333333333333"},"caller":{"workspace_id":"11111111-1111-1111-1111-111111111111","surface_id":"22222222-2222-2222-2222-222222222222"}}
+JSON
+
+  export TERM_PROGRAM=ghostty
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"identify"* ]]
+}
+
+@test "cmux status pill shows Running on SessionStart and clears on SessionEnd" {
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"set-status peon Claude Code: Running"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--icon bolt.fill"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--color #4C8DFF"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
+  ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"--socket"* ]]
+
+  run_peon '{"hook_event_name":"SessionEnd","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"clear-status peon"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
+}
+
+@test "cmux status pill is disabled for native Claude Code sessions" {
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  CLAUDE_CODE_ENTRYPOINT=cli \
+    run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$TEST_DIR/cmux.log" ]
+}
+
+@test "cmux status pill still updates for codex sessions when Claude env leaks through" {
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  CLAUDE_CODE_ENTRYPOINT=cli \
+    run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"codex-123","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"set-status peon OpenAI Codex: Idle"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--icon pause.circle.fill"* ]]
+  ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"--color "* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
+}
+
+@test "cmux status pill retries transient broken pipe" {
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+  touch "$TEST_DIR/.mock_cmux_fail_once"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [ "$(grep -c 'set-status peon Claude Code: Idle' "$TEST_DIR/cmux.log")" -eq 2 ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
+}
+
+@test "cmux status pill uses native Claude input state" {
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default","tool_name":"Bash"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"set-status peon Claude Code: Needs input"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--icon bell.fill"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--color #4C8DFF"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
+}
+
+@test "cmux status pill uses archive icon for compacting state" {
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"PreCompact","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"set-status peon Claude Code: Running"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--icon archivebox.fill"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--color #AC8D00"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace workspace:5"* ]]
+}
+
+@test "cmux Codex notification title uses upstream IDE title with workspace title" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_style'] = 'standard'
+c['notification_title_ide'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-title","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title test - OpenAI Codex"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--body Idle"* ]]
+  ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title"*": Idle"* ]]
+}
+
+@test "cmux notification title uses workspace and IDE without socket env" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_style'] = 'standard'
+c['notification_title_ide'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-title","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title test - OpenAI Codex"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--body Idle"* ]]
+}
+
+@test "cmux notification title override beats workspace title" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_style'] = 'standard'
+c['notification_title_override'] = 'Manual Title'
+c['notification_title_ide'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"","session_id":"codex-title","permission_mode":"default"}'
+
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title Manual Title - OpenAI Codex"* ]]
+  ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify --title test"* ]]
 }
 
 # ============================================================

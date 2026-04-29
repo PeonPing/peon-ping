@@ -21,6 +21,13 @@ setup_test_env() {
   export CLAUDE_PEON_DIR="$TEST_DIR"
   export PEON_TEST=1
 
+  # Prevent the user's live cmux session from leaking into tests that expect
+  # normal desktop notification paths unless they opt into cmux explicitly.
+  unset CMUX_SOCKET_PATH CMUX_SOCKET CMUX_WORKSPACE_ID CMUX_SURFACE_ID CMUX_PANEL_ID
+  unset CMUX_BUNDLED_CLI_PATH CMUX_BUNDLE_ID
+  unset TERM_PROGRAM GHOSTTY_RESOURCES_DIR ITERM_SESSION_ID WARP_IS_LOCAL_SHELL_SESSION
+  unset __CFBundleIdentifier CLAUDE_SESSION_NAME
+
   # Create directory structure
   mkdir -p "$TEST_DIR/packs/peon/sounds"
   mkdir -p "$TEST_DIR/packs/sc_kerrigan/sounds"
@@ -288,6 +295,49 @@ fi
 SCRIPT
   chmod +x "$MOCK_BIN/osascript"
 
+  # Mock cmux — returns fixture identify payloads and logs focus commands.
+  cat > "$MOCK_BIN/cmux" <<'SCRIPT'
+#!/bin/bash
+echo "$@" >> "${CLAUDE_PEON_DIR}/cmux.log"
+if [ -f "${CLAUDE_PEON_DIR}/.mock_cmux_fail_once" ]; then
+  if printf '%s\n' "$@" | grep -q "set-status"; then
+    state_file="${CLAUDE_PEON_DIR}/.mock_cmux_fail_once.state"
+    if [ ! -f "$state_file" ]; then
+      touch "$state_file"
+      echo "Error: Failed to write to socket (Broken pipe, errno 32)" >&2
+      exit 1
+    fi
+  fi
+fi
+for arg in "$@"; do
+  if [ "$arg" = "list-workspaces" ]; then
+    if [ -f "${CLAUDE_PEON_DIR}/.mock_cmux_list_workspaces_json" ]; then
+      cat "${CLAUDE_PEON_DIR}/.mock_cmux_list_workspaces_json"
+    else
+      cat <<'JSON'
+{"workspaces":[{"id":"11111111-1111-1111-1111-111111111111","ref":"workspace:5","title":"test"}]}
+JSON
+    fi
+    exit 0
+  fi
+  if [ "$arg" = "identify" ]; then
+    if [ -f "${CLAUDE_PEON_DIR}/.mock_cmux_identify_json" ]; then
+      cat "${CLAUDE_PEON_DIR}/.mock_cmux_identify_json"
+    else
+      echo '{"focused":null,"caller":null}'
+    fi
+    exit 0
+  fi
+  if [ "$arg" = "focus-panel" ]; then
+    echo "$@" >> "${CLAUDE_PEON_DIR}/cmux_focus.log"
+    echo '{"ok":true}'
+    exit 0
+  fi
+done
+echo '{"ok":true}'
+SCRIPT
+  chmod +x "$MOCK_BIN/cmux"
+
   # Mock curl — handles version checks, relay requests, mobile notifications,
   # and pack registry/manifest/sound downloads (when mock fixtures exist)
   cat > "$MOCK_BIN/curl" <<'SCRIPT'
@@ -402,7 +452,18 @@ SCRIPT
     cp "$_src_dir/scripts/notify.sh" "$TEST_DIR/scripts/notify.sh"
     chmod +x "$TEST_DIR/scripts/notify.sh"
   fi
-
+  if [ -f "$_src_dir/scripts/cmux-focus.sh" ]; then
+    cp "$_src_dir/scripts/cmux-focus.sh" "$TEST_DIR/scripts/cmux-focus.sh"
+    chmod +x "$TEST_DIR/scripts/cmux-focus.sh"
+  fi
+  if [ -f "$_src_dir/scripts/cmux-status-presentation.sh" ]; then
+    cp "$_src_dir/scripts/cmux-status-presentation.sh" "$TEST_DIR/scripts/cmux-status-presentation.sh"
+    chmod +x "$TEST_DIR/scripts/cmux-status-presentation.sh"
+  fi
+  if [ -f "$_src_dir/scripts/cmux-workspace-field.sh" ]; then
+    cp "$_src_dir/scripts/cmux-workspace-field.sh" "$TEST_DIR/scripts/cmux-workspace-field.sh"
+    chmod +x "$TEST_DIR/scripts/cmux-workspace-field.sh"
+  fi
   # Mock relay as available for devcontainer/SSH tests
   # (Tests running in devcontainer need this to prevent "relay not reachable" errors)
   touch "$TEST_DIR/.relay_available"

@@ -63,6 +63,46 @@ overlay_log() {
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
   [[ "$(overlay_log)" == *"myproject"* ]]
+  ! [[ "$(overlay_log)" == *"Idle"* ]]
+}
+
+@test "macOS overlay idle_prompt ignores transcript summary outside cmux" {
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default","transcript_summary":"Investigated the bug and prepared a fix for the login flow"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"myproject"* ]]
+  ! [[ "$(overlay_log)" == *"Investigated the bug and prepared a fix for the login flow"* ]]
+}
+
+@test "macOS overlay idle_prompt falls back to project message" {
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"myproject"* ]]
+  ! [[ "$(overlay_log)" == *"Idle"* ]]
+}
+
+@test "macOS overlay PermissionRequest falls back to project message" {
+  run_peon '{"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"myproject"* ]]
+  ! [[ "$(overlay_log)" == *"Requires permissions"* ]]
+}
+
+@test "macOS overlay PermissionRequest uses cmux notification title" {
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+  cat > "$TEST_DIR/.mock_cmux_list_workspaces_json" <<'JSON'
+{"workspaces":[{"id":"11111111-1111-1111-1111-111111111111","ref":"workspace:5","title":"DC Archive"}]}
+JSON
+  run_peon '{"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"DC Archive"* ]]
+  ! [[ "$(overlay_log)" == *"Requires permissions"* ]]
 }
 
 @test "macOS overlay passes color argument" {
@@ -109,6 +149,61 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
   [[ "$(overlay_log)" == *"com.mitchellh.ghostty"* ]]
+}
+
+@test "macOS overlay treats cmux as cmux even though TERM_PROGRAM is ghostty" {
+  export TERM_PROGRAM=ghostty
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"com.cmuxterm.app"* ]]
+  ! [ -f "$TEST_DIR/cmux.log" ]
+  ! [[ "$(overlay_log)" == *"com.mitchellh.ghostty"* ]]
+}
+
+@test "macOS overlay shows cmux adapter workspace title instead of Idle body" {
+  export CMUX_SOCKET_PATH=/tmp/cmux-test.sock
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-overlay-title","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"test"* ]]
+  ! [[ "$(overlay_log)" == *" Idle "* ]]
+}
+
+@test "macOS overlay uses cmux workspace and IDE title without socket env" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_title_ide'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  export CMUX_WORKSPACE_ID=11111111-1111-1111-1111-111111111111
+  export CMUX_SURFACE_ID=22222222-2222-2222-2222-222222222222
+  export CMUX_BUNDLED_CLI_PATH="$MOCK_BIN/cmux"
+
+  run_peon '{"hook_event_name":"Stop","source":"codex","cwd":"/tmp/myproject","session_id":"codex-overlay-title","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"test - OpenAI Codex"* ]]
+  ! [[ "$(overlay_log)" == *" Idle "* ]]
+}
+
+@test "overlay click helper focuses targeted cmux panel" {
+  run "$TEST_DIR/scripts/cmux-focus.sh" "$MOCK_BIN/cmux" "/tmp/cmux-test.sock" "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222"
+  [ "$status" -eq 0 ]
+  [ -f "$TEST_DIR/cmux_focus.log" ]
+  [[ "$(cat "$TEST_DIR/cmux_focus.log")" == *"focus-panel"* ]]
+  [[ "$(cat "$TEST_DIR/cmux_focus.log")" == *"--workspace workspace:5"* ]]
+  [[ "$(cat "$TEST_DIR/cmux_focus.log")" == *"--panel 22222222-2222-2222-2222-222222222222"* ]]
 }
 
 @test "macOS overlay passes bundle ID for Warp click-to-focus" {
@@ -359,10 +454,12 @@ terminal_notifier_log() {
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
-  TERM_PROGRAM= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  TERM_PROGRAM= CMUX_SOCKET_PATH= CMUX_SOCKET= CMUX_WORKSPACE_ID= CMUX_SURFACE_ID= CMUX_BUNDLED_CLI_PATH= CMUX_BUNDLE_ID= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   ! overlay_was_called
   [ -f "$TEST_DIR/terminal_notifier.log" ]
+  [[ "$(terminal_notifier_log)" == *"-message done"* ]]
+  ! [[ "$(terminal_notifier_log)" == *"-message Idle"* ]]
   ! [ -f "$TEST_DIR/osascript.log" ]
 }
 
@@ -370,18 +467,35 @@ JSON
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
-  TERM_PROGRAM=ghostty run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  TERM_PROGRAM=ghostty CMUX_SOCKET_PATH= CMUX_SOCKET= CMUX_WORKSPACE_ID= CMUX_SURFACE_ID= CMUX_BUNDLED_CLI_PATH= CMUX_BUNDLE_ID= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   [[ "$(terminal_notifier_log)" == *"-activate"* ]]
   [[ "$(terminal_notifier_log)" == *"com.mitchellh.ghostty"* ]]
 }
 
+@test "standard: cmux notify is used inside cmux instead of terminal-notifier" {
+  local notify_script="$TEST_DIR/scripts/notify.sh"
+  PEON_PLATFORM=mac PEON_NOTIF_STYLE=standard PEON_SYNC=1 \
+    PEON_BUNDLE_ID="com.cmuxterm.app" PEON_CMUX_CLI="$MOCK_BIN/cmux" \
+    PEON_CMUX_SOCKET_PATH="/tmp/cmux-test.sock" \
+    PEON_CMUX_WORKSPACE_ID="11111111-1111-1111-1111-111111111111" \
+    PEON_CMUX_SURFACE_ID="22222222-2222-2222-2222-222222222222" \
+    bash "$notify_script" "test msg" "Rovo Dev (test)" "blue" ""
+  [ -f "$TEST_DIR/cmux.log" ]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"notify"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--title Rovo Dev (test)"* ]]
+  ! [[ "$(cat "$TEST_DIR/cmux.log")" == *"--socket"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--workspace 11111111-1111-1111-1111-111111111111"* ]]
+  [[ "$(cat "$TEST_DIR/cmux.log")" == *"--surface 22222222-2222-2222-2222-222222222222"* ]]
+  ! [ -f "$TEST_DIR/terminal_notifier.log" ]
+}
+
 @test "standard: terminal-notifier includes -activate for Warp" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
-  TERM_PROGRAM=WarpTerminal run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  TERM_PROGRAM=WarpTerminal CMUX_SOCKET_PATH= CMUX_SOCKET= CMUX_WORKSPACE_ID= CMUX_SURFACE_ID= CMUX_BUNDLED_CLI_PATH= CMUX_BUNDLE_ID= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   [[ "$(terminal_notifier_log)" == *"-activate"* ]]
@@ -392,7 +506,7 @@ JSON
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
-  TERM_PROGRAM=zed run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  TERM_PROGRAM=zed CMUX_SOCKET_PATH= CMUX_SOCKET= CMUX_WORKSPACE_ID= CMUX_SURFACE_ID= CMUX_BUNDLED_CLI_PATH= CMUX_BUNDLE_ID= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   [[ "$(terminal_notifier_log)" == *"-activate"* ]]
@@ -403,7 +517,7 @@ JSON
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
-  TERM_PROGRAM=some_unknown_term run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  TERM_PROGRAM=some_unknown_term CMUX_SOCKET_PATH= CMUX_SOCKET= CMUX_WORKSPACE_ID= CMUX_SURFACE_ID= CMUX_BUNDLED_CLI_PATH= CMUX_BUNDLE_ID= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   ! [[ "$(terminal_notifier_log)" == *"-activate"* ]]
@@ -415,7 +529,7 @@ JSON
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.5, "enabled": true, "desktop_notifications": true, "notification_style": "standard", "categories": { "task.complete": true } }
 JSON
-  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  CMUX_SOCKET_PATH= CMUX_SOCKET= CMUX_WORKSPACE_ID= CMUX_SURFACE_ID= CMUX_BUNDLED_CLI_PATH= CMUX_BUNDLE_ID= run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   [[ "$(terminal_notifier_log)" == *"-appIcon"* ]]
@@ -755,14 +869,22 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'), indent=2)
   [[ "$(overlay_log)" == *"myproject: Bash needs approval"* ]]
 }
 
-@test "template: no template configured falls back to project name" {
+@test "template: no template configured falls back to project outside cmux" {
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default","transcript_summary":"Some work done"}'
   [ "$PEON_EXIT" -eq 0 ]
   overlay_was_called
   local log
   log="$(overlay_log)"
   [[ "$log" == *"myproject"* ]]
-  [[ "$log" != *"Some work done"* ]]
+  ! [[ "$log" == *"Some work done"* ]]
+}
+
+@test "template: Stop without summary falls back to project" {
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"myproject"* ]]
+  ! [[ "$(overlay_log)" == *"Idle"* ]]
 }
 
 @test "template: unknown variable renders as empty string" {

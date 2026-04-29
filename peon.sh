@@ -602,7 +602,12 @@ play_sound() {
 # mac-overlay.js click handler to focus the right terminal on notification click.
 _mac_terminal_bundle_id() {
   case "${TERM_PROGRAM:-}" in
-    ghostty)        echo "com.mitchellh.ghostty" ;;
+    ghostty)
+      if _is_cmux_session; then
+        _mac_cmux_bundle_id
+      else
+        echo "com.mitchellh.ghostty"
+      fi ;;
     iTerm.app)      echo "com.googlecode.iterm2" ;;
     WarpTerminal)   echo "dev.warp.Warp-Stable" ;;
     Apple_Terminal) echo "com.apple.Terminal" ;;
@@ -619,7 +624,9 @@ _mac_terminal_bundle_id() {
       echo "" ;;
     *)
       # Fallback: detect terminal via env vars that survive tmux/screen
-      if [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
+      if _is_cmux_session; then
+        _mac_cmux_bundle_id
+      elif [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
         echo "com.mitchellh.ghostty"
       elif [ -n "${ITERM_SESSION_ID:-}" ]; then
         echo "com.googlecode.iterm2"
@@ -629,6 +636,97 @@ _mac_terminal_bundle_id() {
         echo ""
       fi ;;
   esac
+}
+
+_is_cmux_session() {
+  { [ -n "${CMUX_SURFACE_ID:-}" ] || [ -n "${CMUX_PANEL_ID:-}" ]; } && { [ -n "${CMUX_SOCKET_PATH:-}" ] || [ -n "${CMUX_SOCKET:-}" ]; }
+}
+
+_cmux_cli_path() {
+  if [ -n "${CMUX_BUNDLED_CLI_PATH:-}" ] && [ -x "${CMUX_BUNDLED_CLI_PATH:-}" ]; then
+    printf '%s\n' "$CMUX_BUNDLED_CLI_PATH"
+    return
+  fi
+  command -v cmux 2>/dev/null || true
+}
+
+_mac_cmux_bundle_id() {
+  [ -n "${PEON_CMUX_BUNDLE_ID:-}" ] && { echo "$PEON_CMUX_BUNDLE_ID"; return; }
+
+  local _name _bid
+  for _name in cmux "cmux DEV" "cmux NIGHTLY"; do
+    _bid=$(osascript -e "tell application \"System Events\" to get bundle identifier of first process whose name is \"$_name\"" 2>/dev/null) && [ -n "$_bid" ] && { echo "$_bid"; return; }
+  done
+
+  echo "com.cmuxterm.app"
+}
+
+_cmux_surface_is_current() {
+  local cmux_cli
+  cmux_cli="$(_cmux_cli_path)"
+  [ -n "$cmux_cli" ] || return 1
+  [ -n "${CMUX_SURFACE_ID:-}" ] || return 1
+
+  local identify_json
+  if [ -n "${CMUX_WORKSPACE_ID:-}" ]; then
+    identify_json=$("$cmux_cli" --json identify --workspace "$CMUX_WORKSPACE_ID" --surface "$CMUX_SURFACE_ID" 2>/dev/null || true)
+  else
+    identify_json=$("$cmux_cli" --json identify --surface "$CMUX_SURFACE_ID" 2>/dev/null || true)
+  fi
+  [ -n "$identify_json" ] || return 1
+
+  # cmux identify payloads have used both surface/panel and id/ref fields. Accept
+  # all known shapes so focus suppression does not depend on one CLI revision.
+  IDENTIFY_JSON="$identify_json" python3 - "$CMUX_SURFACE_ID" "${CMUX_WORKSPACE_ID:-}" <<'PY' >/dev/null 2>&1
+import json
+import os
+import sys
+
+expected_surface = sys.argv[1]
+expected_workspace = sys.argv[2] if len(sys.argv) > 2 else ""
+
+try:
+    payload = json.loads(os.environ.get("IDENTIFY_JSON", ""))
+except Exception:
+    sys.exit(1)
+
+focused = payload.get("focused") or {}
+caller = payload.get("caller") or {}
+if not isinstance(focused, dict):
+    sys.exit(1)
+if not isinstance(caller, dict):
+    caller = {}
+
+focused_surface = focused.get("surface_id") or focused.get("surface_ref") or focused.get("tab_id") or focused.get("tab_ref")
+caller_surface = caller.get("surface_id") or caller.get("surface_ref") or caller.get("tab_id") or caller.get("tab_ref") or expected_surface
+focused_workspace = focused.get("workspace_id") or focused.get("workspace_ref")
+caller_workspace = caller.get("workspace_id") or caller.get("workspace_ref") or expected_workspace
+
+if focused_surface and caller_surface and focused_surface == caller_surface:
+    if not caller_workspace or not focused_workspace or focused_workspace == caller_workspace:
+        sys.exit(0)
+
+sys.exit(1)
+PY
+}
+
+# --- Update the cmux sidebar status pill for this workspace ---
+# The helper owns cmux-specific policy and CLI calls; peon.sh only forwards the
+# upstream status context it already computed.
+_cmux_update_status() {
+  local cmux_status_presentation
+  cmux_status_presentation="$(find_bundled_script "cmux-status-presentation.sh")" 2>/dev/null || return 0
+  "$cmux_status_presentation" update "${EVENT:-}" "${STATUS:-}" "${IDE_LABEL:-}" "${SESSION_ID:-}" >/dev/null 2>&1 || true
+}
+
+_cmux_update_status_async() {
+  if [ "${PEON_TEST:-0}" = "1" ]; then
+    _cmux_update_status
+  else
+    # Status mirroring is cosmetic; it should not delay sounds, notifications,
+    # or the hook process returning control to the IDE.
+    ( _cmux_update_status ) >/dev/null 2>&1 &
+  fi
 }
 
 # --- IDE ancestor PID detection (macOS click-to-focus for GUI IDEs) ---
@@ -746,6 +844,19 @@ send_notification() {
       if [ "$PEON_PLATFORM" = "mac" ]; then
         export PEON_BUNDLE_ID="$(_mac_terminal_bundle_id)"
         export PEON_IDE_PID="$(_mac_ide_pid)"
+        _peon_cmux_surface="${CMUX_SURFACE_ID:-${CMUX_PANEL_ID:-}}"
+        _peon_cmux_cli="$(_cmux_cli_path)"
+        if [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "$_peon_cmux_surface" ] && [ -n "$_peon_cmux_cli" ]; then
+          export PEON_CMUX_WORKSPACE_ID="${CMUX_WORKSPACE_ID:-}"
+          export PEON_CMUX_SURFACE_ID="$_peon_cmux_surface"
+          export PEON_CMUX_SOCKET_PATH="${CMUX_SOCKET_PATH:-${CMUX_SOCKET:-}}"
+          export PEON_CMUX_CLI="$_peon_cmux_cli"
+        else
+          export PEON_CMUX_WORKSPACE_ID=""
+          export PEON_CMUX_SURFACE_ID=""
+          export PEON_CMUX_SOCKET_PATH=""
+          export PEON_CMUX_CLI=""
+        fi
         # Fallback: if no terminal bundle ID but we found an IDE ancestor,
         # derive the bundle ID from the IDE PID (for embedded terminals like Cursor)
         if [ -z "$PEON_BUNDLE_ID" ] && [ "${PEON_IDE_PID:-0}" != "0" ]; then
@@ -818,6 +929,13 @@ terminal_is_focused() {
           return 1  # Different tab/pane is active in all windows — notify
           ;;
         Ghostty|ghostty) _ghostty_terminal_is_current ; return $? ;;
+        cmux|cmux\ *)
+          if _is_cmux_session; then
+            _cmux_surface_is_current
+            return $?
+          fi
+          return 0
+          ;;
         Terminal|Warp|Alacritty|kitty|WezTerm) return 0 ;;
         *) return 1 ;;
       esac
@@ -4877,6 +4995,7 @@ state_dirty = True
 
 # --- Project name (priority chain: session_names[id] > CLAUDE_SESSION_NAME > .peon-label > notification_title_script > project_name_map > title_override > git repo > folder) ---
 project = None
+project_from_title_override = False
 
 # -1. State-based session name (set via /peon-ping-rename, highest priority)
 if session_id:
@@ -4930,7 +5049,9 @@ if not project:
 # 3. Static override
 if not project:
     _ov = cfg.get('notification_title_override', '')
-    if _ov: project = str(_ov)[:50]
+    if _ov:
+        project = str(_ov)[:50]
+        project_from_title_override = True
 
 # 4. Git repo name
 if not project and cwd:
@@ -4959,10 +5080,45 @@ project = re.sub(r'[^a-zA-Z0-9 ._-]', '', project)
 ide_label = display_ide_name(session_ide)
 notification_project = f'{project} - {ide_label}' if cfg.get('notification_title_ide', False) and ide_label else project
 
+cmux_session = (
+    bool(os.environ.get('CMUX_SURFACE_ID') or os.environ.get('CMUX_PANEL_ID')) and
+    bool(os.environ.get('CMUX_WORKSPACE_ID'))
+)
+cmux_notification_path = cmux_session and cfg.get('notification_style', 'overlay') == 'standard'
+
+def first_excerpt(*values):
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        cleaned = re.sub(r'\s+', ' ', value).strip()
+        if cleaned:
+            return cleaned[:120]
+    return ''
+
+message_excerpt = first_excerpt(
+    event_data.get('transcript_summary', ''),
+    event_data.get('summary', ''),
+    event_data.get('last-assistant-message', ''),
+    event_data.get('last_assistant_message', ''),
+    event_data.get('message', ''),
+    event_data.get('body', ''),
+    event_data.get('text', ''),
+)
+
 def notification_message(status_value, *details):
     parts = [str(status_value or '').strip()]
     parts.extend(str(detail or '').strip() for detail in details)
     parts = [part for part in parts if part]
+    if cmux_notification_path:
+        if message_excerpt:
+            return message_excerpt
+        if parts:
+            if parts[0] == 'done':
+                return 'Idle'
+            if parts[0] == 'question':
+                return parts[1] if len(parts) > 1 else 'Question pending'
+            if parts[0] == 'needs approval':
+                return 'Requires permissions'
     if len(parts) <= 1:
         return parts[0] if parts else ''
     return parts[0] + ': ' + ' - '.join(parts[1:])
@@ -5077,6 +5233,7 @@ elif event == 'Notification':
         notify = '1'
         notify_color = 'blue'
         msg = notification_message(status, 'Question pending')
+        msg_subtitle = 'Question pending'
     else:
         # Unknown notification type — maintain tab title (e.g. plan mode events)
         log('route', category='none', suppressed=True, reason='unknown_notification')
@@ -5152,7 +5309,7 @@ elif event == 'SubagentStart':
 elif event == 'PreCompact':
     # Context window filling up — compaction about to start
     category = 'resource.limit'
-    status = 'working'
+    status = 'compacting'
     marker = '\u25cf '
     notify = '1'
     notify_color = 'red'
@@ -5517,6 +5674,7 @@ _tpl = _templates.get(_tpl_key, '')
 _tpl_vars = _defaultdict(str, {
     'project': project,
     'summary': _template_summary(event_data),
+    'excerpt': message_excerpt,
     'tool_name': event_data.get('tool_name', ''),
     'status': status,
     'event': event,
@@ -5581,6 +5739,9 @@ print('PEON_EXIT=false')
 print('EVENT=' + q(event))
 print('VOLUME=' + q(str(volume)))
 print('PROJECT=' + q(project))
+print('PROJECT_FROM_TITLE_OVERRIDE=' + ('true' if project_from_title_override else 'false'))
+print('IDE_LABEL=' + q(ide_label))
+print('NOTIFICATION_TITLE_IDE=' + ('true' if cfg.get('notification_title_ide', False) else 'false'))
 print('CWD=' + q(cwd))
 print('STATUS=' + q(status))
 print('MARKER=' + q(marker))
@@ -5639,6 +5800,25 @@ PEON_LOCAL_PY_EOF
 _PEON_PYOUT=$(python3 "$_PEON_PY_TMP" <<< "$INPUT")
 eval "$_PEON_PYOUT"
 
+# --- Override PROJECT with cmux workspace title ---
+# A cmux workspace's title is set by the user and doesn't have to match cwd/git
+# remote, so ask cmux directly when CMUX_WORKSPACE_ID is in the env.
+if [ "${PROJECT_FROM_TITLE_OVERRIDE:-false}" != "true" ] && [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then
+  _cmux_workspace_field_helper="$(find_bundled_script "cmux-workspace-field.sh")" 2>/dev/null || _cmux_workspace_field_helper=""
+  if [ -n "$_cmux_workspace_field_helper" ]; then
+    _cmux_title=$(bash "$_cmux_workspace_field_helper" title "$(_cmux_cli_path)" "" "$CMUX_WORKSPACE_ID" 2>/dev/null)
+    if [ -n "$_cmux_title" ]; then
+      PROJECT="$_cmux_title"
+    fi
+  fi
+fi
+if [ -n "${MSG:-}" ] && [ -n "${PROJECT:-}" ]; then
+  NOTIFY_PROJECT="$PROJECT"
+  if [ "${NOTIFICATION_TITLE_IDE:-false}" = "true" ] && [ -n "${IDE_LABEL:-}" ]; then
+    NOTIFY_PROJECT="${PROJECT} - ${IDE_LABEL}"
+  fi
+fi
+
 # --- Bash-side debug log function for [play] and [notify] phases ---
 if [ -n "${_PEON_LOG_FILE:-}" ]; then
   # Detect millisecond timestamp capability once at definition time.
@@ -5693,6 +5873,7 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
     [ "${PEON_TEST:-0}" = "1" ] && printf '%s\n' "$_peon_title" > "$PEON_DIR/.tab_title"
     { printf '\033]0;%s\007' "$_peon_title" > /dev/tty; } 2>/dev/null || true
   fi
+  _cmux_update_status_async
   exit 0
 fi
 
@@ -5814,9 +5995,9 @@ if [ "$EVENT" = "SessionStart" ] && { [ "$PEON_PLATFORM" = "devcontainer" ] || [
   fi
 fi
 
-# --- Build tab title ---
+# --- Build notification title ---
 TITLE="${NOTIF_MARKER-${MARKER}}${PROJECT}: ${STATUS}"
-NOTIFY_TITLE="${NOTIF_MARKER-${MARKER}}${NOTIFY_PROJECT:-$PROJECT}"
+NOTIFY_TITLE="${NOTIFY_PROJECT:-$PROJECT}"
 
 # --- Resolve TTY for escape sequences ---
 # Write to /dev/tty so the escape sequence reaches the terminal directly.
@@ -5846,6 +6027,9 @@ if [ "${TERMINAL_TAB_TITLE:-true}" = "true" ] && [ -n "$TITLE" ]; then
   [ "${PEON_TEST:-0}" = "1" ] && printf '%s\n' "$TITLE" > "$PEON_DIR/.tab_title"
   _peon_esc "$(printf '\033]0;%s\007' "$TITLE")"
 fi
+
+# --- Mirror the status into cmux's sidebar pill ---
+_cmux_update_status_async
 
 # --- Set iTerm2 tab color (OSC 6) ---
 # Detects iTerm2 via ITERM_SESSION_ID (persists inside tmux where TERM_PROGRAM=tmux).
@@ -5941,8 +6125,18 @@ _run_sound_and_notify() {
 
   # --- Smart notification: only when terminal is NOT frontmost ---
   if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
+    local _force_cmux_standard_notify=false
+    if [ "$PEON_PLATFORM" = "mac" ] && [ "${NOTIF_STYLE:-overlay}" = "standard" ] && _is_cmux_session; then
+      _force_cmux_standard_notify=true
+    fi
     [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
-    [ "$_focused" != "true" ] && send_notification "$MSG" "$NOTIFY_TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
+    _peon_log notify "gate event=${EVENT:-} focused=$_focused paused=$PAUSED desktop=${DESKTOP_NOTIF:-true} style=${NOTIF_STYLE:-overlay} cmux_standard=$_force_cmux_standard_notify title=$(printf '%q' "$NOTIFY_TITLE") msg=$(printf '%q' "$MSG")"
+    if [ "$_focused" != "true" ] || [ "$_force_cmux_standard_notify" = "true" ]; then
+      _peon_log notify "dispatch event=${EVENT:-} focused=$_focused style=${NOTIF_STYLE:-overlay} cmux_standard=$_force_cmux_standard_notify"
+      send_notification "$MSG" "$NOTIFY_TITLE" "${NOTIFY_COLOR:-red}" "${ICON_PATH:-}"
+    else
+      _peon_log notify "suppressed event=${EVENT:-} focused=$_focused style=${NOTIF_STYLE:-overlay}"
+    fi
   fi
 
   # --- Mobile push notification (always sends when configured, regardless of focus) ---
