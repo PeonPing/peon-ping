@@ -21,6 +21,18 @@ The config file is at `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/confi
 - **pack_rotation_mode** (string): `"random"` (default) picks a random pack each session. `"round-robin"` cycles through in order. `"session_override"` uses explicit per-session assignments from `/peon-ping-use`; invalid or missing packs fall back to `default_pack` and the stale assignment is removed. Legacy value `"agentskill"` is accepted as an alias.
 - **categories** (object): Toggle individual CESP sound categories:
   - `session.start`, `task.acknowledge`, `task.complete`, `task.error`, `input.required`, `resource.limit`, `user.spam` — each a boolean
+- **disabled_sounds** (object): Disable specific sound files within a pack, keyed by pack name → category → array of filenames (basenames). Example:
+  ```json
+  "disabled_sounds": {
+    "peon": { "session.start": ["Hello1.wav"] }
+  }
+  ```
+  If every sound in a category is listed, that category stays silent. Prefer the CLI:
+  ```bash
+  peon sounds list [pack]
+  peon sounds disable <category> <file> [--pack=<name>]
+  peon sounds enable  <category> <file> [--pack=<name>]
+  ```
 - **annoyed_threshold** (number): How many rapid prompts trigger user.spam sounds
 - **annoyed_window_seconds** (number): Time window for the annoyed threshold
 - **silent_window_seconds** (number): Suppress task.complete sounds for tasks shorter than this many seconds

@@ -140,6 +140,7 @@ peon pause / resume / mute / unmute / status
 peon volume [0.0-1.0]
 peon rotation [random|round-robin|session_override]
 peon packs list / use / install / next / remove / bind / unbind / bindings / community / search
+peon sounds list [pack] / disable <cat> <file> / enable <cat> <file>  (disable or re-enable individual sounds in a pack)
 peon notifications on / off / test
 peon debug on / off / status
 peon logs [--last N] [--session ID] [--clear]

@@ -5866,3 +5866,125 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'), indent=2)
   [ "$status" -eq 0 ]
   [[ "$output" == *"logs"* ]]
 }
+
+# ============================================================
+# Per-sound disable (disabled_sounds)
+# ============================================================
+
+@test "disabled_sounds filters out a sound from random selection" {
+  # Disable Hello1.wav — only Hello2.wav remains for session.start
+  "$PEON_PY" -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['disabled_sounds'] = {'peon': {'session.start': ['Hello1.wav']}}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  for i in 1 2 3 4 5; do
+    run_peon "{\"hook_event_name\":\"SessionStart\",\"cwd\":\"/tmp/p\",\"session_id\":\"s$i\",\"permission_mode\":\"default\"}"
+  done
+  [ -f "$TEST_DIR/afplay.log" ]
+  ! grep -q "Hello1.wav" "$TEST_DIR/afplay.log"
+  grep -q "Hello2.wav" "$TEST_DIR/afplay.log"
+}
+
+@test "disabled_sounds: all sounds disabled => no sound played" {
+  "$PEON_PY" -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['disabled_sounds'] = {'peon': {'session.start': ['Hello1.wav', 'Hello2.wav']}}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "disabled_sounds applies only to the named pack" {
+  # Disabled in sc_kerrigan, not peon — peon sound should still play
+  "$PEON_PY" -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['disabled_sounds'] = {'sc_kerrigan': {'session.start': ['Hello1.wav']}}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/p","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+# ============================================================
+# sounds CLI (list/disable/enable)
+# ============================================================
+
+@test "sounds list prints categories and sounds from active pack" {
+  run bash "$PEON_SH" sounds list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"session.start"* ]]
+  [[ "$output" == *"Hello1.wav"* ]]
+  [[ "$output" == *"Hello2.wav"* ]]
+}
+
+@test "sounds list marks disabled sounds" {
+  "$PEON_PY" -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['disabled_sounds'] = {'peon': {'session.start': ['Hello1.wav']}}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" sounds list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Hello1.wav"*"disabled"* ]]
+}
+
+@test "sounds list accepts explicit pack arg" {
+  run bash "$PEON_SH" sounds list sc_kerrigan
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sc_kerrigan"* ]]
+}
+
+@test "sounds disable writes config entry" {
+  run bash "$PEON_SH" sounds disable session.start Hello1.wav
+  [ "$status" -eq 0 ]
+  disabled=$("$PEON_PY" -c "import json; print(','.join(json.load(open('$TEST_DIR/config.json')).get('disabled_sounds', {}).get('peon', {}).get('session.start', [])))")
+  [ "$disabled" = "Hello1.wav" ]
+}
+
+@test "sounds disable rejects unknown file" {
+  run bash "$PEON_SH" sounds disable session.start NoSuch.wav
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not found"* ]]
+}
+
+@test "sounds disable rejects unknown category" {
+  run bash "$PEON_SH" sounds disable no.such Hello1.wav
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no sounds"* ]]
+}
+
+@test "sounds enable removes entry and cleans empty structure" {
+  "$PEON_PY" -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['disabled_sounds'] = {'peon': {'session.start': ['Hello1.wav']}}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run bash "$PEON_SH" sounds enable session.start Hello1.wav
+  [ "$status" -eq 0 ]
+  has=$("$PEON_PY" -c "import json; print('disabled_sounds' in json.load(open('$TEST_DIR/config.json')))")
+  [ "$has" = "False" ]
+}
+
+@test "sounds --pack=<name> targets a non-default pack" {
+  run bash "$PEON_SH" sounds disable session.start Hello1.wav --pack=sc_kerrigan
+  [ "$status" -eq 0 ]
+  disabled=$("$PEON_PY" -c "import json; print(','.join(json.load(open('$TEST_DIR/config.json')).get('disabled_sounds', {}).get('sc_kerrigan', {}).get('session.start', [])))")
+  [ "$disabled" = "Hello1.wav" ]
+}
+
+@test "help lists sounds subcommand" {
+  run bash "$PEON_SH" help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sounds list"* ]]
+  [[ "$output" == *"sounds disable"* ]]
+  [[ "$output" == *"sounds enable"* ]]
+}

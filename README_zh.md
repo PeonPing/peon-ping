@@ -263,6 +263,9 @@ peon packs ide-bindings   # 列出所有 IDE 绑定
 peon packs exclude add <path> # 为 glob 或目录跳过 path_rules
 peon packs exclude remove <path> # 移除排除路径
 peon packs exclude list   # 列出排除路径
+peon sounds list [pack]   # 列出语音包中的所有声音，并标记已禁用项
+peon sounds disable <category> <file> [--pack=<name>]  # 禁用语音包中的单个声音
+peon sounds enable <category> <file> [--pack=<name>]   # 重新启用之前禁用的声音
 peon notifications on     # 启用桌面通知
 peon notifications off    # 禁用桌面通知
 peon notifications overlay   # 使用大型覆盖横幅（默认）

@@ -2742,6 +2742,24 @@ if (-not $catSounds -or $catSounds.Count -eq 0) {
     exit 0
 }
 
+# Filter out individually disabled sounds (config.disabled_sounds[pack][category])
+$disabledList = @()
+try {
+    $_dsPack = $config.disabled_sounds.$activePack
+    if ($_dsPack) {
+        $_dsCat = $_dsPack.$category
+        if ($_dsCat) { $disabledList = @($_dsCat) }
+    }
+} catch {}
+if ($disabledList.Count -gt 0) {
+    $catSounds = @($catSounds | Where-Object { $disabledList -notcontains (Split-Path $_.file -Leaf) })
+    if ($catSounds.Count -eq 0) {
+        & $peonLog 'sound' @{ error = 'all sounds disabled'; pack = $activePack; category = $category; fallback = 'none' }
+        & $peonLog 'exit' @{ duration_ms = [string]$_peonStart.ElapsedMilliseconds; exit = '0' }
+        exit 0
+    }
+}
+
 # Anti-repeat: avoid last played sound
 $lastKey = "last_$category"
 $lastPlayed = ""

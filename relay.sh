@@ -281,6 +281,13 @@ def pick_sound_for_category(category):
     if not sounds:
         return None, None
 
+    # Filter out individually disabled sounds (by basename)
+    disabled_list = config.get("disabled_sounds", {}).get(active_pack, {}).get(category, []) or []
+    if disabled_list:
+        sounds = [s for s in sounds if os.path.basename(str(s.get("file", ""))) not in disabled_list]
+        if not sounds:
+            return None, None
+
     # Load state to avoid repeats
     state = load_state()
     last_played = state.get("last_played", {})

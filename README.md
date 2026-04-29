@@ -266,6 +266,9 @@ peon packs ide-bindings   # List all IDE-based bindings
 peon packs exclude add <path> # Silence sounds & notifications for a glob or directory
 peon packs exclude remove <path> # Stop silencing the given path
 peon packs exclude list   # List silenced paths
+peon sounds list [pack]   # List sounds in a pack, marking disabled ones
+peon sounds disable <category> <file> [--pack=<name>]  # Mute a single sound within a pack
+peon sounds enable <category> <file> [--pack=<name>]   # Re-enable a previously disabled sound
 peon notifications on     # Enable desktop notifications
 peon notifications off    # Disable desktop notifications
 peon notifications overlay   # Use large overlay banners (default)
