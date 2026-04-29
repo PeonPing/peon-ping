@@ -88,6 +88,11 @@ _peon_completions() {
           COMPREPLY=( $(compgen -W "ntfy pushover telegram on off status test" -- "$cur") )
         fi
         return 0 ;;
+      sounds)
+        if [ "$cword" -eq 2 ]; then
+          COMPREPLY=( $(compgen -W "list disable enable" -- "$cur") )
+        fi
+        return 0 ;;
       debug)
         if [ "$cword" -eq 2 ]; then
           COMPREPLY=( $(compgen -W "on off status" -- "$cur") )
@@ -114,7 +119,7 @@ _peon_completions() {
   fi
 
   # Top-level commands
-  COMPREPLY=( $(compgen -W "pause resume mute unmute toggle status volume rotation packs notifications mobile relay debug logs trainer update help" -- "$cur") )
+  COMPREPLY=( $(compgen -W "pause resume mute unmute toggle status volume rotation packs sounds notifications mobile relay debug logs trainer update help" -- "$cur") )
   return 0
 }
 

@@ -3065,6 +3065,134 @@ print()
       *)
         echo "Usage: peon packs <list|use|next|install|install-local|remove|rotation|bind|unbind|bindings|community|search>" >&2; exit 1 ;;
     esac ;;
+  sounds)
+    SOUNDS_ACTION="${2:-}"
+    case "$SOUNDS_ACTION" in
+      list)
+        SOUNDS_PACK_ARG="${3:-}"
+        export PEON_ENV_SOUNDS_PACK="$SOUNDS_PACK_ARG"
+        python3 -c "
+import json, os, sys
+no_color = os.environ.get('NO_COLOR', '')
+CYAN = '' if no_color else '\033[36m'
+GREEN = '' if no_color else '\033[32m'
+RED = '' if no_color else '\033[31m'
+DIM = '' if no_color else '\033[90m'
+RST = '' if no_color else '\033[0m'
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+pack = os.environ.get('PEON_ENV_SOUNDS_PACK', '') or cfg.get('default_pack', cfg.get('active_pack', 'peon'))
+pack_dir = os.path.join(peon_dir, 'packs', pack)
+manifest = None
+for mname in ('openpeon.json', 'manifest.json'):
+    mpath = os.path.join(pack_dir, mname)
+    if os.path.exists(mpath):
+        manifest = json.load(open(mpath))
+        break
+if not manifest:
+    print(f'Error: pack \"{pack}\" not found.', file=sys.stderr)
+    sys.exit(1)
+disabled_map = cfg.get('disabled_sounds', {}).get(pack, {})
+categories = manifest.get('categories', {})
+total = sum(len(c.get('sounds', [])) for c in categories.values())
+print()
+print(f'  {CYAN}Sounds in \"{pack}\" ({total} total){RST}')
+for cat in sorted(categories.keys()):
+    sounds = categories[cat].get('sounds', [])
+    if not sounds:
+        continue
+    disabled = set(disabled_map.get(cat, []) or [])
+    print()
+    print(f'  {CYAN}{cat}{RST}')
+    max_w = max(len(os.path.basename(str(s.get('file', '')))) for s in sounds) + 2
+    name_w = max(max_w, 28)
+    for s in sounds:
+        fname = os.path.basename(str(s.get('file', '')))
+        label = str(s.get('label', ''))
+        is_disabled = fname in disabled
+        marker = f'  {RED}<-- disabled{RST}' if is_disabled else ''
+        label_str = f'{DIM}{label}{RST}' if label else ''
+        print(f'    {fname:<{name_w}}{label_str}{marker}')
+print()
+"
+        exit $? ;;
+      disable|enable)
+        SOUNDS_CAT="${3:-}"
+        SOUNDS_FILE="${4:-}"
+        SOUNDS_PACK=""
+        for _a in "${@:5}"; do
+          case "$_a" in
+            --pack=*) SOUNDS_PACK="${_a#--pack=}" ;;
+          esac
+        done
+        if [ -z "$SOUNDS_CAT" ] || [ -z "$SOUNDS_FILE" ]; then
+          echo "Usage: peon sounds $SOUNDS_ACTION <category> <file> [--pack=<name>]" >&2; exit 1
+        fi
+        export PEON_ENV_SOUNDS_ACTION="$SOUNDS_ACTION"
+        export PEON_ENV_SOUNDS_CAT="$SOUNDS_CAT"
+        export PEON_ENV_SOUNDS_FILE="$SOUNDS_FILE"
+        export PEON_ENV_SOUNDS_PACK="$SOUNDS_PACK"
+        python3 -c "
+import json, os, sys
+config_path = os.environ.get('PEON_ENV_CONFIG', '')
+peon_dir = os.environ.get('PEON_ENV_PEON_DIR', '')
+action = os.environ.get('PEON_ENV_SOUNDS_ACTION', '')
+category = os.environ.get('PEON_ENV_SOUNDS_CAT', '')
+fname = os.path.basename(os.environ.get('PEON_ENV_SOUNDS_FILE', ''))
+try:
+    cfg = json.load(open(config_path))
+except Exception:
+    cfg = {}
+pack = os.environ.get('PEON_ENV_SOUNDS_PACK', '') or cfg.get('default_pack', cfg.get('active_pack', 'peon'))
+pack_dir = os.path.join(peon_dir, 'packs', pack)
+manifest = None
+for mname in ('openpeon.json', 'manifest.json'):
+    mpath = os.path.join(pack_dir, mname)
+    if os.path.exists(mpath):
+        manifest = json.load(open(mpath))
+        break
+if not manifest:
+    print(f'Error: pack \"{pack}\" not found.', file=sys.stderr)
+    sys.exit(1)
+cat_sounds = manifest.get('categories', {}).get(category, {}).get('sounds', [])
+if not cat_sounds:
+    print(f'Error: category \"{category}\" has no sounds in pack \"{pack}\".', file=sys.stderr)
+    sys.exit(1)
+valid = {os.path.basename(str(s.get('file', ''))) for s in cat_sounds}
+if fname not in valid:
+    print(f'Error: sound \"{fname}\" not found in {pack}/{category}.', file=sys.stderr)
+    print(f'Available: {\", \".join(sorted(valid))}', file=sys.stderr)
+    sys.exit(1)
+ds = cfg.setdefault('disabled_sounds', {})
+pack_map = ds.setdefault(pack, {})
+cur = list(pack_map.get(category, []) or [])
+if action == 'disable':
+    if fname not in cur:
+        cur.append(fname)
+    pack_map[category] = sorted(cur)
+    msg = f'peon-ping: disabled {fname} in {pack}/{category}'
+else:
+    cur = [f for f in cur if f != fname]
+    if cur:
+        pack_map[category] = sorted(cur)
+    else:
+        pack_map.pop(category, None)
+    if not pack_map:
+        ds.pop(pack, None)
+    if not ds:
+        cfg.pop('disabled_sounds', None)
+    msg = f'peon-ping: enabled {fname} in {pack}/{category}'
+json.dump(cfg, open(config_path, 'w'), indent=2)
+print(msg)
+"
+        _rc=$?; [ $_rc -eq 0 ] && sync_adapter_configs; exit $_rc ;;
+      *)
+        echo "Usage: peon sounds <list|disable|enable> [args]" >&2; exit 1 ;;
+    esac ;;
   mobile)
     case "${2:-}" in
       ntfy)
@@ -3728,6 +3856,11 @@ Pack management:
   packs rotation add --install <p>  Add to rotation, installing from registry if needed
   packs rotation remove <p> Remove pack(s) from rotation
   packs rotation clear    Clear all packs from rotation
+
+Sound management (per-sound toggles within a pack):
+  sounds list [pack]                      List sounds in a pack, marking disabled ones
+  sounds disable <cat> <file> [--pack=<p>] Disable a specific sound within a category
+  sounds enable <cat> <file> [--pack=<p>]  Re-enable a previously disabled sound
 
 Mobile notifications:
   mobile ntfy <topic>      Set up ntfy.sh push notifications
@@ -5298,6 +5431,9 @@ if category and not paused:
         if not manifest:
             manifest = {}
         sounds = manifest.get('categories', {}).get(category, {}).get('sounds', [])
+        disabled_list = cfg.get('disabled_sounds', {}).get(active_pack, {}).get(category, []) or []
+        if disabled_list:
+            sounds = [s for s in sounds if os.path.basename(str(s.get('file', ''))) not in disabled_list]
         if sounds:
             last_played = state.get('last_played', {})
             last_file = last_played.get(category, '')

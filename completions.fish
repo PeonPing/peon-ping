@@ -32,6 +32,7 @@ complete -c peon -n "__peon_using_subcommand status" -l verbose -d "Show full de
 complete -c peon -n __peon_no_subcommand -a volume -d "Get or set volume level"
 complete -c peon -n __peon_no_subcommand -a rotation -d "Get or set pack rotation mode"
 complete -c peon -n __peon_no_subcommand -a packs -d "Manage sound packs"
+complete -c peon -n __peon_no_subcommand -a sounds -d "Enable/disable individual sounds in a pack"
 complete -c peon -n __peon_no_subcommand -a notifications -d "Control desktop notifications"
 complete -c peon -n __peon_no_subcommand -a mobile -d "Configure mobile push notifications"
 complete -c peon -n __peon_no_subcommand -a debug -d "Toggle debug logging"
@@ -199,6 +200,11 @@ function __peon_trainer_goal
   set -l cmd (commandline -opc)
   test (count $cmd) -ge 3; and test $cmd[2] = trainer; and test $cmd[3] = goal
 end
+
+# sounds subcommands
+complete -c peon -n "__peon_using_subcommand sounds" -a list -d "List sounds in a pack"
+complete -c peon -n "__peon_using_subcommand sounds" -a disable -d "Disable an individual sound"
+complete -c peon -n "__peon_using_subcommand sounds" -a enable -d "Re-enable an individual sound"
 
 # trainer goal weekday completions (short names)
 complete -c peon -n __peon_trainer_goal -a mon -d "Monday"

@@ -1,3 +1,8 @@
+## Unreleased
+
+### Added
+- **Per-sound disable toggles.** New `disabled_sounds` config key (keyed by pack → category → array of filenames) lets you silence individual sounds within a pack without removing the file or disabling the whole category. If every sound in a category is disabled, the category stays silent for that pack. Three new CLI commands drive it: `peon sounds list [pack]` lists sounds with a `<-- disabled` marker, `peon sounds disable <category> <file> [--pack=<name>]` mutes a single sound, and `peon sounds enable ...` re-enables it. Applies across `peon.sh`, the Windows `peon.ps1` runtime, and the SSH/devcontainer relay.
+
 ## v2.25.0 (2026-04-28)
 
 ### Added

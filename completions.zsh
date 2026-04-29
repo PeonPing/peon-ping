@@ -15,6 +15,7 @@ _peon() {
     'volume:Get or set volume level'
     'rotation:Get or set pack rotation mode'
     'packs:Manage sound packs'
+    'sounds:Enable/disable individual sounds in a pack'
     'notifications:Control desktop notifications'
     'mobile:Configure mobile push notifications'
     'relay:Start audio relay for devcontainers'
@@ -158,6 +159,13 @@ _peon() {
           _describe 'packs command' packs_cmds
           ;;
       esac
+      ;;
+    sounds)
+      if [[ "$CURRENT" -eq 3 ]]; then
+        compadd -- list disable enable
+      elif [[ "$words[3]" == "list" && "$CURRENT" -eq 4 ]]; then
+        _peon_pack_names
+      fi
       ;;
     notifications)
       case "$words[3]" in
