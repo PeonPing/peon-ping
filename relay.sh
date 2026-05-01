@@ -120,22 +120,24 @@ if [ ! -d "$PEON_DIR/packs" ]; then
   exit 1
 fi
 
-# --- Detect host platform ---
-case "$(uname -s)" in
-  Darwin) HOST_PLATFORM="mac" ;;
-  Linux)
-    # Check for Docker/devcontainer BEFORE checking for WSL
-    # (devcontainers on WSL2 have both indicators)
-    if [ -f /.dockerenv ]; then
-      HOST_PLATFORM="linux"
-    elif grep -qi microsoft /proc/version 2>/dev/null; then
-      HOST_PLATFORM="wsl"
-    else
-      HOST_PLATFORM="linux"
-    fi ;;
-  MINGW*|MSYS*|CYGWIN*) HOST_PLATFORM="windows" ;;
-  *)      HOST_PLATFORM="unknown" ;;
-esac
+# --- Detect host platform (override-friendly for tests) ---
+if [ -z "${HOST_PLATFORM:-}" ]; then
+  case "$(uname -s)" in
+    Darwin) HOST_PLATFORM="mac" ;;
+    Linux)
+      # Check for Docker/devcontainer BEFORE checking for WSL
+      # (devcontainers on WSL2 have both indicators)
+      if [ -f /.dockerenv ]; then
+        HOST_PLATFORM="linux"
+      elif grep -qi microsoft /proc/version 2>/dev/null; then
+        HOST_PLATFORM="wsl"
+      else
+        HOST_PLATFORM="linux"
+      fi ;;
+    MINGW*|MSYS*|CYGWIN*) HOST_PLATFORM="windows" ;;
+    *)      HOST_PLATFORM="unknown" ;;
+  esac
+fi
 
 export RELAY_PORT PEON_DIR BIND_ADDR HOST_PLATFORM
 

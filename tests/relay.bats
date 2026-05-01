@@ -86,7 +86,8 @@ start_relay() {
 }
 
 @test "relay /play uses notification media role with pw-play on Linux" {
-  start_relay
+  # Override platform detection in relay.sh so the Linux audio branch fires on macOS CI runners.
+  HOST_PLATFORM=linux start_relay
   run "$REAL_CURL" -sf "http://127.0.0.1:$RELAY_PORT/play?file=packs/peon/sounds/Hello1.wav" \
     -H "X-Volume: 0.7"
   [ "$status" -eq 0 ]
