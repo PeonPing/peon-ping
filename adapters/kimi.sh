@@ -16,6 +16,12 @@
 #   bash adapters/kimi.sh --uninstall   Stop daemon and remove pidfile
 #   bash adapters/kimi.sh --status      Check if daemon is running
 #   bash adapters/kimi.sh               Run in foreground (Ctrl+C to stop)
+#
+# On macOS, --install registers a LaunchAgent at
+# ~/Library/LaunchAgents/com.peonping.kimi-adapter.plist so the watcher
+# auto-starts on login and auto-restarts on crash. Set KIMI_NO_LAUNCHD=1
+# to fall back to nohup+pidfile (useful for tests and Linux parity).
+# On Linux, --install always uses nohup + pidfile.
 
 set -euo pipefail
 
@@ -26,6 +32,9 @@ STOP_COOLDOWN="${KIMI_STOP_COOLDOWN:-10}"  # minimum seconds between Stop events
 
 PIDFILE="$PEON_DIR/.kimi-adapter.pid"
 LOGFILE="$PEON_DIR/.kimi-adapter.log"
+
+LAUNCHD_LABEL="com.peonping.kimi-adapter"
+LAUNCHD_PLIST="$HOME/Library/LaunchAgents/${LAUNCHD_LABEL}.plist"
 
 # --- Colors ---
 BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' RESET=$'\033[0m'
@@ -46,16 +55,29 @@ for arg in "$@"; do
       echo "Usage: bash kimi.sh [--install|--uninstall|--status]"
       echo ""
       echo "  --install       Start Kimi Code watcher as a background daemon"
+      echo "                  (macOS: registers a LaunchAgent that survives reboot;"
+      echo "                   Linux: nohup + pidfile)"
       echo "  --uninstall     Stop the background daemon"
       echo "  --stop          Same as --uninstall"
       echo "  --status        Check if the daemon is running"
       echo "  (no args)       Run in foreground (Ctrl+C to stop)"
+      echo ""
+      echo "Environment:"
+      echo "  KIMI_NO_LAUNCHD=1   Force nohup+pidfile on macOS (skip LaunchAgent)"
       exit 0 ;;
   esac
 done
 
 # --- Handle --uninstall / --stop ---
 if [ "$DAEMON_ACTION" = "uninstall" ]; then
+  # macOS LaunchAgent cleanup
+  if [ "${KIMI_NO_LAUNCHD:-0}" != "1" ] && [ -f "$LAUNCHD_PLIST" ]; then
+    launchctl unload "$LAUNCHD_PLIST" 2>/dev/null || true
+    rm -f "$LAUNCHD_PLIST"
+    echo "peon-ping Kimi adapter LaunchAgent removed"
+  fi
+
+  # PID file cleanup (Linux, or pre-launchd installs on macOS)
   if [ -f "$PIDFILE" ]; then
     pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
@@ -74,6 +96,23 @@ fi
 
 # --- Handle --status ---
 if [ "$DAEMON_ACTION" = "status" ]; then
+  # macOS LaunchAgent check
+  if [ "${KIMI_NO_LAUNCHD:-0}" != "1" ] && [ -f "$LAUNCHD_PLIST" ]; then
+    if launchctl list "$LAUNCHD_LABEL" &>/dev/null; then
+      launchd_pid=$(launchctl list "$LAUNCHD_LABEL" 2>/dev/null | grep '"PID"' | tr -dc '0-9')
+      if [ -n "$launchd_pid" ] && [ "$launchd_pid" != "-" ]; then
+        echo "peon-ping Kimi adapter is running via LaunchAgent (PID $launchd_pid)"
+      else
+        echo "peon-ping Kimi adapter is loaded via LaunchAgent (starting...)"
+      fi
+      exit 0
+    else
+      echo "peon-ping Kimi adapter LaunchAgent is installed but not loaded"
+      exit 1
+    fi
+  fi
+
+  # PID file check (Linux, or pre-launchd installs)
   if [ -f "$PIDFILE" ]; then
     pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
@@ -117,7 +156,79 @@ fi
 
 # --- Handle --install (daemon mode) ---
 if [ "$DAEMON_ACTION" = "install" ]; then
-  # Check if already running
+  # macOS: use LaunchAgent for auto-start on login and auto-restart on crash.
+  # On macOS we always prefer LaunchAgent unless KIMI_NO_LAUNCHD=1.
+  if [[ "$(uname -s)" == "Darwin" ]] && [ "${KIMI_NO_LAUNCHD:-0}" != "1" ]; then
+    # Already loaded? Done.
+    if launchctl list "$LAUNCHD_LABEL" &>/dev/null; then
+      echo "peon-ping Kimi adapter already running via LaunchAgent"
+      exit 0
+    fi
+
+    # Migrate from a pre-LaunchAgent install: stop any nohup-spawned daemon
+    # and clear the stale PID file before registering the LaunchAgent.
+    if [ -f "$PIDFILE" ]; then
+      old_pid=$(cat "$PIDFILE" 2>/dev/null)
+      if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+        kill "$old_pid" 2>/dev/null || true
+      fi
+      rm -f "$PIDFILE"
+    fi
+
+    # Resolve absolute path to this script
+    SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+
+    # Capture current PATH so homebrew's fswatch/python3 are found.
+    # Capture PEON_DIR so a Kimi-direct install (under ~/.kimi/...) survives
+    # reboot — without this, launchd would re-resolve to ~/.claude/... and
+    # fail to find peon.sh.
+    CURRENT_PATH="$PATH"
+    CURRENT_PEON_DIR="$PEON_DIR"
+
+    mkdir -p "$(dirname "$LAUNCHD_PLIST")"
+    cat > "$LAUNCHD_PLIST" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>${LAUNCHD_LABEL}</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>${SCRIPT_PATH}</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>${CURRENT_PATH}</string>
+        <key>CLAUDE_PEON_DIR</key>
+        <string>${CURRENT_PEON_DIR}</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${LOGFILE}</string>
+    <key>StandardErrorPath</key>
+    <string>${LOGFILE}</string>
+</dict>
+</plist>
+PLIST
+
+    launchctl load "$LAUNCHD_PLIST"
+    echo "peon-ping Kimi adapter installed as LaunchAgent"
+    echo "  Watching: $SESSIONS_DIR"
+    echo "  Log: $LOGFILE"
+    echo "  Plist: $LAUNCHD_PLIST"
+    echo "  Auto-starts on login, auto-restarts on crash"
+    echo "  Stop: bash $0 --uninstall"
+    exit 0
+  fi
+
+  # Linux / KIMI_NO_LAUNCHD: fork to background with nohup.
+  # Already running? Done.
   if [ -f "$PIDFILE" ]; then
     old_pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
@@ -127,7 +238,6 @@ if [ "$DAEMON_ACTION" = "install" ]; then
     rm -f "$PIDFILE"
   fi
 
-  # Fork to background
   nohup bash "$0" > "$LOGFILE" 2>&1 &
   echo "$!" > "$PIDFILE"
   echo "peon-ping Kimi adapter started (PID $!)"

@@ -6,6 +6,7 @@ setup() {
   setup_test_env
 
   # Create a mock Kimi sessions directory
+  export KIMI_NO_LAUNCHD=1
   export KIMI_SESSIONS_DIR="$TEST_DIR/sessions"
   export KIMI_DIR="$TEST_DIR/kimi_home"
   mkdir -p "$KIMI_SESSIONS_DIR"
@@ -602,4 +603,138 @@ JSON
   sleep 0.3
   count=$(afplay_call_count)
   [ "$count" -eq 0 ]
+}
+
+# ============================================================
+# macOS LaunchAgent install path (KIMI_NO_LAUNCHD unset)
+# ============================================================
+
+@test "--install on macOS writes a LaunchAgent plist and loads it" {
+  [[ "$(uname -s)" == "Darwin" ]] || skip "LaunchAgent path is macOS-only"
+
+  # Override HOME so we never touch the real ~/Library/LaunchAgents
+  export HOME="$TEST_DIR"
+  mkdir -p "$HOME/Library/LaunchAgents"
+
+  # Take the LaunchAgent path (setup() default-disables it for other tests)
+  unset KIMI_NO_LAUNCHD
+
+  # Mock launchctl: log calls, succeed
+  cat > "$MOCK_BIN/launchctl" <<SCRIPT
+#!/bin/bash
+echo "\$@" >> "$TEST_DIR/launchctl.log"
+# Make 'list <label>' fail until the agent is "loaded" (after a successful load)
+if [ "\$1" = "list" ] && [ ! -f "$TEST_DIR/.launchd_loaded" ]; then
+  exit 1
+fi
+if [ "\$1" = "load" ]; then
+  touch "$TEST_DIR/.launchd_loaded"
+fi
+exit 0
+SCRIPT
+  chmod +x "$MOCK_BIN/launchctl"
+
+  run bash "$ADAPTER_SH" --install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"LaunchAgent"* ]]
+
+  # Plist created at the expected path
+  local plist="$HOME/Library/LaunchAgents/com.peonping.kimi-adapter.plist"
+  [ -f "$plist" ]
+  grep -q "<string>com.peonping.kimi-adapter</string>" "$plist"
+  grep -q "<key>RunAtLoad</key>" "$plist"
+  grep -q "<key>KeepAlive</key>" "$plist"
+  grep -q "/adapters/kimi.sh" "$plist"
+  # CLAUDE_PEON_DIR is captured so Kimi-direct installs survive reboot
+  grep -q "<key>CLAUDE_PEON_DIR</key>" "$plist"
+
+  # launchctl load was called
+  grep -q "^load " "$TEST_DIR/launchctl.log"
+}
+
+@test "--install on macOS migrates from a pre-LaunchAgent nohup install" {
+  [[ "$(uname -s)" == "Darwin" ]] || skip "LaunchAgent path is macOS-only"
+
+  export HOME="$TEST_DIR"
+  mkdir -p "$HOME/Library/LaunchAgents"
+  unset KIMI_NO_LAUNCHD
+
+  # Mock launchctl as above
+  cat > "$MOCK_BIN/launchctl" <<SCRIPT
+#!/bin/bash
+echo "\$@" >> "$TEST_DIR/launchctl.log"
+if [ "\$1" = "list" ] && [ ! -f "$TEST_DIR/.launchd_loaded" ]; then exit 1; fi
+if [ "\$1" = "load" ]; then touch "$TEST_DIR/.launchd_loaded"; fi
+exit 0
+SCRIPT
+  chmod +x "$MOCK_BIN/launchctl"
+
+  # Simulate a stale nohup-spawned daemon
+  sleep 999 &
+  local stale_pid=$!
+  echo "$stale_pid" > "$TEST_DIR/.kimi-adapter.pid"
+
+  run bash "$ADAPTER_SH" --install
+  [ "$status" -eq 0 ]
+
+  # Old pidfile gone, new plist present
+  [ ! -f "$TEST_DIR/.kimi-adapter.pid" ]
+  [ -f "$HOME/Library/LaunchAgents/com.peonping.kimi-adapter.plist" ]
+
+  # Stale daemon was killed (best-effort; tolerate races)
+  kill "$stale_pid" 2>/dev/null || true
+}
+
+@test "--uninstall removes the LaunchAgent plist on macOS" {
+  [[ "$(uname -s)" == "Darwin" ]] || skip "LaunchAgent path is macOS-only"
+
+  export HOME="$TEST_DIR"
+  mkdir -p "$HOME/Library/LaunchAgents"
+  unset KIMI_NO_LAUNCHD
+
+  # Pre-create a plist as if a previous --install had succeeded
+  local plist="$HOME/Library/LaunchAgents/com.peonping.kimi-adapter.plist"
+  echo "<plist></plist>" > "$plist"
+
+  # Mock launchctl
+  cat > "$MOCK_BIN/launchctl" <<SCRIPT
+#!/bin/bash
+echo "\$@" >> "$TEST_DIR/launchctl.log"
+exit 0
+SCRIPT
+  chmod +x "$MOCK_BIN/launchctl"
+
+  run bash "$ADAPTER_SH" --uninstall
+  [ "$status" -eq 0 ]
+  [ ! -f "$plist" ]
+  grep -q "^unload " "$TEST_DIR/launchctl.log"
+}
+
+@test "KIMI_NO_LAUNCHD=1 keeps the nohup+pidfile path on macOS" {
+  [[ "$(uname -s)" == "Darwin" ]] || skip "macOS-specific guard"
+
+  export HOME="$TEST_DIR"
+  mkdir -p "$HOME/Library/LaunchAgents"
+  export KIMI_NO_LAUNCHD=1
+
+  # If launchctl were called, the test would visibly fail; absence of the file proves it wasn't invoked.
+  rm -f "$TEST_DIR/launchctl.log"
+  cat > "$MOCK_BIN/launchctl" <<SCRIPT
+#!/bin/bash
+echo "\$@" >> "$TEST_DIR/launchctl.log"
+exit 0
+SCRIPT
+  chmod +x "$MOCK_BIN/launchctl"
+
+  run bash "$ADAPTER_SH" --install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"started (PID"* ]]
+  [ ! -f "$HOME/Library/LaunchAgents/com.peonping.kimi-adapter.plist" ]
+  [ ! -f "$TEST_DIR/launchctl.log" ]
+
+  # Clean up the spawned nohup daemon
+  if [ -f "$TEST_DIR/.kimi-adapter.pid" ]; then
+    pid=$(cat "$TEST_DIR/.kimi-adapter.pid")
+    kill "$pid" 2>/dev/null || true
+  fi
 }

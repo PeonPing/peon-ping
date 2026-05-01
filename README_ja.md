@@ -1002,6 +1002,8 @@ bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --uninstall
 
 macOS では `fswatch`（`brew install fswatch`）、Linux では `inotifywait`（`apt install inotify-tools`）が必要。`curl | bash` インストーラーは Kimi Code を自動検出してデーモンを起動します。
 
+**macOS では `--install` が LaunchAgent を登録します**（`~/Library/LaunchAgents/com.peonping.kimi-adapter.plist`）。ウォッチャーはログイン時に自動起動し、クラッシュ時には自動的に再起動します — 再起動後に `--install` を再実行する必要はありません。テスト用などに `nohup`+pidfile にフォールバックするには `KIMI_NO_LAUNCHD=1` を設定してください。Linux は常に `nohup`+pidfile を使用します。
+
 **イベントマッピング：**
 
 - 新しいセッション → 挨拶サウンド（*"Ready to work?"*、*"Yes?"*）
