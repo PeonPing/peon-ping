@@ -9,6 +9,7 @@ INIT_LOCAL_CONFIG=false
 INSTALL_ALL=false
 CUSTOM_PACKS=""
 OPENCLAW_MODE=false
+KIMI_MODE=false
 NO_RC=false
 ROVODEV_ONLY=false
 LANG_FILTER=""
@@ -17,6 +18,7 @@ for arg in "$@"; do
     --global) LOCAL_MODE=false ;;
     --local) LOCAL_MODE=true ;;
     --openclaw) OPENCLAW_MODE=true ;;
+    --kimi) KIMI_MODE=true ;;
     --init-local-config) INIT_LOCAL_CONFIG=true ;;
     --all) INSTALL_ALL=true ;;
     --no-rc) NO_RC=true ;;
@@ -31,6 +33,8 @@ Options:
   --global             Install globally (default)
   --local              Install in current project (.claude)
   --openclaw           Install as OpenClaw skill (~/.openclaw/skills)
+  --kimi               Install for Kimi Code only (~/.kimi/hooks/peon-ping;
+                       no Claude config required)
   --init-local-config  Create local config only, then exit
   --all                Install all packs
   --no-rc              Skip .bashrc/.zshrc/fish config modifications
@@ -46,6 +50,7 @@ done
 GLOBAL_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 LOCAL_BASE="$PWD/.claude"
 OPENCLAW_BASE="$HOME/.openclaw"
+KIMI_BASE="$HOME/.kimi"
 
 # --- Handle --rovodev-only mode (for homebrew delegation) ---
 if [ "$ROVODEV_ONLY" = true ]; then
@@ -238,14 +243,26 @@ if [ "$NO_RC" = false ]; then
 fi
 
 # Auto-detect OpenClaw if present and Claude Code is not
-if [ "$OPENCLAW_MODE" = false ] && [ "$LOCAL_MODE" = false ]; then
+if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ] && [ "$LOCAL_MODE" = false ]; then
   if [ -d "$OPENCLAW_BASE" ] && [ ! -d "$GLOBAL_BASE" ]; then
     OPENCLAW_MODE=true
     echo "Auto-detected OpenClaw installation (no Claude Code found)."
   fi
 fi
 
-if [ "$OPENCLAW_MODE" = true ]; then
+# Auto-detect Kimi Code if present and Claude Code/OpenClaw are not
+if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ] && [ "$LOCAL_MODE" = false ]; then
+  if [ -d "$KIMI_BASE" ] && [ ! -d "$GLOBAL_BASE" ]; then
+    KIMI_MODE=true
+    echo "Auto-detected Kimi Code installation (no Claude Code found)."
+  fi
+fi
+
+if [ "$KIMI_MODE" = true ]; then
+  BASE_DIR="$KIMI_BASE"
+  INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
+  SETTINGS=""  # Kimi reads events via wire.jsonl; no settings.json hook write
+elif [ "$OPENCLAW_MODE" = true ]; then
   BASE_DIR="$OPENCLAW_BASE"
   INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
   SETTINGS=""  # OpenClaw doesn't use settings.json for hooks
@@ -254,7 +271,7 @@ elif [ "$LOCAL_MODE" = true ]; then
 else
   BASE_DIR="$GLOBAL_BASE"
 fi
-if [ "$OPENCLAW_MODE" = false ]; then
+if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ]; then
   INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
   SETTINGS="$BASE_DIR/settings.json"
 fi
@@ -715,58 +732,48 @@ if [ "$PLATFORM" = "mac" ] && command -v swiftc &>/dev/null; then
   fi
 fi
 
-# --- Install skill (slash command) ---
-SKILL_DIR="$BASE_DIR/skills/peon-ping-toggle"
-mkdir -p "$SKILL_DIR"
-SKILL_HOOK_CMD="bash $INSTALL_DIR/peon.sh"
-if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/peon-ping-toggle" ]; then
-  cp "$SCRIPT_DIR/skills/peon-ping-toggle/SKILL.md" "$SKILL_DIR/"
-  if [ "$LOCAL_MODE" = true ]; then
-    sed -i.bak 's|bash "${CLAUDE_CONFIG_DIR:-\$HOME/\.claude}"/hooks/peon-ping/peon\.sh|'"$SKILL_HOOK_CMD"'|g' "$SKILL_DIR/SKILL.md"
-    rm -f "$SKILL_DIR/SKILL.md.bak"
+# --- Install skills (slash commands) ---
+# Skills ship with paths anchored to ~/.claude/hooks/peon-ping/ via the
+# CLAUDE_CONFIG_DIR/HOME fallback. For --local (project-scoped) and --kimi
+# (Kimi-direct) installs the runtime install dir isn't ~/.claude, so we
+# rewrite SKILL.md to use the absolute install dir. Without this the
+# slash-command would silently toggle/configure the wrong (or missing)
+# install.
+rewrite_skill_paths() {
+  local skill_md="$1"
+  [ -f "$skill_md" ] || return 0
+  if [ "$LOCAL_MODE" = false ] && [ "$KIMI_MODE" = false ]; then
+    return 0
   fi
-elif [ -z "$SCRIPT_DIR" ]; then
-  curl -fsSL "$REPO_BASE/skills/peon-ping-toggle/SKILL.md" -o "$SKILL_DIR/SKILL.md"
-  if [ "$LOCAL_MODE" = true ]; then
-    sed -i.bak 's|bash "${CLAUDE_CONFIG_DIR:-\$HOME/\.claude}"/hooks/peon-ping/peon\.sh|'"$SKILL_HOOK_CMD"'|g' "$SKILL_DIR/SKILL.md"
-    rm -f "$SKILL_DIR/SKILL.md.bak"
+  # Order matters: rewrite the longest patterns first so partial matches
+  # don't strand a stray "/hooks/peon-ping/" suffix.
+  sed -i.bak \
+    -e 's|"${CLAUDE_CONFIG_DIR:-\$HOME/\.claude}"/hooks/peon-ping|"'"$INSTALL_DIR"'"|g' \
+    -e 's|${CLAUDE_CONFIG_DIR:-\$HOME/\.claude}/hooks/peon-ping|'"$INSTALL_DIR"'|g' \
+    -e 's|~/\.claude/hooks/peon-ping|'"$INSTALL_DIR"'|g' \
+    "$skill_md"
+  rm -f "${skill_md}.bak"
+}
+
+install_skill() {
+  local skill_name="$1"
+  local skill_dir="$BASE_DIR/skills/$skill_name"
+  mkdir -p "$skill_dir"
+  if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/$skill_name" ]; then
+    cp "$SCRIPT_DIR/skills/$skill_name/SKILL.md" "$skill_dir/"
+    rewrite_skill_paths "$skill_dir/SKILL.md"
+  elif [ -z "$SCRIPT_DIR" ]; then
+    curl -fsSL "$REPO_BASE/skills/$skill_name/SKILL.md" -o "$skill_dir/SKILL.md"
+    rewrite_skill_paths "$skill_dir/SKILL.md"
+  else
+    echo "Warning: skills/$skill_name not found in local clone, skipping skill install"
   fi
-else
-  echo "Warning: skills/peon-ping-toggle not found in local clone, skipping skill install"
-fi
+}
 
-# --- Install config skill ---
-CONFIG_SKILL_DIR="$BASE_DIR/skills/peon-ping-config"
-mkdir -p "$CONFIG_SKILL_DIR"
-if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/peon-ping-config" ]; then
-  cp "$SCRIPT_DIR/skills/peon-ping-config/SKILL.md" "$CONFIG_SKILL_DIR/"
-elif [ -z "$SCRIPT_DIR" ]; then
-  curl -fsSL "$REPO_BASE/skills/peon-ping-config/SKILL.md" -o "$CONFIG_SKILL_DIR/SKILL.md"
-else
-  echo "Warning: skills/peon-ping-config not found in local clone, skipping config skill install"
-fi
-
-# --- Install use skill ---
-USE_SKILL_DIR="$BASE_DIR/skills/peon-ping-use"
-mkdir -p "$USE_SKILL_DIR"
-if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/peon-ping-use" ]; then
-  cp "$SCRIPT_DIR/skills/peon-ping-use/SKILL.md" "$USE_SKILL_DIR/"
-elif [ -z "$SCRIPT_DIR" ]; then
-  curl -fsSL "$REPO_BASE/skills/peon-ping-use/SKILL.md" -o "$USE_SKILL_DIR/SKILL.md"
-else
-  echo "Warning: skills/peon-ping-use not found in local clone, skipping use skill install"
-fi
-
-# --- Install log skill ---
-LOG_SKILL_DIR="$BASE_DIR/skills/peon-ping-log"
-mkdir -p "$LOG_SKILL_DIR"
-if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/peon-ping-log" ]; then
-  cp "$SCRIPT_DIR/skills/peon-ping-log/SKILL.md" "$LOG_SKILL_DIR/"
-elif [ -z "$SCRIPT_DIR" ]; then
-  curl -fsSL "$REPO_BASE/skills/peon-ping-log/SKILL.md" -o "$LOG_SKILL_DIR/SKILL.md"
-else
-  echo "Warning: skills/peon-ping-log not found in local clone, skipping log skill install"
-fi
+install_skill peon-ping-toggle
+install_skill peon-ping-config
+install_skill peon-ping-use
+install_skill peon-ping-log
 
 # --- Install trainer voice packs ---
 TRAINER_DIR="$INSTALL_DIR/trainer"
@@ -968,6 +975,53 @@ OCSKILL
   echo ""
   echo "Usage in your agent:"
   echo "  bash $INSTALL_DIR/adapters/openclaw.sh task.complete"
+  echo ""
+  echo "Ready to work!"
+  exit 0
+fi
+
+# --- Kimi-only install ---
+# Skip every Claude-specific step below: settings.json hook write, Cursor /
+# Rovo / DeepAgents hook registration, other-scope cleanup. The Kimi adapter
+# is a watcher daemon that reads wire.jsonl and pipes CESP events to peon.sh,
+# so it needs the install dir but no hook configuration.
+if [ "$KIMI_MODE" = true ]; then
+  echo ""
+  echo "Starting Kimi Code adapter..."
+
+  if [ -f "$INSTALL_DIR/adapters/kimi.sh" ]; then
+    chmod +x "$INSTALL_DIR/adapters/kimi.sh"
+    # Pass CLAUDE_PEON_DIR explicitly so the adapter resolves into the Kimi
+    # install dir even though it isn't under ~/.claude. The adapter writes this
+    # into its LaunchAgent plist on macOS so the env survives reboot.
+    CLAUDE_PEON_DIR="$INSTALL_DIR" bash "$INSTALL_DIR/adapters/kimi.sh" --install || true
+  else
+    echo "Warning: $INSTALL_DIR/adapters/kimi.sh missing — skipping daemon start."
+  fi
+
+  # Initialize state for fresh installs (mirrors the post-summary block below)
+  if [ "$UPDATING" = false ]; then
+    echo '{}' > "$INSTALL_DIR/.state.json"
+  fi
+
+  echo ""
+  if [ "$UPDATING" = true ]; then
+    echo "=== Update complete! ==="
+  else
+    echo "=== Kimi Code installation complete! ==="
+  fi
+  echo ""
+  echo "Install dir: $INSTALL_DIR"
+  echo "Config:      $INSTALL_DIR/config.json"
+  echo "Sessions:    $KIMI_BASE/sessions"
+  echo ""
+  echo "Daemon controls:"
+  echo "  bash $INSTALL_DIR/adapters/kimi.sh --status"
+  echo "  bash $INSTALL_DIR/adapters/kimi.sh --uninstall"
+  echo ""
+  echo "Quick controls:"
+  echo "  CLAUDE_PEON_DIR=\"$INSTALL_DIR\" peon toggle    — toggle sounds"
+  echo "  CLAUDE_PEON_DIR=\"$INSTALL_DIR\" peon use <pack> — switch sound pack"
   echo ""
   echo "Ready to work!"
   exit 0

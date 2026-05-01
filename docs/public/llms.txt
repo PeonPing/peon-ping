@@ -72,7 +72,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - OpenCode
 - Kilo CLI
 - Kiro (Amazon)
-- Kimi Code (MoonshotAI — filesystem watcher for Wire Mode events; --install registers a macOS LaunchAgent that survives reboots, falls back to nohup+pidfile on Linux or with KIMI_NO_LAUNCHD=1)
+- Kimi Code (MoonshotAI; filesystem watcher for Wire Mode events; --install registers a macOS LaunchAgent that survives reboots, falls back to nohup+pidfile on Linux or with KIMI_NO_LAUNCHD=1; install with `bash install.sh --kimi` to land files under ~/.kimi/hooks/peon-ping/ with no Claude dependency, or auto-detected when ~/.kimi exists and ~/.claude does not)
 - Windsurf (Codeium)
 - Google Antigravity
 - OpenClaw (via adapters/openclaw.sh — call with any CESP category or Claude Code event name)

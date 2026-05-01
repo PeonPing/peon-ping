@@ -24,6 +24,8 @@ setup() {
   cp -r "$(dirname "$BATS_TEST_FILENAME")/../skills" "$CLONE_DIR/" 2>/dev/null || true
   mkdir -p "$CLONE_DIR/scripts"
   cp "$(dirname "$BATS_TEST_FILENAME")/../scripts/"*.sh "$CLONE_DIR/scripts/" 2>/dev/null || true
+  mkdir -p "$CLONE_DIR/adapters"
+  cp "$(dirname "$BATS_TEST_FILENAME")/../adapters/"*.sh "$CLONE_DIR/adapters/" 2>/dev/null || true
 
   INSTALL_DIR="$TEST_HOME/.claude/hooks/peon-ping"
 
@@ -569,6 +571,103 @@ MOCK_CURL
   bash "$CLONE_DIR/install.sh"
   [ -f "$TEST_HOME/.openclaw/hooks/peon-ping/peon.sh" ]
   [ -f "$TEST_HOME/.openclaw/skills/peon-ping/SKILL.md" ]
+}
+
+# ============================================================
+# Kimi-direct install support (--kimi flag, no Claude required)
+# ============================================================
+#
+# These tests install adapters/kimi.sh which spawns a watcher daemon. We force
+# the nohup+pidfile path with KIMI_NO_LAUNCHD=1 (so we never touch the real
+# user's LaunchAgents) and stub fswatch so the spawned daemon exits cleanly
+# instead of blocking forever.
+_kimi_test_setup() {
+  export KIMI_NO_LAUNCHD=1
+  cat > "$MOCK_BIN/fswatch" <<'SCRIPT'
+#!/bin/bash
+exit 0
+SCRIPT
+  chmod +x "$MOCK_BIN/fswatch"
+}
+
+_kimi_test_teardown() {
+  # Reap any stray daemon spawned by install.sh's kimi.sh --install
+  for pidfile in "$TEST_HOME/.kimi/hooks/peon-ping/.kimi-adapter.pid" "$TEST_HOME/.claude/hooks/peon-ping/.kimi-adapter.pid"; do
+    if [ -f "$pidfile" ]; then
+      pid=$(cat "$pidfile" 2>/dev/null)
+      if [ -n "$pid" ]; then
+        pkill -P "$pid" 2>/dev/null || true
+        kill "$pid" 2>/dev/null || true
+      fi
+    fi
+  done
+}
+
+@test "--kimi installs to ~/.kimi/hooks/peon-ping" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ -f "$TEST_HOME/.kimi/hooks/peon-ping/peon.sh" ]
+  [ -f "$TEST_HOME/.kimi/hooks/peon-ping/config.json" ]
+  [ -f "$TEST_HOME/.kimi/hooks/peon-ping/adapters/kimi.sh" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi does not write to ~/.claude/settings.json" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  # Pre-create an empty settings.json so we can detect any unwanted hook write
+  echo '{}' > "$TEST_HOME/.claude/settings.json"
+  bash "$CLONE_DIR/install.sh" --kimi
+  # Settings file should be unchanged (no peon-ping hooks added)
+  ! grep -q "peon-ping" "$TEST_HOME/.claude/settings.json"
+  _kimi_test_teardown
+}
+
+@test "--kimi does not require ~/.claude to exist" {
+  _kimi_test_setup
+  rm -rf "$TEST_HOME/.claude"
+  mkdir -p "$TEST_HOME/.kimi"
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ -f "$TEST_HOME/.kimi/hooks/peon-ping/peon.sh" ]
+  # Critical: no ~/.claude directory should be created in --kimi mode
+  [ ! -d "$TEST_HOME/.claude" ]
+  _kimi_test_teardown
+}
+
+@test "auto-detects kimi when ~/.kimi exists and ~/.claude does not" {
+  _kimi_test_setup
+  rm -rf "$TEST_HOME/.claude"
+  mkdir -p "$TEST_HOME/.kimi"
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$TEST_HOME/.kimi/hooks/peon-ping/peon.sh" ]
+  [ ! -d "$TEST_HOME/.claude" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi flag appears in --help output" {
+  run bash "$CLONE_DIR/install.sh" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--kimi"* ]]
+}
+
+@test "--kimi rewrites skill SKILL.md paths to ~/.kimi/hooks/peon-ping" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  # Need real skill source for rewrite to do anything
+  cp -r "$(dirname "$BATS_TEST_FILENAME")/../skills" "$CLONE_DIR/"
+  bash "$CLONE_DIR/install.sh" --kimi
+
+  for skill in peon-ping-toggle peon-ping-config peon-ping-use peon-ping-log; do
+    skill_md="$TEST_HOME/.kimi/skills/$skill/SKILL.md"
+    [ -f "$skill_md" ]
+    # No leftover Claude path references
+    ! grep -q '${CLAUDE_CONFIG_DIR' "$skill_md"
+    ! grep -q '~/\.claude/hooks/peon-ping' "$skill_md"
+    # New absolute Kimi path is present
+    grep -q "$TEST_HOME/.kimi/hooks/peon-ping" "$skill_md"
+  done
+  _kimi_test_teardown
 }
 
 # ---------------------------------------------------------------------------
