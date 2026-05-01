@@ -2750,7 +2750,9 @@ try {
         $_dsCat = $_dsPack.$category
         if ($_dsCat) { $disabledList = @($_dsCat) }
     }
-} catch {}
+} catch {
+    # missing or non-object disabled_sounds; treat as no per-sound disables
+}
 if ($disabledList.Count -gt 0) {
     $catSounds = @($catSounds | Where-Object { $disabledList -notcontains (Split-Path $_.file -Leaf) })
     if ($catSounds.Count -eq 0) {
