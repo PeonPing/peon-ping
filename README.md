@@ -1091,6 +1091,10 @@ curl -fsSL peonping.com/install | bash -s -- --kimi
 
 Files land in `~/.kimi/hooks/peon-ping/` instead of `~/.claude/hooks/peon-ping/`, and no `~/.claude/` directory is created. The installer also auto-detects this layout: running it with no flags on a machine that has `~/.kimi/` but no `~/.claude/` selects `--kimi` mode automatically. The watcher daemon starts during install and re-starts on every login via the LaunchAgent.
 
+**Sharing voice packs with a Claude install:**
+
+If `~/.claude/hooks/peon-ping/packs/` already exists with packs, a `--kimi` install symlinks `~/.kimi/hooks/peon-ping/packs` at it instead of re-downloading. One pack download serves both IDEs, and `peon packs install <name>` from either side updates the shared set. State, config, and mute toggles stay isolated per install. Pass `--no-shared-packs` (or `--packs=` / `--all`) to download a separate copy.
+
 **Event mapping:**
 
 - New session → Greeting sound (*"Ready to work?"*, *"Yes?"*)

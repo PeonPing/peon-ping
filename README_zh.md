@@ -1000,6 +1000,10 @@ curl -fsSL peonping.com/install | bash -s -- --kimi
 
 文件会安装到 `~/.kimi/hooks/peon-ping/` 而不是 `~/.claude/hooks/peon-ping/`，也不会创建 `~/.claude/` 目录。安装器还会自动检测：在仅有 `~/.kimi/` 但没有 `~/.claude/` 的机器上，无参数运行安装器会自动进入 `--kimi` 模式。监视守护进程会在安装时启动，并通过 LaunchAgent 在每次登录时重新启动。
 
+**与 Claude 安装共享语音包：**
+
+如果 `~/.claude/hooks/peon-ping/packs/` 已存在并包含语音包，`--kimi` 安装会将 `~/.kimi/hooks/peon-ping/packs` 软链接到它，而不是重新下载。一次下载即可服务两个 IDE，从任一侧执行 `peon packs install <name>` 都会更新共享的包集。状态、配置和静音切换在每个安装中保持独立。传递 `--no-shared-packs`（或 `--packs=` / `--all`）以下载独立副本。
+
 **事件映射：**
 
 - 新会话 → 问候音效（*"Ready to work?"*、*"Yes?"*）

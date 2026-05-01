@@ -671,6 +671,99 @@ _kimi_test_teardown() {
 }
 
 # ---------------------------------------------------------------------------
+# Shared packs across Claude and Kimi installs (--kimi auto-symlink behavior)
+# ---------------------------------------------------------------------------
+
+@test "--kimi auto-symlinks packs/ to Claude's when ~/.claude has packs" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  # Pre-populate Claude's packs/ so auto-share trigger fires
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds"
+  touch "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds/test.wav"
+
+  run bash "$CLONE_DIR/install.sh" --kimi
+  [ "$status" -eq 0 ]
+
+  # Kimi's packs/ should be a symlink pointing at Claude's
+  [ -L "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  link_target="$(readlink "$TEST_HOME/.kimi/hooks/peon-ping/packs")"
+  [ "$link_target" = "$TEST_HOME/.claude/hooks/peon-ping/packs" ]
+  # Kimi sees Claude's pack through the symlink
+  [ -d "$TEST_HOME/.kimi/hooks/peon-ping/packs/glados" ]
+  # Confirm install message tells the user
+  [[ "$output" == *"sharing with Claude install"* ]]
+  _kimi_test_teardown
+}
+
+@test "--kimi --no-shared-packs downloads separately even when Claude has packs" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds"
+  touch "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds/test.wav"
+
+  bash "$CLONE_DIR/install.sh" --kimi --no-shared-packs
+
+  # Kimi's packs/ must be a real directory (downloaded), not a symlink
+  [ ! -L "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  [ -d "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi falls back to download when Claude packs/ is missing" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  rm -rf "$TEST_HOME/.claude/hooks/peon-ping/packs"
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ ! -L "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  [ -d "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi falls back to download when Claude packs/ is empty" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/packs"  # empty dir
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ ! -L "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  [ -d "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi --packs=<name> skips auto-share (explicit pack intent)" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds"
+  touch "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds/test.wav"
+  bash "$CLONE_DIR/install.sh" --kimi --packs=peon
+  # User asked for a specific pack — keep Kimi's packs/ as a real dir
+  [ ! -L "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  [ -d "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi auto-share is idempotent across reruns" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds"
+  touch "$TEST_HOME/.claude/hooks/peon-ping/packs/glados/sounds/test.wav"
+
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ -L "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  # Re-run should not break the symlink
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ -L "$TEST_HOME/.kimi/hooks/peon-ping/packs" ]
+  link_target="$(readlink "$TEST_HOME/.kimi/hooks/peon-ping/packs")"
+  [ "$link_target" = "$TEST_HOME/.claude/hooks/peon-ping/packs" ]
+  _kimi_test_teardown
+}
+
+@test "--no-shared-packs flag appears in --help output" {
+  run bash "$CLONE_DIR/install.sh" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--no-shared-packs"* ]]
+}
+
+# ---------------------------------------------------------------------------
 # --rovodev-only flag tests
 # ---------------------------------------------------------------------------
 

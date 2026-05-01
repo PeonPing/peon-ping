@@ -10,6 +10,7 @@ INSTALL_ALL=false
 CUSTOM_PACKS=""
 OPENCLAW_MODE=false
 KIMI_MODE=false
+NO_SHARED_PACKS=false
 NO_RC=false
 ROVODEV_ONLY=false
 LANG_FILTER=""
@@ -19,6 +20,7 @@ for arg in "$@"; do
     --local) LOCAL_MODE=true ;;
     --openclaw) OPENCLAW_MODE=true ;;
     --kimi) KIMI_MODE=true ;;
+    --no-shared-packs) NO_SHARED_PACKS=true ;;
     --init-local-config) INIT_LOCAL_CONFIG=true ;;
     --all) INSTALL_ALL=true ;;
     --no-rc) NO_RC=true ;;
@@ -34,7 +36,11 @@ Options:
   --local              Install in current project (.claude)
   --openclaw           Install as OpenClaw skill (~/.openclaw/skills)
   --kimi               Install for Kimi Code only (~/.kimi/hooks/peon-ping;
-                       no Claude config required)
+                       no Claude config required). When ~/.claude/hooks/
+                       peon-ping/packs exists, Kimi's packs/ is symlinked
+                       to it so a single install serves both IDEs.
+  --no-shared-packs    Disable the --kimi pack symlink and download a
+                       separate copy of packs into ~/.kimi/...
   --init-local-config  Create local config only, then exit
   --all                Install all packs
   --no-rc              Skip .bashrc/.zshrc/fish config modifications
@@ -674,19 +680,48 @@ if not cfg.get('no_rc', False):
 " 2>/dev/null || true
 fi
 
-# --- Download sound packs via shared engine ---
-PACK_DL="$INSTALL_DIR/scripts/pack-download.sh"
-chmod +x "$PACK_DL" 2>/dev/null || true
+# --- Auto-share packs with Claude install (--kimi only) ---
+# When installing for Kimi alongside an existing Claude install, symlink
+# packs/ at Claude's so a single download serves both IDEs. Skipped when:
+#   - --no-shared-packs is set (explicit opt-out)
+#   - the user requested specific packs (--packs= or --all): they have
+#     explicit pack intent that may not match Claude's set
+#   - $INSTALL_DIR/packs already exists as a real directory (preserve any
+#     local packs from a prior install)
+#   - Claude's packs/ is missing or empty (nothing to share)
+SHARED_PACKS_LINKED=false
+if [ "$KIMI_MODE" = true ] \
+   && [ "$NO_SHARED_PACKS" = false ] \
+   && [ -z "$CUSTOM_PACKS" ] \
+   && [ "$INSTALL_ALL" = false ]; then
+  CLAUDE_PACKS_DIR="$GLOBAL_BASE/hooks/peon-ping/packs"
+  KIMI_PACKS_LINK="$INSTALL_DIR/packs"
+  if [ -d "$CLAUDE_PACKS_DIR" ] && [ -n "$(ls -A "$CLAUDE_PACKS_DIR" 2>/dev/null || true)" ]; then
+    if [ -L "$KIMI_PACKS_LINK" ] || [ ! -e "$KIMI_PACKS_LINK" ]; then
+      rm -f "$KIMI_PACKS_LINK"
+      ln -s "$CLAUDE_PACKS_DIR" "$KIMI_PACKS_LINK"
+      echo "Linked packs/ -> $CLAUDE_PACKS_DIR (sharing with Claude install)"
+      echo "Pass --no-shared-packs to download a separate set."
+      SHARED_PACKS_LINKED=true
+    fi
+  fi
+fi
 
-LANG_ARG=""
-[ -n "$LANG_FILTER" ] && LANG_ARG="--lang=$LANG_FILTER"
+# --- Download sound packs via shared engine (skipped when symlinked above) ---
+if [ "$SHARED_PACKS_LINKED" = false ]; then
+  PACK_DL="$INSTALL_DIR/scripts/pack-download.sh"
+  chmod +x "$PACK_DL" 2>/dev/null || true
 
-if [ -n "$CUSTOM_PACKS" ]; then
-  bash "$PACK_DL" --dir="$INSTALL_DIR" --packs="$CUSTOM_PACKS" $LANG_ARG
-elif [ "$INSTALL_ALL" = true ]; then
-  bash "$PACK_DL" --dir="$INSTALL_DIR" --all $LANG_ARG
-else
-  bash "$PACK_DL" --dir="$INSTALL_DIR" --packs="$(echo "$DEFAULT_PACKS" | tr ' ' ',')" $LANG_ARG
+  LANG_ARG=""
+  [ -n "$LANG_FILTER" ] && LANG_ARG="--lang=$LANG_FILTER"
+
+  if [ -n "$CUSTOM_PACKS" ]; then
+    bash "$PACK_DL" --dir="$INSTALL_DIR" --packs="$CUSTOM_PACKS" $LANG_ARG
+  elif [ "$INSTALL_ALL" = true ]; then
+    bash "$PACK_DL" --dir="$INSTALL_DIR" --all $LANG_ARG
+  else
+    bash "$PACK_DL" --dir="$INSTALL_DIR" --packs="$(echo "$DEFAULT_PACKS" | tr ' ' ',')" $LANG_ARG
+  fi
 fi
 
 chmod +x "$INSTALL_DIR/peon.sh"
