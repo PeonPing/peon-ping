@@ -27,6 +27,8 @@ or
 curl -fsSL peonping.com/install | bash
 ```
 
+WSL2 audio note: peon-ping plays audio on the Windows host. On first run it probes WPF MediaPlayer once (cached per Windows build). On Windows 10 / Win11 pre-24H2, MediaPlayer plays MP3+WAV natively. On Windows 11 24H2+ (build 26100+) Microsoft removed legacy WMP, so MediaPlayer fails and peon-ping falls back to System.Media.SoundPlayer (WAV-only — install ffmpeg to play MP3 packs). Override with PEON_WSL_AUDIO_BACKEND=auto|mediaplayer|soundplayer.
+
 ## What it does
 
 When your AI agent finishes a task, asks for permission, or hits an error, peon-ping plays a voice line from a game character. The Warcraft orc peon says "Work, work." when a task completes. GLaDOS says "Oh, it's you." when a session starts. Duke Nukem says "Son of a bitch!" when something breaks.

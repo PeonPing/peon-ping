@@ -498,22 +498,95 @@ play_sound() {
       fi
       ;;
     wsl)
-      local wpath
-      wpath=$(wslpath -w "$file" 2>/dev/null) || { _peon_log play "error=\"wslpath failed\" file=$(basename "$file")"; return 0; }
-      wpath="${wpath//\\/\/}"
-      powershell.exe -NoProfile -NonInteractive -Command "
-        Add-Type -AssemblyName PresentationCore
-        \$p = New-Object System.Windows.Media.MediaPlayer
-        \$p.Volume = $vol
-        \$p.Open([Uri]::new('file:///$wpath'))
-        Start-Sleep -Milliseconds 500
-        \$p.Play()
-        while (\$p.Position -lt \$p.NaturalDuration.TimeSpan -and \$p.Position.TotalSeconds -lt 10) {
-          Start-Sleep -Milliseconds 100
-        }
-        \$p.Close()
-      " &>/dev/null &
-      save_sound_pid $!
+      local backend="${PEON_WSL_AUDIO_BACKEND:-auto}"
+      case "$backend" in auto|soundplayer|mediaplayer) ;; *) backend=auto ;; esac
+
+      _wsl_mediaplayer_probe() {
+        local build cache_file probe_wav wpath result
+        build=$(powershell.exe -NoProfile -NonInteractive -Command '[System.Environment]::OSVersion.Version.Build' 2>/dev/null | tr -d '\r\n ')
+        [ -z "$build" ] && { echo no; return; }
+        cache_file="$PEON_DIR/.wsl-mediaplayer-probe-$build"
+        if [ -f "$cache_file" ]; then
+          cat "$cache_file"
+          return
+        fi
+        probe_wav=$(find "$PEON_DIR/packs" -name '*.wav' -type f 2>/dev/null | head -1)
+        [ -z "$probe_wav" ] && { echo no; return; }
+        wpath=$(wslpath -w "$probe_wav" 2>/dev/null) || { echo no; return; }
+        result=$(powershell.exe -NoProfile -NonInteractive -Command "
+          Add-Type -AssemblyName PresentationCore,WindowsBase
+          \$disp = [System.Windows.Threading.Dispatcher]::CurrentDispatcher
+          \$p = New-Object System.Windows.Media.MediaPlayer
+          \$script:opened = \$false
+          \$p.add_MediaOpened({ \$script:opened = \$true; \$disp.InvokeShutdown() })
+          \$p.add_MediaFailed({ \$disp.InvokeShutdown() })
+          \$timer = New-Object System.Windows.Threading.DispatcherTimer
+          \$timer.Interval = [TimeSpan]::FromSeconds(2)
+          \$timer.add_Tick({ \$disp.InvokeShutdown() })
+          \$timer.Start()
+          \$p.Open([Uri]'$wpath')
+          [System.Windows.Threading.Dispatcher]::Run()
+          \$p.Close()
+          if (\$script:opened) { 'yes' } else { 'no' }
+        " 2>/dev/null | tr -d '\r\n ' | tail -c 3)
+        [ "$result" != "yes" ] && result=no
+        echo "$result" > "$cache_file" 2>/dev/null
+        _peon_log play "wsl_mediaplayer_probe build=$build result=$result"
+        echo "$result"
+      }
+
+      _wsl_play_mediaplayer() {
+        local wpath
+        wpath=$(wslpath -w "$file" 2>/dev/null) || { _peon_log play "error=\"wslpath failed\" file=$(basename "$file")"; return 1; }
+        powershell.exe -NoProfile -NonInteractive -Command "
+          Add-Type -AssemblyName PresentationCore
+          \$p = New-Object System.Windows.Media.MediaPlayer
+          \$p.Volume = $vol
+          \$p.Open([Uri]'$wpath')
+          Start-Sleep -Milliseconds 500
+          \$p.Play()
+          while (\$p.Position -lt \$p.NaturalDuration.TimeSpan -and \$p.Position.TotalSeconds -lt 10) {
+            Start-Sleep -Milliseconds 100
+          }
+          \$p.Close()
+        " &>/dev/null &
+        save_sound_pid $!
+      }
+
+      _wsl_play_soundplayer() {
+        local tmpdir tmpwin tmplinux
+        tmpdir=$(powershell.exe -NoProfile -NonInteractive -Command '[System.IO.Path]::GetTempPath()' 2>/dev/null | tr -d '\r')
+        [ -z "$tmpdir" ] && { _peon_log play "error=\"could not resolve windows temp dir\""; return 1; }
+        tmpwin="${tmpdir}peon-ping-sound.wav"
+        tmplinux="$(wslpath -u "$tmpwin")" || return 1
+        if command -v ffmpeg &>/dev/null; then
+          ffmpeg -y -i "$file" -filter:a "volume=$vol" "$tmplinux" 2>/dev/null || return 1
+        elif [[ "$file" == *.wav ]]; then
+          cp "$file" "$tmplinux" || return 1
+        else
+          return 1
+        fi
+        powershell.exe -NoProfile -NonInteractive -Command "
+          (New-Object System.Media.SoundPlayer '$tmpwin').PlaySync()
+        " &>/dev/null &
+        save_sound_pid $!
+      }
+
+      case "$backend" in
+        mediaplayer)
+          _wsl_play_mediaplayer
+          ;;
+        soundplayer)
+          _wsl_play_soundplayer || _peon_log play "error=\"soundplayer backend failed\" file=$(basename "$file")"
+          ;;
+        auto)
+          if [ "$(_wsl_mediaplayer_probe)" = "yes" ]; then
+            _wsl_play_mediaplayer
+          else
+            _wsl_play_soundplayer || _wsl_play_mediaplayer
+          fi
+          ;;
+      esac
       ;;
     devcontainer|ssh)
       local relay_host_default="host.docker.internal"

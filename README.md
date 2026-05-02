@@ -54,11 +54,20 @@ Then run `peon-ping-setup` to register hooks and download sound packs. macOS and
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
 ```
 
-⚠️ In WSL2, **ffmpeg** must be installed to use sound packs that use formats other than **WAV**. In Debian distros, install with
+⚠️ **WSL2 audio notes.** peon-ping plays audio on the Windows side. On first run it probes your Windows host once (cached per Windows build) to pick the best playback path:
 
-```sh
-sudo apt update; sudo apt install -y ffmpeg
-```
+- On **Windows 10 / Windows 11 pre-24H2**, WPF MediaPlayer is used directly — native MP3 + WAV, no extra dependencies.
+- On **Windows 11 24H2+** (build 26100+), Microsoft removed legacy Windows Media Player from the OS and WPF MediaPlayer fails (`MILAVERR_INVALIDWMPVERSION`). peon-ping falls back to `System.Media.SoundPlayer`, which uses the Win32 `PlaySound` API and works everywhere — but it's WAV-only, so MP3 packs require **ffmpeg** to transcode on the fly:
+
+  ```sh
+  sudo apt update; sudo apt install -y ffmpeg
+  ```
+
+You can override the auto-detection with `PEON_WSL_AUDIO_BACKEND=auto|mediaplayer|soundplayer`:
+
+- `auto` (default) — probe + cache as described above
+- `mediaplayer` — force WPF MediaPlayer over the WSL UNC path (fails silently on 24H2+)
+- `soundplayer` — force tmpfile copy + `SoundPlayer` (universal, requires ffmpeg for non-WAV files)
 
 ### Option 3: Installer for Windows
 

@@ -52,11 +52,20 @@ brew install PeonPing/tap/peon-ping
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash
 ```
 
-⚠️ 在 WSL2 中，若要使用 **WAV** 以外格式的语音包，必须安装 **ffmpeg**。在 Debian 发行版中可使用以下命令安装：
+⚠️ **WSL2 音频说明。** peon-ping 在 Windows 端播放音频。首次运行时会探测一次 Windows 主机（按 Windows 构建号缓存），自动选择最佳播放方式：
 
-```sh
-sudo apt update; sudo apt install -y ffmpeg
-```
+- 在 **Windows 10 / Windows 11 24H2 之前的版本**上，直接使用 WPF MediaPlayer，原生支持 MP3 + WAV，无需额外依赖。
+- 在 **Windows 11 24H2+**（构建号 26100+）上，微软已从系统中移除了旧版 Windows Media Player，WPF MediaPlayer 会失败（`MILAVERR_INVALIDWMPVERSION`）。peon-ping 会回退到 `System.Media.SoundPlayer`，它使用 Win32 `PlaySound` API，到处都能工作 — 但仅支持 WAV，因此 MP3 语音包需要安装 **ffmpeg** 进行实时转码：
+
+  ```sh
+  sudo apt update; sudo apt install -y ffmpeg
+  ```
+
+可通过 `PEON_WSL_AUDIO_BACKEND=auto|mediaplayer|soundplayer` 覆盖自动检测：
+
+- `auto`（默认）— 如上所述探测并缓存
+- `mediaplayer` — 强制通过 WSL UNC 路径使用 WPF MediaPlayer（在 24H2+ 上会静默失败）
+- `soundplayer` — 强制复制临时文件并使用 `SoundPlayer`（通用，非 WAV 文件需要 ffmpeg）
 
 ### 方式三：Windows 安装
 
