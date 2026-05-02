@@ -47,6 +47,27 @@ SCRIPT
 SCRIPT
   chmod +x "$MOCK_BIN/setsid"
 
+  # Mock ffmpeg — _wsl_play_soundplayer pipes test fixture WAVs through
+  # ffmpeg for volume baking, but the fixture WAVs are empty placeholders
+  # so a real ffmpeg invocation would fail and the function would return
+  # before reaching the PowerShell SoundPlayer call. Replace with a
+  # passthrough that just copies the input to the output path.
+  cat > "$MOCK_BIN/ffmpeg" <<'SCRIPT'
+#!/bin/bash
+input=""
+output=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -i) input="$2"; shift 2 ;;
+    -*) shift ;;
+    *) output="$1"; shift ;;
+  esac
+done
+[ -n "$input" ] && [ -n "$output" ] && cp "$input" "$output"
+exit 0
+SCRIPT
+  chmod +x "$MOCK_BIN/ffmpeg"
+
   mkdir -p "$TEST_DIR/wsl_tmp"
 }
 
