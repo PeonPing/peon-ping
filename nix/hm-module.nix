@@ -131,31 +131,69 @@ in
   };
 
   config = mkIf cfg.enable {
-    # Install base files from share into ~/.openpeon, excluding peon.sh which is wrapped by bin/peon.sh
-    home.file.".openpeon" = {
-      source = pkgs.runCommand "peon-home-files" {} ''
-        cp -r ${cfg.package}/share/peon-ping $out
-        chmod -R u+w $out
-        rm -f $out/peon.sh
-      '';
-      recursive = true;
-    };
-
     # PEON_DIR points at ~/.openpeon where all runtime files live.
     home.sessionVariables.PEON_DIR = "${config.home.homeDirectory}/.openpeon";
 
-    # peon.sh in ~/.openpeon is the bin/peon wrapper (has runtime PATH baked in).
-    home.file.".openpeon/peon.sh".source = "${cfg.package}/bin/peon";
+    home.file = mkMerge [
+      {
+        # Install base files from share into ~/.openpeon, excluding peon.sh which is wrapped by bin/peon.sh
+        ".openpeon" = {
+          source = pkgs.runCommand "peon-home-files" {} ''
+            cp -r ${cfg.package}/share/peon-ping $out
+            chmod -R u+w $out
+            rm -f $out/peon.sh
+          '';
+          recursive = true;
+        };
 
-    # Create the config file at the location peon-ping expects.
-    # Overrides any config.json that may be present in the package.
-    home.file.".openpeon/config.json".source = jsonFormat.generate "peon-ping-config" cfg.settings;
+        # peon.sh in ~/.openpeon is the bin/peon wrapper (has runtime PATH baked in).
+        ".openpeon/peon.sh".source = "${cfg.package}/bin/peon";
 
-    home.file = mkIf cfg.claudeCodeIntegration {
-      ".claude/hooks/peon-ping/peon.sh".source = "${cfg.package}/bin/peon";
-      ".claude/hooks/peon-ping/scripts/hook-handle-use.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-use.sh";
-      ".claude/hooks/peon-ping/scripts/hook-handle-rename.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-rename.sh";
-    };
+        # Create the config file at the location peon-ping expects.
+        # Overrides any config.json that may be present in the package.
+        ".openpeon/config.json".source = jsonFormat.generate "peon-ping-config" cfg.settings;
+      }
+
+      (mkIf cfg.claudeCodeIntegration {
+        ".claude/hooks/peon-ping/peon.sh".source = "${cfg.package}/bin/peon";
+        ".claude/hooks/peon-ping/scripts/hook-handle-use.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-use.sh";
+        ".claude/hooks/peon-ping/scripts/hook-handle-rename.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-rename.sh";
+      })
+
+      (mkIf (cfg.installPacks != [ ]) (let
+        # Separate string pack names (og-packs) from custom pack specs
+        ogPacks = lib.filter (p: lib.isString p) cfg.installPacks;
+        customPacks = lib.filter (p: lib.isAttrs p) cfg.installPacks;
+      in {
+        # Install sound packs from og-packs and/or custom sources
+        ".openpeon/packs" = {
+          source = pkgs.runCommand "peon-packs" { } ''
+            set -euo pipefail
+            mkdir -p $out
+
+            # Install packs from og-packs
+            ${lib.concatMapStringsSep "\n" (packName: ''
+              if [ -d "${ogPacksSrc}/og-packs-${ogPacksVersion}/${packName}" ]; then
+                cp -r "${ogPacksSrc}/og-packs-${ogPacksVersion}/${packName}" $out/
+              else
+                echo "Error: Pack '${packName}' not found in og-packs" >&2
+                exit 1
+              fi
+            '') ogPacks}
+
+            # Install custom packs
+            ${lib.concatMapStringsSep "\n" (pack: ''
+              if [ -d "${pack.src}" ]; then
+                cp -r "${pack.src}" "$out/${pack.name}"
+              else
+                echo "Error: Custom pack '${pack.name}' source not found" >&2
+                exit 1
+              fi
+            '') customPacks}
+          '';
+        };
+      }))
+    ];
 
     home.activation.peonPingClaudeCodeHooks = mkIf cfg.claudeCodeIntegration (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       hooks_json='${claudeHooksJsonFormat.generate "peon-claude-hooks" {
@@ -254,38 +292,6 @@ settings["hooks"] = hooks
 settings_path.write_text(json.dumps(settings, indent=2) + "\n")
 PY
     '');
-
-    # Install sound packs from og-packs and/or custom sources
-    home.file.".openpeon/packs" = lib.mkIf (cfg.installPacks != [ ]) (let
-      # Separate string pack names (og-packs) from custom pack specs
-      ogPacks = lib.filter (p: lib.isString p) cfg.installPacks;
-      customPacks = lib.filter (p: lib.isAttrs p) cfg.installPacks;
-    in {
-      source = pkgs.runCommand "peon-packs" { } ''
-        set -euo pipefail
-        mkdir -p $out
-
-        # Install packs from og-packs
-        ${lib.concatMapStringsSep "\n" (packName: ''
-          if [ -d "${ogPacksSrc}/og-packs-${ogPacksVersion}/${packName}" ]; then
-            cp -r "${ogPacksSrc}/og-packs-${ogPacksVersion}/${packName}" $out/
-          else
-            echo "Error: Pack '${packName}' not found in og-packs" >&2
-            exit 1
-          fi
-        '') ogPacks}
-
-        # Install custom packs
-        ${lib.concatMapStringsSep "\n" (pack: ''
-          if [ -d "${pack.src}" ]; then
-            cp -r "${pack.src}" "$out/${pack.name}"
-          else
-            echo "Error: Custom pack '${pack.name}' source not found" >&2
-            exit 1
-          fi
-        '') customPacks}
-      '';
-    });
 
     # Shell completions
     programs.zsh.initContent = mkIf cfg.enableZshIntegration ''
