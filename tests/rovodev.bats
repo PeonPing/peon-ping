@@ -26,6 +26,15 @@ run_rovodev() {
   ROVODEV_STDERR=$(cat "$TEST_DIR/stderr.log" 2>/dev/null)
 }
 
+run_rovodev_with_stdin() {
+  local event="$1"
+  local stdin_json="$2"
+  export PEON_TEST=1
+  printf '%s' "$stdin_json" | bash "$ROVODEV_SH" "$event" 2>"$TEST_DIR/stderr.log"
+  ROVODEV_EXIT=$?
+  ROVODEV_STDERR=$(cat "$TEST_DIR/stderr.log" 2>/dev/null)
+}
+
 # ============================================================
 # Event mapping
 # ============================================================
@@ -46,12 +55,105 @@ run_rovodev() {
   [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
 }
 
+@test "on_session_start maps to SessionStart and plays session.start sound" {
+  run_rovodev "on_session_start"
+  [ "$ROVODEV_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
+}
+
+@test "on_user_prompt maps to UserPromptSubmit and marks session working without sound" {
+  run_rovodev "on_user_prompt"
+  [ "$ROVODEV_EXIT" -eq 0 ]
+  ! afplay_was_called
+  grep -q ': working' "$TEST_DIR/.tab_title"
+}
+
+@test "on_tool_start maps to PreToolUse and marks session working without sound" {
+  run_rovodev "on_tool_start"
+  [ "$ROVODEV_EXIT" -eq 0 ]
+  ! afplay_was_called
+  grep -q ': working' "$TEST_DIR/.tab_title"
+}
+
+@test "on_tool_end maps to PostToolUse and marks session working without sound" {
+  run_rovodev "on_tool_end"
+  [ "$ROVODEV_EXIT" -eq 0 ]
+  ! afplay_was_called
+  grep -q ': working' "$TEST_DIR/.tab_title"
+}
+
+@test "on_session_end maps to SessionEnd and exits without sound" {
+  run_rovodev "on_session_end"
+  [ "$ROVODEV_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
 @test "on_tool_permission maps to PermissionRequest and plays input.required sound" {
   run_rovodev "on_tool_permission"
   [ "$ROVODEV_EXIT" -eq 0 ]
   afplay_was_called
   sound=$(afplay_sound)
   [[ "$sound" == *"/packs/peon/sounds/Perm"* ]]
+}
+
+@test "on_tool_permission without tool_input shows bash in permission notification" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "active_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "desktop_notifications": true,
+  "notification_style": "standard",
+  "notification_templates": {
+    "permission": "{summary}"
+  },
+  "categories": {}
+}
+JSON
+  payload=$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"on_tool_permission","attributes":{}}' "$TEST_DIR")
+  run_rovodev_with_stdin "on_tool_permission" "$payload"
+  [ "$ROVODEV_EXIT" -eq 0 ]
+  afplay_was_called
+  grep -q 'Permission requested (bash)' "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "on_tool_permission notification prefers permission text over transcript text" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "active_pack": "peon",
+  "volume": 0.5,
+  "enabled": true,
+  "desktop_notifications": true,
+  "notification_style": "standard",
+  "notification_templates": {
+    "permission": "{summary}"
+  },
+  "categories": {}
+}
+JSON
+  cat > "$TEST_DIR/transcript.json" <<'JSON'
+{
+  "message_history": [
+    {
+      "kind": "response",
+      "parts": [
+        {
+          "part_kind": "text",
+          "content": "This is the transcript response that should not appear"
+        }
+      ]
+    }
+  ]
+}
+JSON
+  payload=$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"on_tool_permission","transcript_path":"%s/transcript.json","attributes":{"tool_input":{"tool_name":"create_file","args":{"_intent":"Create file for user"}}}}' "$TEST_DIR" "$TEST_DIR")
+  run_rovodev_with_stdin "on_tool_permission" "$payload"
+  [ "$ROVODEV_EXIT" -eq 0 ]
+  afplay_was_called
+  grep -q 'Permission requested (create_file) — Create file for user' "$TEST_DIR/terminal_notifier.log"
+  ! grep -q 'transcript response' "$TEST_DIR/terminal_notifier.log"
 }
 
 @test "on_permission_request is accepted as alias for on_tool_permission" {
@@ -230,7 +332,7 @@ teardown_install_env() {
   teardown_install_env
 }
 
-@test "install: skips when rovodev.sh already in config" {
+@test "install: backfills new hooks into old Rovo Dev config without duplicating old hooks" {
   setup_install_env
   mkdir -p "$INSTALL_HOME/.rovodev"
   cat > "$INSTALL_HOME/.rovodev/config.yml" <<'EOF'
@@ -238,12 +340,62 @@ eventHooks:
   events:
     - name: on_complete
       commands:
-        - command: bash /some/path/rovodev.sh on_complete
+        - command: bash /old/rovodev.sh on_complete
+    - name: on_error
+      commands:
+        - command: bash /old/rovodev.sh on_error
+    - name: on_tool_permission
+      commands:
+        - command: bash /old/rovodev.sh on_tool_permission
 EOF
-  bash "$CLONE_DIR/install.sh"
-  # Should only appear once (not duplicated)
-  count=$(grep -c "rovodev.sh" "$INSTALL_HOME/.rovodev/config.yml")
-  [ "$count" -eq 1 ]
+  bash "$CLONE_DIR/install.sh" > "$TEST_DIR/install.log"
+  [ "$?" -eq 0 ]
+  grep -q "Missing Rovo Dev CLI event hooks added to" "$TEST_DIR/install.log"
+  for hook in on_user_prompt on_tool_start on_tool_end on_session_start on_session_end; do
+    grep -q -- "- name: $hook" "$INSTALL_HOME/.rovodev/config.yml"
+    grep -q "rovodev.sh $hook" "$INSTALL_HOME/.rovodev/config.yml"
+  done
+  [ "$(grep -c "rovodev.sh on_complete" "$INSTALL_HOME/.rovodev/config.yml")" -eq 1 ]
+  [ "$(grep -c "rovodev.sh on_error" "$INSTALL_HOME/.rovodev/config.yml")" -eq 1 ]
+  [ "$(grep -c "rovodev.sh on_tool_permission" "$INSTALL_HOME/.rovodev/config.yml")" -eq 1 ]
+  teardown_install_env
+}
+
+@test "install: skips with message when all Rovo Dev hooks already exist" {
+  setup_install_env
+  mkdir -p "$INSTALL_HOME/.rovodev"
+  cat > "$INSTALL_HOME/.rovodev/config.yml" <<'EOF'
+eventHooks:
+  events:
+    - name: on_complete
+      commands:
+        - command: bash /old/rovodev.sh on_complete
+    - name: on_error
+      commands:
+        - command: bash /old/rovodev.sh on_error
+    - name: on_tool_permission
+      commands:
+        - command: bash /old/rovodev.sh on_tool_permission
+    - name: on_user_prompt
+      commands:
+        - command: bash /old/rovodev.sh on_user_prompt
+    - name: on_tool_start
+      commands:
+        - command: bash /old/rovodev.sh on_tool_start
+    - name: on_tool_end
+      commands:
+        - command: bash /old/rovodev.sh on_tool_end
+    - name: on_session_start
+      commands:
+        - command: bash /old/rovodev.sh on_session_start
+    - name: on_session_end
+      commands:
+        - command: bash /old/rovodev.sh on_session_end
+EOF
+  bash "$CLONE_DIR/install.sh" > "$TEST_DIR/install.log"
+  [ "$?" -eq 0 ]
+  grep -q "peon-ping hooks already present in Rovo Dev CLI config — skipping" "$TEST_DIR/install.log"
+  [ "$(grep -c "rovodev.sh" "$INSTALL_HOME/.rovodev/config.yml")" -eq 8 ]
   teardown_install_env
 }
 
