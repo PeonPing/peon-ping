@@ -27,6 +27,7 @@
 import * as fs from "node:fs"
 import * as path from "node:path"
 import * as os from "node:os"
+import { spawn } from "node:child_process"
 import type { Plugin } from "@opencode-ai/plugin"
 
 const PEON_SH_PATHS = [
@@ -73,10 +74,8 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
     })
 
     try {
-      const proc = Bun.spawn(["bash", peonSh], {
-        stdin: "pipe",
-        stdout: "ignore",
-        stderr: "ignore",
+      const proc = spawn("bash", [peonSh], {
+        stdio: ["pipe", "ignore", "ignore"],
       })
       proc.stdin.write(payload)
       proc.stdin.end()
