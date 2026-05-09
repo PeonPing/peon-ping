@@ -1,0 +1,8 @@
+{
+  "name": "peon-ping",
+  "version": "1.0.0",
+  "description": "peon-ping adapter for oh-my-pi (omp) — routes lifecycle events through peon.sh.",
+  "omp": {
+    "extensions": ["./peon-ping.ts"]
+  }
+}
