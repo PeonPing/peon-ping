@@ -1,3 +1,8 @@
+## [Unreleased]
+
+### Added
+- **oh-my-pi (omp) adapter.** New TypeScript extension at `adapters/omp/peon-ping.ts` plus shell installer at `adapters/omp.sh` route omp's `ExtensionAPI` lifecycle events (`session_start`, `turn_start`, `turn_end`, `tool_result` with `isError`, `auto_compaction_start`, `session_shutdown`) through `peon.sh` so omp users get every peon-ping feature: packs, desktop notifications, trainer, mobile push, SSH/devcontainer relay, tab titles. `peon.sh` recognizes `source: "omp"` (and `omp-…` session-id-prefix fallback) and renders as `oh-my-pi` in notifications. Install with `bash adapters/omp.sh`.
+
 ## v2.27.0 (2026-05-05)
 
 ### Fixed
