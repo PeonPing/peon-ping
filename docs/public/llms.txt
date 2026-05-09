@@ -78,6 +78,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - OpenClaw (via adapters/openclaw.sh — call with any CESP category or Claude Code event name)
 - Rovo Dev CLI (Atlassian — adapter for on_complete, on_error, on_tool_permission events)
 - DeepAgents (adapter — translates deepagents-cli events to CESP JSON)
+- oh-my-pi/omp (TypeScript extension at adapters/omp/peon-ping.ts; install with `bash adapters/omp.sh`. Maps omp ExtensionAPI events — session_start, turn_start, turn_end, tool_result, auto_compaction_start, session_shutdown — to CESP via source: "omp".)
 
 All adapters have native Windows PowerShell (.ps1) versions alongside the bash (.sh) originals. Filesystem watchers (Amp, Antigravity, Kimi) use .NET FileSystemWatcher on Windows instead of fswatch/inotifywait. The Windows installer (install.ps1) copies adapter scripts to ~/.claude/hooks/peon-ping/adapters/.
 

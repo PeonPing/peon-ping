@@ -6,7 +6,7 @@
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![MSYS2](https://img.shields.io/badge/MSYS2-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01)
+![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01)
 
 **Game character voice lines + visual overlay notifications when your AI coding agent needs attention — or let the agent pick its own sound via MCP.**
 
@@ -728,6 +728,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **OpenClaw** | Adapter | Call `adapters/openclaw.sh <event>` (or `openclaw.ps1`) from your OpenClaw skill |
 | **Rovo Dev CLI** | Adapter | Auto-registered by `install.sh` if `~/.rovodev` exists, or add hooks to `~/.rovodev/config.yml` manually ([setup](#rovo-dev-cli-setup)) |
 | **DeepAgents** | Adapter | `bash adapters/deepagents.sh` / `powershell adapters/deepagents.ps1` ([setup](#deepagents-setup)) |
+| **oh-my-pi (omp)** | Adapter | `bash adapters/omp.sh` ([setup](#oh-my-pi-omp-setup)) |
 
 > **Windows:** All adapters have native PowerShell (`.ps1`) versions. The Windows installer (`install.ps1`) copies them to `~/.claude/hooks/peon-ping/adapters/`. Filesystem watchers (Amp, Antigravity, Kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait — no extra dependencies needed.
 
@@ -1127,6 +1128,35 @@ If `~/.claude/hooks/peon-ping/packs/` already exists with packs, a `--kimi` inst
 - Agent finishes turn → Completion sound (*"Work, work."*, *"Job's done!"*)
 - Context compaction → Token limit sound
 - Sub-agent spawned → Sub-agent tracking
+
+### oh-my-pi (omp) setup
+
+A native TypeScript extension for [oh-my-pi](https://github.com/can1357/oh-my-pi) (`omp`) with full [CESP v1.0](https://github.com/PeonPing/openpeon) conformance. Subscribes to omp's `ExtensionAPI` lifecycle events and routes them through `peon.sh` so omp users get every peon-ping feature: sound packs, desktop notifications, trainer reminders, mobile push, SSH/devcontainer relay, and tab-title updates.
+
+**Quick install:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/omp.sh | bash
+```
+
+The installer copies `peon-ping.ts` and `package.json` to `~/.omp/agent/extensions/peon-ping/`. Restart omp afterward.
+
+**Event mapping:**
+
+| omp event                              | peon-ping event       |
+|----------------------------------------|-----------------------|
+| `session_start`                        | `SessionStart`        |
+| `turn_start`                           | `UserPromptSubmit`    |
+| `turn_end`                             | `Stop`                |
+| `tool_result` with `isError: true`     | `PostToolUseFailure`  |
+| `auto_compaction_start`                | `PreCompact`          |
+| `session_shutdown`                     | `SessionEnd`          |
+
+**Uninstall:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/omp.sh | bash -s -- --uninstall
+```
 
 ## Remote development (SSH / Devcontainers / Codespaces)
 
