@@ -4912,6 +4912,10 @@ IDE_ALIASES = {
     'open_claw': 'openclaw',
     'rovodev': 'rovodev',
     'rovo': 'rovodev',
+    'omp': 'omp',
+    'oh-my-pi': 'omp',
+    'oh_my_pi': 'omp',
+    'pi': 'omp',
 }
 
 def normalize_ide_id(value):
@@ -4943,6 +4947,7 @@ def detect_session_ide(source_value, event_payload, session_value):
         ('deepagents-', 'deepagents'),
         ('openclaw-', 'openclaw'),
         ('rovodev-', 'rovodev'),
+        ('omp-', 'omp'),
     )
     for prefix, ide in prefix_map:
         if sid.startswith(prefix):
@@ -4965,6 +4970,7 @@ IDE_DISPLAY_NAMES = {
     'deepagents': 'DeepAgents',
     'openclaw': 'OpenClaw',
     'rovodev': 'Rovo Dev CLI',
+    'omp': 'oh-my-pi',
 }
 
 def display_ide_name(ide_id):
