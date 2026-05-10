@@ -3511,8 +3511,15 @@ foreach ($evt in $events) {
                 -not ($_.command -and ($_.command -match "peon\.(ps1|sh)" -or $_.command -match "notify\.sh"))
             })
             if ($keptHooks.Count -gt 0) {
+                # Coalesce a missing matcher property to "" — accessing a missing
+                # property on a PSCustomObject yields $null, which ConvertTo-Json
+                # then serializes as literal JSON null. Claude Code's settings
+                # validator rejects null with "matcher: Expected string, but
+                # received null". An absent or empty-string matcher is the
+                # documented "match all" form.
+                $matcherValue = if ($null -eq $entry.matcher) { "" } else { $entry.matcher }
                 [PSCustomObject]@{
-                    matcher = $entry.matcher
+                    matcher = $matcherValue
                     hooks   = $keptHooks
                 }
             }
@@ -3563,8 +3570,10 @@ if ($settings.hooks | Get-Member -Name "UserPromptSubmit" -MemberType NoteProper
             -not ($_.command -and $_.command -match "hook-handle-use")
         })
         if ($keptHooks.Count -gt 0) {
+            # See matcher-coalesce comment above.
+            $matcherValue = if ($null -eq $entry.matcher) { "" } else { $entry.matcher }
             [PSCustomObject]@{
-                matcher = $entry.matcher
+                matcher = $matcherValue
                 hooks   = $keptHooks
             }
         }
