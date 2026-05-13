@@ -135,28 +135,32 @@ if [ "$DAEMON_ACTION" = "status" ]; then
 fi
 
 # --- Preflight ---
-if [ ! -f "$PEON_DIR/peon.sh" ]; then
-  error "peon.sh not found at $PEON_DIR/peon.sh"
-  error "Install peon-ping first: curl -fsSL peonping.com/install | bash"
-  exit 1
-fi
+# Skip when sourced in test mode: tests assert preflight behavior independently
+# and source the script to access pipe_to_peon without needing real deps.
+if [ "${PEON_ADAPTER_TEST:-0}" != "1" ]; then
+  if [ ! -f "$PEON_DIR/peon.sh" ]; then
+    error "peon.sh not found at $PEON_DIR/peon.sh"
+    error "Install peon-ping first: curl -fsSL peonping.com/install | bash"
+    exit 1
+  fi
 
-if ! command -v python3 &>/dev/null; then
-  error "python3 is required but not found."
-  exit 1
-fi
+  if ! command -v python3 &>/dev/null; then
+    error "python3 is required but not found."
+    exit 1
+  fi
 
-if [ ! -f "$WATCHER_PY" ]; then
-  error "antigravity-watcher.py not found at $WATCHER_PY"
-  error "Expected alongside this script in adapters/"
-  exit 1
-fi
+  if [ ! -f "$WATCHER_PY" ]; then
+    error "antigravity-watcher.py not found at $WATCHER_PY"
+    error "Expected alongside this script in adapters/"
+    exit 1
+  fi
 
-# Check that watchdog is importable
-if ! python3 -c "import watchdog" 2>/dev/null; then
-  error "Python 'watchdog' module not found."
-  error "Install it: pip3 install watchdog"
-  exit 1
+  # Check that watchdog is importable
+  if ! python3 -c "import watchdog" 2>/dev/null; then
+    error "Python 'watchdog' module not found."
+    error "Install it: pip3 install watchdog"
+    exit 1
+  fi
 fi
 
 # --- Handle --install (daemon mode) ---

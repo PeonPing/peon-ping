@@ -82,9 +82,11 @@ source_adapter() {
   rm -f "$MOCK_BIN/python3"
   # Restrict PATH so real python3 is not found
   PATH="$MOCK_BIN:/usr/bin:/bin" run bash "$ADAPTER_SH"
-  # On macOS, /usr/bin/python3 may exist, so this test is best-effort
-  # The adapter should fail if python3 truly isn't found
-  if [ "$status" -eq 1 ]; then
+  # On macOS / Ubuntu, /usr/bin/python3 typically exists, so this test is
+  # best-effort. Only assert the python3-specific message when the failure
+  # actually came from the python3 check (vs. a downstream check like
+  # watchdog import or peon.sh missing).
+  if [ "$status" -eq 1 ] && [[ "$output" == *"python3"* ]] && [[ "$output" != *"watchdog"* ]]; then
     [[ "$output" == *"python3 is required"* ]]
   fi
 }
