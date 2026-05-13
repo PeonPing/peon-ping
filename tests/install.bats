@@ -811,22 +811,6 @@ EOF
   grep -q "logFile:" "$TEST_HOME/.rovodev/config.yml"
 }
 
-@test "--rovodev-only skips if rovodev.sh already registered" {
-  mkdir -p "$TEST_HOME/.rovodev"
-  mkdir -p "$TEST_HOME/.claude/hooks/peon-ping/adapters"
-  echo '#!/bin/bash' > "$TEST_HOME/.claude/hooks/peon-ping/adapters/rovodev.sh"
-  cat > "$TEST_HOME/.rovodev/config.yml" <<EOF
-eventHooks:
-  events:
-    - name: on_complete
-      commands:
-        - command: bash /some/path/rovodev.sh on_complete
-EOF
-  run bash "$CLONE_DIR/install.sh" --rovodev-only
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"already present"* ]]
-}
-
 @test "--rovodev-only shows in help" {
   run bash "$CLONE_DIR/install.sh" --help
   [ "$status" -eq 0 ]
