@@ -1,3 +1,16 @@
+## Unreleased
+
+### Added
+- **Native GitHub Copilot CLI integration.** `install.sh` and `install.ps1` now auto-register Copilot CLI hooks at `~/.copilot/hooks/peon-ping.json` whenever `~/.copilot/` exists, mirroring the existing Cursor auto-detect pattern. Wiring uses **PascalCase** event names so Copilot CLI delivers the VS Code-compatible (snake_case) payload that `peon.sh` / `peon.ps1` reads natively, bypassing the per-repo adapter. Nine events registered: `SessionStart`, `SessionEnd`, `SubagentStart`, `Stop` (= Copilot's `agentStop`), `Notification`, `PermissionRequest`, `PreToolUse`, `PostToolUseFailure`, `PreCompact`. Matching teardown in `uninstall.sh` and `uninstall.ps1`. README and `README_zh.md` document both the auto path and the per-repo `.github/hooks/hooks.json` adapter path. Requires PowerShell 7+ on Windows.
+
+### Fixed
+- **`adapters/copilot.sh` and `adapters/copilot.ps1`: complete event-mapping rewrite.** The previous adapters had multiple event-mapping bugs that produced "mixed results" for Copilot CLI users:
+  - `postToolUse` was mapped to `Stop`, which fires once per *tool* (often dozens per agent turn). `peon.sh` / `peon.ps1` debounces `Stop` events within a 5s window, so most pings were silently swallowed.
+  - `agentStop` (Copilot CLI's actual "task done" signal) had no handler, so it fell through to `exit 0`.
+  - `notification`, `permissionRequest`, `postToolUseFailure`, `subagentStart`, `subagentStop`, `preCompact`, `sessionEnd` had no handlers. All fell through to silent exit, even though `peon.sh` / `peon.ps1` natively handle these events.
+  - `userPromptSubmitted` used a marker-file dual-mode that mapped the first prompt to `SessionStart`, double-greeting on top of the real `sessionStart` event.
+  Adapters are now thin field translators: they map every Copilot CLI event the engine handles, rename camelCase fields (`sessionId`, `toolName`, `stopReason`, etc.) to the snake_case shape (`session_id`, `tool_name`, `stop_reason`) that peon expects, and pipe to `peon.sh` / `peon.ps1`. `postToolUse` is now intentionally skipped (peon has no `PostToolUse` handler; routing through `Stop` was the source of the original bug). New Pester coverage in `tests/peon-adapters.Tests.ps1` exercises all 14 event cases including field translation and source-tagging.
+
 ## v2.28.1 (2026-05-17)
 
 ### Fixed

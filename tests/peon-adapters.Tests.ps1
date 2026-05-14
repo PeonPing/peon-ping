@@ -170,44 +170,6 @@ Describe "Functional: copilot.ps1 event mapping" {
         Remove-TestPeonDir $script:testDir
     }
 
-    It "maps first userPromptSubmitted to SessionStart" {
-        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
-        & powershell -NoProfile -NonInteractive -File $adapter -Event "userPromptSubmitted"
-
-        $json = Get-PeonInputLog $script:testDir
-        $json | Should -Not -BeNullOrEmpty
-        $json.hook_event_name | Should -Be "SessionStart"
-    }
-
-    It "maps second userPromptSubmitted to UserPromptSubmit" {
-        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
-
-        # Create the marker file directly to simulate the first call having happened
-        # The copilot adapter uses ".copilot-session-$sessionId" where sessionId
-        # defaults to "copilot-$PID". Since each powershell invocation has a new PID,
-        # we pre-create a marker that matches the session ID the adapter will use.
-        # Instead, we pipe stdin JSON with a fixed sessionId to both calls.
-        $stdinJson = '{"sessionId": "test-fixed-session"}'
-
-        # First call creates the marker file
-        $stdinJson | & powershell -NoProfile -NonInteractive -File $adapter -Event "userPromptSubmitted"
-
-        # Verify marker file was created
-        $markerPattern = Join-Path $script:testDir ".copilot-session-test-fixed-session"
-        $markerPattern | Should -Exist
-
-        # Clear the log for the second call
-        $logFile = Join-Path $script:testDir ".peon-input.log"
-        Remove-Item $logFile -Force -ErrorAction SilentlyContinue
-
-        # Second call should map to UserPromptSubmit
-        $stdinJson | & powershell -NoProfile -NonInteractive -File $adapter -Event "userPromptSubmitted"
-
-        $json = Get-PeonInputLog $script:testDir
-        $json | Should -Not -BeNullOrEmpty
-        $json.hook_event_name | Should -Be "UserPromptSubmit"
-    }
-
     It "maps sessionStart to SessionStart" {
         $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
         & powershell -NoProfile -NonInteractive -File $adapter -Event "sessionStart"
@@ -217,16 +179,57 @@ Describe "Functional: copilot.ps1 event mapping" {
         $json.hook_event_name | Should -Be "SessionStart"
     }
 
-    It "maps postToolUse to Stop" {
+    It "maps sessionEnd to SessionEnd" {
         $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
-        & powershell -NoProfile -NonInteractive -File $adapter -Event "postToolUse"
+        '{"sessionId":"s","reason":"complete"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "sessionEnd"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "SessionEnd"
+        $json.reason | Should -Be "complete"
+    }
+
+    It "maps userPromptSubmitted to UserPromptSubmit (no marker-file dual mode)" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","prompt":"hello"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "userPromptSubmitted"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "UserPromptSubmit"
+        $json.prompt | Should -Be "hello"
+    }
+
+    It "maps agentStop to Stop with stop_reason field" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","stopReason":"end_turn","transcriptPath":"/tmp/t"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "agentStop"
 
         $json = Get-PeonInputLog $script:testDir
         $json | Should -Not -BeNullOrEmpty
         $json.hook_event_name | Should -Be "Stop"
+        $json.stop_reason | Should -Be "end_turn"
+        $json.transcript_path | Should -Be "/tmp/t"
     }
 
-    It "maps errorOccurred to PostToolUseFailure" {
+    It "skips postToolUse silently (no PostToolUse handler in peon.ps1; routing to Stop floods debounce)" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        & powershell -NoProfile -NonInteractive -File $adapter -Event "postToolUse"
+
+        $logFile = Join-Path $script:testDir ".peon-input.log"
+        $logFile | Should -Not -Exist
+    }
+
+    It "maps postToolUseFailure to PostToolUseFailure with error field" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","toolName":"shell","error":"oops"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "postToolUseFailure"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "PostToolUseFailure"
+        $json.tool_name | Should -Be "shell"
+        $json.error | Should -Be "oops"
+    }
+
+    It "maps errorOccurred to PostToolUseFailure (Copilot CLI generic-error compat)" {
         $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
         & powershell -NoProfile -NonInteractive -File $adapter -Event "errorOccurred"
 
@@ -235,20 +238,91 @@ Describe "Functional: copilot.ps1 event mapping" {
         $json.hook_event_name | Should -Be "PostToolUseFailure"
     }
 
-    It "exits silently for sessionEnd (no event forwarded)" {
+    It "maps preToolUse to PreToolUse with tool_name and tool_input" {
         $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
-        & powershell -NoProfile -NonInteractive -File $adapter -Event "sessionEnd"
+        '{"sessionId":"s","toolName":"shell","toolArgs":{"cmd":"ls"}}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "preToolUse"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "PreToolUse"
+        $json.tool_name | Should -Be "shell"
+        $json.tool_input.cmd | Should -Be "ls"
+    }
+
+    It "maps notification to Notification with notification_type" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","notificationType":"elicitation_dialog","message":"q?"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "notification"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "Notification"
+        $json.notification_type | Should -Be "elicitation_dialog"
+    }
+
+    It "maps permissionRequest to PermissionRequest with tool_name" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","toolName":"rm"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "permissionRequest"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "PermissionRequest"
+        $json.tool_name | Should -Be "rm"
+    }
+
+    It "maps subagentStart to SubagentStart with agent_name" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","agentName":"helper"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "subagentStart"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "SubagentStart"
+        $json.agent_name | Should -Be "helper"
+    }
+
+    It "maps subagentStop to SubagentStop" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","transcriptPath":"/tmp/x"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "subagentStop"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "SubagentStop"
+        $json.transcript_path | Should -Be "/tmp/x"
+    }
+
+    It "maps preCompact to PreCompact with trigger" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"s","trigger":"auto"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "preCompact"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be "PreCompact"
+        $json.trigger | Should -Be "auto"
+    }
+
+    It "skips unknown events silently" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        & powershell -NoProfile -NonInteractive -File $adapter -Event "bogusEvent"
 
         $logFile = Join-Path $script:testDir ".peon-input.log"
         $logFile | Should -Not -Exist
     }
 
-    It "exits silently for preToolUse (too noisy)" {
+    It "always sets source=copilot in forwarded payload" {
         $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
-        & powershell -NoProfile -NonInteractive -File $adapter -Event "preToolUse"
+        '{"sessionId":"s"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "agentStop"
 
-        $logFile = Join-Path $script:testDir ".peon-input.log"
-        $logFile | Should -Not -Exist
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.source | Should -Be "copilot"
+    }
+
+    It "translates sessionId to session_id" {
+        $adapter = Join-Path $script:AdaptersDir "copilot.ps1"
+        '{"sessionId":"my-session-123"}' | & powershell -NoProfile -NonInteractive -File $adapter -Event "agentStop"
+
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.session_id | Should -Be "my-session-123"
     }
 }
 

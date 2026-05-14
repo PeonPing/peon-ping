@@ -716,7 +716,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Claude Code** | Built-in | `curl \| bash` install handles everything |
 | **Amp** | Adapter | `bash adapters/amp.sh` / `powershell adapters/amp.ps1` ([setup](#amp-setup)) |
 | **Gemini CLI** | Adapter | Add hooks pointing to `adapters/gemini.sh` (or `.ps1` on Windows) ([setup](#gemini-cli-setup)) |
-| **GitHub Copilot** | Adapter | Add hooks to `.github/hooks/hooks.json` pointing to `adapters/copilot.sh` (or `.ps1`) ([setup](#github-copilot-setup)) |
+| **GitHub Copilot CLI** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers hooks at `~/.copilot/hooks/peon-ping.json` if `~/.copilot` exists. Per-repo manual wiring also available via `adapters/copilot.sh` / `.ps1` ([setup](#github-copilot-cli-setup)) |
 | **OpenAI Codex** | Adapter | Install the peon-ping runtime first, then add `notify` in `~/.codex/config.toml` pointing to `adapters/codex.sh` (or `.ps1`) ([setup](#openai-codex-setup)) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
 | **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
@@ -802,66 +802,87 @@ The adapter watches `~/.local/share/amp/threads/` for JSON file changes. When a 
 | `AMP_IDLE_SECONDS` | `1` | Seconds of no changes before emitting Stop |
 | `AMP_STOP_COOLDOWN` | `10` | Minimum seconds between Stop events per thread |
 
-### GitHub Copilot setup
+### GitHub Copilot CLI setup
 
-A shell adapter for [GitHub Copilot](https://github.com/features/copilot) with full [CESP v1.0](https://github.com/PeonPing/openpeon) conformance.
+Native [GitHub Copilot CLI](https://github.com/github/copilot-cli) integration with full [CESP v1.0](https://github.com/PeonPing/openpeon) conformance.
 
-**Setup:**
+**Recommended: user-level (global) wiring — no per-repo setup.**
 
-1. Ensure peon-ping is installed (`curl -fsSL https://peonping.com/install | bash`)
+`install.sh` and `install.ps1` automatically register Copilot CLI hooks at `~/.copilot/hooks/peon-ping.json` whenever the `~/.copilot/` directory exists. Re-run the installer if you installed Copilot CLI after peon-ping. The wiring uses **PascalCase event names**, which tells Copilot CLI to deliver the VS Code-compatible (snake_case) payload that `peon.sh` / `peon.ps1` reads natively — no per-repo adapter required.
 
-2. Create `.github/hooks/hooks.json` in your repository (on the default branch):
+Hooks registered globally:
 
-   ```json
-   {
-     "version": 1,
-     "hooks": {
-       "sessionStart": [
-         {
-           "type": "command",
-           "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh sessionStart"
-         }
-       ],
-       "userPromptSubmitted": [
-         {
-           "type": "command",
-           "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh userPromptSubmitted"
-         }
-       ],
-       "postToolUse": [
-         {
-           "type": "command",
-           "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh postToolUse"
-         }
-       ],
-       "errorOccurred": [
-         {
-           "type": "command",
-           "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh errorOccurred"
-         }
-       ]
-     }
-   }
-   ```
+| Event | Category | Triggered by |
+|---|---|---|
+| `SessionStart` | `session.start` | Launching `copilot` (greeting) |
+| `SessionEnd` | _(silent today)_ | Quitting the CLI |
+| `UserPromptSubmit` | `user.spam` (after 3+ rapid prompts) | Each prompt you submit |
+| `Stop` (= `agentStop`) | `task.complete` | Agent finishes a turn (debounced 5s) |
+| `Notification` | `input.required` (elicitation) | Idle, elicitation dialogs, permission popups |
+| `PermissionRequest` | `input.required` | Tool permission asks |
+| `PreToolUse` | `input.required` (only on dangerous-pattern match) | Before each tool call |
+| `PostToolUseFailure` | `task.error` | Tool failure |
+| `PreCompact` | `resource.limit` | Context compaction starting |
 
-3. Commit and merge to your default branch. Hooks will activate on your next Copilot agent session.
+`postToolUse` is intentionally **not** wired: peon has no `PostToolUse` handler and routing it through `Stop` floods the debounce window, swallowing real `Stop` events.
 
-**Event mapping:**
+**Prerequisite (Windows):** Copilot CLI hooks require [PowerShell 7+](https://github.com/PowerShell/PowerShell) (`pwsh` on `PATH`) and a permissive execution policy:
 
-- `sessionStart` → Greeting sound (*"Ready to work?"*, *"Yes?"*)
-- `userPromptSubmitted` → First prompt = greeting, subsequent = spam detection
-- `postToolUse` → Completion sound (*"Work, work."*, *"Job's done!"*)
-- `errorOccurred` → Error sound (*"I can't do that."*)
-- `preToolUse` → Skipped (too noisy)
-- `sessionEnd` → No sound (session.end not yet implemented)
+```powershell
+winget install Microsoft.PowerShell
+powershell -NoProfile -Command "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force"
+```
+
+**Alternative: per-repository wiring with the adapter.**
+
+If you want Copilot CLI hooks committed to a specific repository (e.g. for a team workflow), use `.github/hooks/hooks.json` with the `adapters/copilot.sh` (or `.ps1` on Windows) translator:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh sessionStart",
+        "powershell": "powershell -NoProfile -File %USERPROFILE%\\.claude\\hooks\\peon-ping\\adapters\\copilot.ps1 sessionStart"
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh agentStop",
+        "powershell": "powershell -NoProfile -File %USERPROFILE%\\.claude\\hooks\\peon-ping\\adapters\\copilot.ps1 agentStop"
+      }
+    ],
+    "postToolUseFailure": [
+      {
+        "type": "command",
+        "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh postToolUseFailure",
+        "powershell": "powershell -NoProfile -File %USERPROFILE%\\.claude\\hooks\\peon-ping\\adapters\\copilot.ps1 postToolUseFailure"
+      }
+    ],
+    "notification": [
+      {
+        "type": "command",
+        "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh notification",
+        "powershell": "powershell -NoProfile -File %USERPROFILE%\\.claude\\hooks\\peon-ping\\adapters\\copilot.ps1 notification"
+      }
+    ]
+  }
+}
+```
+
+Add additional events from the table above as desired. The adapter translates Copilot CLI's camelCase payload (`sessionId`, `toolName`, `stopReason`, etc.) to the snake_case shape (`session_id`, `tool_name`, `stop_reason`) that `peon.sh` / `peon.ps1` reads.
 
 **Features:**
 
-- **Sound playback** via `afplay` (macOS), `pw-play`/`paplay`/`ffplay` (Linux) — same priority chain as the shell hook
-- **CESP event mapping** — GitHub Copilot hooks map to standard CESP categories (`session.start`, `task.complete`, `task.error`, `user.spam`)
+- **Sound playback** via `afplay` (macOS), `pw-play`/`paplay`/`ffplay` (Linux), `MediaPlayer`/`SoundPlayer` (Windows) — same priority chain as the shell hook
+- **CESP event mapping** — Copilot CLI hooks map to standard CESP categories (`session.start`, `task.complete`, `task.error`, `input.required`, `user.spam`, `resource.limit`)
 - **Desktop notifications** — large overlay banners by default, or standard notifications
 - **Spam detection** — detects 3+ rapid prompts within 10 seconds, triggers `user.spam` voice lines
-- **Session tracking** — separate session markers per Copilot sessionId
+- **Debouncing** — `Stop` events suppressed within a 5s window to prevent spam from chained tool calls
+
 
 ### OpenCode setup
 

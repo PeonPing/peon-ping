@@ -146,6 +146,20 @@ if (Test-Path $CursorHooksFile) {
     }
 }
 
+# --- Remove GitHub Copilot CLI hooks ---
+$CopilotHooksFile = Join-Path $env:USERPROFILE ".copilot\hooks\peon-ping.json"
+
+if (Test-Path $CopilotHooksFile) {
+    Write-Host ""
+    Write-Host "Removing Copilot CLI hooks..."
+    try {
+        Remove-Item -Path $CopilotHooksFile -Force
+        Write-Host "  Removed $CopilotHooksFile" -ForegroundColor Green
+    } catch {
+        Write-Host "  Warning: Could not remove ${CopilotHooksFile}: $_" -ForegroundColor Yellow
+    }
+}
+
 # --- Remove skills ---
 Write-Host ""
 Write-Host "Removing skills..."

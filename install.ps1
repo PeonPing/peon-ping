@@ -3674,6 +3674,50 @@ if ((-not $Local) -and (Test-Path $CursorDir)) {
     Write-Host "  Cursor beforeSubmitPrompt hook registered" -ForegroundColor Green
 }
 
+# --- Register GitHub Copilot CLI hooks if ~/.copilot exists ---
+# Wires user-level hooks at %USERPROFILE%\.copilot\hooks\peon-ping.json
+# pointing directly at peon.ps1 with PascalCase event names. PascalCase
+# tells the CLI to deliver the VS Code-compatible (snake_case) payload
+# that peon.ps1 reads natively, bypassing the per-repo adapter entirely.
+$CopilotDir = Join-Path $env:USERPROFILE ".copilot"
+$CopilotHooksDir = Join-Path $CopilotDir "hooks"
+$CopilotHooksFile = Join-Path $CopilotHooksDir "peon-ping.json"
+
+if ((-not $Local) -and (Test-Path $CopilotDir)) {
+    Write-Host ""
+    Write-Host "Detected GitHub Copilot CLI installation, registering hooks..."
+
+    $copilotHookCmd = "powershell -NoProfile -NonInteractive -File `"$hookScriptPath`""
+
+    # Build hook entries. Using PascalCase event names so Copilot CLI
+    # delivers the VS Code-compatible payload shape that peon.ps1 reads.
+    # postToolUse is intentionally omitted: peon.ps1 has no PostToolUse
+    # handler and routing through Stop floods the debounce window.
+    $copilotEvents = @(
+        "SessionStart", "SessionEnd", "SubagentStart", "Stop",
+        "Notification", "PermissionRequest", "PreToolUse",
+        "PostToolUseFailure", "PreCompact"
+    )
+    $copilotHooks = [ordered]@{}
+    foreach ($evt in $copilotEvents) {
+        $copilotHooks[$evt] = @(
+            [PSCustomObject]@{
+                type       = "command"
+                powershell = $copilotHookCmd
+                timeoutSec = 10
+            }
+        )
+    }
+    $copilotData = [PSCustomObject]@{
+        version = 1
+        hooks   = [PSCustomObject]$copilotHooks
+    }
+
+    New-Item -ItemType Directory -Path $CopilotHooksDir -Force | Out-Null
+    $copilotData | ConvertTo-Json -Depth 10 | Set-Content $CopilotHooksFile -Encoding UTF8
+    Write-Host "  Copilot CLI hooks registered for: $($copilotEvents -join ', ')" -ForegroundColor Green
+}
+
 # --- Auto-detect deepagents-cli and register hooks ---
 $DeepagentsDir = Join-Path $env:USERPROFILE ".deepagents"
 $DeepagentsHooksFile = Join-Path $DeepagentsDir "hooks.json"

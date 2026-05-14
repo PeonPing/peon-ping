@@ -66,7 +66,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - Claude Code (built-in)
 - Amp (adapter — filesystem watcher for ampcode.com thread files)
 - Gemini CLI (adapter)
-- GitHub Copilot (adapter)
+- GitHub Copilot CLI (built-in: install.sh and install.ps1 auto-register PascalCase hooks at ~/.copilot/hooks/peon-ping.json when ~/.copilot exists, no per-repo setup needed; PascalCase event names trigger the VS Code-compatible payload format that peon.sh/peon.ps1 reads natively. Per-repo wiring also available via adapters/copilot.sh / .ps1 with .github/hooks/hooks.json. Skips postToolUse to avoid debounce flooding; correctly maps agentStop -> Stop. Requires PowerShell 7+ on Windows.)
 - OpenAI Codex
 - Cursor
 - OpenCode

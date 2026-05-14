@@ -123,6 +123,14 @@ if events_cleaned:
 "
 }
 
+# Remove Copilot CLI hooks if ~/.copilot/hooks/peon-ping.json exists
+_remove_copilot_hooks() {
+  local copilot_hooks="$HOME/.copilot/hooks/peon-ping.json"
+  [ -f "$copilot_hooks" ] || return 0
+  rm -f "$copilot_hooks"
+  echo "Removed Copilot CLI hooks: $copilot_hooks"
+}
+
 echo "Removing peon hooks from settings.json..."
 _remove_peon_hooks "$SETTINGS"
 
@@ -135,6 +143,10 @@ fi
 # Remove Cursor hooks
 echo "Removing Cursor hooks..."
 _remove_cursor_hooks
+
+# Remove Copilot CLI hooks
+echo "Removing Copilot CLI hooks..."
+_remove_copilot_hooks
 
 # --- Restore notify.sh backup (global install only) ---
 if [ "$IS_LOCAL" = false ] && [ -f "$NOTIFY_BACKUP" ]; then

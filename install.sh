@@ -1370,6 +1370,52 @@ print('Cursor beforeSubmitPrompt hooks registered for /peon-ping-use and /peon-p
 "
 fi
 
+# --- Register GitHub Copilot CLI hooks if ~/.copilot exists ---
+# Wires user-level hooks at ~/.copilot/hooks/peon-ping.json pointing
+# directly at peon.sh with PascalCase event names. PascalCase tells the
+# CLI to deliver the VS Code-compatible (snake_case) payload that
+# peon.sh reads natively, bypassing the per-repo adapter entirely.
+COPILOT_DIR="$HOME/.copilot"
+COPILOT_HOOKS_DIR="$COPILOT_DIR/hooks"
+COPILOT_HOOKS_FILE="$COPILOT_HOOKS_DIR/peon-ping.json"
+COPILOT_PEON_SCRIPT="$GLOBAL_BASE/hooks/peon-ping/peon.sh"
+
+if [ -d "$COPILOT_DIR" ]; then
+  echo ""
+  echo "Detected GitHub Copilot CLI installation, registering hooks..."
+
+  mkdir -p "$COPILOT_HOOKS_DIR"
+
+  # postToolUse is intentionally omitted: peon.sh has no PostToolUse
+  # handler and routing it through Stop floods the debounce window.
+  python3 -c "
+import json
+
+hooks_file = '$(py_path "$COPILOT_HOOKS_FILE")'
+peon_script = '$(py_path "$COPILOT_PEON_SCRIPT")'
+
+events = [
+    'SessionStart', 'SessionEnd', 'SubagentStart', 'Stop',
+    'Notification', 'PermissionRequest', 'PreToolUse',
+    'PostToolUseFailure', 'PreCompact',
+]
+
+hooks = {}
+for evt in events:
+    hooks[evt] = [{
+        'type': 'command',
+        'bash': 'bash ' + peon_script,
+        'timeoutSec': 10,
+    }]
+
+with open(hooks_file, 'w') as f:
+    json.dump({'version': 1, 'hooks': hooks}, f, indent=2)
+    f.write('\n')
+
+print('Copilot CLI hooks registered for: ' + ', '.join(events))
+"
+fi
+
 # --- Register event hooks for Rovo Dev CLI if ~/.rovodev exists ---
 if [ -d "$HOME/.rovodev" ]; then
   echo ""

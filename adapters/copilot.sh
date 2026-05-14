@@ -1,87 +1,94 @@
 #!/bin/bash
-# peon-ping adapter for GitHub Copilot
-# Translates GitHub Copilot hook events into peon.sh stdin JSON
+# peon-ping adapter for GitHub Copilot CLI
+# Translates GitHub Copilot CLI hook events into peon.sh stdin JSON.
 #
-# Setup: Add to .github/hooks/hooks.json in your repository:
-#   {
-#     "version": 1,
-#     "hooks": {
-#       "sessionStart": [
-#         { "type": "command", "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh sessionStart" }
-#       ],
-#       "sessionEnd": [
-#         { "type": "command", "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh sessionEnd" }
-#       ],
-#       "userPromptSubmitted": [
-#         { "type": "command", "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh userPromptSubmitted" }
-#       ],
-#       "postToolUse": [
-#         { "type": "command", "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh postToolUse" }
-#       ],
-#       "errorOccurred": [
-#         { "type": "command", "bash": "bash ~/.claude/hooks/peon-ping/adapters/copilot.sh errorOccurred" }
-#       ]
-#     }
-#   }
+# This adapter is mainly for users wiring per-repository hooks via
+# .github/hooks/hooks.json. For user-level (global) wiring, install.sh
+# now writes ~/.copilot/hooks/peon-ping.json directly with PascalCase
+# event names that peon.sh reads natively (no adapter required).
+#
+# Setup (per-repo): see README "GitHub Copilot CLI setup" for the full hook list.
 
 set -euo pipefail
 
 PEON_DIR="${CLAUDE_PEON_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping}"
+PEON_SCRIPT="$PEON_DIR/peon.sh"
+[ -f "$PEON_SCRIPT" ] || exit 0
 
 COPILOT_EVENT="${1:-sessionStart}"
 
-# Copilot sends JSON with session data on stdin (timestamp, cwd, sessionId, etc.)
-INPUT=$(cat)
-SESSION_ID=$(echo "$INPUT" | jq -r '.sessionId // empty' 2>/dev/null)
-[ -z "$SESSION_ID" ] && SESSION_ID="copilot-$$"
-CWD=$(echo "$INPUT" | jq -r '.cwd // ""' 2>/dev/null)
-[ -z "$CWD" ] && CWD="${PWD}"
-
-# Map Copilot hook events to peon.sh PascalCase events
+# Map Copilot CLI camelCase events to peon.sh PascalCase events.
+# - postToolUse: no mapping (peon.sh has no PostToolUse handler; mapping
+#   it to Stop floods the 5s debounce window and swallows real Stop events)
+# - agentStop: correct "task done" signal (Copilot CLI only)
+# - errorOccurred: generic Copilot CLI error -> PostToolUseFailure
 case "$COPILOT_EVENT" in
-  sessionStart)
-    EVENT="SessionStart"
-    ;;
-  sessionEnd)
-    # Session end — no sound (not yet mapped in peon.sh)
-    exit 0
-    ;;
-  userPromptSubmitted)
-    # Prompt submitted — SessionStart handles greeting, this handles spam detection
-    SESSION_MARKER="$PEON_DIR/.copilot-session-${SESSION_ID}"
-    find "$PEON_DIR" -name ".copilot-session-*" -mtime +0 -delete 2>/dev/null
-    if [ ! -f "$SESSION_MARKER" ]; then
-      touch "$SESSION_MARKER"
-      EVENT="SessionStart"
-    else
-      EVENT="UserPromptSubmit"
-    fi
-    ;;
-  preToolUse)
-    # Before tool execution — skip (too noisy)
-    exit 0
-    ;;
-  postToolUse)
-    # After tool execution — treat as task completion
-    EVENT="Stop"
-    ;;
-  errorOccurred)
-    # Error occurred during session
-    EVENT="PostToolUseFailure"
-    ;;
-  *)
-    # Unknown event — skip
-    exit 0
-    ;;
+  sessionStart)        EVENT="SessionStart" ;;
+  sessionEnd)          EVENT="SessionEnd" ;;
+  userPromptSubmitted) EVENT="UserPromptSubmit" ;;
+  preToolUse)          EVENT="PreToolUse" ;;
+  postToolUseFailure)  EVENT="PostToolUseFailure" ;;
+  agentStop)           EVENT="Stop" ;;
+  subagentStart)       EVENT="SubagentStart" ;;
+  subagentStop)        EVENT="SubagentStop" ;;
+  notification)        EVENT="Notification" ;;
+  permissionRequest)   EVENT="PermissionRequest" ;;
+  preCompact)          EVENT="PreCompact" ;;
+  errorOccurred)       EVENT="PostToolUseFailure" ;;
+  *)                   exit 0 ;;  # unknown or intentionally skipped (e.g. postToolUse)
 esac
 
-# PostToolUseFailure requires tool_name and error fields to trigger a sound
-if [ "$EVENT" = "PostToolUseFailure" ]; then
-  echo "$INPUT" | jq --arg event "$EVENT" --arg sid "$SESSION_ID" --arg cwd "$CWD" \
-    '{hook_event_name: $event, notification_type: "", cwd: $cwd, session_id: $sid, permission_mode: "", source: "copilot", tool_name: "Bash", error: "errorOccurred"}' \
-    | bash "$PEON_DIR/peon.sh"
-else
-  echo "$INPUT" | jq --arg event "$EVENT" --arg sid "$SESSION_ID" --arg cwd "$CWD" \
-    '{hook_event_name: $event, notification_type: "", cwd: $cwd, session_id: $sid, permission_mode: "", source: "copilot"}' \
-    | bash "$PEON_DIR/peon.sh"
-fi
+# Read camelCase JSON from stdin (may be empty)
+INPUT=$(cat 2>/dev/null || echo "")
+[ -z "$INPUT" ] && INPUT="{}"
+
+# Translate camelCase -> snake_case fields, inject hook_event_name + source.
+# Field mapping is per-event because not all events carry the same fields.
+echo "$INPUT" | jq \
+  --arg event "$EVENT" \
+  --arg sid_default "copilot-$$" \
+  --arg cwd_default "$PWD" \
+  '
+  . as $in
+  | {
+      hook_event_name: $event,
+      session_id:      ($in.sessionId // $sid_default),
+      cwd:             ($in.cwd // $cwd_default),
+      source:          "copilot"
+    }
+  + (
+      if $event == "SessionStart" then
+        (if $in.source         then {source: $in.source}                 else {} end)
+        + (if $in.initialPrompt  then {initial_prompt: $in.initialPrompt}  else {} end)
+      elif $event == "SessionEnd" then
+        (if $in.reason then {reason: $in.reason} else {} end)
+      elif $event == "UserPromptSubmit" then
+        (if $in.prompt then {prompt: $in.prompt} else {} end)
+      elif $event == "PreToolUse" then
+        (if $in.toolName        then {tool_name: $in.toolName}  else {} end)
+        + (if $in.toolArgs != null then {tool_input: $in.toolArgs} else {} end)
+      elif $event == "PostToolUseFailure" then
+        {
+          tool_name: ($in.toolName // "unknown"),
+          error:     ($in.error // "errorOccurred")
+        }
+        + (if $in.toolArgs != null then {tool_input: $in.toolArgs} else {} end)
+      elif $event == "Stop" then
+        (if $in.transcriptPath then {transcript_path: $in.transcriptPath} else {} end)
+        + (if $in.stopReason   then {stop_reason: $in.stopReason}         else {} end)
+      elif $event == "SubagentStart" then
+        (if $in.transcriptPath then {transcript_path: $in.transcriptPath} else {} end)
+        + (if $in.agentName    then {agent_name: $in.agentName}           else {} end)
+      elif $event == "SubagentStop" then
+        (if $in.transcriptPath then {transcript_path: $in.transcriptPath} else {} end)
+      elif $event == "Notification" then
+        (if $in.notificationType then {notification_type: $in.notificationType} else {} end)
+        + (if $in.message          then {message: $in.message}                     else {} end)
+      elif $event == "PermissionRequest" then
+        (if $in.toolName        then {tool_name: $in.toolName}  else {} end)
+        + (if $in.toolArgs != null then {tool_input: $in.toolArgs} else {} end)
+      elif $event == "PreCompact" then
+        (if $in.trigger then {trigger: $in.trigger} else {} end)
+      else {} end
+    )
+  ' | bash "$PEON_SCRIPT"
