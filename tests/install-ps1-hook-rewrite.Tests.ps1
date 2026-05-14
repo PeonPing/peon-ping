@@ -100,3 +100,26 @@ Describe "install.ps1 hook re-registration" {
         $output | Should -Match '"matcher":\s*"Bash"'
     }
 }
+
+Describe "install.ps1 Copilot CLI camelCase fallback" {
+
+    It "embeds a hookName fallback for camelCase-leaky events (peon hook script)" {
+        # Guard the upstream-bug shim: GitHub Copilot CLI's permissionRequest
+        # event delivers camelCase fields ("hookName", "sessionId", "toolName")
+        # even when registered with the PascalCase key, breaking peon's
+        # detection. The hook script embedded in install.ps1 must read
+        # event.hookName as a fallback when event.hook_event_name is empty.
+        $content = Get-Content $script:InstallPs1 -Raw
+        $content | Should -Match '\$rawEvent = \$event\.hookName'
+    }
+
+    It "registers PermissionRequest in the Copilot CLI camelCase event map" {
+        $content = Get-Content $script:InstallPs1 -Raw
+        $content | Should -Match '"permissionRequest" = "PermissionRequest"'
+    }
+
+    It "extracts session_id from camelCase sessionId fallback" {
+        $content = Get-Content $script:InstallPs1 -Raw
+        $content | Should -Match 'elseif \(\$event\.sessionId\) \{ \$event\.sessionId \}'
+    }
+}

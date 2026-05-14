@@ -4806,6 +4806,33 @@ if _config_error:
 
 # --- Parse event JSON from stdin ---
 event_data = json.load(sys.stdin)
+
+# Normalize camelCase aliases to snake_case so the rest of this script
+# stays simple. GitHub Copilot CLI's permissionRequest event leaks
+# camelCase fields ("hookName", "sessionId", "toolName", "toolInput")
+# even when registered with the PascalCase event key that should
+# produce the VS Code-compatible payload. Without this normalization,
+# every Copilot CLI permission popup goes silent. Defensive - covers
+# any future camelCase-leaky surface as well.
+_camel_to_snake = {
+    'hookName': 'hook_event_name',
+    'sessionId': 'session_id',
+    'toolName': 'tool_name',
+    'toolInput': 'tool_input',
+    'toolArgs': 'tool_input',
+    'toolResult': 'tool_result',
+    'permissionMode': 'permission_mode',
+    'notificationType': 'notification_type',
+    'transcriptPath': 'transcript_path',
+    'stopReason': 'stop_reason',
+    'agentName': 'agent_name',
+    'initialPrompt': 'initial_prompt',
+    'workspaceRoots': 'workspace_roots',
+}
+for _camel, _snake in _camel_to_snake.items():
+    if _camel in event_data and not event_data.get(_snake):
+        event_data[_snake] = event_data[_camel]
+
 raw_event = event_data.get('hook_event_name', '')
 session_source = event_data.get('source', '')
 
@@ -4863,6 +4890,9 @@ for c in ['session.start','task.acknowledge','task.complete','task.error','input
 # Cursor IDE sends lowercase camelCase event names via its Third-party skills
 # (Claude Code compatibility) mode. Map them to the PascalCase names used below.
 # Claude Code's own PascalCase names pass through unchanged via dict.get fallback.
+# Copilot CLI usually sends PascalCase (when registered with PascalCase keys),
+# but its permissionRequest event leaks camelCase as of CLI 1.0.48-1; the
+# Copilot fallbacks below let those through too.
 _cursor_event_map = {
     'sessionStart': 'SessionStart',
     'sessionEnd': 'SessionEnd',
@@ -4873,6 +4903,12 @@ _cursor_event_map = {
     'subagentStop': 'SubagentStop',
     'subagentStart': 'SubagentStart',
     'preCompact': 'PreCompact',
+    # Copilot CLI camelCase fallbacks
+    'permissionRequest': 'PermissionRequest',
+    'notification': 'Notification',
+    'agentStop': 'Stop',
+    'userPromptSubmitted': 'UserPromptSubmit',
+    'postToolUseFailure': 'PostToolUseFailure',
 }
 event = _cursor_event_map.get(raw_event, raw_event)
 
