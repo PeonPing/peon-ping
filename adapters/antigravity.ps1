@@ -88,7 +88,7 @@ if ($Install) {
 
     $scriptPath = $MyInvocation.MyCommand.Path
     $proc = Start-Process -WindowStyle Hidden -FilePath "powershell" `
-        -ArgumentList "-NoProfile", "-File", $scriptPath `
+        -ArgumentList "-NoProfile", "-File", "`"$scriptPath`"" `
         -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $LogFile
     Set-Content -Path $PidFile -Value $proc.Id
     Write-Host "peon-ping Antigravity adapter started (PID $($proc.Id))"

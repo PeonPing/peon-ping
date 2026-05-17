@@ -3051,7 +3051,7 @@ $winPlayScript = Join-Path $InstallDir "scripts\win-play.ps1"
 function Play-Sound {
     param([string]$SndPath, [double]$Vol)
     if ((Test-Path $winPlayScript) -and (Test-Path $SndPath)) {
-        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", $winPlayScript, "-path", $SndPath, "-vol", $Vol -WindowStyle Hidden
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-NonInteractive", "-File", "`"$winPlayScript`"", "-path", "`"$SndPath`"", "-vol", $Vol -WindowStyle Hidden
         & $peonLog 'play' @{ backend = 'win-play.ps1'; file = $soundFile; volume = [string]$Vol }
     } else {
         if (-not (Test-Path $winPlayScript)) {
@@ -3221,7 +3221,7 @@ if ($trainerMsg) {
                 if ($proc.Parent) { $parentPid = $proc.Parent.Id }
             } catch { <# PID may not exist; fall through to $parentPid = 0 #> }
             if (-not $parentPid) { $parentPid = 0 }
-            $trainerNotifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
+            $trainerNotifArgs = @("-NoProfile", "-NonInteractive", "-File", "`"$winNotifyScript`"",
                            "-body", "`"$trainerMsg`"", "-title", "`"$trainerTitle`"", "-dismissSeconds", [string]$dismissSecs,
                            "-parentPid", [string]$parentPid)
             Start-Process -FilePath "powershell.exe" -ArgumentList $trainerNotifArgs -WindowStyle Hidden
@@ -3334,10 +3334,10 @@ $marker = if ($config.notification_title_marker) { $config.notification_title_ma
             if ($proc.Parent) { $parentPid = $proc.Parent.Id }
         } catch { <# PID may not exist; fall through to $parentPid = 0 #> }
         if (-not $parentPid) { $parentPid = 0 }
-        $notifArgs = @("-NoProfile", "-NonInteractive", "-File", $winNotifyScript,
+        $notifArgs = @("-NoProfile", "-NonInteractive", "-File", "`"$winNotifyScript`"",
                        "-body", "`"$notifyMsg`"", "-title", "`"$notifTitle`"", "-dismissSeconds", [string]$dismissSecs,
                        "-parentPid", [string]$parentPid)
-        if ($iconPath) { $notifArgs += @("-iconPath", $iconPath) }
+        if ($iconPath) { $notifArgs += @("-iconPath", "`"$iconPath`"") }
         Start-Process -FilePath "powershell.exe" -ArgumentList $notifArgs -WindowStyle Hidden
     }
 }
@@ -3835,7 +3835,7 @@ if ($testSound) {
     $winPlayScript = Join-Path $scriptsDir "win-play.ps1"
     if (Test-Path $winPlayScript) {
         try {
-            $proc = Start-Process -WindowStyle Hidden -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File",$winPlayScript,"-path",$testSound.FullName,"-vol",0.3 -PassThru
+            $proc = Start-Process -WindowStyle Hidden -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","`"$winPlayScript`"","-path","`"$($testSound.FullName)`"","-vol",0.3 -PassThru
             Start-Sleep -Seconds 3
             Write-Host "  Sound working!" -ForegroundColor Green
         } catch {
