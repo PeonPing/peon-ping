@@ -43,6 +43,16 @@ run_copilot() {
 
 # ============================================================
 # Event mapping
+#
+# The copilot.sh adapter was rewritten to:
+#   - skip postToolUse entirely (routing to Stop floods peon.sh's 5s
+#     debounce window and swallows real Stop events)
+#   - map agentStop -> Stop (Copilot CLI's actual "task done" signal)
+#   - map userPromptSubmitted -> UserPromptSubmit (no dual-mode marker file
+#     that double-greeted alongside the real sessionStart event)
+#   - handle notification, permissionRequest, postToolUseFailure,
+#     subagentStart, subagentStop, preCompact, sessionEnd (all silent in
+#     the old adapter even though peon.sh handles them)
 # ============================================================
 
 @test "sessionStart maps to SessionStart and plays greeting" {
@@ -53,12 +63,18 @@ run_copilot() {
   [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
 }
 
-@test "postToolUse maps to Stop and plays completion sound" {
-  run_copilot postToolUse '{"sessionId":"test-123","cwd":"/tmp"}'
+@test "agentStop maps to Stop and plays completion sound" {
+  run_copilot agentStop '{"sessionId":"test-123","cwd":"/tmp","stopReason":"end_turn"}'
   [ "$COPILOT_EXIT" -eq 0 ]
   afplay_was_called
   sound=$(afplay_sound)
   [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
+}
+
+@test "postToolUse is intentionally skipped (no Stop flooding)" {
+  run_copilot postToolUse '{"sessionId":"test-123","cwd":"/tmp"}'
+  [ "$COPILOT_EXIT" -eq 0 ]
+  ! afplay_was_called
 }
 
 @test "errorOccurred maps to PostToolUseFailure and plays error sound" {
@@ -69,36 +85,51 @@ run_copilot() {
   [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
 }
 
-@test "first userPromptSubmitted maps to SessionStart and plays greeting" {
-  run_copilot userPromptSubmitted '{"sessionId":"test-456","cwd":"/tmp"}'
+@test "postToolUseFailure maps directly to PostToolUseFailure and plays error sound" {
+  run_copilot postToolUseFailure '{"sessionId":"test-123","cwd":"/tmp","toolName":"bash","error":"failed"}'
   [ "$COPILOT_EXIT" -eq 0 ]
   afplay_was_called
   sound=$(afplay_sound)
-  [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
+  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
 }
 
-@test "subsequent userPromptSubmitted maps to UserPromptSubmit" {
-  # First call creates session marker (SessionStart)
-  run_copilot userPromptSubmitted '{"sessionId":"test-789","cwd":"/tmp"}'
-  # Second call is UserPromptSubmit — no sound normally
-  rm -f "$TEST_DIR/afplay.log"
-  run_copilot userPromptSubmitted '{"sessionId":"test-789","cwd":"/tmp"}'
+@test "userPromptSubmitted maps to UserPromptSubmit (no dual-mode marker)" {
+  run_copilot userPromptSubmitted '{"sessionId":"test-456","cwd":"/tmp","prompt":"hello"}'
   [ "$COPILOT_EXIT" -eq 0 ]
-  ! afplay_was_called
+  # First prompt does NOT double-greet (the old adapter's dual-mode bug);
+  # UserPromptSubmit on first prompt is suppressed by peon.sh's startup
+  # grace window. No marker file should be created.
+  [ ! -f "$TEST_DIR/.copilot-session-test-456" ]
+}
+
+@test "permissionRequest maps to PermissionRequest and plays input.required sound" {
+  run_copilot permissionRequest '{"sessionId":"test-123","cwd":"/tmp","toolName":"bash"}'
+  [ "$COPILOT_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "notification maps to Notification with notification_type preserved" {
+  run_copilot notification '{"sessionId":"test-123","cwd":"/tmp","notificationType":"elicitation_dialog","message":"q?"}'
+  [ "$COPILOT_EXIT" -eq 0 ]
+  # peon.sh routes elicitation_dialog to input.required and plays a sound
+  afplay_was_called
 }
 
 # ============================================================
 # Skipped events
 # ============================================================
 
-@test "sessionEnd exits gracefully without sound" {
-  run_copilot sessionEnd '{"sessionId":"test-123","cwd":"/tmp"}'
+@test "sessionEnd maps to SessionEnd (peon decides whether to sound)" {
+  run_copilot sessionEnd '{"sessionId":"test-123","cwd":"/tmp","reason":"complete"}'
   [ "$COPILOT_EXIT" -eq 0 ]
-  ! afplay_was_called
+  # peon.sh has no session.end category by default — no sound, but adapter
+  # still forwards (so peon.sh can log it). This test just asserts no crash.
 }
 
-@test "preToolUse exits gracefully without sound (too noisy)" {
-  run_copilot preToolUse '{"sessionId":"test-123","cwd":"/tmp","toolName":"bash"}'
+@test "preToolUse maps to PreToolUse (peon.sh's destructive-pattern policy applies)" {
+  # peon.sh only emits input.required for matching destructive patterns;
+  # innocuous tool input results in no sound.
+  run_copilot preToolUse '{"sessionId":"test-123","cwd":"/tmp","toolName":"bash","toolArgs":{"cmd":"ls"}}'
   [ "$COPILOT_EXIT" -eq 0 ]
   ! afplay_was_called
 }
@@ -110,15 +141,16 @@ run_copilot() {
 }
 
 # ============================================================
-# JSON parsing
+# JSON parsing (camelCase -> snake_case field translation)
 # ============================================================
 
-@test "extracts sessionId from JSON input" {
-  # Use userPromptSubmitted — it creates the session marker file keyed by session ID
-  run_copilot userPromptSubmitted '{"sessionId":"custom-session-id","cwd":"/tmp"}'
+@test "extracts sessionId and translates to session_id" {
+  run_copilot agentStop '{"sessionId":"custom-session-id","cwd":"/tmp"}'
   [ "$COPILOT_EXIT" -eq 0 ]
-  # Session marker file should use the custom session ID
-  [ -f "$TEST_DIR/.copilot-session-custom-session-id" ]
+  # peon.sh tracks state per session_id; we can't directly observe the
+  # forwarded payload, but exit=0 + a played sound proves the adapter
+  # produced a valid CESP JSON shape with session_id set.
+  afplay_was_called
 }
 
 @test "extracts cwd from JSON input" {
@@ -136,6 +168,15 @@ run_copilot() {
 @test "falls back to PWD when cwd is missing from JSON" {
   run_copilot sessionStart '{"sessionId":"test-123"}'
   [ "$COPILOT_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "translates toolName -> tool_name and toolArgs -> tool_input on preToolUse" {
+  # We can't peek at the intermediate JSON, but feeding a destructive cmd
+  # via the new field-translation path should route to input.required.
+  run_copilot preToolUse '{"sessionId":"test-123","cwd":"/tmp","toolName":"bash","toolArgs":{"cmd":"rm -rf /"}}'
+  [ "$COPILOT_EXIT" -eq 0 ]
+  # peon.sh's destructive-pattern policy fires input.required
   afplay_was_called
 }
 
@@ -163,7 +204,7 @@ JSON
   cat > "$TEST_DIR/config.json" <<'JSON'
 { "default_pack": "peon", "volume": 0.3, "enabled": true, "categories": {} }
 JSON
-  run_copilot postToolUse '{"sessionId":"test-123","cwd":"/tmp"}'
+  run_copilot agentStop '{"sessionId":"test-123","cwd":"/tmp"}'
   afplay_was_called
   log_line=$(tail -1 "$TEST_DIR/afplay.log")
   [[ "$log_line" == *"-v 0.3"* ]]
@@ -174,14 +215,13 @@ JSON
 # ============================================================
 
 @test "rapid Copilot prompts trigger annoyed sound" {
-  # First userPromptSubmitted is SessionStart (creates marker).
-  run_copilot userPromptSubmitted '{"sessionId":"spam-test","cwd":"/tmp"}'
-  # peon.sh suppresses sounds within 3s of SessionStart (session replay protection).
+  # First prompt is suppressed by peon.sh's startup grace window.
+  run_copilot userPromptSubmitted '{"sessionId":"spam-test","cwd":"/tmp","prompt":"hi"}'
   # Wait past the suppression window before sending rapid prompts.
   sleep 3
   rm -f "$TEST_DIR/afplay.log"
   for i in $(seq 1 3); do
-    run_copilot userPromptSubmitted '{"sessionId":"spam-test","cwd":"/tmp"}'
+    run_copilot userPromptSubmitted '{"sessionId":"spam-test","cwd":"/tmp","prompt":"more"}'
   done
   afplay_was_called
   sound=$(afplay_sound)
@@ -193,13 +233,13 @@ JSON
 # ============================================================
 
 @test "second Stop within debounce window is suppressed" {
-  run_copilot postToolUse '{"sessionId":"test-123","cwd":"/tmp"}'
+  run_copilot agentStop '{"sessionId":"test-123","cwd":"/tmp"}'
   [ "$COPILOT_EXIT" -eq 0 ]
   count1=$(afplay_call_count)
   [ "$count1" = "1" ]
 
-  # Second stop within debounce window should be suppressed
-  run_copilot postToolUse '{"sessionId":"test-123","cwd":"/tmp"}'
+  # Second agentStop within debounce window should be suppressed
+  run_copilot agentStop '{"sessionId":"test-123","cwd":"/tmp"}'
   [ "$COPILOT_EXIT" -eq 0 ]
   count2=$(afplay_call_count)
   [ "$count2" = "1" ]

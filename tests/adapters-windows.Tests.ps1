@@ -177,34 +177,53 @@ Describe "Category A: Copilot Adapter" {
         $script:copilotContent = Get-Content (Join-Path $script:AdaptersDir "copilot.ps1") -Raw
     }
 
+    # NOTE: The copilot.ps1 adapter was rewritten to use a hashtable event map
+    # instead of a switch statement, and to skip postToolUse entirely (routing
+    # it through Stop floods the 5s debounce window in peon.ps1 and swallows
+    # real Stop events). The functional tests in peon-adapters.Tests.ps1
+    # ("Functional: copilot.ps1 event mapping") cover every event mapping and
+    # field translation with end-to-end execution; these source-grep checks
+    # below are kept as a safety net for the structural invariants only.
+
     It "maps sessionStart to SessionStart" {
-        $script:copilotContent | Should -Match '"sessionStart"\s*\{[^}]*\$mapped = "SessionStart"'
+        $script:copilotContent | Should -Match 'sessionStart\s*=\s*"SessionStart"'
     }
 
-    It "maps postToolUse to Stop" {
-        $script:copilotContent | Should -Match '"postToolUse"\s*\{[^}]*\$mapped = "Stop"'
+    It "maps agentStop to Stop (Copilot CLI's real 'task done' signal)" {
+        $script:copilotContent | Should -Match 'agentStop\s*=\s*"Stop"'
     }
 
     It "maps errorOccurred to PostToolUseFailure" {
-        $script:copilotContent | Should -Match '"errorOccurred"\s*\{[^}]*\$mapped = "PostToolUseFailure"'
+        $script:copilotContent | Should -Match 'errorOccurred\s*=\s*"PostToolUseFailure"'
     }
 
-    It "handles first userPromptSubmitted as SessionStart" {
-        $script:copilotContent | Should -Match 'copilot-session'
-        $script:copilotContent | Should -Match '\$mapped = "SessionStart"'
+    It "maps postToolUseFailure to PostToolUseFailure (direct, not via errorOccurred)" {
+        $script:copilotContent | Should -Match 'postToolUseFailure\s*=\s*"PostToolUseFailure"'
     }
 
-    It "handles subsequent userPromptSubmitted as UserPromptSubmit" {
-        $script:copilotContent | Should -Match '\$mapped = "UserPromptSubmit"'
+    It "maps userPromptSubmitted to UserPromptSubmit (no dual-mode marker file)" {
+        $script:copilotContent | Should -Match 'userPromptSubmitted\s*=\s*"UserPromptSubmit"'
+        $script:copilotContent | Should -Not -Match 'copilot-session-'  # old dual-mode artifact
     }
 
-    It "exits gracefully for sessionEnd" {
-        $script:copilotContent | Should -Match '"sessionEnd"'
-        $script:copilotContent | Should -Match 'exit 0'
+    It "skips postToolUse to avoid Stop-debounce flooding" {
+        # postToolUse must NOT appear as a key in the event map (we intentionally
+        # don't translate it; peon.ps1 has no PostToolUse handler and routing
+        # it to Stop floods the 5s debounce). preToolUse is allowed (separate key).
+        $script:copilotContent | Should -Not -Match '(?m)^\s*postToolUse\s*='
     }
 
-    It "exits gracefully for preToolUse (too noisy)" {
-        $script:copilotContent | Should -Match '"preToolUse"'
+    It "maps preToolUse to PreToolUse (peon's destructive-pattern policy applies)" {
+        $script:copilotContent | Should -Match 'preToolUse\s*=\s*"PreToolUse"'
+    }
+
+    It "maps notification and permissionRequest (silent in old adapter)" {
+        $script:copilotContent | Should -Match 'notification\s*=\s*"Notification"'
+        $script:copilotContent | Should -Match 'permissionRequest\s*=\s*"PermissionRequest"'
+    }
+
+    It "tags forwarded payload with source=copilot" {
+        $script:copilotContent | Should -Match 'source\s*=\s*"copilot"'
     }
 }
 
