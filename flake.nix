@@ -56,6 +56,14 @@
             done
             chmod +x "$share/scripts/"*.sh 2>/dev/null || true
 
+            # Wrap hook scripts so they can find python3 (and other runtime deps)
+            # regardless of the PATH Claude Code passes to UserPromptSubmit hooks.
+            for s in "$share/scripts/hook-handle-use.sh" \
+                     "$share/scripts/hook-handle-rename.sh"; do
+              [ -f "$s" ] && wrapProgram "$s" \
+                --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
+            done
+
             # Runtime data
             # Do not copy config.json
             # This is a state (managed by user) or through Home Manager
