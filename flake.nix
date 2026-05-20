@@ -50,6 +50,7 @@
             # Bundled helper scripts (find_bundled_script looks here via BASH_SOURCE fallback)
             for f in scripts/pack-download.sh scripts/notify.sh \
                      scripts/remote-hook.sh scripts/hook-handle-use.sh \
+                     scripts/hook-handle-rename.sh \
                      scripts/mac-overlay.js; do
               [ -f "$f" ] && cp "$f" "$share/scripts/"
             done
