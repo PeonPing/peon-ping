@@ -158,6 +158,15 @@ in
         ".claude/hooks/peon-ping/peon.sh".source = "${cfg.package}/bin/peon";
         ".claude/hooks/peon-ping/scripts/hook-handle-use.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-use.sh";
         ".claude/hooks/peon-ping/scripts/hook-handle-rename.sh".source = "${cfg.package}/share/peon-ping/scripts/hook-handle-rename.sh";
+
+        # Install Claude Code skills (slash commands). Mirrors install.sh's
+        # `install_skill` loop; without these, slash commands like
+        # `/peon-ping-rename` fail with "Unknown command".
+        ".claude/skills/peon-ping-config/SKILL.md".source = "${cfg.package}/share/peon-ping/skills/peon-ping-config/SKILL.md";
+        ".claude/skills/peon-ping-log/SKILL.md".source = "${cfg.package}/share/peon-ping/skills/peon-ping-log/SKILL.md";
+        ".claude/skills/peon-ping-rename/SKILL.md".source = "${cfg.package}/share/peon-ping/skills/peon-ping-rename/SKILL.md";
+        ".claude/skills/peon-ping-toggle/SKILL.md".source = "${cfg.package}/share/peon-ping/skills/peon-ping-toggle/SKILL.md";
+        ".claude/skills/peon-ping-use/SKILL.md".source = "${cfg.package}/share/peon-ping/skills/peon-ping-use/SKILL.md";
       })
 
       (mkIf (cfg.installPacks != [ ]) (let
