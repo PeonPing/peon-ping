@@ -81,12 +81,21 @@ if ! echo "$SESSION_ID" | grep -qE '^[a-zA-Z0-9_-]+$'; then
   SESSION_ID="default"
 fi
 
-# Locate peon-ping installation
-PEON_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
-if [ ! -d "$PEON_DIR" ]; then
+# Locate peon-ping installation. Must agree with peon.sh's resolution
+# (see peon.sh PEON_DIR fallback chain) so .state.json is written to the
+# same path peon.sh reads on subsequent events. On Nix home-manager installs
+# packs live under ~/.openpeon, so the rename state must go there too.
+if [ -n "${CLAUDE_PEON_DIR:-}" ] && [ -d "$CLAUDE_PEON_DIR" ]; then
+  PEON_DIR="$CLAUDE_PEON_DIR"
+elif [ -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/packs" ]; then
+  PEON_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
+elif [ -d "$HOME/.openpeon/packs" ]; then
+  PEON_DIR="$HOME/.openpeon"
+elif [ -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping" ]; then
+  PEON_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
+elif [ -d "$HOME/.cursor/hooks/peon-ping" ]; then
   PEON_DIR="$HOME/.cursor/hooks/peon-ping"
-fi
-if [ ! -d "$PEON_DIR" ]; then
+else
   log "error: peon-ping not installed"
   echo '{"continue": false, "user_message": "[X] peon-ping not installed"}'
   exit 0
