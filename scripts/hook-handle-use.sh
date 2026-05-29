@@ -62,7 +62,7 @@ fi
 # read from the same path peon.sh uses on subsequent events. On Nix
 # home-manager installs packs live under ~/.openpeon, so PACKS_DIR
 # must resolve there too.
-if [ -n "${CLAUDE_PEON_DIR:-}" ] && [ -d "$CLAUDE_PEON_DIR" ]; then
+if [ -n "${CLAUDE_PEON_DIR:-}" ] && [ -d "$CLAUDE_PEON_DIR/packs" ]; then
   PEON_DIR="$CLAUDE_PEON_DIR"
 elif [ -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/packs" ]; then
   PEON_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"

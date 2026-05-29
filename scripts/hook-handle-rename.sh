@@ -85,7 +85,7 @@ fi
 # (see peon.sh PEON_DIR fallback chain) so .state.json is written to the
 # same path peon.sh reads on subsequent events. On Nix home-manager installs
 # packs live under ~/.openpeon, so the rename state must go there too.
-if [ -n "${CLAUDE_PEON_DIR:-}" ] && [ -d "$CLAUDE_PEON_DIR" ]; then
+if [ -n "${CLAUDE_PEON_DIR:-}" ] && [ -d "$CLAUDE_PEON_DIR/packs" ]; then
   PEON_DIR="$CLAUDE_PEON_DIR"
 elif [ -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/packs" ]; then
   PEON_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"

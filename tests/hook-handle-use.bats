@@ -10,7 +10,12 @@ setup() {
   # Derive hook script path from PEON_SH (already resolved by setup_test_env)
   HOOK_SCRIPT="$(dirname "$PEON_SH")/scripts/hook-handle-use.sh"
 
-  # hook-handle-use.sh reads CLAUDE_CONFIG_DIR to find peon install dir
+  # hook-handle-use.sh reads CLAUDE_CONFIG_DIR to find peon install dir.
+  # setup_test_env exports CLAUDE_PEON_DIR=$TEST_DIR globally (with its own
+  # packs/), which now takes precedence in the hook's resolution to match
+  # peon.sh. Unset it here so this test exercises the CLAUDE_CONFIG_DIR path
+  # it intends to, rather than resolving to the harness peon dir.
+  unset CLAUDE_PEON_DIR
   export CLAUDE_CONFIG_DIR="$TEST_DIR"
 
   # Create the hooks/peon-ping layout that hook-handle-use.sh expects
