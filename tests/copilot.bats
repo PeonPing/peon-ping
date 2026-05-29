@@ -172,12 +172,23 @@ run_copilot() {
 }
 
 @test "translates toolName -> tool_name and toolArgs -> tool_input on preToolUse" {
-  # We can't peek at the intermediate JSON, but feeding a destructive cmd
-  # via the new field-translation path should route to input.required.
+  # PreToolUse is silent in peon.sh (it only sets the tab to "working"), so
+  # verify the field translation directly by capturing what the adapter pipes
+  # downstream rather than asserting on a sound. Replace the peon.sh symlink
+  # with a recorder; rm -f first so the redirect does not write through the
+  # symlink into the real peon.sh.
+  rm -f "$TEST_DIR/peon.sh"
+  printf '#!/bin/bash\ncat > "%s/translated.json"\n' "$TEST_DIR" > "$TEST_DIR/peon.sh"
+  chmod +x "$TEST_DIR/peon.sh"
   run_copilot preToolUse '{"sessionId":"test-123","cwd":"/tmp","toolName":"bash","toolArgs":{"cmd":"rm -rf /"}}'
   [ "$COPILOT_EXIT" -eq 0 ]
-  # peon.sh's destructive-pattern policy fires input.required
-  afplay_was_called
+  python3 -c "
+import json
+d = json.load(open('$TEST_DIR/translated.json'))
+assert d.get('hook_event_name') == 'PreToolUse', d
+assert d.get('tool_name') == 'bash', d
+assert d.get('tool_input', {}).get('cmd') == 'rm -rf /', d
+"
 }
 
 # ============================================================

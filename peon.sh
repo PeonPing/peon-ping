@@ -5510,7 +5510,12 @@ elif event == 'PostToolUseFailure':
     # Bash failures arrive here with error field (e.g. Exit code 1)
     tool_name = event_data.get('tool_name', '')
     error_msg = event_data.get('error', '')
-    if tool_name == 'Bash' and error_msg:
+    # Claude Code labels the shell tool "Bash" and fires PostToolUseFailure for
+    # every tool, so it is gated to Bash to avoid noise. Copilot CLI instead
+    # sends lowercase "bash" or "unknown" (for its generic errorOccurred event)
+    # and only surfaces real failures, so any Copilot-sourced failure with an
+    # error message should sound task.error. Claude Code behavior is unchanged.
+    if error_msg and (tool_name == 'Bash' or session_source == 'copilot'):
         category = 'task.error'
         status = 'error'
     else:
