@@ -6264,7 +6264,16 @@ _peon_tty=""
 if [ -n "${TMUX:-}" ]; then
   _peon_tty=$(tmux display-message -p '#{pane_tty}' 2>/dev/null || true)
 fi
-[ -z "$_peon_tty" ] && _peon_tty="/dev/tty"
+if [ -z "$_peon_tty" ]; then
+  # Claude Code (and other agents) run hook commands without a controlling
+  # terminal, so /dev/tty is unavailable and escape writes silently fail.
+  # Fall back to the ancestor-walked session TTY we already resolved.
+  if [ -n "${PEON_ENV_HOOK_TTY:-}" ] && [ -w "/dev/${PEON_ENV_HOOK_TTY}" ]; then
+    _peon_tty="/dev/${PEON_ENV_HOOK_TTY}"
+  else
+    _peon_tty="/dev/tty"
+  fi
+fi
 
 # Helper: emit an escape sequence, wrapping in DCS passthrough when inside tmux
 # so the host terminal (iTerm2, Ghostty, etc.) receives it through the tmux layer.
