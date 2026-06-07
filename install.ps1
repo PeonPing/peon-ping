@@ -497,6 +497,13 @@ function Normalize-IdeId {
         "open-claw" { return "openclaw" }
         "rovodev" { return "rovodev" }
         "rovo" { return "rovodev" }
+        "qwen" { return "qwen" }
+        "qwen-code" { return "qwen" }
+        "iflow" { return "iflow" }
+        "iflow-cli" { return "iflow" }
+        "trae" { return "trae" }
+        "kiro-ide" { return "kiro-ide" }
+        "eca" { return "eca" }
         default { return $key }
     }
 }
@@ -548,6 +555,7 @@ function Detect-SessionIde {
         "cursor-" = "cursor"
         "oc-" = "opencode"
         "kilo-" = "kilo"
+        "kiro-ide-" = "kiro-ide"
         "kiro-" = "kiro"
         "gemini-" = "gemini"
         "copilot-" = "copilot"
@@ -558,6 +566,10 @@ function Detect-SessionIde {
         "deepagents-" = "deepagents"
         "openclaw-" = "openclaw"
         "rovodev-" = "rovodev"
+        "qwen-" = "qwen"
+        "iflow-" = "iflow"
+        "trae-" = "trae"
+        "eca-" = "eca"
     }
     foreach ($prefix in $prefixes.Keys) {
         if ($sid.StartsWith($prefix)) { return $prefixes[$prefix] }
@@ -2559,6 +2571,11 @@ $ideDisplayNames = @{
     'deepagents' = 'DeepAgents'
     'openclaw' = 'OpenClaw'
     'rovodev' = 'Rovo Dev CLI'
+    'qwen' = 'Qwen Code'
+    'iflow' = 'iFlow CLI'
+    'trae' = 'Trae'
+    'kiro-ide' = 'Kiro IDE'
+    'eca' = 'ECA'
 }
 $ideLabel = ''
 if ($sessionIde) {
@@ -3378,7 +3395,8 @@ New-Item -ItemType Directory -Path $adaptersDir -Force | Out-Null
 $adapterFiles = @(
     "codex.ps1", "gemini.ps1", "copilot.ps1", "windsurf.ps1",
     "kiro.ps1", "openclaw.ps1", "amp.ps1", "antigravity.ps1",
-    "kimi.ps1", "opencode.ps1", "kilo.ps1", "deepagents.ps1"
+    "kimi.ps1", "opencode.ps1", "kilo.ps1", "deepagents.ps1",
+    "qwen.ps1", "iflow.ps1", "trae.ps1", "kiro-ide.ps1", "eca.ps1"
 )
 
 $sourceAdaptersDir = Join-Path $ScriptDir "adapters"

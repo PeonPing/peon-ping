@@ -2,7 +2,7 @@
 
 > Game character voice lines + visual overlay notifications when your AI coding agent needs attention.
 
-peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 90+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, Amp, GitHub Copilot, Cursor, OpenCode, Codex, Kiro, Kimi Code, Windsurf, DeepAgents, and any MCP-compatible AI agent.
+peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 90+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, Amp, GitHub Copilot, Cursor, OpenCode, Codex, Kiro, Kimi Code, Windsurf, DeepAgents, Qwen Code, iFlow CLI, Trae, Kiro IDE, ECA, and any MCP-compatible AI agent.
 
 ## Links
 
@@ -79,8 +79,13 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - Rovo Dev CLI (Atlassian — adapter for on_complete, on_error, on_tool_permission, on_user_prompt, on_tool_start, on_tool_end, on_session_start, on_session_end events; install.sh --rovodev-only backfills any missing events into existing configs)
 - DeepAgents (adapter — translates deepagents-cli events to CESP JSON)
 - oh-my-pi/omp (TypeScript extension at adapters/omp/peon-ping.ts; install with `bash adapters/omp.sh`. Maps omp ExtensionAPI events — session_start, turn_start, turn_end, tool_result, auto_compaction_start, session_shutdown — to CESP via source: "omp".)
+- Qwen Code (Alibaba; adapter — Claude-Code-style stdin-JSON hooks with PascalCase CESP names, thin passthrough that re-tags the session id with a qwen- prefix and drops noisy per-tool events; configure in ~/.qwen/settings.json)
+- iFlow CLI (iflow-ai, cli.iflow.cn; adapter — Claude-Code-style stdin-JSON hooks, iflow- session prefix, maps a failed PostToolUse to PostToolUseFailure; configure in ~/.iflow/settings.json)
+- Trae (ByteDance, trae.ai; adapter — filesystem watcher like Amp/Antigravity since Trae has no synchronous shell-hook API: new session file -> SessionStart, idle timer -> Stop; watched paths overridable via TRAE_DATA_DIR/TRAE_SESSIONS_DIR/TRAE_SESSION_GLOB)
+- Kiro IDE (Amazon; adapter — distinct from the Kiro CLI adapter; .kiro/hooks/*.kiro.hook Agent Hooks whose runCommand action passes the event name on argv with no stdin JSON; agentStop/promptSubmit/preToolUse/sessionStart map to CESP with a kiro-ide- prefix)
+- ECA / Editor Code Assistant (eca.dev; adapter — editor-agnostic LLM-agent integration with stdin-JSON shell hooks, eca- session prefix derived from db_cache_path; vendored first-party from community contribution #261)
 
-All adapters have native Windows PowerShell (.ps1) versions alongside the bash (.sh) originals. Filesystem watchers (Amp, Antigravity, Kimi) use .NET FileSystemWatcher on Windows instead of fswatch/inotifywait. The Windows installer (install.ps1) copies adapter scripts to ~/.claude/hooks/peon-ping/adapters/.
+All adapters have native Windows PowerShell (.ps1) versions alongside the bash (.sh) originals. Filesystem watchers (Amp, Antigravity, Kimi, Trae) use .NET FileSystemWatcher on Windows instead of fswatch/inotifywait. The Windows installer (install.ps1) copies adapter scripts to ~/.claude/hooks/peon-ping/adapters/.
 
 ## Sound Packs (160+ available)
 

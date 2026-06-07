@@ -4952,6 +4952,13 @@ IDE_ALIASES = {
     'oh-my-pi': 'omp',
     'oh_my_pi': 'omp',
     'pi': 'omp',
+    'qwen': 'qwen',
+    'qwen-code': 'qwen',
+    'iflow': 'iflow',
+    'iflow-cli': 'iflow',
+    'trae': 'trae',
+    'kiro-ide': 'kiro-ide',
+    'eca': 'eca',
 }
 
 def normalize_ide_id(value):
@@ -4973,6 +4980,7 @@ def detect_session_ide(source_value, event_payload, session_value):
         ('cursor-', 'cursor'),
         ('oc-', 'opencode'),
         ('kilo-', 'kilo'),
+        ('kiro-ide-', 'kiro-ide'),
         ('kiro-', 'kiro'),
         ('gemini-', 'gemini'),
         ('copilot-', 'copilot'),
@@ -4984,6 +4992,10 @@ def detect_session_ide(source_value, event_payload, session_value):
         ('openclaw-', 'openclaw'),
         ('rovodev-', 'rovodev'),
         ('omp-', 'omp'),
+        ('qwen-', 'qwen'),
+        ('iflow-', 'iflow'),
+        ('trae-', 'trae'),
+        ('eca-', 'eca'),
     )
     for prefix, ide in prefix_map:
         if sid.startswith(prefix):
@@ -5007,6 +5019,11 @@ IDE_DISPLAY_NAMES = {
     'openclaw': 'OpenClaw',
     'rovodev': 'Rovo Dev CLI',
     'omp': 'oh-my-pi',
+    'qwen': 'Qwen Code',
+    'iflow': 'iFlow CLI',
+    'trae': 'Trae',
+    'kiro-ide': 'Kiro IDE',
+    'eca': 'ECA',
 }
 
 def display_ide_name(ide_id):

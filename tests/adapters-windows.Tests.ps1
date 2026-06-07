@@ -50,13 +50,16 @@ BeforeAll {
 
 Describe "PowerShell Syntax Validation" {
     $allAdapters = @("codex", "gemini", "copilot", "windsurf", "kiro", "openclaw",
-                     "deepagents", "amp", "antigravity", "kimi", "opencode", "kilo")
+                     "deepagents", "amp", "antigravity", "kimi", "opencode", "kilo",
+                     "qwen", "iflow", "trae", "kiro-ide", "eca")
 
     It "adapters/<name>.ps1 has valid PowerShell syntax" -ForEach @(
         @{ name = "codex" }, @{ name = "gemini" }, @{ name = "copilot" },
         @{ name = "windsurf" }, @{ name = "kiro" }, @{ name = "openclaw" },
         @{ name = "deepagents" }, @{ name = "amp" }, @{ name = "antigravity" },
-        @{ name = "kimi" }, @{ name = "opencode" }, @{ name = "kilo" }
+        @{ name = "kimi" }, @{ name = "opencode" }, @{ name = "kilo" },
+        @{ name = "qwen" }, @{ name = "iflow" }, @{ name = "trae" },
+        @{ name = "kiro-ide" }, @{ name = "eca" }
     ) {
         $path = Join-Path $script:AdaptersDir "$name.ps1"
         $path | Should -Exist
@@ -92,7 +95,9 @@ Describe "No ExecutionPolicy Bypass" {
         @{ name = "codex" }, @{ name = "gemini" }, @{ name = "copilot" },
         @{ name = "windsurf" }, @{ name = "kiro" }, @{ name = "openclaw" },
         @{ name = "deepagents" }, @{ name = "amp" }, @{ name = "antigravity" },
-        @{ name = "kimi" }, @{ name = "opencode" }, @{ name = "kilo" }
+        @{ name = "kimi" }, @{ name = "opencode" }, @{ name = "kilo" },
+        @{ name = "qwen" }, @{ name = "iflow" }, @{ name = "trae" },
+        @{ name = "kiro-ide" }, @{ name = "eca" }
     ) {
         $path = Join-Path $script:AdaptersDir "$name.ps1"
         $content = Get-Content $path -Raw
