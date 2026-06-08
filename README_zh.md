@@ -238,6 +238,8 @@ peon-ping 实现了 [编码事件语音包规范（CESP）](https://github.com/P
 | **斜杠命令** | `/peon-ping-toggle` | 在 Claude Code 中工作时 |
 | **CLI** | `peon toggle` | 从任意终端标签页 |
 
+希望它自动生效？设置 [`focus_detect`](#configuration)，让 peon-ping 遵循 macOS 的**专注模式 / 勿扰模式**。专注模式开启时声音和通知自动静音，关闭后恢复。另见 `headphones_only` 和 `meeting_detect`。
+
 其他 CLI 命令：
 
 ```bash
@@ -380,6 +382,8 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - **headphones_only**（布尔值，默认：`false`）：仅在检测到耳机或外部音频设备时播放声音。启用后，如果内置扬声器是活动输出，声音将被静音 — 适用于开放式办公室。使用 `peon status` 查看状态。支持 macOS（通过 `system_profiler`）和 Linux（通过 PipeWire `wpctl` 或 PulseAudio `pactl`）。
 - **suppress_sound_when_tab_focused**（布尔值，默认：`false`）：当生成钩子事件的终端标签页处于当前活动/聚焦状态时，跳过声音播放。声音仍会在后台标签页中播放，提醒您其他地方发生了事件。桌面和移动通知不受影响。适用于只想在未查看的标签页中听到音频提示的用户。仅支持 macOS（使用 `osascript` 检查最前端应用和 iTerm2 标签页焦点）。
 - **meeting_detect**：检测麦克风是否正在使用中，并在麦克风使用期间临时抑制音频播放。通知仍会正常显示。
+- **focus_detect**（布尔值，默认：`false`）：遵循 macOS 的**专注模式 / 勿扰模式**。peon-ping 通过 `afplay` 播放声音并在自定义窗口中绘制覆盖通知，两者都绕过通知中心，因此系统的专注模式开关默认对它们没有影响。启用后，peon-ping 会直接读取专注模式状态，并在**任意**专注模式（勿扰、工作、睡眠等）激活时抑制输出，关闭专注模式后自动恢复。移动推送（如已配置）不受影响，因为手机会遵循其自身的专注模式。仅支持 macOS，采用失败放行策略（若无法读取专注模式状态，则照常播放声音）。
+- **focus_detect_mode**（字符串，默认：`"all"`）：专注模式激活时 `focus_detect` 抑制的内容。`"all"` 同时静音声音和覆盖/桌面通知。`"sound"` 仅静音声音（通知仍会显示）。`"notifications"` 仅静音通知（声音仍会播放）。当 `focus_detect` 为 `false` 时忽略此设置。
 - **notification_position**（字符串，默认：`"top-center"`）：覆盖通知在屏幕上的显示位置。选项：`"top-left"`、`"top-center"`、`"top-right"`、`"bottom-left"`、`"bottom-center"`、`"bottom-right"`。
 - **notification_dismiss_seconds**（数字，默认：`4`）：覆盖通知在 N 秒后自动消失。设为 `0` 则通知持续显示，需点击关闭。
 - **`CLAUDE_SESSION_NAME` 环境变量**：在启动 `claude` 前设置，为会话指定自定义名称。同时显示在桌面通知标题和终端标签标题中，优先级高于所有配置项。示例：`CLAUDE_SESSION_NAME="Auth Refactor" claude` 或先 `export CLAUDE_SESSION_NAME="功能: Auth"` 再 `claude`。

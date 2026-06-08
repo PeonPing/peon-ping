@@ -113,6 +113,48 @@ detect_meeting() {
   esac
 }
 
+# Detect if a macOS Focus / Do Not Disturb mode is active.
+# Sounds (afplay/CoreAudio) and the overlay (a custom Cocoa window) bypass
+# Notification Center entirely, so the OS Focus toggle never reaches them.
+# We read the DND daemon's assertion store to honor Focus ourselves.
+# Fails open: any unexpected format or error returns 1 so sounds keep working.
+# Returns 0 (true) if a Focus is on, 1 (false) otherwise.
+detect_focus() {
+  case "$PEON_PLATFORM" in
+    mac)
+      # Path is overridable for tests. Defaults to the live DND assertion store.
+      local _f="${PEON_DND_ASSERTIONS_FILE:-$HOME/Library/DoNotDisturb/DB/Assertions.json}"
+      [ -f "$_f" ] || return 1
+      # Focus is active iff storeAssertionRecords holds at least one assertion.
+      # (When a Focus ends, the record moves to storeInvalidationRecords and the
+      # active array becomes empty.) Fast path scans the compact JSON the daemon
+      # writes. Fall back to a tolerant parse only if the quick scan is unclear.
+      if grep -q '"storeAssertionRecords":\[[[:space:]]*{' "$_f" 2>/dev/null; then
+        return 0
+      fi
+      if grep -q '"storeAssertionRecords":\[[[:space:]]*\]' "$_f" 2>/dev/null; then
+        return 1
+      fi
+      local _on
+      _on=$(/usr/bin/python3 - "$_f" 2>/dev/null <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    if any(e.get('storeAssertionRecords') for e in d.get('data', [])):
+        print('1')
+except Exception:
+    pass
+PY
+)
+      [ "$_on" = "1" ] && return 0
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 PEON_DIR="${CLAUDE_PEON_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 # Save original install directory for finding bundled scripts (Nix, Homebrew)
 _INSTALL_DIR="$PEON_DIR"
@@ -1626,6 +1668,7 @@ if headphones_only and not headphones_detected:
     hstatus += ' (sounds muted)'
 pp('headphones: ' + hstatus)
 pp('meeting detect: ' + ('on' if c.get('meeting_detect', False) else 'off'))
+pp('focus detect: ' + (('on (suppresses: ' + str(c.get('focus_detect_mode', 'all')) + ')') if c.get('focus_detect', False) else 'off'))
 pp('suppress when tab focused: ' + ('on' if c.get('suppress_sound_when_tab_focused', False) else 'off'))
 if platform in ('ssh', 'devcontainer'):
     pp('ssh audio mode: ' + str(c.get('ssh_audio_mode', 'relay')))
@@ -3821,6 +3864,14 @@ if 'notification_title_ide' not in cfg:
     cfg['notification_title_ide'] = False
     changed = True
     migrations.append('notification_title_ide')
+if 'focus_detect' not in cfg:
+    cfg['focus_detect'] = False
+    changed = True
+    migrations.append('focus_detect')
+if 'focus_detect_mode' not in cfg:
+    cfg['focus_detect_mode'] = 'all'
+    changed = True
+    migrations.append('focus_detect_mode')
 if changed:
     json.dump(cfg, open(config_path, 'w'), indent=2)
     print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
@@ -4875,6 +4926,10 @@ suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).l
 suppress_delegate = str(cfg.get('suppress_delegate_sessions', False)).lower() == 'true'
 headphones_only = str(cfg.get('headphones_only', False)).lower() == 'true'
 meeting_detect = str(cfg.get('meeting_detect', False)).lower() == 'true'
+focus_detect = str(cfg.get('focus_detect', False)).lower() == 'true'
+focus_detect_mode = str(cfg.get('focus_detect_mode', 'all')).lower()
+if focus_detect_mode not in ('all', 'sound', 'notifications'):
+    focus_detect_mode = 'all'
 terminal_tab_title = str(cfg.get('terminal_tab_title', True)).lower() != 'false'
 suppress_sound_when_tab_focused = str(cfg.get('suppress_sound_when_tab_focused', False)).lower() == 'true'
 
@@ -6031,6 +6086,8 @@ mobile_on = bool(mn and mn.get('service') and mn.get('enabled', True))
 print('MOBILE_NOTIF=' + ('true' if mobile_on else 'false'))
 print('HEADPHONES_ONLY=' + ('true' if headphones_only else 'false'))
 print('MEETING_DETECT=' + ('true' if meeting_detect else 'false'))
+print('FOCUS_DETECT=' + ('true' if focus_detect else 'false'))
+print('FOCUS_DETECT_MODE=' + q(focus_detect_mode))
 print('TERMINAL_TAB_TITLE=' + ('true' if terminal_tab_title else 'false'))
 print('SUPPRESS_SOUND_WHEN_TAB_FOCUSED=' + ('true' if suppress_sound_when_tab_focused else 'false'))
 print('SOUND_FILE=' + q(sound_file))
@@ -6170,6 +6227,11 @@ fi
 IN_MEETING=false
 if [ "${MEETING_DETECT:-false}" = "true" ]; then
   detect_meeting && IN_MEETING=true
+fi
+
+IN_FOCUS=false
+if [ "${FOCUS_DETECT:-false}" = "true" ]; then
+  detect_focus && IN_FOCUS=true
 fi
 
 # Resolve session tty early so _run_sound_and_notify can check tab focus
@@ -6341,6 +6403,12 @@ _run_sound_and_notify() {
   if [ "$_skip_sound" = "false" ] && [ "${MEETING_DETECT:-false}" = "true" ] && [ "${IN_MEETING:-false}" = "true" ]; then
     _skip_sound=true
   fi
+  # Check focus_detect: skip sound if a macOS Focus / Do Not Disturb mode is
+  # active and the suppression scope covers sound (mode 'all' or 'sound').
+  if [ "$_skip_sound" = "false" ] && [ "${FOCUS_DETECT:-false}" = "true" ] && [ "${IN_FOCUS:-false}" = "true" ] \
+     && { [ "${FOCUS_DETECT_MODE:-all}" = "all" ] || [ "${FOCUS_DETECT_MODE:-all}" = "sound" ]; }; then
+    _skip_sound=true
+  fi
   # Check suppress_sound_when_tab_focused: skip sound if tab is focused
   if [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
     [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
@@ -6380,7 +6448,16 @@ _run_sound_and_notify() {
   fi
 
   # --- Smart notification: only when terminal is NOT frontmost ---
-  if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ]; then
+  # Focus / Do Not Disturb also suppresses the overlay+notification, which
+  # otherwise bypasses Notification Center the same way the sound does, but
+  # only when the suppression scope covers notifications (mode 'all' or
+  # 'notifications').
+  local _focus_block=false
+  if [ "${FOCUS_DETECT:-false}" = "true" ] && [ "${IN_FOCUS:-false}" = "true" ] \
+     && { [ "${FOCUS_DETECT_MODE:-all}" = "all" ] || [ "${FOCUS_DETECT_MODE:-all}" = "notifications" ]; }; then
+    _focus_block=true
+  fi
+  if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ] && [ "$_focus_block" = "false" ]; then
     local _force_cmux_standard_notify=false
     if [ "$PEON_PLATFORM" = "mac" ] && [ "${NOTIF_STYLE:-overlay}" = "standard" ] && _is_cmux_session; then
       _force_cmux_standard_notify=true

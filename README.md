@@ -255,6 +255,8 @@ Need to mute sounds and notifications during a meeting or pairing session? Two o
 | **Slash command** | `/peon-ping-toggle` | While working in Claude Code |
 | **CLI** | `peon toggle` | From any terminal tab |
 
+Prefer it to happen automatically? Set [`focus_detect`](#configuration) to have peon-ping honor macOS **Focus / Do Not Disturb**. Sounds and notifications go quiet whenever a Focus is on and resume when you turn it off. See also `headphones_only` and `meeting_detect`.
+
 Other CLI commands:
 
 > Windows note: Windows currently supports the day-one controls (`status`, `toggle`, `volume`, core `packs`, `notifications on/off`, `debug`, `logs`, `trainer`). More advanced commands like `setup`, `rotation`, `preview`, and `mobile` are tracked as follow-up Windows parity work.
@@ -485,6 +487,8 @@ This means you can:
 - **terminal_tab_title** (boolean, default: `true`): Update the terminal tab title with the current session status (for example `● project: done`). Set to `false` if you already manage tab titles with your own shell prompt or terminal automation and only want peon-ping's sounds/notifications.
 - **suppress_sound_when_tab_focused** (boolean, default: `false`): Skip sound playback when the terminal tab that generated the hook event is the currently active/focused tab. Sounds still play for background tabs as an alert that something happened elsewhere. Desktop and mobile notifications are unaffected. Useful when you only want audio cues from tabs you're not watching. macOS only (uses `osascript` to check frontmost app and iTerm2 tab focus).
 - **meeting_detect** Detects if the microphone is currently being used and temporarily suppresses the audio only until the microphone is no longer in use. Notification still appears.
+- **focus_detect** (boolean, default: `false`): Honor macOS **Focus / Do Not Disturb**. peon-ping plays sounds via `afplay` and draws overlays in a custom window, and both bypass Notification Center, so the system Focus toggle has no effect on them by default. When enabled, peon-ping reads the Focus state directly and suppresses output whenever **any** Focus (Do Not Disturb, Work, Sleep, etc.) is active, then resumes automatically when you turn Focus off. Mobile push (if configured) is unaffected, since your phone honors its own Focus. macOS only, and it fails open (if the Focus state can't be read, sounds play as normal).
+- **focus_detect_mode** (string, default: `"all"`): What `focus_detect` suppresses while a Focus is active. `"all"` mutes both the sound and the overlay/desktop notification. `"sound"` mutes only the sound (notifications still appear). `"notifications"` mutes only the notification (sound still plays). Ignored when `focus_detect` is `false`.
 - **notification_position** (string, default: `"top-center"`): Where overlay notifications appear on screen. Options: `"top-left"`, `"top-center"`, `"top-right"`, `"bottom-left"`, `"bottom-center"`, `"bottom-right"`.
 - **notification_dismiss_seconds** (number, default: `4`): Auto-dismiss overlay notifications after N seconds. Set to `0` for persistent notifications that require a click to dismiss.
 - **notification_all_screens** (boolean, default: `true`): Show overlay notifications on all screens (`true`) or only the main screen (`false`). Themed overlays (`glass`, `jarvis`, `sakura`) previously only showed on one screen — existing configs with those themes are migrated to `false` automatically. macOS only.

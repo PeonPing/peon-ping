@@ -4516,6 +4516,120 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
 }
 
 # ============================================================
+# Focus / Do Not Disturb detection - honor macOS Focus
+# ============================================================
+
+# Active-Focus fixture: storeAssertionRecords holds a live assertion.
+# Inactive fixture: the array is empty (a Focus that has ended).
+_write_focus_fixture() {
+  # $1 = "active" | "inactive"
+  if [ "$1" = "active" ]; then
+    printf '%s' '{"data":[{"storeAssertionRecords":[{"assertionDetails":{"assertionDetailsModeIdentifier":"com.apple.donotdisturb.mode.default"}}]}]}' > "$TEST_DIR/Assertions.json"
+  else
+    printf '%s' '{"data":[{"storeAssertionRecords":[]}]}' > "$TEST_DIR/Assertions.json"
+  fi
+  export PEON_DND_ASSERTIONS_FILE="$TEST_DIR/Assertions.json"
+}
+
+@test "focus_detect: plays sound when no Focus is active" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_focus_fixture inactive
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "focus_detect: skips sound when a Focus is active" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_focus_fixture active
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "focus_detect disabled: plays sound even when a Focus is active" {
+  # focus_detect defaults to false. An active Focus must be ignored.
+  _write_focus_fixture active
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "focus_detect: plays sound when assertion store is missing (fails open)" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  # Point at a path that does not exist, so detect_focus must fail open.
+  export PEON_DND_ASSERTIONS_FILE="$TEST_DIR/does-not-exist.json"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "focus_detect_mode=sound: skips sound while Focus active" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+c['focus_detect_mode'] = 'sound'
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_focus_fixture active
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "focus_detect_mode=notifications: still plays sound while Focus active" {
+  # Scope is notifications-only, so the sound must NOT be suppressed.
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+c['focus_detect_mode'] = 'notifications'
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_focus_fixture active
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "focus_detect_mode: invalid value falls back to all (suppresses sound)" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+c['focus_detect_mode'] = 'bogus'
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_focus_fixture active
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+# ============================================================
 # Suppress sound when tab focused
 # ============================================================
 

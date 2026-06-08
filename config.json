@@ -33,6 +33,8 @@
   "debug_retention_days": 7,
   "headphones_only": false,
   "meeting_detect": false,
+  "focus_detect": false,
+  "focus_detect_mode": "all",
   "terminal_tab_title": true,
   "suppress_sound_when_tab_focused": false,
   "notification_position": "top-center",
