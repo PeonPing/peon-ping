@@ -10,6 +10,7 @@ INSTALL_ALL=false
 CUSTOM_PACKS=""
 OPENCLAW_MODE=false
 KIMI_MODE=false
+OPENPEON_MODE=false
 NO_SHARED_PACKS=false
 NO_RC=false
 ROVODEV_ONLY=false
@@ -20,6 +21,7 @@ for arg in "$@"; do
     --local) LOCAL_MODE=true ;;
     --openclaw) OPENCLAW_MODE=true ;;
     --kimi) KIMI_MODE=true ;;
+    --openpeon) OPENPEON_MODE=true ;;
     --no-shared-packs) NO_SHARED_PACKS=true ;;
     --init-local-config) INIT_LOCAL_CONFIG=true ;;
     --all) INSTALL_ALL=true ;;
@@ -39,6 +41,9 @@ Options:
                        no Claude config required). When ~/.claude/hooks/
                        peon-ping/packs exists, Kimi's packs/ is symlinked
                        to it so a single install serves both IDEs.
+  --openpeon           Install under ~/.openpeon instead of ~/.claude (a
+                       tool-agnostic root; peon.sh auto-discovers its packs via
+                       the packs-anchored fallback when ~/.claude is absent).
   --no-shared-packs    Disable the --kimi pack symlink and download a
                        separate copy of packs into ~/.kimi/...
   --init-local-config  Create local config only, then exit
@@ -54,6 +59,12 @@ HELPEOF
 done
 
 GLOBAL_BASE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# --openpeon reroots the global install at a tool-agnostic ~/.openpeon so every
+# downstream path (hooks, packs, settings.json, rovodev, config-preserve) lands
+# under the same root. peon.sh's packs-anchored fallback auto-discovers it.
+if [ "$OPENPEON_MODE" = true ]; then
+  GLOBAL_BASE="$HOME/.openpeon"
+fi
 LOCAL_BASE="$PWD/.claude"
 OPENCLAW_BASE="$HOME/.openclaw"
 KIMI_BASE="$HOME/.kimi"
@@ -294,7 +305,7 @@ if [ "$NO_RC" = false ]; then
 fi
 
 # Auto-detect OpenClaw if present and Claude Code is not
-if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ] && [ "$LOCAL_MODE" = false ]; then
+if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ] && [ "$LOCAL_MODE" = false ] && [ "$OPENPEON_MODE" = false ]; then
   if [ -d "$OPENCLAW_BASE" ] && [ ! -d "$GLOBAL_BASE" ]; then
     OPENCLAW_MODE=true
     echo "Auto-detected OpenClaw installation (no Claude Code found)."
@@ -302,7 +313,7 @@ if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ] && [ "$LOCAL_MODE" =
 fi
 
 # Auto-detect Kimi Code if present and Claude Code/OpenClaw are not
-if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ] && [ "$LOCAL_MODE" = false ]; then
+if [ "$OPENCLAW_MODE" = false ] && [ "$KIMI_MODE" = false ] && [ "$LOCAL_MODE" = false ] && [ "$OPENPEON_MODE" = false ]; then
   if [ -d "$KIMI_BASE" ] && [ ! -d "$GLOBAL_BASE" ]; then
     KIMI_MODE=true
     echo "Auto-detected Kimi Code installation (no Claude Code found)."

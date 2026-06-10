@@ -246,6 +246,31 @@ print('OK')
   [ -f "$LOCAL_INSTALL_DIR/packs/peon/openpeon.json" ]
 }
 
+# --- --openpeon mode tests ---
+
+@test "--openpeon installs under ~/.openpeon instead of ~/.claude" {
+  bash "$CLONE_DIR/install.sh" --openpeon
+  OPENPEON_INSTALL_DIR="$TEST_HOME/.openpeon/hooks/peon-ping"
+  [ -f "$OPENPEON_INSTALL_DIR/peon.sh" ]
+  [ -f "$OPENPEON_INSTALL_DIR/config.json" ]
+  [ -f "$OPENPEON_INSTALL_DIR/VERSION" ]
+  [ -f "$OPENPEON_INSTALL_DIR/packs/peon/openpeon.json" ]
+  # the default ~/.claude target must NOT receive the install
+  [ ! -f "$INSTALL_DIR/peon.sh" ]
+}
+
+@test "--openpeon registers hooks under ~/.openpeon/settings.json" {
+  bash "$CLONE_DIR/install.sh" --openpeon
+  [ -f "$TEST_HOME/.openpeon/settings.json" ]
+  /usr/bin/python3 -c "
+import json
+s = json.load(open('$TEST_HOME/.openpeon/settings.json'))
+hooks = s.get('hooks', {})
+assert 'Stop' in hooks, 'Stop hook not registered under ~/.openpeon'
+assert any('peon.sh' in h.get('command','') for entry in hooks['Stop'] for h in entry.get('hooks', [])), 'peon.sh not wired into ~/.openpeon Stop hook'
+"
+}
+
 @test "--local registers hooks in project-level settings.json" {
   cd "$PROJECT_DIR"
   bash "$CLONE_DIR/install.sh" --local

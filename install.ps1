@@ -10,6 +10,7 @@ param(
     [string]$Lang = "",
     [switch]$Local,
     [switch]$Global,
+    [switch]$OpenPeon,
     [switch]$InitLocalConfig
 )
 
@@ -66,7 +67,8 @@ if ($policy -eq "Restricted") {
 # --- Paths ---
 $GlobalClaudeDir = Join-Path $env:USERPROFILE ".claude"
 $LocalClaudeDir = Join-Path $PWD.Path ".claude"
-$ClaudeDir = if ($Local) { $LocalClaudeDir } else { $GlobalClaudeDir }
+$OpenPeonDir = Join-Path $env:USERPROFILE ".openpeon"
+$ClaudeDir = if ($OpenPeon) { $OpenPeonDir } elseif ($Local) { $LocalClaudeDir } else { $GlobalClaudeDir }
 $InstallDir = Join-Path $ClaudeDir "hooks\peon-ping"
 $SettingsFile = Join-Path $ClaudeDir "settings.json"
 $RegistryUrl = "https://peonping.github.io/registry/index.json"
