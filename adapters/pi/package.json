@@ -1,0 +1,12 @@
+{
+  "name": "peon-ping-pi",
+  "private": true,
+  "type": "module",
+  "description": "peon-ping extension for Pi (earendil-works/pi) — routes Pi lifecycle events through peon.sh/peon.ps1",
+  "pi": {
+    "extensions": ["./peon-ping.ts"]
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
