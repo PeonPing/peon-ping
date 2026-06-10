@@ -1432,8 +1432,14 @@ if [ -d "$HOME/.rovodev" ]; then
   echo ""
   echo "Detected Rovo Dev CLI installation, registering event hooks..."
   # Re-invoke ourselves with --rovodev-only to handle config registration
-  # This avoids duplicating the YAML manipulation logic
-  bash "$0" --rovodev-only 2>/dev/null || true
+  # This avoids duplicating the YAML manipulation logic. Propagate --openpeon
+  # so the child reroots GLOBAL_BASE and registers the rovodev adapter under
+  # the same ~/.openpeon root rather than reverting to ~/.claude.
+  if [ "$OPENPEON_MODE" = true ]; then
+    bash "$0" --rovodev-only --openpeon 2>/dev/null || true
+  else
+    bash "$0" --rovodev-only 2>/dev/null || true
+  fi
 fi
 
 # --- Auto-detect Kimi Code CLI and start watcher daemon ---

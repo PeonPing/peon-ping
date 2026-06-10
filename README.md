@@ -1150,6 +1150,17 @@ If `~/.claude/hooks/peon-ping/packs/` already exists with packs, a `--kimi` inst
 - Context compaction → Token limit sound
 - Sub-agent spawned → Sub-agent tracking
 
+### Tool-agnostic install root (`--openpeon`)
+
+Install everything (hooks, packs, `settings.json`) under `~/.openpeon` instead of `~/.claude`:
+
+```bash
+curl -fsSL peonping.com/install | bash -s -- --openpeon
+# Windows: powershell -File install.ps1 -OpenPeon
+```
+
+Useful for an OpenPeon-branded or tool-agnostic setup: `peon.sh` auto-discovers `~/.openpeon/packs` via its packs-anchored fallback, so adapters pointed at that root work without `~/.claude`. The same reroot is also available with no flag via `CLAUDE_CONFIG_DIR=~/.openpeon bash install.sh`.
+
 ### oh-my-pi (omp) setup
 
 A native TypeScript extension for [oh-my-pi](https://github.com/can1357/oh-my-pi) (`omp`) with full [CESP v1.0](https://github.com/PeonPing/openpeon) conformance. Subscribes to omp's `ExtensionAPI` lifecycle events and routes them through `peon.sh` so omp users get every peon-ping feature: sound packs, desktop notifications, trainer reminders, mobile push, SSH/devcontainer relay, and tab-title updates.

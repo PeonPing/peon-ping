@@ -1041,6 +1041,17 @@ curl -fsSL peonping.com/install | bash -s -- --kimi
 - 上下文压缩 → Token 限制音效
 - 子 Agent 启动 → 子 Agent 跟踪
 
+### 工具无关的安装根目录（`--openpeon`）
+
+将全部内容（钩子、语音包、`settings.json`）安装到 `~/.openpeon` 而非 `~/.claude`：
+
+```bash
+curl -fsSL peonping.com/install | bash -s -- --openpeon
+# Windows：powershell -File install.ps1 -OpenPeon
+```
+
+适用于 OpenPeon 品牌化或工具无关的部署：`peon.sh` 会通过其 packs 锚定回退自动发现 `~/.openpeon/packs`，因此指向该根目录的适配器无需 `~/.claude` 即可工作。无需此标志时，也可用 `CLAUDE_CONFIG_DIR=~/.openpeon bash install.sh` 实现相同的重定向。
+
 ### oh-my-pi (omp) 设置
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）的原生 TypeScript 扩展，完全符合 [CESP v1.0](https://github.com/PeonPing/openpeon) 规范。订阅 omp 的 `ExtensionAPI` 生命周期事件，并通过 `peon.sh` 路由，让 omp 用户享受 peon-ping 的所有功能：语音包、桌面通知、训练提醒、移动推送、SSH/devcontainer 中继及标签页标题更新。
