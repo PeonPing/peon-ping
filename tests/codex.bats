@@ -121,3 +121,27 @@ assert last.get('cwd') == '/tmp/codex-proj', last
   [ "$CODEX_EXIT" -eq 0 ]
   ! afplay_was_called
 }
+
+@test "stable PostToolUse failure via top-level exit_code plays error sound" {
+  run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","exit_code":2}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+}
+
+@test "stable PostToolUse failure via success=false plays error sound" {
+  run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","success":"false"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+}
+
+@test "stable PostToolUse failure via tool_response.is_error plays error sound" {
+  run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_response":{"is_error":true}}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+}
