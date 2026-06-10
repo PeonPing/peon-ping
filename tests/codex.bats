@@ -75,3 +75,49 @@ assert last.get('session_id') == 'codex-sess-42', last
 assert last.get('cwd') == '/tmp/codex-proj', last
 "
 }
+
+# ============================================================
+# Stable Codex hooks (stdin hook_event_name, PascalCase)
+# ============================================================
+
+@test "stable SessionStart maps to session.start and plays greeting" {
+  run_codex "" '{"hook_event_name":"SessionStart","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
+}
+
+@test "stable Stop maps to task.complete and plays completion sound" {
+  run_codex "" '{"hook_event_name":"Stop","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
+}
+
+@test "stable failed PostToolUse maps to PostToolUseFailure (error sound)" {
+  run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_response":{"exit_code":1}}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+}
+
+@test "stable successful PostToolUse is silent" {
+  run_codex "" '{"hook_event_name":"PostToolUse","tool_response":{"exit_code":0}}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "stable PreToolUse is silent" {
+  run_codex "" '{"hook_event_name":"PreToolUse","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "stable UserPromptSubmit plays no sound" {
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  ! afplay_was_called
+}

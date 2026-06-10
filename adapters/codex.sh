@@ -1,12 +1,18 @@
 #!/bin/bash
 # peon-ping adapter for OpenAI Codex CLI
-# Translates Codex notify events into peon.sh stdin JSON
+# Translates Codex events into peon.sh stdin JSON.
 #
-# Setup: Add to ~/.codex/config.toml:
+# Codex ships a stable hook event set (SessionStart, UserPromptSubmit,
+# PreToolUse, PostToolUse, Stop) delivered as JSON on stdin with a
+# `hook_event_name` field, AND a legacy `notify` callback (event name passed
+# as argv). This adapter handles both: it prefers stdin stable-hook JSON when
+# present and falls back to the argv notify event.
+#
+# Setup (legacy notify): Add to ~/.codex/config.toml:
 #   notify = ["bash", "/absolute/path/to/.claude/hooks/peon-ping/adapters/codex.sh"]
 #
-# Or if installed locally:
-#   notify = ["bash", "/absolute/path/to/peon-ping/adapters/codex.sh"]
+# Setup (stable hooks): point Codex's hooks at this script; it reads
+#   `hook_event_name` from the stdin JSON. Consult `codex` docs for your version.
 
 set -euo pipefail
 
@@ -22,10 +28,13 @@ else
   CODEX_STDIN="$(cat)"
 fi
 
-_CODEX_EVENT="$CODEX_EVENT" _CODEX_STDIN="$CODEX_STDIN" python3 - <<'PY' | bash "$PEON_SH"
+# Map to a CESP payload. Silent events (PreToolUse, successful PostToolUse)
+# print nothing, so peon.sh is never invoked for per-tool-call chatter.
+MAPPED_JSON="$(_CODEX_EVENT="$CODEX_EVENT" _CODEX_STDIN="$CODEX_STDIN" python3 - <<'PY'
 import json
 import os
 import re
+import sys
 
 
 def first_non_empty(*values):
@@ -50,6 +59,38 @@ if raw_stdin:
     except Exception:
         event_data = {}
 
+
+def is_tool_failure():
+    """Detect a failed tool call from a stable-hook PostToolUse payload.
+
+    Codex's PostToolUse carries the structured tool result, so a failure may
+    be signalled by a nested ``tool_response`` object (error flags / non-zero
+    exit_code), a top-level exit_code, or ``success == false`` — not just an
+    event name starting with ``error``.
+    """
+    if event_data.get("error"):
+        return True
+    tr = event_data.get("tool_response")
+    if isinstance(tr, dict):
+        if tr.get("error") or tr.get("is_error") or tr.get("isError"):
+            return True
+        ec = tr.get("exit_code", tr.get("exitCode"))
+        try:
+            if ec is not None and int(ec) != 0:
+                return True
+        except Exception:
+            pass
+    ec = event_data.get("exit_code", event_data.get("exitCode"))
+    try:
+        if ec is not None and int(ec) != 0:
+            return True
+    except Exception:
+        pass
+    if str(event_data.get("success", "")).lower() == "false":
+        return True
+    return False
+
+
 workspace_roots = event_data.get("workspace_roots")
 root0 = ""
 if isinstance(workspace_roots, list) and workspace_roots:
@@ -73,12 +114,28 @@ if (
 ):
     mapped_event = "Notification"
     mapped_ntype = "permission_prompt"
-elif event_key in ("start", "session-start"):
+elif event_key in ("start", "session-start", "sessionstart"):
     mapped_event = "SessionStart"
+    mapped_ntype = notif_type
+elif event_key in ("session-end", "sessionend"):
+    mapped_event = "SessionEnd"
+    mapped_ntype = notif_type
+elif event_key in ("user-prompt-submit", "userpromptsubmit"):
+    mapped_event = "UserPromptSubmit"
     mapped_ntype = notif_type
 elif event_key == "idle-prompt":
     mapped_event = "Notification"
     mapped_ntype = "idle_prompt"
+elif event_key in ("pre-tool-use", "pretooluse"):
+    # Fires before every tool call — far too noisy; emit nothing.
+    sys.exit(0)
+elif event_key in ("post-tool-use", "posttooluse"):
+    if is_tool_failure():
+        mapped_event = "PostToolUseFailure"
+        mapped_ntype = notif_type
+    else:
+        # Successful tool call — stay silent (peon has no PostToolUse handler).
+        sys.exit(0)
 elif event_key.startswith("error") or event_key.startswith("fail"):
     mapped_event = "PostToolUseFailure"
     mapped_ntype = notif_type
@@ -123,6 +180,7 @@ payload = {
 summary = first_non_empty(
     event_data.get("transcript_summary", ""),
     event_data.get("summary", ""),
+    event_data.get("last_assistant_message", ""),
 )
 if isinstance(summary, str) and summary:
     payload["transcript_summary"] = summary[:120]
@@ -141,3 +199,8 @@ if mapped_event == "PostToolUseFailure":
 
 print(json.dumps(payload))
 PY
+)" || MAPPED_JSON=""
+
+if [ -n "$MAPPED_JSON" ]; then
+  printf '%s' "$MAPPED_JSON" | bash "$PEON_SH"
+fi
