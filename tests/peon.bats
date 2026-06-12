@@ -707,6 +707,60 @@ JSON
   afplay_was_called
 }
 
+@test "suppress_subagent_complete: subagent PostToolUseFailure (agent_id) is suppressed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true }
+JSON
+  # agent_id marks an event fired from inside a subagent; no SubagentStart/
+  # SessionStart dance and no pack_rotation needed
+  run_peon '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","error":"Exit code 1","cwd":"/tmp/myproject","session_id":"parent7","agent_id":"agt1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "suppress_subagent_complete: parent PostToolUseFailure still plays task.error" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true }
+JSON
+  run_peon '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","error":"Exit code 1","cwd":"/tmp/myproject","session_id":"parent8","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "suppress_subagent_complete: disabled leaves subagent PostToolUseFailure audible" {
+  # Default config has suppress_subagent_complete=false
+  run_peon '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","error":"Exit code 1","cwd":"/tmp/myproject","session_id":"parent9","agent_id":"agt2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "suppress_subagent_complete: subagent PermissionRequest (agent_id) suppressed without pack_rotation" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true }
+JSON
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"parent10","agent_id":"agt3","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "suppress_subagent_complete: SubagentStart with agent_id still records pending_subagent_pack" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "pack_rotation": ["peon","peon"] }
+JSON
+  # SubagentStart is excluded from agent_id suppression so pack inheritance
+  # for separate-session subagents keeps working
+  run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent11","agent_id":"agt4","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+  pending=$("$PEON_PY" -c "
+import json, os
+state = json.load(open(os.environ['TEST_DIR'] + '/.state.json'))
+p = state.get('pending_subagent_pack', {})
+print(p.get('pack', ''))
+")
+  [ "$pending" = "peon" ]
+}
+
 # ============================================================
 # Update check
 # ============================================================

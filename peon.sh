@@ -4974,6 +4974,9 @@ cwd = event_data.get('cwd', '') or (_roots[0] if _roots else '')
 session_id = event_data.get('session_id', '') or event_data.get('conversation_id', '')
 perm_mode = event_data.get('permission_mode', '')
 session_source = event_data.get('source', '')
+# Claude Code sets agent_id only on hook events fired from inside a Task-tool
+# subagent (PostToolUseFailure, PermissionRequest, ...); absent on parent events
+agent_id = event_data.get('agent_id', '')
 
 IDE_ALIASES = {
     'claude': 'claude',
@@ -5471,6 +5474,23 @@ if event in _dismiss_events and session_id and cfg.get('notification_stacking', 
             os.unlink(_sf)
         except Exception:
             pass
+
+# --- Subagent suppression via agent_id ---
+# Events fired from inside a subagent are identified directly by the agent_id
+# field, so no SubagentStart/SessionStart timing heuristic is needed and
+# parallel subagents cannot race the single pending_subagent_pack slot. This
+# sits after the auto-dismiss block so subagent tool activity still clears
+# stale notifications. SubagentStart/SubagentStop are excluded: their handlers
+# below cover pack inheritance and the flag-gated completion sound.
+if suppress_subagent_complete and agent_id and event not in ('SubagentStart', 'SubagentStop'):
+    log('route', category='none', suppressed=True, reason='subagent_event')
+    log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
+    write_state(state, state_file)
+    print('PROJECT=' + q(project or ''))
+    print('STATUS=working')
+    print('MARKER=')
+    print('PEON_EXIT=true')
+    sys.exit(0)
 
 if event == 'SessionStart':
     source = event_data.get('source', '')

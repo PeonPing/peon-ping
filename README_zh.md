@@ -371,7 +371,7 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - **session_start_cooldown_seconds**（数字，默认：`30`）：当多个工作区同时启动时（例如用 OpenCode 或 Cursor 打开多个文件夹），对问候声音进行去重。只有第一个会话启动会播放问候声；在此窗口期内的后续会话保持静默。设为 `0` 可禁用去重，始终播放问候声。
 - **suppress_idle_prompt_repeats**（布尔值，默认：`true`）：当终端未聚焦时，Claude Code 会每 ~60 秒重复触发 `idle_prompt` 通知。peon-ping 把 `idle_prompt` 路由到 `task.complete`，让你仍能在需要输入时听到提示——但若不去重，同一个声音会随每次提醒重复播放。当为 `true` 时，如果同一会话已在 `idle_prompt_suppress_window_seconds` 窗口内触发过 `task.complete`，则抑制此次 `idle_prompt`。设为 `false` 可恢复周期性提醒。
 - **idle_prompt_suppress_window_seconds**（数字，默认：`3600`）：`suppress_idle_prompt_repeats` 使用的窗口长度。在某会话播放过 `task.complete` 之后的这么多秒内，该会话后续的 `idle_prompt` 通知保持静默。设为 `0` 可禁用窗口（等同于 `suppress_idle_prompt_repeats: false`）。
-- **suppress_subagent_complete**（布尔值，默认：`false`）：当子 Agent 会话结束时，抑制 `task.complete` 声音和通知。当 Claude Code 的 Task 工具并行派发多个子 Agent 时，每个子 Agent 完成都会触发一次提示音——将此选项设为 `true`，则只播放父会话的完成提示音。
+- **suppress_subagent_complete**（布尔值，默认：`false`）：抑制子 Agent 活动产生的声音和通知。当 Claude Code 的 Task 工具并行派发多个子 Agent 时，每个子 Agent 都会触发自己的事件：完成时的提示音、Bash 命令失败时的 `task.error`、权限请求时的 `input.required`。将此选项设为 `true`，则只播放父会话的声音。来自子 Agent 内部的事件通过 Claude Code 在 hook 负载中添加的 `agent_id` 字段识别；独立会话的子 Agent（旧版客户端、其他 IDE）仍通过 SubagentStart 时间窗口启发式识别。
 - **default_pack**：当没有更具体的规则时使用的备选语音包（默认：`"peon"`）。取代旧的 `active_pack` 键——现有配置在 `peon update` 时自动迁移。
 - **path_rules**：`{ "pattern": "...", "pack": "..." }` 对象数组。根据工作目录使用通配符匹配（`*`、`?`）为会话分配语音包。第一个匹配规则生效，优先级高于 `pack_rotation` 和 `default_pack`，但低于 `session_override` 分配。
 - **exclude_dirs**：glob 或目录模式数组。如果当前工作目录匹配其中一项，**所有声音和通知都会被静音**（钩子日志记录 `suppressed=True reason=excluded_dir pattern=<匹配项>`）。纯目录路径也会匹配其所有子目录，所以 `"~/conductor/workspaces"` 会让整棵目录树都保持静默。适用于后台代理（如 `CodexBar/ClaudeProbe`）、临时目录或不希望发出声音的工作区。
