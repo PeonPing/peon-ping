@@ -2939,6 +2939,46 @@ assert mn['enabled'] == True
 "
 }
 
+@test "mobile ntfy priority override from config wins over event default" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic", "server": "https://ntfy.sh", "priority": "max" }
+}
+JSON
+  # PermissionRequest is normally Priority: high; an explicit config priority overrides it.
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  mobile_was_called
+  cmdline=$(mobile_cmdline)
+  [[ "$cmdline" == *"Priority: max"* ]]
+  [[ "$cmdline" != *"Priority: high"* ]]
+}
+
+@test "mobile ntfy invalid priority falls back to event default" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic", "server": "https://ntfy.sh", "priority": "bogus" }
+}
+JSON
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  mobile_was_called
+  cmdline=$(mobile_cmdline)
+  [[ "$cmdline" == *"Priority: high"* ]]
+}
+
+@test "peon mobile ntfy --priority persists in config" {
+  bash "$PEON_SH" mobile ntfy my-test-topic --priority=max
+  python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+mn = cfg['mobile_notify']
+assert mn.get('priority') == 'max', f'expected max, got {mn.get(\"priority\")}'
+"
+}
+
 @test "peon mobile off disables mobile" {
   # First configure
   bash "$PEON_SH" mobile ntfy some-topic

@@ -1401,6 +1401,33 @@ peon mobile pushover <user_key> <app_token>
 peon mobile telegram <bot_token> <chat_id>
 ```
 
+### Notification priority (ntfy)
+
+By default peon-ping derives the ntfy priority from the event type (permission
+prompts are `high`, routine events `default`/`low`). On iOS the lower tiers can
+arrive **silently** — the banner shows but no sound plays. Set an explicit
+priority to make alerts audible:
+
+```bash
+peon mobile ntfy my-peon-notifications --priority=max
+```
+
+You can also add a `priority` key to `mobile_notify` in `config.json`:
+
+```json
+"mobile_notify": {
+  "service": "ntfy",
+  "topic": "my-peon-notifications",
+  "server": "https://ntfy.sh",
+  "priority": "max"
+}
+```
+
+Accepted values are ntfy priority names (`max`/`urgent`, `high`, `default`,
+`low`, `min`) or numbers `1`–`5`. When set, it applies to every event,
+overriding the per-event default; leave it unset to keep the original behavior.
+The same value also maps to Pushover priorities for that service.
+
 ### Mobile commands
 
 ```bash

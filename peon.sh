@@ -1122,6 +1122,7 @@ print('MOBILE_USER_KEY=' + q(mn.get('user_key', '')))
 print('MOBILE_APP_TOKEN=' + q(mn.get('app_token', '')))
 print('MOBILE_CHAT_ID=' + q(mn.get('chat_id', '')))
 print('MOBILE_BOT_TOKEN=' + q(mn.get('bot_token', '')))
+print('MOBILE_PRIORITY=' + q(str(mn.get('priority', '') or '')))
 " 2>/dev/null) || return 0
 
   safe_eval_python "$mobile_vars" || return 0
@@ -1135,6 +1136,16 @@ print('MOBILE_BOT_TOKEN=' + q(mn.get('bot_token', '')))
     yellow) priority="default" ;;
     blue) priority="low" ;;
   esac
+
+  # An explicit priority in config overrides the color-derived default.
+  # Accepts ntfy priority names (max/urgent, high, default, low, min) or
+  # numbers 1-5. Invalid values are ignored so behavior stays predictable.
+  # Useful on iOS, where lower tiers often arrive silently.
+  if [ -n "${MOBILE_PRIORITY:-}" ]; then
+    case "$MOBILE_PRIORITY" in
+      max|urgent|5|high|4|default|3|low|2|min|1) priority="$MOBILE_PRIORITY" ;;
+    esac
+  fi
 
   # Synchronous mode for tests (avoid race with backgrounded curl)
   local use_bg=true
@@ -1168,8 +1179,10 @@ print('MOBILE_BOT_TOKEN=' + q(mn.get('bot_token', '')))
       [ -z "$MOBILE_USER_KEY" ] || [ -z "$MOBILE_APP_TOKEN" ] && return 0
       local po_priority=0
       case "$priority" in
-        high) po_priority=1 ;;
-        low) po_priority=-1 ;;
+        max|urgent|5) po_priority=1 ;;
+        high|4) po_priority=1 ;;
+        low|2) po_priority=-1 ;;
+        min|1) po_priority=-2 ;;
       esac
       if [ "$use_bg" = true ]; then
         nohup curl -sf \
@@ -3432,23 +3445,28 @@ print(msg)
       ntfy)
         TOPIC="${3:-}"
         if [ -z "$TOPIC" ]; then
-          echo "Usage: peon mobile ntfy <topic> [--server=URL] [--token=TOKEN]" >&2
+          echo "Usage: peon mobile ntfy <topic> [--server=URL] [--token=TOKEN] [--priority=max|urgent|high|default|low|min]" >&2
           echo "" >&2
           echo "Setup:" >&2
           echo "  1. Install ntfy app on your phone (ntfy.sh)" >&2
           echo "  2. Subscribe to your topic in the app" >&2
           echo "  3. Run: peon mobile ntfy my-unique-topic" >&2
+          echo "" >&2
+          echo "Tip: on iOS, lower priorities can arrive silently. Use" >&2
+          echo "     --priority=max for an audible alert on every event." >&2
           exit 1
         fi
         NTFY_SERVER="https://ntfy.sh"
         NTFY_TOKEN=""
+        NTFY_PRIORITY=""
         for arg in "${@:4}"; do
           case "$arg" in
-            --server=*) NTFY_SERVER="${arg#--server=}" ;;
-            --token=*)  NTFY_TOKEN="${arg#--token=}" ;;
+            --server=*)   NTFY_SERVER="${arg#--server=}" ;;
+            --token=*)    NTFY_TOKEN="${arg#--token=}" ;;
+            --priority=*) NTFY_PRIORITY="${arg#--priority=}" ;;
           esac
         done
-        export PEON_ENV_NTFY_TOPIC="$TOPIC" PEON_ENV_NTFY_SERVER="$NTFY_SERVER" PEON_ENV_NTFY_TOKEN="$NTFY_TOKEN"
+        export PEON_ENV_NTFY_TOPIC="$TOPIC" PEON_ENV_NTFY_SERVER="$NTFY_SERVER" PEON_ENV_NTFY_TOKEN="$NTFY_TOKEN" PEON_ENV_NTFY_PRIORITY="$NTFY_PRIORITY"
         python3 -c "
 import json, os
 config_path = os.environ.get('PEON_ENV_CONFIG', '')
@@ -3463,11 +3481,15 @@ cfg['mobile_notify'] = {
     'server': os.environ.get('PEON_ENV_NTFY_SERVER', 'https://ntfy.sh'),
     'token': os.environ.get('PEON_ENV_NTFY_TOKEN', '')
 }
+_prio = os.environ.get('PEON_ENV_NTFY_PRIORITY', '')
+if _prio:
+    cfg['mobile_notify']['priority'] = _prio
 json.dump(cfg, open(config_path, 'w'), indent=2)
 "
         echo "peon-ping: mobile notifications enabled via ntfy"
         echo "  Topic:  $TOPIC"
         echo "  Server: $NTFY_SERVER"
+        [ -n "$NTFY_PRIORITY" ] && echo "  Priority: $NTFY_PRIORITY"
         echo ""
         echo "Install the ntfy app and subscribe to '$TOPIC'"
         # Send test notification
@@ -3580,6 +3602,9 @@ else:
         server = mn.get('server', 'https://ntfy.sh')
         print(f'  Topic:  {topic}')
         print(f'  Server: {server}')
+        prio = mn.get('priority')
+        if prio:
+            print(f'  Priority: {prio}')
     elif service == 'pushover':
         ukey = mn.get('user_key', '?')
         print(f'  User:   {ukey[:8]}...')
