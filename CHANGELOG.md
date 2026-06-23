@@ -1,3 +1,11 @@
+## Unreleased
+
+### Added
+- **Tab title/color escapes are no longer passed through tmux by default (`tmux_passthrough`).** A tmux client multiplexes many panes/windows onto a single host-terminal tab, and the OSC 0 tab title / OSC 6 iTerm2 tab-color escapes have no per-pane addressing — so when several agent sessions run under one tmux client, every hook (including from *background* panes) repaints that one shared tab on a last-writer-wins basis, and the tab stops reflecting any single session. The DCS passthrough is now gated behind a new `tmux_passthrough` config key (boolean, default `false`): off, the escapes are suppressed under tmux and per-session state is left to tmux's own window/status line; on, the previous passthrough behavior returns for users who run one tmux window per terminal tab (1 tab = 1 session). Behavior outside tmux is unchanged (escapes always emitted). Documented in `README.md`.
+
+### Fixed
+- **iTerm2 tab colors are detected over SSH.** The OSC 6 tab-color path only recognized iTerm2 via `TERM_PROGRAM=iTerm.app` or `ITERM_SESSION_ID`, neither of which survives an SSH hop (SSH does not forward them, and inside tmux `TERM_PROGRAM` becomes `tmux`). It now also accepts `LC_TERMINAL=iTerm2`, the signal iTerm2 sets specifically for this case and that SSH forwards via the `LC_*` `SendEnv` whitelist — so tab colors work for remote iTerm2 sessions (and for the opt-in `tmux_passthrough` path over SSH).
+
 ## v2.31.1 (2026-06-22)
 
 ### Changed

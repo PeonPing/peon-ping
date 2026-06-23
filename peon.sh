@@ -4957,6 +4957,12 @@ if focus_detect_mode not in ('all', 'sound', 'notifications'):
     focus_detect_mode = 'all'
 terminal_tab_title = str(cfg.get('terminal_tab_title', True)).lower() != 'false'
 suppress_sound_when_tab_focused = str(cfg.get('suppress_sound_when_tab_focused', False)).lower() == 'true'
+# Opt-in passthrough of the tab title/color escapes through tmux's DCS wrapper.
+# Default off: a tmux client multiplexes many panes onto ONE host terminal tab,
+# so with several concurrent sessions these escapes (which have no per-pane
+# addressing) stomp the single shared tab on a last-writer-wins basis — including
+# from background panes. Off keeps per-session state where tmux can scope it.
+tmux_passthrough = str(cfg.get('tmux_passthrough', False)).lower() == 'true'
 
 log('config', loaded=config_path, volume=volume, pack=active_pack, enabled=True)
 
@@ -6151,6 +6157,7 @@ print('MEETING_DETECT=' + ('true' if meeting_detect else 'false'))
 print('FOCUS_DETECT=' + ('true' if focus_detect else 'false'))
 print('FOCUS_DETECT_MODE=' + q(focus_detect_mode))
 print('TERMINAL_TAB_TITLE=' + ('true' if terminal_tab_title else 'false'))
+print('TMUX_PASSTHROUGH=' + ('true' if tmux_passthrough else 'false'))
 print('SUPPRESS_SOUND_WHEN_TAB_FOCUSED=' + ('true' if suppress_sound_when_tab_focused else 'false'))
 print('SOUND_FILE=' + q(sound_file))
 print('ICON_PATH=' + q(icon_path))
@@ -6398,16 +6405,27 @@ if [ -z "$_peon_tty" ]; then
     _peon_tty="/dev/tty"
   fi
 fi
+# In test mode the real TTY isn't writable, so redirect escapes to a file the
+# BATS suite can read back to assert on what would (or would not) be emitted.
+[ "${PEON_TEST:-0}" = "1" ] && _peon_tty="$PEON_DIR/.osc_out"
 
-# Helper: emit an escape sequence, wrapping in DCS passthrough when inside tmux
-# so the host terminal (iTerm2, Ghostty, etc.) receives it through the tmux layer.
-# Requires tmux 3.3a+ with: set -g allow-passthrough on
+# Helper: emit a terminal escape sequence (tab title / tab color) to the session TTY.
+#
+# Inside tmux the escape only fires when tmux_passthrough is enabled (default off),
+# in which case it's wrapped in tmux's DCS passthrough so the host terminal (iTerm2,
+# Ghostty, etc.) receives it — requires tmux 3.3a+ with `set -g allow-passthrough on`.
+# Passthrough is off by default because a tmux client multiplexes many panes/windows
+# onto a SINGLE host terminal tab with no per-pane addressing: with multiple Claude
+# Code sessions, every hook — including from BACKGROUND panes — would stomp the one
+# visible tab on a last-writer-wins basis, so the tab reflects "most recent hook
+# anywhere", not any single session. Users with a 1-window-per-tab layout can opt back
+# in via "tmux_passthrough": true. Outside tmux (1 tab = 1 session) we always emit.
 _peon_esc() {
-  local seq="$1"
   if [ -n "${TMUX:-}" ]; then
-    { printf '\033Ptmux;\033%s\033\\' "$seq" > "$_peon_tty"; } 2>/dev/null || true
+    [ "${TMUX_PASSTHROUGH:-false}" = "true" ] || return 0
+    { printf '\033Ptmux;\033%s\033\\' "$1" > "$_peon_tty"; } 2>/dev/null || true
   else
-    { printf '%s' "$seq" > "$_peon_tty"; } 2>/dev/null || true
+    { printf '%s' "$1" > "$_peon_tty"; } 2>/dev/null || true
   fi
 }
 
@@ -6421,7 +6439,9 @@ fi
 _cmux_update_status_async
 
 # --- Set iTerm2 tab color (OSC 6) ---
-# Detects iTerm2 via ITERM_SESSION_ID (persists inside tmux where TERM_PROGRAM=tmux).
+# Detects iTerm2 via ITERM_SESSION_ID (persists inside local tmux where TERM_PROGRAM=tmux)
+# or LC_TERMINAL=iTerm2, the only iTerm2 signal that survives SSH — forwarded via the
+# LC_* SendEnv whitelist — and tmux, where ITERM_SESSION_ID and TERM_PROGRAM are lost.
 # In test mode, write resolved values to files for BATS verification.
 if [ "$_PEON_SYNC" = "true" ]; then
   [ -n "$TAB_COLOR_RGB" ] && echo "$TAB_COLOR_RGB" > "$PEON_DIR/.tab_color_rgb"
@@ -6435,7 +6455,7 @@ if [ "$_PEON_SYNC" = "true" ]; then
   echo "${TTS_MODE:-}" > "$PEON_DIR/.tts_mode"
   echo "${TRAINER_TTS_TEXT:-}" > "$PEON_DIR/.trainer_tts_text"
 fi
-if [ -n "$TAB_COLOR_RGB" ] && { [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]] || [ -n "${ITERM_SESSION_ID:-}" ]; }; then
+if [ -n "$TAB_COLOR_RGB" ] && { [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]] || [ -n "${ITERM_SESSION_ID:-}" ] || [ "${LC_TERMINAL:-}" = "iTerm2" ]; }; then
   read -r _R _G _B <<< "$TAB_COLOR_RGB"
   _peon_esc "$(printf '\033]6;1;bg;red;brightness;%d\a' "$_R")"
   _peon_esc "$(printf '\033]6;1;bg;green;brightness;%d\a' "$_G")"

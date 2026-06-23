@@ -3375,6 +3375,45 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 }
 
 # ============================================================
+# tmux passthrough gating (tmux_passthrough, default off)
+# ============================================================
+
+@test "tmux_passthrough off (default): tab escapes are suppressed under tmux" {
+  # A tmux client multiplexes many panes onto one shared host tab, so by default
+  # the title/color escapes must not be passed through (they'd stomp the tab).
+  export TMUX="/tmp/peon-fake-tmux,1,0"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  # The values are still resolved (proxy written) — suppression is at the emit layer.
+  [ -f "$TEST_DIR/.tab_title" ]
+  # ...but nothing is emitted to the terminal.
+  [ ! -f "$TEST_DIR/.osc_out" ]
+}
+
+@test "tmux_passthrough on: tab escapes pass through tmux wrapped in DCS" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['tmux_passthrough'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  export TMUX="/tmp/peon-fake-tmux,1,0"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/.osc_out" ]
+  # Emitted escape is wrapped in tmux's DCS passthrough envelope.
+  grep -q 'Ptmux;' "$TEST_DIR/.osc_out"
+}
+
+@test "no tmux: tab escapes are emitted directly without a DCS wrapper" {
+  unset TMUX  # robust even when the suite itself is run from inside tmux
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/.osc_out" ]
+  ! grep -q 'Ptmux;' "$TEST_DIR/.osc_out"
+}
+
+# ============================================================
 # New event routing: PostToolUseFailure, PreCompact, task.acknowledge
 # ============================================================
 

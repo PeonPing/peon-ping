@@ -36,6 +36,7 @@
   "focus_detect": false,
   "focus_detect_mode": "all",
   "terminal_tab_title": true,
+  "tmux_passthrough": false,
   "suppress_sound_when_tab_focused": false,
   "notification_position": "top-center",
   "notification_dismiss_seconds": 4,
