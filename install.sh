@@ -354,7 +354,7 @@ if [ "$INIT_LOCAL_CONFIG" = true ]; then
 fi
 
 # Default packs (curated English set installed by default)
-DEFAULT_PACKS="peon peasant sc_kerrigan sc_battlecruiser glados"
+DEFAULT_PACKS="peon peasant sc_scv sc_battlecruiser glados"
 
 
 # --- Platform detection ---
