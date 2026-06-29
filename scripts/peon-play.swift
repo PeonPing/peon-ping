@@ -8,9 +8,10 @@ import CoreAudio
 import AudioToolbox
 import Foundation
 
-// MARK: - Argument parsing (-v <volume> <file>)
+// MARK: - Argument parsing (-v <volume> [-p <prerollMs>] <file>)
 
 var volume: Float = 1.0
+var prerollMs: Double = 300   // silence pushed before the file to cover device wake-up
 var filePath: String?
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -18,13 +19,15 @@ while !args.isEmpty {
     let arg = args.removeFirst()
     if arg == "-v", !args.isEmpty {
         volume = max(0, min(1, Float(args.removeFirst()) ?? 1.0))
+    } else if arg == "-p", !args.isEmpty {
+        prerollMs = max(0, Double(args.removeFirst()) ?? prerollMs)
     } else if filePath == nil {
         filePath = arg
     }
 }
 
 guard let filePath = filePath else {
-    fputs("Usage: peon-play [-v volume] <file>\n", stderr)
+    fputs("Usage: peon-play [-v volume] [-p prerollMs] <file>\n", stderr)
     exit(1)
 }
 
@@ -94,6 +97,19 @@ do {
 } catch {
     fputs("Error: cannot start audio engine: \(error.localizedDescription)\n", stderr)
     exit(1)
+}
+
+// Pre-roll: schedule a short silent buffer before the file. An idle output
+// device (notably Bluetooth A2DP, which suspends within seconds) does not
+// stream PCM the instant engine.start() returns — it needs ~100-300ms to wake.
+// Without this, the first samples are fed to a sink that isn't live yet and the
+// leading syllable is clipped ("appy to" instead of "Happy to"). The silence
+// gives the device time to come up so the file starts on a live stream.
+let prerollFrames = AVAudioFrameCount((format.sampleRate * prerollMs / 1000.0).rounded())
+if prerollFrames > 0,
+   let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: prerollFrames) {
+    silence.frameLength = prerollFrames   // zeroed on allocation == silence
+    playerNode.scheduleBuffer(silence, at: nil, options: [])
 }
 
 playerNode.scheduleFile(audioFile, at: nil, completionCallbackType: .dataPlayedBack) { _ in
