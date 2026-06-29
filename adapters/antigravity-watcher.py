@@ -2,8 +2,8 @@
 """
 peon-ping Antigravity watcher — event emitter for antigravity-py.sh
 
-Monitors ~/.gemini/antigravity/conversations/ for .pb file changes
-and emits CESP-compatible JSON events to stdout.
+Monitors Antigravity conversation stores for file changes and emits
+CESP-compatible JSON events to stdout.
 
 This script is a pure event emitter — it does NOT play sounds directly.
 The parent shell wrapper (antigravity-py.sh) reads these JSON lines and
@@ -16,9 +16,14 @@ Output format (one JSON object per line):
   {"event": "Stop", "session_id": "antigravity-abc12345", "cwd": "/path"}
 
 Event mapping:
-  New .pb file created        → SessionStart
+  New conversation file       → SessionStart
   IDLE → ACTIVE transition    → UserPromptSubmit  (agent starts working)
   ACTIVE → IDLE (25s silence) → Stop              (agent finished)
+
+Watched layouts:
+  ~/.gemini/antigravity/conversations/*.pb
+  ~/.gemini/antigravity*/conversations/*.db
+  ~/.gemini/antigravity*/brain/<guid>/.system_generated/logs/transcript*.jsonl
 
 Not detectable from filesystem alone:
   task.error, input.required, resource.limit, user.spam
@@ -30,18 +35,39 @@ Usage (called by antigravity-py.sh, not directly):
   python3 antigravity-watcher.py [--cwd /path]
 """
 
-import argparse
 import json
 import os
 import sys
 import time
 import signal
 import logging
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+from pathlib import Path
+
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers.polling import PollingObserver
+except ImportError:  # Allow state-machine tests to import without watchdog.
+    Observer = None
+    PollingObserver = None
+
+    class FileSystemEventHandler:
+        pass
 
 # --- Paths ---
-CONVERSATIONS_DIR = os.path.expanduser("~/.gemini/antigravity/conversations")
+HOME = Path.home()
+ANTIGRAVITY_DIRS = [
+    Path(os.path.expanduser(os.environ.get("ANTIGRAVITY_DIR", "~/.gemini/antigravity"))),
+    HOME / ".gemini/antigravity-cli",
+    HOME / ".gemini/antigravity-ide",
+]
+
+CONVERSATIONS_DIR = os.path.expanduser(
+    os.environ.get("ANTIGRAVITY_CONVERSATIONS_DIR", str(ANTIGRAVITY_DIRS[0] / "conversations"))
+)
+BRAIN_DIR = os.path.expanduser(
+    os.environ.get("ANTIGRAVITY_BRAIN_DIR", str(ANTIGRAVITY_DIRS[0] / "brain"))
+)
 
 # --- Timing ---
 # Calibrated to avoid false triggers during tool calls.
@@ -51,7 +77,7 @@ CONVERSATIONS_DIR = os.path.expanduser("~/.gemini/antigravity/conversations")
 IDLE_THRESHOLD = float(os.environ.get("ANTIGRAVITY_IDLE_SECONDS", "25"))
 CHECK_INTERVAL = 1.0        # how often to poll for completions
 PER_GUID_COOLDOWN = 30.0    # min seconds between Stop events per GUID
-STARTUP_GRACE = 30.0        # ignore events for this long after startup
+STARTUP_GRACE = float(os.environ.get("ANTIGRAVITY_STARTUP_GRACE", "30"))
 
 # --- Logging (to stderr so stdout stays clean for JSON events) ---
 logging.basicConfig(
@@ -65,6 +91,49 @@ log = logging.getLogger("antigravity-watcher")
 # --- States ---
 IDLE = "idle"
 ACTIVE = "active"
+
+
+def watched_roots():
+    """Return existing directories that may contain Antigravity conversation state."""
+    candidates = [Path(CONVERSATIONS_DIR), Path(BRAIN_DIR)]
+    if not os.environ.get("ANTIGRAVITY_CONVERSATIONS_DIR") and not os.environ.get("ANTIGRAVITY_BRAIN_DIR"):
+        for base in ANTIGRAVITY_DIRS:
+            candidates.extend([base / "conversations", base / "brain"])
+
+    roots = []
+    seen = set()
+    for root in candidates:
+        expanded = Path(os.path.expanduser(str(root)))
+        key = str(expanded)
+        if key in seen or not expanded.is_dir():
+            continue
+        seen.add(key)
+        roots.append(expanded)
+    return roots
+
+
+def path_is_watched(path):
+    """Return True for files that represent Antigravity conversation activity."""
+    path = Path(path)
+    if path.suffix in (".pb", ".db"):
+        return True
+    return path.name.startswith("transcript") and path.suffix == ".jsonl"
+
+
+def extract_guid(path):
+    """Extract conversation GUID from supported Antigravity state file paths."""
+    path = Path(path)
+    if path.suffix in (".pb", ".db"):
+        return path.stem
+
+    if path.name.startswith("transcript") and path.suffix == ".jsonl":
+        parts = path.parts
+        if "brain" in parts:
+            idx = parts.index("brain")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+
+    return ""
 
 
 def emit_event(event_name, guid, cwd):
@@ -90,7 +159,7 @@ class ConversationWatcher(FileSystemEventHandler):
     ACTIVE → file modified → update timestamp (no event)
     ACTIVE → 25s silence   → emit Stop             → IDLE
 
-    New .pb file created   → emit SessionStart      → ACTIVE
+    New state file created → emit SessionStart      → ACTIVE
 
     Tool call gaps (5-15s) never cross the 25s threshold,
     so the state stays ACTIVE and no spurious events fire.
@@ -103,33 +172,32 @@ class ConversationWatcher(FileSystemEventHandler):
         # guid → {"state", "last_mod", "last_stop"}
         self.conversations = {}
 
-        # Pre-register existing .pb files as IDLE so we don't
+        # Pre-register existing files as IDLE so we don't
         # false-trigger events on startup
-        if os.path.isdir(CONVERSATIONS_DIR):
-            for f in os.listdir(CONVERSATIONS_DIR):
-                if f.endswith(".pb"):
-                    guid = f.replace(".pb", "")
-                    self.conversations[guid] = {
-                        "state": IDLE,
-                        "last_mod": 0,
-                        "last_stop": 0,
-                    }
-            log.info(f"Pre-registered {len(self.conversations)} existing conversations")
+        for root in watched_roots():
+            for path in root.rglob("*"):
+                if not path.is_file() or not path_is_watched(path):
+                    continue
+                guid = extract_guid(path)
+                if not guid:
+                    continue
+                self.conversations[guid] = {
+                    "state": IDLE,
+                    "last_mod": 0,
+                    "last_stop": 0,
+                }
+        log.info(f"Pre-registered {len(self.conversations)} existing conversations")
 
     def _in_grace_period(self):
         """Suppress events during the startup grace period."""
         return (time.time() - self.start_time) < STARTUP_GRACE
 
-    def _extract_guid(self, path):
-        """Extract conversation GUID from filename (e.g. 'abc123.pb' → 'abc123')."""
-        return os.path.basename(path).split(".")[0]
-
     def _on_file_activity(self, path):
-        """Handle any .pb file modification or creation."""
-        if not path.endswith(".pb"):
+        """Handle any supported conversation file modification or creation."""
+        if not path_is_watched(path):
             return
 
-        guid = self._extract_guid(path)
+        guid = extract_guid(path)
         if not guid:
             return
 
@@ -198,24 +266,40 @@ class ConversationWatcher(FileSystemEventHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Antigravity conversation watcher")
-    parser.add_argument("--cwd", default=os.getcwd(), help="Working directory for event payloads")
-    args = parser.parse_args()
+    if Observer is None:
+        log.error("Python 'watchdog' module not found. Install it: pip3 install watchdog")
+        return 1
 
-    # Wait for conversations directory
-    if not os.path.isdir(CONVERSATIONS_DIR):
-        log.info(f"Waiting for {CONVERSATIONS_DIR}...")
-        while not os.path.isdir(CONVERSATIONS_DIR):
+    cwd = os.getcwd()
+    if "--cwd" in sys.argv:
+        idx = sys.argv.index("--cwd")
+        if idx + 1 < len(sys.argv):
+            cwd = sys.argv[idx + 1]
+
+    roots = watched_roots()
+    if not roots:
+        expected = ", ".join(str(p) for base in ANTIGRAVITY_DIRS for p in (base / "conversations", base / "brain"))
+        log.info(f"Waiting for Antigravity conversation state directories: {expected}")
+        while not roots:
             time.sleep(2)
+            roots = watched_roots()
 
-    handler = ConversationWatcher(cwd=args.cwd)
+    handler = ConversationWatcher(cwd=cwd)
 
-    log.info(f"Watching: {CONVERSATIONS_DIR}")
+    log.info("Watching: " + ", ".join(str(root) for root in roots))
     log.info(f"Idle threshold: {IDLE_THRESHOLD}s")
     log.info(f"Grace period: {STARTUP_GRACE}s")
 
-    observer = Observer()
-    observer.schedule(handler, CONVERSATIONS_DIR, recursive=False)
+    observer_kind = os.environ.get("ANTIGRAVITY_OBSERVER", "").strip().lower()
+    if observer_kind == "polling":
+        observer = PollingObserver(timeout=CHECK_INTERVAL)
+        log.info("Observer: polling")
+    else:
+        observer = Observer()
+        log.info("Observer: native")
+
+    for root in roots:
+        observer.schedule(handler, str(root), recursive=True)
     observer.start()
 
     def shutdown(signum, frame):

@@ -270,19 +270,9 @@ if [ "${PEON_ADAPTER_TEST:-0}" = "1" ]; then
   return 0 2>/dev/null || exit 0
 fi
 
-# --- Wait for conversations dir ---
-if [ ! -d "$CONVERSATIONS_DIR" ]; then
-  warn "Antigravity conversations directory not found: $CONVERSATIONS_DIR"
-  warn "Waiting for Antigravity to create it..."
-  while [ ! -d "$CONVERSATIONS_DIR" ]; do
-    sleep 2
-  done
-  info "Conversations directory detected."
-fi
-
 # --- Start watching ---
 info "${BOLD}peon-ping Antigravity adapter (Python watcher)${RESET}"
-info "Watching: $CONVERSATIONS_DIR"
+info "Watching: Antigravity conversation state directories"
 info "Watcher: python3 + watchdog"
 info "Press Ctrl+C to stop."
 echo ""

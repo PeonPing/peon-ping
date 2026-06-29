@@ -63,16 +63,24 @@ class TestConversationWatcher(unittest.TestCase):
     def setUp(self):
         """Create a temp conversations directory."""
         self.tmpdir = tempfile.mkdtemp()
+        self.brain_dir = os.path.join(self.tmpdir, "brain")
+        os.makedirs(self.brain_dir, exist_ok=True)
         self.orig_dir = os.environ.get("ANTIGRAVITY_CONVERSATIONS_DIR")
 
         # Patch the module-level constant
         from importlib import import_module
         self.watcher_mod = import_module("antigravity-watcher")
         self._orig_conv_dir = self.watcher_mod.CONVERSATIONS_DIR
+        self._orig_brain_dir = self.watcher_mod.BRAIN_DIR
+        self._orig_antigravity_dirs = self.watcher_mod.ANTIGRAVITY_DIRS
         self.watcher_mod.CONVERSATIONS_DIR = self.tmpdir
+        self.watcher_mod.BRAIN_DIR = self.brain_dir
+        self.watcher_mod.ANTIGRAVITY_DIRS = []
 
     def tearDown(self):
         self.watcher_mod.CONVERSATIONS_DIR = self._orig_conv_dir
+        self.watcher_mod.BRAIN_DIR = self._orig_brain_dir
+        self.watcher_mod.ANTIGRAVITY_DIRS = self._orig_antigravity_dirs
         import shutil
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
@@ -97,6 +105,45 @@ class TestConversationWatcher(unittest.TestCase):
             handler._on_file_activity(pb_path)
 
         # Should have emitted SessionStart
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0][0], "SessionStart")
+        self.assertEqual(events[0][1], guid)
+
+    def test_new_db_conversation_emits_session_start(self):
+        """A new .db file should emit SessionStart for newer Antigravity layouts."""
+        handler = self._create_watcher(grace=30)
+
+        events = []
+        with patch.object(self.watcher_mod, "emit_event", side_effect=lambda *a: events.append(a)):
+            guid = "test-guid-db-001"
+            db_path = os.path.join(self.tmpdir, f"{guid}.db")
+            open(db_path, "w").close()
+
+            handler._on_file_activity(db_path)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0][0], "SessionStart")
+        self.assertEqual(events[0][1], guid)
+
+    def test_transcript_path_extracts_brain_guid(self):
+        """Transcript JSONL files should map to the brain conversation GUID."""
+        handler = self._create_watcher(grace=30)
+
+        guid = "test-guid-transcript-001"
+        transcript_dir = os.path.join(
+            self.brain_dir,
+            guid,
+            ".system_generated",
+            "logs",
+        )
+        os.makedirs(transcript_dir, exist_ok=True)
+        transcript_path = os.path.join(transcript_dir, "transcript.jsonl")
+        open(transcript_path, "w").close()
+
+        events = []
+        with patch.object(self.watcher_mod, "emit_event", side_effect=lambda *a: events.append(a)):
+            handler._on_file_activity(transcript_path)
+
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0][0], "SessionStart")
         self.assertEqual(events[0][1], guid)
@@ -212,8 +259,36 @@ class TestConversationWatcher(unittest.TestCase):
         self.assertIn(guid, handler.conversations)
         self.assertEqual(handler.conversations[guid]["state"], "idle")
 
+    def test_pre_registers_existing_db_files(self):
+        """Existing .db files at startup should be pre-registered as idle."""
+        guid = "existing-guid-db-008"
+        db_path = os.path.join(self.tmpdir, f"{guid}.db")
+        open(db_path, "w").close()
+
+        handler = self._create_watcher(grace=30)
+
+        self.assertIn(guid, handler.conversations)
+        self.assertEqual(handler.conversations[guid]["state"], "idle")
+
+    def test_pre_registers_existing_transcript_files(self):
+        """Existing transcript files should be pre-registered by brain GUID."""
+        guid = "existing-guid-transcript-009"
+        transcript_dir = os.path.join(
+            self.brain_dir,
+            guid,
+            ".system_generated",
+            "logs",
+        )
+        os.makedirs(transcript_dir, exist_ok=True)
+        open(os.path.join(transcript_dir, "transcript_full.jsonl"), "w").close()
+
+        handler = self._create_watcher(grace=30)
+
+        self.assertIn(guid, handler.conversations)
+        self.assertEqual(handler.conversations[guid]["state"], "idle")
+
     def test_non_pb_files_ignored(self):
-        """Non-.pb files should be completely ignored."""
+        """Unsupported files should be completely ignored."""
         handler = self._create_watcher(grace=30)
 
         events = []

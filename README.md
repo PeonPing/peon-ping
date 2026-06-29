@@ -728,7 +728,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Kilo CLI** | Adapter | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1` ([setup](#kilo-cli-setup)) |
 | **Kiro** | Adapter | Add hook entries pointing to `adapters/kiro.sh` (or `.ps1`) ([setup](#kiro-setup)) |
 | **Windsurf** | Adapter | Add hook entries pointing to `adapters/windsurf.sh` (or `.ps1`) ([setup](#windsurf-setup)) |
-| **Google Antigravity** | Adapter | `bash adapters/antigravity.sh` / `powershell adapters/antigravity.ps1`. For headless / macOS LaunchAgent use, also see `bash adapters/antigravity-py.sh --install` (Python `watchdog` watcher with 25s idle threshold; requires `pip3 install watchdog`). |
+| **Google Antigravity** | Adapter | `bash adapters/antigravity.sh` / `powershell adapters/antigravity.ps1`. For headless / macOS LaunchAgent use, also see `bash adapters/antigravity-py.sh --install` (Python `watchdog` watcher with 25s idle threshold; requires `pip3 install watchdog`). The Python watcher supports legacy `conversations/*.pb` state plus newer `antigravity-cli` / `antigravity-ide` `conversations/*.db` and `brain/**/transcript*.jsonl` layouts. |
 | **Kimi Code** | Adapter | `bash adapters/kimi.sh --install` / `powershell adapters/kimi.ps1 -Install` ([setup](#kimi-code-setup)) |
 | **OpenClaw** | Adapter | Call `adapters/openclaw.sh <event>` (or `openclaw.ps1`) from your OpenClaw skill |
 | **Rovo Dev CLI** | Adapter | Auto-registered by `install.sh` if `~/.rovodev` exists, or add hooks to `~/.rovodev/config.yml` manually ([setup](#rovo-dev-cli-setup)) |
