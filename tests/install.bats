@@ -176,6 +176,39 @@ print('OK')
 "
 }
 
+@test "update preserves a sibling notify.sh hook from another tool (e.g. deckard)" {
+  # First install to establish peon hooks
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$TEST_HOME/.claude/settings.json" ]
+
+  # Another tool registers its own notify.sh hook in events peon also uses.
+  # The command literally contains 'notify.sh', which the installer used to
+  # over-match and strip (deleting the other tool's hooks).
+  /usr/bin/python3 -c "
+import json
+p = '$TEST_HOME/.claude/settings.json'
+s = json.load(open(p))
+for event in ('Notification', 'SessionStart', 'Stop'):
+    s['hooks'].setdefault(event, [])
+    s['hooks'][event].append({'matcher': '', 'hooks': [{'type': 'command', 'command': 'bash ~/.deckard/hooks/notify.sh ' + event.lower()}]})
+json.dump(s, open(p, 'w'), indent=2)
+"
+
+  # Re-run install (simulates peon update)
+  bash "$CLONE_DIR/install.sh"
+
+  # The sibling notify.sh hooks must survive, and peon must still be registered
+  /usr/bin/python3 -c "
+import json
+s = json.load(open('$TEST_HOME/.claude/settings.json'))
+for event in ('Notification', 'SessionStart', 'Stop'):
+    cmds = [h.get('command','') for entry in s['hooks'].get(event, []) for h in entry.get('hooks', [])]
+    assert any('.deckard/hooks/notify.sh' in c for c in cmds), event + ' lost sibling notify.sh: ' + repr(cmds)
+    assert any('peon.sh' in c for c in cmds), event + ' missing peon.sh after update'
+print('OK')
+"
+}
+
 @test "fresh install creates VERSION file" {
   bash "$CLONE_DIR/install.sh"
   [ -f "$INSTALL_DIR/VERSION" ]
@@ -329,6 +362,37 @@ print('OK')
   # Install and skill directories removed
   [ ! -d "$LOCAL_INSTALL_DIR" ]
   [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-toggle" ]
+}
+
+@test "--local uninstall preserves a sibling notify.sh hook from another tool" {
+  cd "$PROJECT_DIR"
+  bash "$CLONE_DIR/install.sh" --local
+  [ -f "$PROJECT_DIR/.claude/settings.json" ]
+
+  # Another tool registers its own notify.sh hook alongside peon's
+  /usr/bin/python3 -c "
+import json
+p = '$PROJECT_DIR/.claude/settings.json'
+s = json.load(open(p))
+for event in ('Notification', 'SessionStart', 'Stop'):
+    s['hooks'].setdefault(event, [])
+    s['hooks'][event].append({'matcher': '', 'hooks': [{'type': 'command', 'command': 'bash ~/.deckard/hooks/notify.sh ' + event.lower()}]})
+json.dump(s, open(p, 'w'), indent=2)
+"
+
+  # Run uninstall
+  bash "$LOCAL_INSTALL_DIR/uninstall.sh"
+
+  # peon hooks gone, sibling notify.sh hooks preserved
+  /usr/bin/python3 -c "
+import json
+s = json.load(open('$PROJECT_DIR/.claude/settings.json'))
+hooks = s.get('hooks', {})
+all_cmds = [h.get('command','') for entries in hooks.values() for entry in entries for h in entry.get('hooks', [])]
+assert not any('peon.sh' in c for c in all_cmds), 'peon.sh survived uninstall: ' + repr(all_cmds)
+assert any('.deckard/hooks/notify.sh' in c for c in all_cmds), 'sibling notify.sh was wiped by uninstall: ' + repr(all_cmds)
+print('OK')
+"
 }
 
 @test "--local hook paths point to project directory not global" {

@@ -1143,6 +1143,28 @@ import json, os, sys
 
 settings_path = '$(py_path "$HOOK_SETTINGS")'
 hook_cmd = '$(py_path "$HOOK_CMD")'
+install_dir = '$(py_path "$INSTALL_DIR")'
+_home = os.path.expanduser('~')
+# peon's own notify.sh is either bundled under the peon-ping dir or the legacy
+# <base>/hooks/notify.sh one level above it. Match absolute and ~-relative
+# forms so we catch the path however the stored command spells it.
+_legacy_notify = os.path.join(os.path.dirname(install_dir), 'notify.sh')
+def _path_markers(p):
+    m = [p]
+    if p.startswith(_home):
+        m.append('~' + p[len(_home):])
+    return m
+_peon_notify_markers = _path_markers(install_dir) + _path_markers(_legacy_notify)
+
+def _is_peon_hook(cmd):
+    # Only strip hooks peon installed. 'notify.sh' is a generic name other
+    # tools register too (e.g. ~/.deckard/hooks/notify.sh), so qualify it to
+    # peon's own copy; sibling tools' notify.sh hooks must survive.
+    if 'peon.sh' in cmd:
+        return True
+    if 'notify.sh' in cmd:
+        return any(m in cmd for m in _peon_notify_markers)
+    return False
 
 # Load existing settings
 if os.path.exists(settings_path):
@@ -1201,8 +1223,7 @@ for event in events:
         h = dict(h)
         h['hooks'] = [
             hk for hk in h.get('hooks', [])
-            if 'notify.sh' not in hk.get('command', '')
-            and 'peon.sh' not in hk.get('command', '')
+            if not _is_peon_hook(hk.get('command', ''))
         ]
         if h['hooks']:
             cleaned.append(h)
