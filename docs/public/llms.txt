@@ -74,7 +74,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - Kiro (Amazon)
 - Kimi Code (MoonshotAI; filesystem watcher for Wire Mode events; --install registers a macOS LaunchAgent that survives reboots, falls back to nohup+pidfile on Linux or with KIMI_NO_LAUNCHD=1; install with `bash install.sh --kimi` to land files under ~/.kimi/hooks/peon-ping/ with no Claude dependency, or auto-detected when ~/.kimi exists and ~/.claude does not; when ~/.claude/hooks/peon-ping/packs/ already exists, --kimi symlinks ~/.kimi/.../packs at it so a single pack download serves both IDEs. Pass --no-shared-packs or --packs=/--all to keep them separate)
 - Windsurf (Codeium)
-- Google Antigravity (shell adapter at adapters/antigravity.sh + .ps1; Python-watchdog variant at adapters/antigravity-py.sh for headless / macOS LaunchAgent use, 25s idle threshold, requires pip3 install watchdog)
+- Google Antigravity (shell adapter at adapters/antigravity.sh + .ps1; Python-watchdog variant at adapters/antigravity-py.sh for headless / macOS LaunchAgent use, 25s idle threshold, requires pip3 install watchdog; watches legacy conversations/*.pb plus newer antigravity-cli / antigravity-ide conversations/*.db and brain transcript*.jsonl layouts)
 - OpenClaw (via adapters/openclaw.sh — call with any CESP category or Claude Code event name)
 - Rovo Dev CLI (Atlassian — adapter for on_complete, on_error, on_tool_permission, on_user_prompt, on_tool_start, on_tool_end, on_session_start, on_session_end events; install.sh --rovodev-only backfills any missing events into existing configs)
 - DeepAgents (adapter — translates deepagents-cli events to CESP JSON)

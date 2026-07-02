@@ -1,3 +1,12 @@
+## v2.33.0 (2026-07-01)
+
+### Added
+- **Antigravity watcher supports the newer `antigravity-cli` / `antigravity-ide` state layouts.** Some Antigravity installs write conversation state under `~/.gemini/antigravity-cli/conversations/*.db` and `brain/<id>/.system_generated/logs/transcript*.jsonl` instead of the legacy `~/.gemini/antigravity/conversations/*.pb`, and the Python watcher could start cleanly while missing those sessions entirely. The watcher now discovers all three layouts (legacy `.pb`, newer `.db`, and brain transcript JSONL), handles multi-layout directory discovery itself instead of blocking in the shell wrapper on the legacy path, and gains `ANTIGRAVITY_OBSERVER=polling` as an opt-in fallback when watchdog's native observer is unavailable plus an `ANTIGRAVITY_STARTUP_GRACE` override. State-machine test coverage added for `.db` files and brain transcript paths. Documented in `README.md`, `README_zh.md`, `README_ja.md`, and `docs/public/llms.txt`. PR #542, thanks @JackFurton.
+
+### Fixed
+- **Leading audio no longer clipped on the first sound after idle.** `engine.start()` returns before the output device actually streams PCM, so on an idle device (worst on Bluetooth A2DP, which suspends within seconds and takes ~100-300ms to wake) the first samples landed on a sink that wasn't live yet and the opening syllable was dropped ("appy to" instead of "Happy to"). `peon-play` now schedules a short silent buffer before the file (default 300ms, tunable via a new `-p <ms>` flag) so the real audio starts on a live stream. Existing call sites are unchanged. PR #544, thanks @trogulja. Closes #543.
+- **install.sh / uninstall.sh no longer delete other tools' hooks named `notify.sh`.** Both scripts stripped peon's hooks from `settings.json` with a bare substring match on `notify.sh`, a generic filename, so any sibling hook whose command contained it (for example another tool's `~/.deckard/hooks/notify.sh`) was silently deleted on every peon install, update, or uninstall. The match is now qualified to peon's own copy (the bundled one under the install dir, or the legacy `<base>/hooks/notify.sh`), in both absolute and `~`-relative path forms. Two regression tests added to `tests/install.bats`. PR #546, thanks @trogulja. Closes #545.
+
 ## v2.32.0 (2026-06-27)
 
 ### Added
