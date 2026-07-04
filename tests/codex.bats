@@ -76,6 +76,14 @@ assert last.get('cwd') == '/tmp/codex-proj', last
 "
 }
 
+@test "legacy argv event ignores redirected stdin" {
+  run_codex "agent-turn-complete" '{"hook_event_name":"PermissionRequest","session_id":"stdin-ignored"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
+}
+
 # ============================================================
 # Stable Codex hooks (stdin hook_event_name, PascalCase)
 # ============================================================
@@ -96,12 +104,32 @@ assert last.get('cwd') == '/tmp/codex-proj', last
   [[ "$sound" == *"/packs/peon/sounds/Done"* ]]
 }
 
-@test "stable failed PostToolUse maps to PostToolUseFailure (error sound)" {
-  run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_response":{"exit_code":1}}'
+@test "stable PermissionRequest maps to input.required and plays permission sound" {
+  run_codex "" '{"hook_event_name":"PermissionRequest","tool_name":"Bash","session_id":"s1"}'
   [ "$CODEX_EXIT" -eq 0 ]
   afplay_was_called
   sound=$(afplay_sound)
-  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+  [[ "$sound" == *"/packs/peon/sounds/Perm"* ]]
+}
+
+@test "stable PreCompact maps to resource.limit and plays limit sound" {
+  run_codex "" '{"hook_event_name":"PreCompact","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Limit"* ]]
+}
+
+@test "stable SubagentStart is silent" {
+  run_codex "" '{"hook_event_name":"SubagentStart","session_id":"s1","agent_id":"a1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "stable failed PostToolUse is silent" {
+  run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_response":{"exit_code":1}}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  ! afplay_was_called
 }
 
 @test "stable successful PostToolUse is silent" {
@@ -122,26 +150,26 @@ assert last.get('cwd') == '/tmp/codex-proj', last
   ! afplay_was_called
 }
 
-@test "stable PostToolUse failure via top-level exit_code plays error sound" {
+@test "stable PostCompact is silent" {
+  run_codex "" '{"hook_event_name":"PostCompact","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "stable PostToolUse failure via top-level exit_code is silent" {
   run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","exit_code":2}'
   [ "$CODEX_EXIT" -eq 0 ]
-  afplay_was_called
-  sound=$(afplay_sound)
-  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+  ! afplay_was_called
 }
 
-@test "stable PostToolUse failure via success=false plays error sound" {
+@test "stable PostToolUse failure via success=false is silent" {
   run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","success":"false"}'
   [ "$CODEX_EXIT" -eq 0 ]
-  afplay_was_called
-  sound=$(afplay_sound)
-  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+  ! afplay_was_called
 }
 
-@test "stable PostToolUse failure via tool_response.is_error plays error sound" {
+@test "stable PostToolUse failure via tool_response.is_error is silent" {
   run_codex "" '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_response":{"is_error":true}}'
   [ "$CODEX_EXIT" -eq 0 ]
-  afplay_was_called
-  sound=$(afplay_sound)
-  [[ "$sound" == *"/packs/peon/sounds/Error"* ]]
+  ! afplay_was_called
 }

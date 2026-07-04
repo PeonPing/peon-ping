@@ -1,19 +1,15 @@
 # peon-ping adapter for OpenAI Codex CLI (Windows)
 # Translates Codex events into peon.ps1 stdin JSON.
 #
-# Codex now ships a stable hook event set (SessionStart, UserPromptSubmit,
-# PreToolUse, PostToolUse, Stop) delivered as JSON on stdin with a
+# Codex ships a stable hook event set delivered as JSON on stdin with a
 # `hook_event_name` field. This adapter maps those to CESP, AND preserves the
 # legacy `notify` callback (event name passed as argv, fires on turn-yield)
-# as a non-breaking fallback.
+# as a non-breaking fallback. PostToolUse is deliberately ignored because Codex
+# does not expose a separate failure-only hook and successful tool hooks are too
+# noisy for peon-ping.
 #
-# Setup (recommended — stable hooks): add Codex hooks pointing at this script,
-#   e.g. in ~/.codex/config.toml:
-#     [hooks]
-#     SessionStart = "powershell -NoProfile -File C:\\Users\\YOU\\.claude\\hooks\\peon-ping\\adapters\\codex.ps1"
-#     PostToolUse  = "powershell -NoProfile -File C:\\Users\\YOU\\.claude\\hooks\\peon-ping\\adapters\\codex.ps1"
-#     Stop         = "powershell -NoProfile -File C:\\Users\\YOU\\.claude\\hooks\\peon-ping\\adapters\\codex.ps1"
-#   (Consult `codex` docs for the exact hooks config for your version.)
+# Setup (recommended — stable hooks): re-run install.ps1 after Codex creates
+#   ~/.codex, or point Codex's stable lifecycle hooks at this script.
 #
 # Setup (legacy — still supported): notify = ["powershell", "-NoProfile", "-File", "...codex.ps1"]
 
@@ -60,24 +56,12 @@ if (-not $rawEvent) { $rawEvent = "agent-turn-complete" }
 $eventKey = $rawEvent.ToString().Trim().ToLower().Replace("_", "-")
 $notifType = "$(Get-Field $inputJson 'notification_type')".Trim().ToLower()
 
-function Test-ToolFailure {
-    if (Get-Field $inputJson 'error') { return $true }
-    $tr = Get-Field $inputJson 'tool_response'
-    if ($tr) {
-        if ((Get-Field $tr 'error') -or (Get-Field $tr 'is_error') -or (Get-Field $tr 'isError')) { return $true }
-        $ec = Get-Field $tr 'exit_code'; if ($null -eq $ec) { $ec = Get-Field $tr 'exitCode' }
-        if ($null -ne $ec) { try { if ([int]$ec -ne 0) { return $true } } catch {} }
-    }
-    $ec2 = Get-Field $inputJson 'exit_code'; if ($null -eq $ec2) { $ec2 = Get-Field $inputJson 'exitCode' }
-    if ($null -ne $ec2) { try { if ([int]$ec2 -ne 0) { return $true } } catch {} }
-    if ("$(Get-Field $inputJson 'success')".ToLower() -eq "false") { return $true }
-    return $false
-}
-
 $mapped = $null
 $ntype = $notifType
 
-if ($eventKey.StartsWith("permission") -or $eventKey.StartsWith("approve") -or
+if ($eventKey -in @("permissionrequest", "permission-request")) {
+    $mapped = "PermissionRequest"
+} elseif ($eventKey.StartsWith("permission") -or $eventKey.StartsWith("approve") -or
     $eventKey -in @("approval-requested", "approval-needed", "input-required") -or
     $notifType -eq "permission_prompt") {
     $mapped = "Notification"; $ntype = "permission_prompt"
@@ -85,14 +69,22 @@ if ($eventKey.StartsWith("permission") -or $eventKey.StartsWith("approve") -or
     $mapped = "SessionStart"
 } elseif ($eventKey -in @("sessionend", "session-end")) {
     $mapped = "SessionEnd"
+} elseif ($eventKey -in @("subagentstart", "subagent-start")) {
+    $mapped = "SubagentStart"
+} elseif ($eventKey -in @("subagentstop", "subagent-stop")) {
+    $mapped = "SubagentStop"
 } elseif ($eventKey -in @("userpromptsubmit", "user-prompt-submit")) {
     $mapped = "UserPromptSubmit"
+} elseif ($eventKey -in @("precompact", "pre-compact")) {
+    $mapped = "PreCompact"
+} elseif ($eventKey -in @("postcompact", "post-compact")) {
+    exit 0
 } elseif ($eventKey -eq "idle-prompt") {
     $mapped = "Notification"; $ntype = "idle_prompt"
 } elseif ($eventKey -in @("pretooluse", "pre-tool-use")) {
     exit 0   # fires before every tool — too noisy
 } elseif ($eventKey -in @("posttooluse", "post-tool-use")) {
-    if (Test-ToolFailure) { $mapped = "PostToolUseFailure" } else { exit 0 }
+    exit 0   # Codex has no separate PostToolUseFailure hook
 } elseif ($eventKey.StartsWith("error") -or $eventKey.StartsWith("fail")) {
     $mapped = "PostToolUseFailure"
 } elseif ($eventKey -in @("stop", "agent-turn-complete", "turn-complete", "complete", "done")) {
@@ -122,6 +114,14 @@ $payload = @{
     permission_mode   = "$(Get-Field $inputJson 'permission_mode')"
     source            = "codex"
 }
+
+$agentId = "$(Get-Field $inputJson 'agent_id')"
+if (-not $agentId) { $agentId = "$(Get-Field $inputJson 'subagent_id')" }
+if ($agentId) { $payload["agent_id"] = $agentId }
+
+$agentType = "$(Get-Field $inputJson 'agent_type')"
+if (-not $agentType) { $agentType = "$(Get-Field $inputJson 'subagent_type')" }
+if ($agentType) { $payload["agent_type"] = $agentType }
 
 if ($mapped -eq "PostToolUseFailure") {
     $tn = "$(Get-Field $inputJson 'tool_name')"

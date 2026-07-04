@@ -1813,7 +1813,8 @@ if os.path.isdir(codex_dir):
             codex_cfg_text = open(codex_config).read()
             codex_installed = (
                 'adapters/codex.sh' in codex_cfg_text or
-                'adapters/codex.ps1' in codex_cfg_text
+                'adapters/codex.ps1' in codex_cfg_text or
+                'adapters\\\\codex.ps1' in codex_cfg_text
             )
         except Exception:
             codex_installed = False

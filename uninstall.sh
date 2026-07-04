@@ -152,6 +152,149 @@ _remove_copilot_hooks() {
   echo "Removed Copilot CLI hooks: $copilot_hooks"
 }
 
+# Remove Codex hooks managed by peon-ping in ~/.codex/config.toml
+_remove_codex_hooks() {
+  local codex_config="$HOME/.codex/config.toml"
+  [ -f "$codex_config" ] || return 0
+
+  CODEX_CONFIG_PATH="$codex_config" PEON_INSTALL_DIR="$INSTALL_DIR" python3 <<'PY'
+import os
+import re
+
+config_path = os.environ['CODEX_CONFIG_PATH']
+install_dir = os.environ['PEON_INSTALL_DIR']
+begin = '# peon-ping Codex hooks begin'
+end = '# peon-ping Codex hooks end'
+
+def normalize_codex_path(value):
+    value = str(value or '').strip().strip('"').strip("'")
+    value = value.replace('\\\\', '\\').replace('\\', '/')
+    return value.rstrip('/')
+
+def marker_variants(path):
+    variants = set()
+    if path:
+        variants.add(normalize_codex_path(path))
+    home = os.path.expanduser('~')
+    if path.startswith(home):
+        variants.add(normalize_codex_path('~' + path[len(home):]))
+    return {v for v in variants if v}
+
+install_markers = marker_variants(install_dir)
+adapter_markers = set()
+for adapter_name in ('codex.sh', 'codex.ps1'):
+    adapter_markers.update(marker_variants(os.path.join(install_dir, 'adapters', adapter_name)))
+
+_path_chars = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/-')
+
+def text_has_path_token(text, path):
+    text = normalize_codex_path(text)
+    path = normalize_codex_path(path)
+    start = 0
+    while True:
+        idx = text.find(path, start)
+        if idx < 0:
+            return False
+        before = text[idx - 1] if idx > 0 else ''
+        after_idx = idx + len(path)
+        after = text[after_idx] if after_idx < len(text) else ''
+        before_ok = not before or before not in _path_chars
+        after_ok = not after or after not in _path_chars
+        if before_ok and after_ok:
+            return True
+        start = idx + 1
+
+def block_install_dir(text):
+    match = re.search(r'(?m)^\s*#\s*install_dir\s*=\s*(.*?)\s*$', text)
+    return normalize_codex_path(match.group(1)) if match else ''
+
+try:
+    with open(config_path) as f:
+        original = f.read()
+except Exception:
+    raise SystemExit(0)
+
+def is_current_peon_codex(text):
+    if 'peon-ping' not in text:
+        return False
+    if not re.search(r'adapters[\\/]+codex\.(sh|ps1)', text):
+        return False
+    explicit_install_dir = block_install_dir(text)
+    if explicit_install_dir:
+        return explicit_install_dir in install_markers
+    return any(text_has_path_token(text, adapter_path) for adapter_path in adapter_markers)
+
+def remove_current_managed_blocks(text):
+    def replace(match):
+        block = match.group(0)
+        return '\n' if is_current_peon_codex(block) else block
+    return re.sub(
+        r'(?ms)\n?# peon-ping Codex hooks begin.*?# peon-ping Codex hooks end\n?',
+        replace,
+        text,
+    )
+
+def bracket_delta(line):
+    delta = 0
+    quote = ''
+    escaped = False
+    for ch in line:
+        if quote:
+            if quote == '"' and escaped:
+                escaped = False
+                continue
+            if quote == '"' and ch == '\\':
+                escaped = True
+                continue
+            if ch == quote:
+                quote = ''
+            continue
+        if ch in ('"', "'"):
+            quote = ch
+        elif ch == '#':
+            break
+        elif ch == '[':
+            delta += 1
+        elif ch == ']':
+            delta -= 1
+    return delta
+
+def remove_current_legacy_notify(text):
+    lines = text.splitlines()
+    kept = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if re.match(r'^notify\s*=', stripped):
+            block = [line]
+            balance = bracket_delta(line)
+            i += 1
+            while balance > 0 and i < len(lines):
+                block.append(lines[i])
+                balance += bracket_delta(lines[i])
+                i += 1
+            block_text = '\n'.join(block)
+            if is_current_peon_codex(block_text):
+                continue
+            kept.extend(block)
+            continue
+        kept.append(line)
+        i += 1
+    return '\n'.join(kept).rstrip()
+
+content = remove_current_managed_blocks(original)
+content = remove_current_legacy_notify(content)
+if content:
+    content += '\n'
+
+if content != original:
+    with open(config_path, 'w') as f:
+        f.write(content)
+    print('Removed Codex hooks from ~/.codex/config.toml')
+PY
+}
+
 echo "Removing peon hooks from settings.json..."
 _remove_peon_hooks "$SETTINGS"
 
@@ -168,6 +311,10 @@ _remove_cursor_hooks
 # Remove Copilot CLI hooks
 echo "Removing Copilot CLI hooks..."
 _remove_copilot_hooks
+
+# Remove OpenAI Codex hooks
+echo "Removing Codex hooks..."
+_remove_codex_hooks
 
 # --- Restore notify.sh backup (global install only) ---
 if [ "$IS_LOCAL" = false ] && [ -f "$NOTIFY_BACKUP" ]; then

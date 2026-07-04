@@ -1217,6 +1217,49 @@ TOML
   rm -rf "$FAKE_HOME"
 }
 
+@test "status shows OpenAI Codex as installed when config has peon-managed hooks" {
+  FAKE_HOME="$(mktemp -d)"
+  mkdir -p "$FAKE_HOME/.codex"
+  cat > "$FAKE_HOME/.codex/config.toml" <<'TOML'
+model = "gpt-5"
+
+# peon-ping Codex hooks begin
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "powershell -NoProfile -File \"C:\\Users\\me\\.claude\\hooks\\peon-ping\\adapters\\codex.ps1\""
+timeout = 10
+# peon-ping Codex hooks end
+TOML
+
+  run env HOME="$FAKE_HOME" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] OpenAI Codex"* ]]
+  [[ "$output" == *"(installed)"* ]]
+
+  rm -rf "$FAKE_HOME"
+}
+
+@test "status does not treat stale Codex marker comments as installed" {
+  FAKE_HOME="$(mktemp -d)"
+  mkdir -p "$FAKE_HOME/.codex"
+  cat > "$FAKE_HOME/.codex/config.toml" <<'TOML'
+model = "gpt-5"
+
+# peon-ping Codex hooks begin
+# stale marker without an adapter command
+# peon-ping Codex hooks end
+TOML
+
+  run env HOME="$FAKE_HOME" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[ ] OpenAI Codex"* ]]
+  [[ "$output" == *"detected (not set up)"* ]]
+  [[ "$output" != *"[x] OpenAI Codex"* ]]
+
+  rm -rf "$FAKE_HOME"
+}
+
 @test "status default output omits verbose-only lines" {
   rm -f "$TEST_DIR/.paused"
   run bash "$PEON_SH" status

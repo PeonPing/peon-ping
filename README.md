@@ -722,7 +722,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Amp** | Adapter | `bash adapters/amp.sh` / `powershell adapters/amp.ps1` ([setup](#amp-setup)) |
 | **Gemini CLI** | Adapter | Add hooks pointing to `adapters/gemini.sh` (or `.ps1` on Windows) ([setup](#gemini-cli-setup)) |
 | **GitHub Copilot CLI** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers hooks at `~/.copilot/hooks/peon-ping.json` if `~/.copilot` exists. Per-repo manual wiring also available via `adapters/copilot.sh` / `.ps1` ([setup](#github-copilot-cli-setup)) |
-| **OpenAI Codex** | Adapter | Install the peon-ping runtime first, then add `notify` in `~/.codex/config.toml` pointing to `adapters/codex.sh` (or `.ps1`) ([setup](#openai-codex-setup)) |
+| **OpenAI Codex** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers stable hooks in `~/.codex/config.toml` if `~/.codex` exists. The adapter is also available for manual wiring ([setup](#openai-codex-setup)) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
 | **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
 | **Kilo CLI** | Adapter | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1` ([setup](#kilo-cli-setup)) |
@@ -744,13 +744,13 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 
 ### OpenAI Codex setup
 
-Codex support uses an adapter and is not auto-registered by `peon-ping-setup`.
+Codex support uses the stable Codex hooks API plus the peon-ping adapter. If `~/.codex` already exists, the Unix and Windows installers add a peon-managed block to `~/.codex/config.toml` automatically. If Codex is installed later, re-run the peon-ping installer.
 
-The Codex adapter expects the peon-ping runtime to exist at `~/.claude/hooks/peon-ping/`, even if you only use Codex and do not use Claude Code.
+The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PreCompact`, `SubagentStart`, `SubagentStop`, and `Stop`. `SessionStart` is matched for `startup`, `resume`, and `clear`; Codex compaction is handled by `PreCompact`, so compact-triggered `SessionStart` is skipped. `PreToolUse`, `PostToolUse`, and `PostCompact` are intentionally not registered; `PostToolUse` is ignored by the Codex adapter because Codex does not provide a separate failure-only hook and successful tool hooks are too noisy for peon-ping.
 
 **Setup:**
 
-1. Install the peon-ping runtime first:
+1. Install the peon-ping runtime:
 
    ```bash
    bash "$(brew --prefix peon-ping)"/libexec/install.sh --no-rc
@@ -762,15 +762,11 @@ The Codex adapter expects the peon-ping runtime to exist at `~/.claude/hooks/peo
    curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/install.sh | bash -s -- --no-rc
    ```
 
-2. Add this to `~/.codex/config.toml`:
+2. Open Codex and run `/hooks` if prompted. Codex requires non-managed command hooks to be reviewed and trusted before they run.
 
-   ```toml
-   notify = ["bash", "~/.claude/hooks/peon-ping/adapters/codex.sh"]
-   ```
+3. Restart Codex if it was already running during installation.
 
-3. Restart Codex.
-
-If you installed with Homebrew, the runtime files are managed under `~/.claude/hooks/peon-ping/`, and the Codex adapter forwards Codex notify events into that shared runtime.
+peon-ping writes inline hooks to `~/.codex/config.toml` instead of creating `hooks.json`, matching the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to avoid mixing both hook representations in the same config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
 
 ### Amp setup
 

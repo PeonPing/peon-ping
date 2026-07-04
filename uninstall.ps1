@@ -13,8 +13,14 @@ Write-Host "=== peon-ping uninstaller ===" -ForegroundColor Cyan
 Write-Host ""
 
 # --- Paths ---
-$ClaudeDir = Join-Path $env:USERPROFILE ".claude"
-$InstallDir = Join-Path $ClaudeDir "hooks\peon-ping"
+$DefaultClaudeDir = Join-Path $env:USERPROFILE ".claude"
+$DefaultInstallDir = Join-Path $DefaultClaudeDir "hooks\peon-ping"
+$ScriptInstallDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+$InstallDir = $DefaultInstallDir
+if ($ScriptInstallDir -and (Split-Path -Leaf $ScriptInstallDir) -eq "peon-ping" -and (Split-Path -Leaf (Split-Path -Parent $ScriptInstallDir)) -eq "hooks") {
+    $InstallDir = $ScriptInstallDir
+}
+$ClaudeDir = Split-Path -Parent (Split-Path -Parent $InstallDir)
 $SettingsFile = Join-Path $ClaudeDir "settings.json"
 $SkillsDir = Join-Path $ClaudeDir "skills"
 $CliBinDir = Join-Path $env:USERPROFILE ".local\bin"
@@ -157,6 +163,165 @@ if (Test-Path $CopilotHooksFile) {
         Write-Host "  Removed $CopilotHooksFile" -ForegroundColor Green
     } catch {
         Write-Host "  Warning: Could not remove ${CopilotHooksFile}: $_" -ForegroundColor Yellow
+    }
+}
+
+# --- Remove OpenAI Codex hooks ---
+$CodexConfigFile = Join-Path $env:USERPROFILE ".codex\config.toml"
+
+function Normalize-PeonCodexPath([string]$Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) { return "" }
+    $normalized = $Value.Trim().Trim('"').Trim("'")
+    $normalized = $normalized -replace '\\\\', '\'
+    $normalized = $normalized.Replace('\', '/')
+    return $normalized.TrimEnd('/')
+}
+
+function Get-PeonCodexMarkers([string]$InstallRoot) {
+    $markers = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
+        $markers.Add((Normalize-PeonCodexPath $InstallRoot))
+    }
+    if ($env:USERPROFILE -and $InstallRoot.StartsWith($env:USERPROFILE, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $relative = "~" + $InstallRoot.Substring($env:USERPROFILE.Length)
+        $markers.Add((Normalize-PeonCodexPath $relative))
+    }
+    return @($markers | Where-Object { $_ } | Select-Object -Unique)
+}
+
+function Get-PeonCodexAdapterMarkers([string]$InstallRoot) {
+    $markers = New-Object System.Collections.Generic.List[string]
+    foreach ($adapterName in @("codex.ps1", "codex.sh")) {
+        $adapterPath = Join-Path (Join-Path $InstallRoot "adapters") $adapterName
+        foreach ($marker in (Get-PeonCodexMarkers $adapterPath)) {
+            $markers.Add($marker)
+        }
+    }
+    return @($markers | Where-Object { $_ } | Select-Object -Unique)
+}
+
+function Test-PeonCodexPathToken([string]$Text, [string]$Path) {
+    $normalizedText = Normalize-PeonCodexPath $Text
+    $normalizedPath = Normalize-PeonCodexPath $Path
+    if (-not $normalizedPath) { return $false }
+    $pathChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/-"
+    $start = 0
+    while ($true) {
+        $idx = $normalizedText.IndexOf($normalizedPath, $start, [System.StringComparison]::OrdinalIgnoreCase)
+        if ($idx -lt 0) { return $false }
+        $before = if ($idx -gt 0) { [string]$normalizedText[$idx - 1] } else { "" }
+        $afterIdx = $idx + $normalizedPath.Length
+        $after = if ($afterIdx -lt $normalizedText.Length) { [string]$normalizedText[$afterIdx] } else { "" }
+        $beforeOk = (-not $before) -or ($pathChars.IndexOf($before) -lt 0)
+        $afterOk = (-not $after) -or ($pathChars.IndexOf($after) -lt 0)
+        if ($beforeOk -and $afterOk) { return $true }
+        $start = $idx + 1
+    }
+}
+
+function Get-PeonCodexBlockInstallDir([string]$Text) {
+    $match = [regex]::Match($Text, '(?m)^\s*#\s*install_dir\s*=\s*(.*?)\s*$')
+    if (-not $match.Success) { return "" }
+    return Normalize-PeonCodexPath $match.Groups[1].Value
+}
+
+function Test-PeonCodexTextForInstall([string]$Text, [string]$InstallRoot) {
+    if ($Text -notmatch "peon-ping") { return $false }
+    if ($Text -notmatch "adapters[\\/]+codex\.(sh|ps1)") { return $false }
+    $installMarkers = Get-PeonCodexMarkers $InstallRoot
+    $explicitInstallDir = Get-PeonCodexBlockInstallDir $Text
+    if ($explicitInstallDir) {
+        foreach ($marker in $installMarkers) {
+            if ([string]::Equals($explicitInstallDir, $marker, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        }
+        return $false
+    }
+    foreach ($adapterMarker in (Get-PeonCodexAdapterMarkers $InstallRoot)) {
+        if (Test-PeonCodexPathToken $Text $adapterMarker) { return $true }
+    }
+    return $false
+}
+
+function Get-PeonTomlBracketDelta([string]$Line) {
+    $delta = 0
+    $quote = [char]0
+    $escaped = $false
+    foreach ($ch in $Line.ToCharArray()) {
+        if ($quote -ne [char]0) {
+            if ($quote -eq '"' -and $escaped) {
+                $escaped = $false
+                continue
+            }
+            if ($quote -eq '"' -and $ch -eq [char]92) {
+                $escaped = $true
+                continue
+            }
+            if ($ch -eq $quote) { $quote = [char]0 }
+            continue
+        }
+        if ($ch -eq '"' -or $ch -eq "'") {
+            $quote = $ch
+        } elseif ($ch -eq '#') {
+            break
+        } elseif ($ch -eq '[') {
+            $delta++
+        } elseif ($ch -eq ']') {
+            $delta--
+        }
+    }
+    return $delta
+}
+
+function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
+    $managedPattern = '(?ms)\r?\n?# peon-ping Codex hooks begin.*?# peon-ping Codex hooks end\r?\n?'
+    $contentWithoutBlocks = ([regex]$managedPattern).Replace($Content, {
+        param($match)
+        if (Test-PeonCodexTextForInstall $match.Value $InstallRoot) { "`n" } else { $match.Value }
+    })
+
+    $lines = @($contentWithoutBlocks -split "\r?\n")
+    $kept = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        if ($line.Trim() -match '^notify\s*=') {
+            $blockLines = New-Object System.Collections.Generic.List[string]
+            $blockLines.Add($line)
+            $balance = Get-PeonTomlBracketDelta $line
+            while ($balance -gt 0 -and ($i + 1) -lt $lines.Count) {
+                $i++
+                $blockLines.Add($lines[$i])
+                $balance += Get-PeonTomlBracketDelta $lines[$i]
+            }
+            $blockText = $blockLines -join "`n"
+            if (Test-PeonCodexTextForInstall $blockText $InstallRoot) {
+                continue
+            }
+            foreach ($blockLine in $blockLines) { $kept.Add($blockLine) }
+        } else {
+            $kept.Add($line)
+        }
+    }
+    return ($kept -join "`n").TrimEnd()
+}
+
+if (Test-Path $CodexConfigFile) {
+    Write-Host ""
+    Write-Host "Removing Codex hooks..."
+    try {
+        $codexContent = Get-Content $CodexConfigFile -Raw
+        $originalCodexContent = $codexContent
+
+        $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
+        if ($codexContent) { $codexContent = "$codexContent`n" }
+
+        if ($codexContent -ne $originalCodexContent) {
+            Set-Content -Path $CodexConfigFile -Value $codexContent -Encoding UTF8
+            Write-Host "  Removed Codex hooks from $CodexConfigFile" -ForegroundColor Green
+        } else {
+            Write-Host "  No peon-ping Codex hooks found" -ForegroundColor DarkGray
+        }
+    } catch {
+        Write-Host "  Warning: Could not update ${CodexConfigFile}: $_" -ForegroundColor Yellow
     }
 }
 
