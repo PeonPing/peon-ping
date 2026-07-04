@@ -3826,6 +3826,9 @@ if (Test-Path $skillsSourceDir) {
         $skillUrl = "$RepoBase/skills/$skillName/SKILL.md"
         $skillFile = Join-Path $skillTarget "SKILL.md"
         try {
+            if (Test-Path $skillFile) {
+                Remove-Item -Path $skillFile -Force
+            }
             Invoke-WebRequest -Uri $skillUrl -OutFile $skillFile -UseBasicParsing -ErrorAction Stop
             Write-Host "  /$skillName" -ForegroundColor DarkGray
         } catch {

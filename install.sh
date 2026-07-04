@@ -855,6 +855,7 @@ install_skill() {
   local skill_name="$1"
   local skill_dir="$BASE_DIR/skills/$skill_name"
   mkdir -p "$skill_dir"
+  rm -f "$skill_dir/SKILL.md"
   if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/skills/$skill_name" ]; then
     cp "$SCRIPT_DIR/skills/$skill_name/SKILL.md" "$skill_dir/"
     rewrite_skill_paths "$skill_dir/SKILL.md"

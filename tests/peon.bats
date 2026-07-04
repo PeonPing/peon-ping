@@ -1156,6 +1156,35 @@ JSON
   [[ "$output" == *"active"* ]]
 }
 
+@test "status resolves symlinked peon command to its install dir" {
+  local install_dir shim_dir fake_home fallback_dir
+  install_dir="$TEST_DIR/symlink-install"
+  shim_dir="$TEST_DIR/bin"
+  fake_home="$TEST_DIR/home"
+  fallback_dir="$fake_home/.claude/hooks/peon-ping"
+
+  mkdir -p "$install_dir" "$shim_dir" "$fallback_dir"
+  cp "$PEON_SH" "$install_dir/peon.sh"
+  cp "$TEST_DIR/config.json" "$install_dir/config.json"
+  ln -s "$TEST_DIR/packs" "$install_dir/packs"
+  ln -s "$install_dir/peon.sh" "$shim_dir/peon"
+
+  cp "$TEST_DIR/config.json" "$fallback_dir/config.json"
+  ln -s "$TEST_DIR/packs" "$fallback_dir/packs"
+  "$PEON_PY" - "$fallback_dir/config.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+cfg = json.load(open(path))
+cfg['default_pack'] = 'sc_kerrigan'
+json.dump(cfg, open(path, 'w'))
+PY
+
+  run env -u CLAUDE_PEON_DIR HOME="$fake_home" PEON_TEST=1 bash "$shim_dir/peon" status
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"default pack: peon"* ]]
+  [[ "$output" != *"sc_kerrigan"* ]]
+}
+
 @test "status shows OpenAI Codex as detected when ~/.codex exists but adapter is not configured" {
   FAKE_HOME="$(mktemp -d)"
   mkdir -p "$FAKE_HOME/.codex"

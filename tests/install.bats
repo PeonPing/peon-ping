@@ -137,6 +137,18 @@ print('OK')
 "
 }
 
+@test "install replaces stale skill symlink from older package managers" {
+  mkdir -p "$TEST_HOME/.claude/skills/peon-ping-log"
+  ln -s "/opt/homebrew/opt/peon-ping/libexec/skills/peon-ping-log/SKILL.md" \
+    "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md"
+
+  bash "$CLONE_DIR/install.sh"
+
+  [ -f "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md" ]
+  [ ! -L "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md" ]
+  grep -q "peon-ping-log" "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md"
+}
+
 @test "update preserves sibling custom hooks registered under same matcher entry (issue #484)" {
   # First install to establish peon hooks
   bash "$CLONE_DIR/install.sh"
@@ -344,6 +356,8 @@ print('OK')
   # Hooks are in project-level settings
   [ -f "$PROJECT_DIR/.claude/settings.json" ]
   [ -d "$PROJECT_DIR/.claude/skills/peon-ping-toggle" ]
+  mkdir -p "$PROJECT_DIR/.claude/skills/peon-ping-log"
+  mkdir -p "$PROJECT_DIR/.claude/skills/peon-ping-rename"
 
   # Run uninstall (non-interactive — no notify.sh restore prompt for local)
   bash "$LOCAL_INSTALL_DIR/uninstall.sh"
@@ -362,6 +376,8 @@ print('OK')
   # Install and skill directories removed
   [ ! -d "$LOCAL_INSTALL_DIR" ]
   [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-toggle" ]
+  [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-log" ]
+  [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-rename" ]
 }
 
 @test "--local uninstall preserves a sibling notify.sh hook from another tool" {

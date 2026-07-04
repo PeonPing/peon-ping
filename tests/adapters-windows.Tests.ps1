@@ -1131,7 +1131,7 @@ Describe "uninstall.ps1" {
     }
 
     It "removes skills" {
-        $script:uninstallContent | Should -Match 'peon-ping-toggle.*peon-ping-config.*peon-ping-use'
+        $script:uninstallContent | Should -Match 'peon-ping-toggle.*peon-ping-config.*peon-ping-use.*peon-ping-log.*peon-ping-rename'
     }
 
     It "removes CLI command (peon.cmd)" {

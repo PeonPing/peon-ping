@@ -165,7 +165,7 @@ Write-Host ""
 Write-Host "Removing skills..."
 
 $skillsRemoved = 0
-foreach ($skillName in @("peon-ping-toggle", "peon-ping-config", "peon-ping-use")) {
+foreach ($skillName in @("peon-ping-toggle", "peon-ping-config", "peon-ping-use", "peon-ping-log", "peon-ping-rename")) {
     $skillPath = Join-Path $SkillsDir $skillName
     if (Test-Path $skillPath) {
         Remove-Item -Path $skillPath -Recurse -Force
