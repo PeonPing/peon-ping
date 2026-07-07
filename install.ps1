@@ -444,6 +444,11 @@ if (-not $Command) {
 # Diagnostic logging: set PEON_DEBUG=1 to surface silent failure diagnostics on stderr
 $peonDebug = $env:PEON_DEBUG -eq "1"
 
+function Get-UnixTimeSeconds {
+    $epoch = [DateTime]::SpecifyKind([DateTime]'1970-01-01', [DateTimeKind]::Utc)
+    return [int64]([Math]::Floor(((Get-Date).ToUniversalTime() - $epoch).TotalSeconds))
+}
+
 # Raw config read; repair is done at install/update time, so hook only needs plain read.
 function Get-PeonConfigRaw {
     param([string]$Path)
@@ -2424,7 +2429,13 @@ try {
 } catch {
     $_configError = "$_"
 # Fall back to minimal defaults so the hook can still run (logging requires PEON_DEBUG=1 when config is broken)
-    $config = [PSCustomObject]@{ enabled = $true; debug = $false; volume = 0.5; debug_retention_days = 7; notification_title_marker = '●'; notification_title_ide = $false }
+    $config = New-Object -TypeName PSObject
+    $config | Add-Member -NotePropertyName "enabled" -NotePropertyValue $true
+    $config | Add-Member -NotePropertyName "debug" -NotePropertyValue $false
+    $config | Add-Member -NotePropertyName "volume" -NotePropertyValue 0.5
+    $config | Add-Member -NotePropertyName "debug_retention_days" -NotePropertyValue 7
+    $config | Add-Member -NotePropertyName "notification_title_marker" -NotePropertyValue ([char]0x25CF)
+    $config | Add-Member -NotePropertyName "notification_title_ide" -NotePropertyValue $false
 }
 
 # NOTE: enabled check moved below logging init so paused invocations are visible in debug logs
@@ -2433,7 +2444,7 @@ try {
 # Mirrors peon.sh log() closure: key=value format, invocation IDs, daily rotation.
 # When debug=false (default): empty scriptblock, zero overhead.
 # When debug=true or PEON_DEBUG=1: appends to $PEON_DIR/logs/peon-ping-YYYY-MM-DD.log.
-$peonInv = '{0:x4}' -f ([System.Random]::new().Next(0, 65535))
+$peonInv = (Get-Random -Minimum 0 -Maximum 65535).ToString("x4")
 $script:peonLogEnabled = ($config.debug -eq $true) -or ($peonDebug)
 $script:peonLogPath = $null
 
@@ -2604,7 +2615,7 @@ $_stateLastStop = if ($state.ContainsKey("last_stop_time")) { $state["last_stop_
 & $peonLog 'state' @{ sessions = [string]$_stateSessions; rotation_index = [string]$_stateRotIdx; last_stop = [string]$_stateLastStop }
 
 # --- Session cleanup: expire old sessions ---
-$now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$now = Get-UnixTimeSeconds
 $ttlDays = if ($config.session_ttl_days) { $config.session_ttl_days } else { 7 }
 $cutoff = $now - ($ttlDays * 86400)
 $sessionPacks = if ($state.ContainsKey("session_packs")) { $state["session_packs"] } else { @{} }
@@ -2692,7 +2703,7 @@ switch ($hookEvent) {
     "SessionStart" {
         $category = "session.start"
         # Debounce rapid SessionStart events (e.g. --continue fires twice, multi-workspace IDE startup)
-        $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $now = Get-UnixTimeSeconds
         $ssCooldown = if ($null -ne $config.session_start_cooldown_seconds) { [int]$config.session_start_cooldown_seconds } else { 30 }
         $lastStart = if ($state.ContainsKey("last_session_start_sound_time")) { $state["last_session_start_sound_time"] } else { 0 }
         if ($ssCooldown -gt 0 -and ($now - $lastStart) -lt $ssCooldown) {
@@ -2705,7 +2716,7 @@ switch ($hookEvent) {
     "Stop" {
         $category = "task.complete"
         # Debounce rapid Stop events (5s cooldown)
-        $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $now = Get-UnixTimeSeconds
         $lastStop = if ($state.ContainsKey("last_stop_time")) { $state["last_stop_time"] } else { 0 }
         if (($now - $lastStop) -lt 5) {
             & $peonLog 'route' @{ category = 'task.complete'; suppressed = 'True'; reason = 'debounce_5s' }
@@ -2757,7 +2768,7 @@ switch ($hookEvent) {
     }
     "UserPromptSubmit" {
         # Detect rapid prompts for "annoyed" easter egg
-        $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $now = Get-UnixTimeSeconds
         $annoyedThreshold = if ($config.annoyed_threshold) { $config.annoyed_threshold } else { 3 }
         $annoyedWindow = if ($config.annoyed_window_seconds) { $config.annoyed_window_seconds } else { 10 }
 
@@ -3152,7 +3163,7 @@ if ($trainerCfg -and $trainerCfg.enabled) {
     }
 
     if (-not $allDone) {
-        $nowTs = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+        $nowTs = Get-UnixTimeSeconds
         $lastTs = if ($trainerState.ContainsKey("last_reminder_ts")) { [long]$trainerState["last_reminder_ts"] } else { 0 }
         $intervalMin = if ($trainerCfg.reminder_interval_minutes) { [int]$trainerCfg.reminder_interval_minutes } else { 20 }
         $minGapMin = if ($trainerCfg.reminder_min_gap_minutes) { [int]$trainerCfg.reminder_min_gap_minutes } else { 5 }
@@ -3312,7 +3323,7 @@ if ($ttsEnabled -and $category) {
         }
     }
     if (-not $speechTpl) {
-        $speechTpl = "{project} `u{2014} {status}"
+        $speechTpl = "{project} " + [char]0x2014 + " {status}"
     }
 
     # Interpolate template variables (same set as notification templates)
@@ -3328,7 +3339,7 @@ if ($ttsEnabled -and $category) {
         $ttsText = $ttsText.Replace("{$key}", $ttsVars[$key])
     }
     $ttsText = $ttsText.Trim()
-    if ($ttsText -eq "`u{2014}" -or -not $ttsText) { $ttsText = "" }
+    if ($ttsText -eq [string][char]0x2014 -or -not $ttsText) { $ttsText = "" }
 }
 
 # TRAINER_TTS_TEXT: trainer progress string when TTS enabled
@@ -3751,6 +3762,215 @@ if ((-not $Local) -and (Test-Path $CopilotDir)) {
     Write-Host "  Copilot CLI hooks registered for: $($copilotEvents -join ', ')" -ForegroundColor Green
 }
 
+# --- Register OpenAI Codex hooks if ~/.codex exists ---
+# Codex supports inline hooks in config.toml and hooks.json. Use a managed
+# config.toml block so we do not create hooks.json beside an existing inline
+# config, which Codex warns about at startup.
+$CodexDir = Join-Path $env:USERPROFILE ".codex"
+$CodexConfigFile = Join-Path $CodexDir "config.toml"
+
+if ((-not $Local) -and (Test-Path $CodexDir)) {
+    Write-Host ""
+    Write-Host "Detected OpenAI Codex installation, registering stable hooks..."
+
+    function ConvertTo-TomlBasicString([string]$Value) {
+        $escaped = $Value.Replace('\', '\\').Replace('"', '\"').Replace("`r", '\r').Replace("`n", '\n')
+        return '"' + $escaped + '"'
+    }
+
+    function ConvertTo-PowerShellSingleQuotedString([string]$Value) {
+        return "'" + $Value.Replace("'", "''") + "'"
+    }
+
+    function Normalize-PeonCodexPath([string]$Value) {
+        if ([string]::IsNullOrWhiteSpace($Value)) { return "" }
+        $normalized = $Value.Trim().Trim('"').Trim("'")
+        $normalized = $normalized -replace '\\\\', '\'
+        $normalized = $normalized.Replace('\', '/')
+        return $normalized.TrimEnd('/')
+    }
+
+    function Get-PeonCodexMarkers([string]$InstallRoot) {
+        $markers = New-Object System.Collections.Generic.List[string]
+        if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) {
+            $markers.Add((Normalize-PeonCodexPath $InstallRoot))
+        }
+        if ($env:USERPROFILE -and $InstallRoot.StartsWith($env:USERPROFILE, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $relative = "~" + $InstallRoot.Substring($env:USERPROFILE.Length)
+            $markers.Add((Normalize-PeonCodexPath $relative))
+        }
+        return @($markers | Where-Object { $_ } | Select-Object -Unique)
+    }
+
+    function Get-PeonCodexAdapterMarkers([string]$InstallRoot) {
+        $markers = New-Object System.Collections.Generic.List[string]
+        foreach ($adapterName in @("codex.ps1", "codex.sh")) {
+            $adapterPath = Join-Path (Join-Path $InstallRoot "adapters") $adapterName
+            foreach ($marker in (Get-PeonCodexMarkers $adapterPath)) {
+                $markers.Add($marker)
+            }
+        }
+        return @($markers | Where-Object { $_ } | Select-Object -Unique)
+    }
+
+    function Test-PeonCodexPathToken([string]$Text, [string]$Path) {
+        $normalizedText = Normalize-PeonCodexPath $Text
+        $normalizedPath = Normalize-PeonCodexPath $Path
+        if (-not $normalizedPath) { return $false }
+        $pathChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/-"
+        $start = 0
+        while ($true) {
+            $idx = $normalizedText.IndexOf($normalizedPath, $start, [System.StringComparison]::OrdinalIgnoreCase)
+            if ($idx -lt 0) { return $false }
+            $before = if ($idx -gt 0) { [string]$normalizedText[$idx - 1] } else { "" }
+            $afterIdx = $idx + $normalizedPath.Length
+            $after = if ($afterIdx -lt $normalizedText.Length) { [string]$normalizedText[$afterIdx] } else { "" }
+            $beforeOk = (-not $before) -or ($pathChars.IndexOf($before) -lt 0)
+            $afterOk = (-not $after) -or ($pathChars.IndexOf($after) -lt 0)
+            if ($beforeOk -and $afterOk) { return $true }
+            $start = $idx + 1
+        }
+    }
+
+    function Get-PeonCodexBlockInstallDir([string]$Text) {
+        $match = [regex]::Match($Text, '(?m)^\s*#\s*install_dir\s*=\s*(.*?)\s*$')
+        if (-not $match.Success) { return "" }
+        return Normalize-PeonCodexPath $match.Groups[1].Value
+    }
+
+    function Test-PeonCodexTextForInstall([string]$Text, [string]$InstallRoot) {
+        if ($Text -notmatch "peon-ping") { return $false }
+        if ($Text -notmatch "adapters[\\/]+codex\.(sh|ps1)") { return $false }
+        $installMarkers = Get-PeonCodexMarkers $InstallRoot
+        $explicitInstallDir = Get-PeonCodexBlockInstallDir $Text
+        if ($explicitInstallDir) {
+            foreach ($marker in $installMarkers) {
+                if ([string]::Equals($explicitInstallDir, $marker, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+            }
+            return $false
+        }
+        foreach ($adapterMarker in (Get-PeonCodexAdapterMarkers $InstallRoot)) {
+            if (Test-PeonCodexPathToken $Text $adapterMarker) { return $true }
+        }
+        return $false
+    }
+
+    function Get-PeonTomlBracketDelta([string]$Line) {
+        $delta = 0
+        $quote = [char]0
+        $escaped = $false
+        foreach ($ch in $Line.ToCharArray()) {
+            if ($quote -ne [char]0) {
+                if ($quote -eq '"' -and $escaped) {
+                    $escaped = $false
+                    continue
+                }
+                if ($quote -eq '"' -and $ch -eq [char]92) {
+                    $escaped = $true
+                    continue
+                }
+                if ($ch -eq $quote) { $quote = [char]0 }
+                continue
+            }
+            if ($ch -eq '"' -or $ch -eq "'") {
+                $quote = $ch
+            } elseif ($ch -eq '#') {
+                break
+            } elseif ($ch -eq '[') {
+                $delta++
+            } elseif ($ch -eq ']') {
+                $delta--
+            }
+        }
+        return $delta
+    }
+
+    function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
+        $managedPattern = '(?ms)\r?\n?# peon-ping Codex hooks begin.*?# peon-ping Codex hooks end\r?\n?'
+        $contentWithoutBlocks = ([regex]$managedPattern).Replace($Content, {
+            param($match)
+            if (Test-PeonCodexTextForInstall $match.Value $InstallRoot) { "`n" } else { $match.Value }
+        })
+
+        $lines = @($contentWithoutBlocks -split "\r?\n")
+        $kept = New-Object System.Collections.Generic.List[string]
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            if ($line.Trim() -match '^notify\s*=') {
+                $blockLines = New-Object System.Collections.Generic.List[string]
+                $blockLines.Add($line)
+                $balance = Get-PeonTomlBracketDelta $line
+                while ($balance -gt 0 -and ($i + 1) -lt $lines.Count) {
+                    $i++
+                    $blockLines.Add($lines[$i])
+                    $balance += Get-PeonTomlBracketDelta $lines[$i]
+                }
+                $blockText = $blockLines -join "`n"
+                if (Test-PeonCodexTextForInstall $blockText $InstallRoot) {
+                    continue
+                }
+                foreach ($blockLine in $blockLines) { $kept.Add($blockLine) }
+            } else {
+                $kept.Add($line)
+            }
+        }
+        return ($kept -join "`n").TrimEnd()
+    }
+
+    $codexAdapterPath = Join-Path $InstallDir "adapters\codex.ps1"
+    $installDirLiteral = ConvertTo-PowerShellSingleQuotedString $InstallDir
+    $adapterLiteral = ConvertTo-PowerShellSingleQuotedString $codexAdapterPath
+    $codexHookCommand = "powershell -NoProfile -NonInteractive -Command `"`$env:CLAUDE_PEON_DIR = $installDirLiteral; & $adapterLiteral`""
+
+    $codexBegin = "# peon-ping Codex hooks begin"
+    $codexEnd = "# peon-ping Codex hooks end"
+    $codexEvents = @(
+        [PSCustomObject]@{ Name = "SessionStart"; Matcher = "startup|resume|clear" },
+        [PSCustomObject]@{ Name = "UserPromptSubmit"; Matcher = "" },
+        [PSCustomObject]@{ Name = "PermissionRequest"; Matcher = "" },
+        [PSCustomObject]@{ Name = "PreCompact"; Matcher = "manual|auto" },
+        [PSCustomObject]@{ Name = "SubagentStart"; Matcher = "" },
+        [PSCustomObject]@{ Name = "SubagentStop"; Matcher = "" },
+        [PSCustomObject]@{ Name = "Stop"; Matcher = "" }
+    )
+
+    $codexContent = ""
+    if (Test-Path $CodexConfigFile) {
+        $codexContent = Get-Content $CodexConfigFile -Raw
+    }
+
+    $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
+
+    $codexBlock = New-Object System.Collections.Generic.List[string]
+    $codexBlock.Add($codexBegin)
+    $codexBlock.Add("# install_dir = $InstallDir")
+    foreach ($evt in $codexEvents) {
+        $codexBlock.Add("[[hooks.$($evt.Name)]]")
+        if ($evt.Matcher) {
+            $codexBlock.Add("matcher = $(ConvertTo-TomlBasicString $evt.Matcher)")
+        }
+        $codexBlock.Add("")
+        $codexBlock.Add("[[hooks.$($evt.Name).hooks]]")
+        $codexBlock.Add('type = "command"')
+        $codexBlock.Add("command = $(ConvertTo-TomlBasicString $codexHookCommand)")
+        $codexBlock.Add("timeout = 30")
+        $codexBlock.Add("")
+    }
+    $codexBlock.Add($codexEnd)
+
+    $codexBlockText = $codexBlock -join "`n"
+    if ($codexContent) {
+        $codexContent = "$codexContent`n`n$codexBlockText`n"
+    } else {
+        $codexContent = "$codexBlockText`n"
+    }
+
+    New-Item -ItemType Directory -Path $CodexDir -Force | Out-Null
+    Set-Content -Path $CodexConfigFile -Value $codexContent -Encoding UTF8
+    Write-Host "  Codex hooks registered for: $($codexEvents.Name -join ', ')" -ForegroundColor Green
+    Write-Host "  Open Codex /hooks to review and trust the peon-ping commands if prompted." -ForegroundColor Yellow
+}
+
 # --- Auto-detect deepagents-cli and register hooks ---
 $DeepagentsDir = Join-Path $env:USERPROFILE ".deepagents"
 $DeepagentsHooksFile = Join-Path $DeepagentsDir "hooks.json"
@@ -3826,6 +4046,9 @@ if (Test-Path $skillsSourceDir) {
         $skillUrl = "$RepoBase/skills/$skillName/SKILL.md"
         $skillFile = Join-Path $skillTarget "SKILL.md"
         try {
+            if (Test-Path $skillFile) {
+                Remove-Item -Path $skillFile -Force
+            }
             Invoke-WebRequest -Uri $skillUrl -OutFile $skillFile -UseBasicParsing -ErrorAction Stop
             Write-Host "  /$skillName" -ForegroundColor DarkGray
         } catch {

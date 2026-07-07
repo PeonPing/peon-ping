@@ -155,7 +155,20 @@ PY
   esac
 }
 
-PEON_DIR="${CLAUDE_PEON_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
+  PEON_DIR="$CLAUDE_PEON_DIR"
+else
+  _peon_script="${BASH_SOURCE[0]}"
+  while [ -L "$_peon_script" ]; do
+    _peon_link="$(readlink "$_peon_script")" || break
+    case "$_peon_link" in
+      /*) _peon_script="$_peon_link" ;;
+      *) _peon_script="$(cd "$(dirname "$_peon_script")" && pwd)/$_peon_link" ;;
+    esac
+  done
+  PEON_DIR="$(cd "$(dirname "$_peon_script")" && pwd)"
+  unset _peon_script _peon_link
+fi
 # Save original install directory for finding bundled scripts (Nix, Homebrew)
 _INSTALL_DIR="$PEON_DIR"
 # Homebrew/Nix/adapter installs: script lives in read-only store but packs/config are elsewhere.
@@ -1800,7 +1813,8 @@ if os.path.isdir(codex_dir):
             codex_cfg_text = open(codex_config).read()
             codex_installed = (
                 'adapters/codex.sh' in codex_cfg_text or
-                'adapters/codex.ps1' in codex_cfg_text
+                'adapters/codex.ps1' in codex_cfg_text or
+                'adapters\\\\codex.ps1' in codex_cfg_text
             )
         except Exception:
             codex_installed = False

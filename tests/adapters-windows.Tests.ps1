@@ -140,6 +140,22 @@ Describe "Category A: Codex Adapter" {
         $script:codexContent | Should -Match '\$ntype = "permission_prompt"'
     }
 
+    It "maps stable PermissionRequest to PermissionRequest" {
+        $script:codexContent | Should -Match 'permissionrequest'
+        $script:codexContent | Should -Match '\$mapped = "PermissionRequest"'
+    }
+
+    It "maps stable PreCompact to PreCompact" {
+        $script:codexContent | Should -Match 'precompact'
+        $script:codexContent | Should -Match '\$mapped = "PreCompact"'
+    }
+
+    It "keeps Codex PostToolUse silent" {
+        $script:codexContent | Should -Match 'posttooluse'
+        $script:codexContent | Should -Match 'Codex has no separate PostToolUseFailure hook'
+        $script:codexContent | Should -Match 'posttooluse[\s\S]*exit 0'
+    }
+
     It "pipes JSON to peon.ps1" {
         $script:codexContent | Should -Match 'peon\.ps1'
         $script:codexContent | Should -Match 'ConvertTo-Json'
@@ -1131,7 +1147,7 @@ Describe "uninstall.ps1" {
     }
 
     It "removes skills" {
-        $script:uninstallContent | Should -Match 'peon-ping-toggle.*peon-ping-config.*peon-ping-use'
+        $script:uninstallContent | Should -Match 'peon-ping-toggle.*peon-ping-config.*peon-ping-use.*peon-ping-log.*peon-ping-rename'
     }
 
     It "removes CLI command (peon.cmd)" {
@@ -1145,6 +1161,88 @@ Describe "uninstall.ps1" {
     It "cleans up Cursor hooks" {
         $script:uninstallContent | Should -Match 'hooks\.json'
         $script:uninstallContent | Should -Match 'hook-handle-use'
+    }
+
+    It "cleans up Codex hooks" {
+        $script:uninstallContent | Should -Match '\.codex\\config\.toml'
+        $script:uninstallContent | Should -Match 'peon-ping Codex hooks begin'
+        $script:uninstallContent | Should -Match ([regex]::Escape('adapters[\\/]+codex\.(sh|ps1)'))
+    }
+
+    It "Codex cleanup removes only the current install root" {
+        $tokens = $null
+        $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($script:uninstallContent, [ref]$tokens, [ref]$errors)
+        $errors.Count | Should -Be 0
+        $wanted = @(
+            "Normalize-PeonCodexPath",
+            "Get-PeonCodexMarkers",
+            "Get-PeonCodexAdapterMarkers",
+            "Test-PeonCodexPathToken",
+            "Get-PeonCodexBlockInstallDir",
+            "Test-PeonCodexTextForInstall",
+            "Get-PeonTomlBracketDelta",
+            "Remove-PeonCodexConfigText"
+        )
+        $functions = @($ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $wanted -contains $node.Name
+        }, $true))
+        $functions.Count | Should -Be $wanted.Count
+        . ([scriptblock]::Create(($functions | ForEach-Object { $_.Extent.Text }) -join "`n"))
+
+        $oldUserProfile = $env:USERPROFILE
+        try {
+            $env:USERPROFILE = "C:\Users\me[1]"
+            $currentInstall = "C:\Users\me[1]\.claude\hooks\peon-ping"
+            $otherInstall = "C:\Users\me[1]\.openpeon\hooks\peon-ping"
+            $oldPrefixInstall = "$currentInstall-old"
+            $content = @"
+model = "gpt-5"
+
+# peon-ping Codex hooks begin
+# install_dir = $currentInstall
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "powershell -NoProfile -File '$currentInstall\adapters\codex.ps1'"
+timeout = 10
+# peon-ping Codex hooks end
+
+# peon-ping Codex hooks begin
+# install_dir = $otherInstall
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "powershell -NoProfile -File '$otherInstall\adapters\codex.ps1'"
+timeout = 10
+# peon-ping Codex hooks end
+
+# peon-ping Codex hooks begin
+# install_dir = $oldPrefixInstall
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "powershell -NoProfile -File '$oldPrefixInstall\adapters\codex.ps1'"
+timeout = 10
+# peon-ping Codex hooks end
+
+notify = [
+  "powershell",
+  "-NoProfile",
+  "-File",
+  "$currentInstall\adapters\codex.ps1"
+]
+"@
+            $cleaned = Remove-PeonCodexConfigText $content $currentInstall
+            $cleaned | Should -Not -Match ([regex]::Escape("$currentInstall\adapters\codex.ps1"))
+            $cleaned | Should -Not -Match '(?m)^notify\s*='
+            $cleaned | Should -Match ([regex]::Escape("$otherInstall\adapters\codex.ps1"))
+            $cleaned | Should -Match ([regex]::Escape("$oldPrefixInstall\adapters\codex.ps1"))
+            $cleaned | Should -Match 'model = "gpt-5"'
+        } finally {
+            $env:USERPROFILE = $oldUserProfile
+        }
     }
 
     It "does not use ExecutionPolicy Bypass" {
@@ -1176,6 +1274,20 @@ Describe "Embedded peon.ps1 Hook Script" {
         $errors = $null
         $null = [System.Management.Automation.PSParser]::Tokenize($script:peonHookContent, [ref]$errors)
         $errors.Count | Should -Be 0
+    }
+
+    It "avoids newer PowerShell syntax in the generated Windows hook" {
+        $script:peonHookContent | Should -Match 'function Get-UnixTimeSeconds'
+        $script:peonHookContent | Should -Match 'Get-Random -Minimum 0 -Maximum 65535'
+        $script:peonHookContent | Should -Not -Match '::new\s*\('
+        $script:peonHookContent | Should -Not -Match 'ToUnixTimeSeconds\s*\('
+        $script:peonHookContent | Should -Not -Match '`u\{'
+    }
+
+    It "builds fallback config without inline hashtable literals" {
+        $script:peonHookContent | Should -Match 'New-Object -TypeName PSObject'
+        $script:peonHookContent | Should -Match 'notification_title_marker.*\[char\]0x25CF'
+        $script:peonHookContent | Should -Not -Match "notification_title_marker\\s*=\\s*'●'"
     }
 
     # --- Event Routing (mirrors BATS: SessionStart/Stop/Notification/PermissionRequest) ---
@@ -1809,6 +1921,81 @@ Describe "install.ps1 Default Config" {
 
     It "registers all 8 hook events" {
         $script:installContent | Should -Match '"SessionStart".*"SessionEnd".*"SubagentStart".*"Stop".*"Notification".*"PermissionRequest".*"PostToolUseFailure".*"PreCompact"'
+    }
+
+    It "registers Codex stable hooks without per-tool PostToolUse hooks" {
+        $script:installContent | Should -Match 'Detected OpenAI Codex installation'
+        $script:installContent | Should -Match 'peon-ping Codex hooks begin'
+        $script:installContent | Should -Match 'SessionStart[\s\S]*UserPromptSubmit[\s\S]*PermissionRequest[\s\S]*PreCompact[\s\S]*SubagentStart[\s\S]*SubagentStop[\s\S]*Stop'
+        $codexInstallerBlock = [regex]::Match($script:installContent, '(?s)\$codexEvents = @\((.*?)\)\s+\$codexContent').Groups[1].Value
+        $codexInstallerBlock | Should -Not -BeNullOrEmpty
+        $codexInstallerBlock | Should -Not -Match 'PostToolUse'
+        $codexInstallerBlock | Should -Not -Match 'PreToolUse'
+    }
+
+    It "installer Codex cleanup removes only the current install root" {
+        $tokens = $null
+        $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($script:installContent, [ref]$tokens, [ref]$errors)
+        $errors.Count | Should -Be 0
+        $wanted = @(
+            "Normalize-PeonCodexPath",
+            "Get-PeonCodexMarkers",
+            "Get-PeonCodexAdapterMarkers",
+            "Test-PeonCodexPathToken",
+            "Get-PeonCodexBlockInstallDir",
+            "Test-PeonCodexTextForInstall",
+            "Get-PeonTomlBracketDelta",
+            "Remove-PeonCodexConfigText"
+        )
+        $functions = @($ast.FindAll({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $wanted -contains $node.Name
+        }, $true))
+        $functions.Count | Should -Be $wanted.Count
+        . ([scriptblock]::Create(($functions | ForEach-Object { $_.Extent.Text }) -join "`n"))
+
+        $oldUserProfile = $env:USERPROFILE
+        try {
+            $env:USERPROFILE = "C:\Users\me[1]"
+            $currentInstall = "C:\Users\me[1]\.claude\hooks\peon-ping"
+            $oldPrefixInstall = "$currentInstall-old"
+            $content = @"
+model = "gpt-5"
+
+# peon-ping Codex hooks begin
+# install_dir = $currentInstall
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "powershell -NoProfile -File '$currentInstall\adapters\codex.ps1'"
+timeout = 10
+# peon-ping Codex hooks end
+
+# peon-ping Codex hooks begin
+# install_dir = $oldPrefixInstall
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "powershell -NoProfile -File '$oldPrefixInstall\adapters\codex.ps1'"
+timeout = 10
+# peon-ping Codex hooks end
+
+notify = [
+  "powershell",
+  "-NoProfile",
+  "-File",
+  "$currentInstall\adapters\codex.ps1"
+]
+"@
+            $cleaned = Remove-PeonCodexConfigText $content $currentInstall
+            $cleaned | Should -Not -Match ([regex]::Escape("$currentInstall\adapters\codex.ps1"))
+            $cleaned | Should -Not -Match '(?m)^notify\s*='
+            $cleaned | Should -Match ([regex]::Escape("$oldPrefixInstall\adapters\codex.ps1"))
+            $cleaned | Should -Match 'model = "gpt-5"'
+        } finally {
+            $env:USERPROFILE = $oldUserProfile
+        }
     }
 
     It "uses invariant culture for JSON serialization (locale safety)" {

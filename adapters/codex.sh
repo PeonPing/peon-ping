@@ -2,17 +2,18 @@
 # peon-ping adapter for OpenAI Codex CLI
 # Translates Codex events into peon.sh stdin JSON.
 #
-# Codex ships a stable hook event set (SessionStart, UserPromptSubmit,
-# PreToolUse, PostToolUse, Stop) delivered as JSON on stdin with a
+# Codex ships a stable hook event set delivered as JSON on stdin with a
 # `hook_event_name` field, AND a legacy `notify` callback (event name passed
 # as argv). This adapter handles both: it prefers stdin stable-hook JSON when
-# present and falls back to the argv notify event.
+# present and falls back to the argv notify event. PostToolUse is deliberately
+# ignored because Codex does not expose a separate failure-only hook and
+# successful tool hooks are too noisy for peon-ping.
 #
 # Setup (legacy notify): Add to ~/.codex/config.toml:
 #   notify = ["bash", "/absolute/path/to/.claude/hooks/peon-ping/adapters/codex.sh"]
 #
-# Setup (stable hooks): point Codex's hooks at this script; it reads
-#   `hook_event_name` from the stdin JSON. Consult `codex` docs for your version.
+# Setup (stable hooks): re-run install.sh after Codex creates ~/.codex, or point
+#   Codex's stable lifecycle hooks at this script.
 
 set -euo pipefail
 
@@ -22,14 +23,14 @@ PEON_SH="$PEON_DIR/peon.sh"
 
 # Codex notifies with limited payload; accept event arg and optional stdin JSON.
 CODEX_EVENT="${1:-}"
-if [ -t 0 ]; then
+if [ -n "$CODEX_EVENT" ] || [ -t 0 ]; then
   CODEX_STDIN=""
 else
   CODEX_STDIN="$(cat)"
 fi
 
-# Map to a CESP payload. Silent events (PreToolUse, successful PostToolUse)
-# print nothing, so peon.sh is never invoked for per-tool-call chatter.
+# Map to a CESP payload. Silent events (PreToolUse, PostToolUse) print nothing,
+# so peon.sh is never invoked for per-tool-call chatter.
 MAPPED_JSON="$(_CODEX_EVENT="$CODEX_EVENT" _CODEX_STDIN="$CODEX_STDIN" python3 - <<'PY'
 import json
 import os
@@ -60,37 +61,6 @@ if raw_stdin:
         event_data = {}
 
 
-def is_tool_failure():
-    """Detect a failed tool call from a stable-hook PostToolUse payload.
-
-    Codex's PostToolUse carries the structured tool result, so a failure may
-    be signalled by a nested ``tool_response`` object (error flags / non-zero
-    exit_code), a top-level exit_code, or ``success == false`` — not just an
-    event name starting with ``error``.
-    """
-    if event_data.get("error"):
-        return True
-    tr = event_data.get("tool_response")
-    if isinstance(tr, dict):
-        if tr.get("error") or tr.get("is_error") or tr.get("isError"):
-            return True
-        ec = tr.get("exit_code", tr.get("exitCode"))
-        try:
-            if ec is not None and int(ec) != 0:
-                return True
-        except Exception:
-            pass
-    ec = event_data.get("exit_code", event_data.get("exitCode"))
-    try:
-        if ec is not None and int(ec) != 0:
-            return True
-    except Exception:
-        pass
-    if str(event_data.get("success", "")).lower() == "false":
-        return True
-    return False
-
-
 workspace_roots = event_data.get("workspace_roots")
 root0 = ""
 if isinstance(workspace_roots, list) and workspace_roots:
@@ -106,7 +76,10 @@ raw_event = first_non_empty(
 event_key = str(raw_event).strip().lower().replace("_", "-")
 
 notif_type = str(event_data.get("notification_type", "")).strip().lower()
-if (
+if event_key in ("permissionrequest", "permission-request"):
+    mapped_event = "PermissionRequest"
+    mapped_ntype = notif_type
+elif (
     event_key.startswith("permission")
     or event_key.startswith("approve")
     or event_key in ("approval-requested", "approval-needed", "input-required")
@@ -120,9 +93,20 @@ elif event_key in ("start", "session-start", "sessionstart"):
 elif event_key in ("session-end", "sessionend"):
     mapped_event = "SessionEnd"
     mapped_ntype = notif_type
+elif event_key in ("subagent-start", "subagentstart"):
+    mapped_event = "SubagentStart"
+    mapped_ntype = notif_type
+elif event_key in ("subagent-stop", "subagentstop"):
+    mapped_event = "SubagentStop"
+    mapped_ntype = notif_type
 elif event_key in ("user-prompt-submit", "userpromptsubmit"):
     mapped_event = "UserPromptSubmit"
     mapped_ntype = notif_type
+elif event_key in ("precompact", "pre-compact"):
+    mapped_event = "PreCompact"
+    mapped_ntype = notif_type
+elif event_key in ("postcompact", "post-compact"):
+    sys.exit(0)
 elif event_key == "idle-prompt":
     mapped_event = "Notification"
     mapped_ntype = "idle_prompt"
@@ -130,12 +114,9 @@ elif event_key in ("pre-tool-use", "pretooluse"):
     # Fires before every tool call — far too noisy; emit nothing.
     sys.exit(0)
 elif event_key in ("post-tool-use", "posttooluse"):
-    if is_tool_failure():
-        mapped_event = "PostToolUseFailure"
-        mapped_ntype = notif_type
-    else:
-        # Successful tool call — stay silent (peon has no PostToolUse handler).
-        sys.exit(0)
+    # Codex has PostToolUse, but not PostToolUseFailure. Stay silent rather than
+    # trying to infer failures from event payload details.
+    sys.exit(0)
 elif event_key.startswith("error") or event_key.startswith("fail"):
     mapped_event = "PostToolUseFailure"
     mapped_ntype = notif_type
@@ -176,6 +157,14 @@ payload = {
     "permission_mode": str(event_data.get("permission_mode", "")),
     "source": "codex",
 }
+
+agent_id = first_non_empty(event_data.get("agent_id", ""), event_data.get("subagent_id", ""))
+if isinstance(agent_id, str) and agent_id:
+    payload["agent_id"] = agent_id[:80]
+
+agent_type = first_non_empty(event_data.get("agent_type", ""), event_data.get("subagent_type", ""))
+if isinstance(agent_type, str) and agent_type:
+    payload["agent_type"] = agent_type[:80]
 
 summary = first_non_empty(
     event_data.get("transcript_summary", ""),

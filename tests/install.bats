@@ -137,6 +137,110 @@ print('OK')
 "
 }
 
+@test "fresh install registers Codex stable hooks when ~/.codex exists" {
+  mkdir -p "$TEST_HOME/.codex"
+  cat > "$TEST_HOME/.codex/config.toml" <<TOML
+model = "gpt-5"
+notify = [
+  "bash",
+  "$INSTALL_DIR/adapters/codex.sh",
+]
+
+[custom]
+enabled = true
+TOML
+
+  bash "$CLONE_DIR/install.sh"
+  bash "$CLONE_DIR/install.sh"
+
+  /usr/bin/python3 -c "
+from pathlib import Path
+cfg = Path('$TEST_HOME/.codex/config.toml').read_text()
+assert 'model = \"gpt-5\"' in cfg, cfg
+assert '[custom]' in cfg and 'enabled = true' in cfg, cfg
+assert cfg.count('# peon-ping Codex hooks begin') == 1, cfg
+assert '# install_dir = $INSTALL_DIR' in cfg, cfg
+assert cfg.count('[[hooks.Stop]]') == 1, cfg
+for event in ['SessionStart', 'UserPromptSubmit', 'PermissionRequest', 'PreCompact', 'SubagentStart', 'SubagentStop', 'Stop']:
+    assert f'[[hooks.{event}]]' in cfg, f'{event} missing\\n{cfg}'
+for event in ['PreToolUse', 'PostToolUse', 'PostCompact', 'Notification', 'SessionEnd', 'PostToolUseFailure']:
+    assert f'[[hooks.{event}]]' not in cfg, f'{event} should not be registered\\n{cfg}'
+assert 'notify =' not in cfg, cfg
+assert 'CLAUDE_PEON_DIR=' in cfg, cfg
+assert 'adapters/codex.sh' in cfg, cfg
+assert cfg.count('timeout = 30') == 7, cfg
+print('OK')
+"
+}
+
+@test "install replaces stale skill symlink from older package managers" {
+  mkdir -p "$TEST_HOME/.claude/skills/peon-ping-log"
+  ln -s "/opt/homebrew/opt/peon-ping/libexec/skills/peon-ping-log/SKILL.md" \
+    "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md"
+
+  bash "$CLONE_DIR/install.sh"
+
+  [ -f "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md" ]
+  [ ! -L "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md" ]
+  grep -q "peon-ping-log" "$TEST_HOME/.claude/skills/peon-ping-log/SKILL.md"
+}
+
+@test "--local install does not modify user Codex config" {
+  mkdir -p "$TEST_HOME/.codex"
+  echo 'model = "gpt-5"' > "$TEST_HOME/.codex/config.toml"
+
+  cd "$PROJECT_DIR"
+  bash "$CLONE_DIR/install.sh" --local
+
+  ! grep -q "peon-ping Codex hooks" "$TEST_HOME/.codex/config.toml"
+  ! grep -q "$INSTALL_DIR/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
+}
+
+@test "uninstall removes only peon-ping Codex hooks" {
+  mkdir -p "$TEST_HOME/.codex"
+  cat > "$TEST_HOME/.codex/config.toml" <<TOML
+model = "gpt-5"
+
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "python3 /tmp/user-hook.py"
+
+# peon-ping Codex hooks begin
+# install_dir = /opt/other/peon-ping
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "CLAUDE_PEON_DIR=/opt/other/peon-ping bash /opt/other/peon-ping/adapters/codex.sh"
+timeout = 10
+# peon-ping Codex hooks end
+
+# peon-ping Codex hooks begin
+# install_dir = ${INSTALL_DIR}-old
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "CLAUDE_PEON_DIR=${INSTALL_DIR}-old bash ${INSTALL_DIR}-old/adapters/codex.sh"
+timeout = 10
+# peon-ping Codex hooks end
+
+notify = [
+  "bash",
+  "$INSTALL_DIR/adapters/codex.sh",
+]
+TOML
+
+  bash "$CLONE_DIR/install.sh"
+  grep -q "$INSTALL_DIR/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
+
+  bash "$INSTALL_DIR/uninstall.sh"
+
+  ! grep -Fq "$INSTALL_DIR/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
+  grep -q "/opt/other/peon-ping/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
+  grep -Fq "${INSTALL_DIR}-old/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
+  grep -q "python3 /tmp/user-hook.py" "$TEST_HOME/.codex/config.toml"
+}
+
 @test "update preserves sibling custom hooks registered under same matcher entry (issue #484)" {
   # First install to establish peon hooks
   bash "$CLONE_DIR/install.sh"
@@ -344,6 +448,8 @@ print('OK')
   # Hooks are in project-level settings
   [ -f "$PROJECT_DIR/.claude/settings.json" ]
   [ -d "$PROJECT_DIR/.claude/skills/peon-ping-toggle" ]
+  mkdir -p "$PROJECT_DIR/.claude/skills/peon-ping-log"
+  mkdir -p "$PROJECT_DIR/.claude/skills/peon-ping-rename"
 
   # Run uninstall (non-interactive — no notify.sh restore prompt for local)
   bash "$LOCAL_INSTALL_DIR/uninstall.sh"
@@ -362,6 +468,8 @@ print('OK')
   # Install and skill directories removed
   [ ! -d "$LOCAL_INSTALL_DIR" ]
   [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-toggle" ]
+  [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-log" ]
+  [ ! -d "$PROJECT_DIR/.claude/skills/peon-ping-rename" ]
 }
 
 @test "--local uninstall preserves a sibling notify.sh hook from another tool" {
@@ -393,6 +501,26 @@ assert not any('peon.sh' in c for c in all_cmds), 'peon.sh survived uninstall: '
 assert any('.deckard/hooks/notify.sh' in c for c in all_cmds), 'sibling notify.sh was wiped by uninstall: ' + repr(all_cmds)
 print('OK')
 "
+}
+
+@test "--local uninstall does not remove global Codex hooks" {
+  mkdir -p "$TEST_HOME/.codex"
+  cat > "$TEST_HOME/.codex/config.toml" <<TOML
+# peon-ping Codex hooks begin
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "CLAUDE_PEON_DIR=$INSTALL_DIR bash $INSTALL_DIR/adapters/codex.sh"
+timeout = 10
+# peon-ping Codex hooks end
+TOML
+
+  cd "$PROJECT_DIR"
+  bash "$CLONE_DIR/install.sh" --local
+  bash "$LOCAL_INSTALL_DIR/uninstall.sh"
+
+  grep -q "peon-ping Codex hooks begin" "$TEST_HOME/.codex/config.toml"
+  grep -q "$INSTALL_DIR/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
 }
 
 @test "--local hook paths point to project directory not global" {
