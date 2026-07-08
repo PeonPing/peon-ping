@@ -27,6 +27,9 @@ function run(argv) {
   var env = $.NSProcessInfo.processInfo.environment;
   var clickCommandValue = env.objectForKey($('PEON_CLICK_COMMAND'));
   var clickCommand = clickCommandValue && !clickCommandValue.isNil() ? ObjC.unwrap(clickCommandValue) : '';
+  var warpFocusUrlValue = env.objectForKey($('PEON_WARP_FOCUS_URL'));
+  var warpFocusUrl = warpFocusUrlValue && !warpFocusUrlValue.isNil() ? ObjC.unwrap(warpFocusUrlValue) : '';
+  if (warpFocusUrl.indexOf('warp://') !== 0) warpFocusUrl = '';
   var cmuxFocusHelperValue = env.objectForKey($('PEON_CMUX_FOCUS_HELPER'));
   var cmuxFocusCliValue = env.objectForKey($('PEON_CMUX_FOCUS_CLI'));
   var cmuxFocusSocketValue = env.objectForKey($('PEON_CMUX_FOCUS_SOCKET'));
@@ -155,6 +158,26 @@ function run(argv) {
               // Signal ALL sibling overlays to dismiss (event-driven, no polling!)
               $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObject($(dismissNotificationName), $.NSString.string);
               // Small delay to ensure notification is delivered before we terminate
+              $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
+                0.05, $.NSApp, 'terminate:', null, false
+              );
+              return;
+            }
+            // activateWithOptions() won't cross Spaces from this accessory-policy
+            // process; Warp's deep link does, and also selects the exact tab.
+            // Fall back to AppleScript activate (app + Space, no tab) on older Warp.
+            if (bundleId === 'dev.warp.Warp-Stable') {
+              var warpTask = $.NSTask.alloc.init;
+              if (warpFocusUrl) {
+                warpTask.setLaunchPath($('/usr/bin/open'));
+                warpTask.setArguments($([warpFocusUrl]));
+              } else {
+                warpTask.setLaunchPath($('/usr/bin/osascript'));
+                warpTask.setArguments($(['-e', 'tell application "Warp" to activate']));
+              }
+              warpTask.launch;
+              warpTask.waitUntilExit;
+              $.NSDistributedNotificationCenter.defaultCenter.postNotificationNameObject($(dismissNotificationName), $.NSString.string);
               $.NSTimer.scheduledTimerWithTimeIntervalTargetSelectorUserInfoRepeats(
                 0.05, $.NSApp, 'terminate:', null, false
               );

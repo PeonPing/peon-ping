@@ -972,6 +972,8 @@ send_notification() {
       if [ "$PEON_PLATFORM" = "mac" ]; then
         export PEON_BUNDLE_ID="$(_mac_terminal_bundle_id)"
         export PEON_IDE_PID="$(_mac_ide_pid)"
+        # Warp's per-session deep link; opening it on click focuses the exact tab.
+        export PEON_WARP_FOCUS_URL="${WARP_FOCUS_URL:-}"
         _peon_cmux_surface="${CMUX_SURFACE_ID:-${CMUX_PANEL_ID:-}}"
         _peon_cmux_cli="$(_cmux_cli_path)"
         if [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "$_peon_cmux_surface" ] && [ -n "$_peon_cmux_cli" ]; then

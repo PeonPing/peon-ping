@@ -254,6 +254,7 @@ case "$PEON_PLATFORM" in
       overlay_script="$(_find_overlay)" 2>/dev/null || true
     bundle_id="${PEON_BUNDLE_ID:-}"
     ide_pid="${PEON_IDE_PID:-}"
+    warp_focus_url="${PEON_WARP_FOCUS_URL:-}"
     cmux_workspace_id="${PEON_CMUX_WORKSPACE_ID:-}"
     cmux_surface_id="${PEON_CMUX_SURFACE_ID:-}"
     cmux_socket_path="${PEON_CMUX_SOCKET_PATH:-}"
@@ -377,6 +378,7 @@ case "$PEON_PLATFORM" in
           for _si in $(seq 0 $((screen_count - 1))); do
             _notify_debug "overlay spawn screen=$_si"
             PEON_CLICK_COMMAND="$click_command" \
+            PEON_WARP_FOCUS_URL="$warp_focus_url" \
             PEON_CMUX_FOCUS_HELPER="$cmux_focus_helper" \
             PEON_CMUX_FOCUS_CLI="$cmux_cli" \
             PEON_CMUX_FOCUS_SOCKET="$cmux_socket_path" \
@@ -388,6 +390,7 @@ case "$PEON_PLATFORM" in
         else
           _notify_debug "overlay spawn mode=single dismiss=$dismiss_secs script=$(printf '%q' "$overlay_script")"
           PEON_CLICK_COMMAND="$click_command" \
+          PEON_WARP_FOCUS_URL="$warp_focus_url" \
           PEON_CMUX_FOCUS_HELPER="$cmux_focus_helper" \
           PEON_CMUX_FOCUS_CLI="$cmux_cli" \
           PEON_CMUX_FOCUS_SOCKET="$cmux_socket_path" \
