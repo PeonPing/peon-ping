@@ -287,8 +287,13 @@ elif [[ "$*" == *"iTerm2"* ]] && [[ "$*" == *"tty"* ]]; then
     cat "${CLAUDE_PEON_DIR}/.mock_iterm_active_ttys"
   fi
 elif [[ "$1" == "-l" ]] && [[ "$2" == "JavaScript" ]]; then
-  # JXA overlay call — log to overlay.log with full arguments
-  echo "$@" >> "${CLAUDE_PEON_DIR}/overlay.log"
+  # JXA call — log argv. For the overlay spawn (not the screen-count probe),
+  # also surface PEON_WARP_FOCUS_URL, which reaches it via env rather than argv.
+  _overlay_line="$@"
+  if [[ "$*" == *mac-overlay* ]] && [ -n "${PEON_WARP_FOCUS_URL:-}" ]; then
+    _overlay_line="$_overlay_line PEON_WARP_FOCUS_URL=${PEON_WARP_FOCUS_URL}"
+  fi
+  echo "$_overlay_line" >> "${CLAUDE_PEON_DIR}/overlay.log"
 else
   echo "$@" >> "${CLAUDE_PEON_DIR}/osascript.log"
 fi

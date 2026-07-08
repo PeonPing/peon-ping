@@ -213,6 +213,18 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   [[ "$(overlay_log)" == *"dev.warp.Warp-Stable"* ]]
 }
 
+@test "macOS overlay receives WARP_FOCUS_URL for Warp tab click-to-focus" {
+  WARP_FOCUS_URL="warp://session/deadbeefcafe" TERM_PROGRAM=WarpTerminal \
+    run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  # Assert on the overlay-spawn line, so the URL is proven to reach the overlay
+  # process itself — not merely the screen-count probe's inherited environment.
+  spawn_line="$(overlay_log | grep 'mac-overlay')"
+  [[ "$spawn_line" == *"dev.warp.Warp-Stable"* ]]
+  [[ "$spawn_line" == *"warp://session/deadbeefcafe"* ]]
+}
+
 @test "macOS overlay passes bundle ID for Zed click-to-focus" {
   TERM_PROGRAM=zed run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
