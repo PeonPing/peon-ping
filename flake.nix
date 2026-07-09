@@ -35,7 +35,8 @@
           inherit version;
           src = ./.;
 
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [ pkgs.makeWrapper ]
+            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.swift ];
           dontConfigure = true;
           dontBuild = true;
 
@@ -55,6 +56,20 @@
               [ -f "$f" ] && cp "$f" "$share/scripts/"
             done
             chmod +x "$share/scripts/"*.sh 2>/dev/null || true
+
+            ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+              # Build native macOS helpers (install.sh does this for curl-based
+              # installs; the Nix package needs the same step or meeting_detect /
+              # the Sound Effects device path are silent no-ops). Non-fatal on
+              # failure since peon.sh already falls back gracefully at runtime.
+              swiftc -O -o "$share/scripts/meeting-detect" \
+                scripts/meeting-detect.swift -framework CoreAudio \
+                || echo "warning: failed to build meeting-detect; meeting_detect will be a no-op"
+              swiftc -O -o "$share/scripts/peon-play" \
+                scripts/peon-play.swift \
+                -framework AVFoundation -framework CoreAudio -framework AudioToolbox \
+                || echo "warning: failed to build peon-play; falling back to afplay"
+            ''}
 
             # Wrap hook scripts so they can find python3 (and other runtime deps)
             # regardless of the PATH Claude Code passes to UserPromptSubmit hooks.
