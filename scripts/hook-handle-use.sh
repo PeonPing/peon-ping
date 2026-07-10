@@ -8,7 +8,8 @@ LOG_FILE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/hook-handle-use.lo
 LOG_FALLBACK="${TMPDIR:-/tmp}/peon-ping-hook.log"
 log() {
   local line="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-  echo "$line" >> "$LOG_FILE" 2>/dev/null || echo "$line" >> "$LOG_FALLBACK" 2>/dev/null || true
+  # umask is scoped to the subshell so only the log file is created 0600
+  ( umask 077; echo "$line" >> "$LOG_FILE" 2>/dev/null || echo "$line" >> "$LOG_FALLBACK" 2>/dev/null || true )
 }
 
 log "invoked stdin_len=${#INPUT}"
@@ -37,7 +38,7 @@ except:
 
 # Check if this is a /peon-ping-use command
 if ! echo "$PROMPT" | grep -qE '^\s*/peon-ping-use\s+\S+'; then
-  log "passthrough: not_our_cmd prompt_preview=${PROMPT:0:80}..."
+  log "passthrough: not_our_cmd prompt_len=${#PROMPT}"
   echo '{"continue": true}'
   exit 0
 fi

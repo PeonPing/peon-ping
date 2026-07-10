@@ -7,6 +7,8 @@ $ErrorActionPreference = 'Stop'
 
 $LogFile = if ($env:CLAUDE_CONFIG_DIR) { "$env:CLAUDE_CONFIG_DIR/hooks/peon-ping/hook-handle-use.log" } else { "$env:USERPROFILE/.claude/hooks/peon-ping/hook-handle-use.log" }
 $LogFallback = "$env:TEMP\peon-ping-hook.log"
+# Log lines must never carry prompt text: the log inherits the ACL of its parent
+# directory, and prompts can contain credentials the user pasted into the chat.
 function Write-Log {
     param($Msg)
     $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $Msg"
@@ -61,7 +63,7 @@ if (-not $cliMode) {
     }
 
     if ($prompt -notmatch '^\s*/peon-ping-use\s+(\S+)') {
-        Write-Log "passthrough: not_our_cmd prompt_preview=$($prompt.Substring(0, [Math]::Min(80, $prompt.Length)))..."
+        Write-Log "passthrough: not_our_cmd prompt_len=$($prompt.Length)"
         Write-Response -Continue $true
         exit 0
     }
