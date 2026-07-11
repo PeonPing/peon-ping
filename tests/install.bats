@@ -523,6 +523,42 @@ TOML
   grep -q "$INSTALL_DIR/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
 }
 
+@test "uninstall cleans a symlinked rc file and preserves the symlink" {
+  # dotfiles-style setup: ~/.zshrc is a symlink into a managed directory.
+  # BSD sed -i refuses symlinks, so the cleanup must not edit in place.
+  mkdir -p "$TEST_HOME/dotfiles"
+  echo "alias ll='ls -la'" > "$TEST_HOME/dotfiles/zshrc"
+  ln -s "$TEST_HOME/dotfiles/zshrc" "$TEST_HOME/.zshrc"
+
+  bash "$CLONE_DIR/install.sh"
+  grep -qF 'peon-ping/completions.bash' "$TEST_HOME/.zshrc"
+
+  bash "$INSTALL_DIR/uninstall.sh"
+
+  # still a symlink pointing at the same target
+  [ -L "$TEST_HOME/.zshrc" ]
+  [ "$(readlink "$TEST_HOME/.zshrc")" = "$TEST_HOME/dotfiles/zshrc" ]
+  # peon lines removed (through the symlink), unrelated content kept
+  ! grep -qF 'alias peon=' "$TEST_HOME/.zshrc"
+  ! grep -qF 'peon-ping/completions.bash' "$TEST_HOME/.zshrc"
+  ! grep -qF '# peon-ping quick controls' "$TEST_HOME/.zshrc"
+  grep -qF "alias ll='ls -la'" "$TEST_HOME/dotfiles/zshrc"
+}
+
+@test "uninstall removes hook-handle-rename registrations from settings and Cursor" {
+  mkdir -p "$TEST_HOME/.cursor"
+  bash "$CLONE_DIR/install.sh"
+  # install registers both command handlers
+  grep -q 'hook-handle-rename' "$TEST_HOME/.claude/settings.json"
+  grep -q 'hook-handle-rename' "$TEST_HOME/.cursor/hooks.json"
+
+  bash "$INSTALL_DIR/uninstall.sh"
+
+  # no handler registration survives in either file
+  ! grep -q 'hook-handle-' "$TEST_HOME/.claude/settings.json"
+  ! grep -q 'hook-handle-' "$TEST_HOME/.cursor/hooks.json"
+}
+
 @test "--local hook paths point to project directory not global" {
   cd "$PROJECT_DIR"
   bash "$CLONE_DIR/install.sh" --local
