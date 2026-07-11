@@ -48,7 +48,10 @@ def _is_peon_hook(cmd):
     # Only strip hooks peon installed. 'notify.sh' is a generic name other
     # tools register too (e.g. ~/.deckard/hooks/notify.sh), so qualify it to
     # peon's own copy; sibling tools' notify.sh hooks must survive.
-    if 'peon.sh' in cmd or 'hook-handle-use.sh' in cmd:
+    # 'hook-handle-' covers every handler peon registers (hook-handle-use.sh,
+    # hook-handle-rename.sh, and any future hook-handle-*.sh) — install.sh
+    # registers all of them, so uninstall must strip all of them.
+    if 'peon.sh' in cmd or 'hook-handle-' in cmd:
         return True
     if 'notify.sh' in cmd:
         return any(m in cmd for m in _peon_notify_markers)
@@ -124,7 +127,7 @@ for event, entries in list(hooks.items()):
     original_count = len(entries)
     entries = [
         h for h in entries
-        if not ('hook-handle-use' in h.get('command', ''))
+        if 'hook-handle-' not in h.get('command', '')
     ]
     if len(entries) < original_count:
         events_cleaned.append(event)
@@ -365,17 +368,30 @@ print('Restored notify.sh hooks for: SessionStart, UserPromptSubmit, Stop, Notif
   fi
 fi
 
+# Delete lines from a file, working for both regular files and symlinks.
+# BSD sed's `-i` aborts on a symlinked target ("in-place editing only works
+# for regular files"), which breaks the common dotfiles setup where rc files
+# are symlinks. Filter through a temp file and copy the content back with a
+# redirect, which follows the symlink and preserves it (and its target).
+_delete_lines() {
+  local file="$1"
+  shift
+  local tmp
+  tmp="$(mktemp)"
+  sed "$@" "$file" > "$tmp"
+  cat "$tmp" > "$file"
+  rm -f "$tmp"
+}
+
 # --- Remove shell alias and completions from rc files ---
 for rcfile in "$HOME/.zshrc" "$HOME/.bashrc"; do
   if [ -f "$rcfile" ] && [ -w "$rcfile" ]; then
     if grep -qF 'alias peon=' "$rcfile" || grep -qF 'peon-ping/completions.bash' "$rcfile"; then
       # Remove peon-ping lines (alias, completion, comment)
-      sed -i.bak \
+      _delete_lines "$rcfile" \
         -e '/# peon-ping quick controls/d' \
         -e '/alias peon=/d' \
-        -e '/peon-ping\/completions\.bash/d' \
-        "$rcfile"
-      rm -f "${rcfile}.bak"
+        -e '/peon-ping\/completions\.bash/d'
       echo "Cleaned peon-ping lines from $(basename "$rcfile")"
     fi
   fi
@@ -385,11 +401,9 @@ done
 FISH_CONFIG="$HOME/.config/fish/config.fish"
 if [ -f "$FISH_CONFIG" ] && [ -w "$FISH_CONFIG" ]; then
   if grep -qF 'function peon' "$FISH_CONFIG"; then
-    sed -i.bak \
+    _delete_lines "$FISH_CONFIG" \
       -e '/# peon-ping quick controls/d' \
-      -e '/function peon;.*peon\.sh/d' \
-      "$FISH_CONFIG"
-    rm -f "${FISH_CONFIG}.bak"
+      -e '/function peon;.*peon\.sh/d'
     echo "Cleaned peon-ping lines from config.fish"
   fi
 fi
