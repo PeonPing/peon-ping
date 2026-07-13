@@ -1050,7 +1050,36 @@ send_notification() {
 }
 
 # --- Platform-aware terminal focus check ---
+# Returns 0 if the agent's own tmux pane is the one currently on screen
+# (active pane, active window, attached session); 1 if it's in a background
+# tmux window/pane or a detached session. No-op (returns 0) outside tmux or
+# when the state can't be determined, so callers fall through to app checks.
+_tmux_pane_is_current() {
+  [ -n "${TMUX:-}" ] || return 0
+  local pane info attached window_active pane_active
+  pane="${TMUX_PANE:-}"
+  if [ -n "$pane" ]; then
+    info=$(tmux display-message -p -t "$pane" '#{session_attached} #{window_active} #{pane_active}' 2>/dev/null || true)
+  else
+    info=$(tmux display-message -p '#{session_attached} #{window_active} #{pane_active}' 2>/dev/null || true)
+  fi
+  [ -z "$info" ] && return 0
+  attached=$(printf '%s\n' "$info" | awk '{print $1}')
+  window_active=$(printf '%s\n' "$info" | awk '{print $2}')
+  pane_active=$(printf '%s\n' "$info" | awk '{print $3}')
+  if [ "${attached:-0}" -ge 1 ] 2>/dev/null && [ "$window_active" = "1" ] && [ "$pane_active" = "1" ]; then
+    return 0
+  fi
+  return 1
+}
+
 terminal_is_focused() {
+  # tmux-aware short-circuit: if this agent's pane isn't the one on screen
+  # (background window/pane or detached session), treat as NOT focused so the
+  # notification fires regardless of which terminal app is frontmost.
+  if [ -n "${TMUX:-}" ] && ! _tmux_pane_is_current; then
+    return 1
+  fi
   case "$PEON_PLATFORM" in
     mac)
       local frontmost
