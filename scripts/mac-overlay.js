@@ -326,12 +326,40 @@ function run(argv) {
       }
     }
 
-    // Message label — vertically centered
-    var font = $.NSFont.boldSystemFontOfSize(16);
-    var textHeight = font.ascender - font.descender + font.leading + 4;
-    var textY = (winHeight - textHeight) / 2;
+    // Message label(s). When a subtitle is supplied (argv[8]), stack the
+    // title on top and the subtitle below; otherwise render a single,
+    // vertically-centered line (original behavior).
+    var hasSubtitle = subtitle && subtitle.length > 0;
+    var titleFont = $.NSFont.boldSystemFontOfSize(16);
+    var titleHeight = titleFont.ascender - titleFont.descender + titleFont.leading + 4;
+
+    var titleY;
+    if (hasSubtitle) {
+      var subFont = $.NSFont.systemFontOfSize(12);
+      var subHeight = subFont.ascender - subFont.descender + subFont.leading + 4;
+      var gap = 2;
+      var blockBottom = (winHeight - (titleHeight + gap + subHeight)) / 2;
+      titleY = blockBottom + subHeight + gap; // title above subtitle
+      var subLabel = $.NSTextField.alloc.initWithFrame(
+        $.NSMakeRect(textX, blockBottom, textWidth, subHeight)
+      );
+      subLabel.setStringValue($(subtitle));
+      subLabel.setBezeled(false);
+      subLabel.setDrawsBackground(false);
+      subLabel.setEditable(false);
+      subLabel.setSelectable(false);
+      subLabel.setTextColor($.NSColor.colorWithSRGBRedGreenBlueAlpha(1, 1, 1, 0.85));
+      subLabel.setAlignment($.NSTextAlignmentCenter);
+      subLabel.setFont(subFont);
+      subLabel.setLineBreakMode($.NSLineBreakByTruncatingTail);
+      subLabel.cell.setWraps(false);
+      contentView.addSubview(subLabel);
+    } else {
+      titleY = (winHeight - titleHeight) / 2;
+    }
+
     var label = $.NSTextField.alloc.initWithFrame(
-      $.NSMakeRect(textX, textY, textWidth, textHeight)
+      $.NSMakeRect(textX, titleY, textWidth, titleHeight)
     );
     label.setStringValue($(message));
     label.setBezeled(false);
@@ -340,7 +368,7 @@ function run(argv) {
     label.setSelectable(false);
     label.setTextColor($.NSColor.whiteColor);
     label.setAlignment($.NSTextAlignmentCenter);
-    label.setFont(font);
+    label.setFont(titleFont);
     label.setLineBreakMode($.NSLineBreakByTruncatingTail);
     label.cell.setWraps(false);
     contentView.addSubview(label);
