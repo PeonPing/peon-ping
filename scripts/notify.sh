@@ -307,6 +307,18 @@ case "$PEON_PLATFORM" in
     if [ -z "$click_command" ]; then
       click_command="$(_cmux_click_command "$cmux_focus_helper" "$cmux_cli" "$cmux_socket_path" "$cmux_workspace_id" "$cmux_surface_id")" || true
     fi
+    # Inside tmux, clicking the overlay must also switch tmux to the agent's own
+    # window/pane — activating the terminal app alone lands on whatever tmux
+    # window was last active. Build a focus command (explicit -S socket so it
+    # works from the overlay's detached env) targeting this agent's pane. Tried
+    # before the generic terminal-window focus below, since the overlay already
+    # raises the hosting terminal window natively and the pane switch is the
+    # part that only tmux can do.
+    if [ -z "$click_command" ] && [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] && command -v tmux >/dev/null 2>&1; then
+      _pp_tsock=$(printf '%q' "${TMUX%%,*}")
+      _pp_tpane=$(printf '%q' "$TMUX_PANE")
+      click_command="tmux -S $_pp_tsock switch-client -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-window -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-pane -t $_pp_tpane 2>/dev/null"
+    fi
     if [ -z "$click_command" ]; then
       click_command="$(_terminal_focus_click_command "$bundle_id" "${PEON_SESSION_TTY:-}")" || true
       # The overlay focuses iTerm2 sessions natively but cannot derive an IDE
