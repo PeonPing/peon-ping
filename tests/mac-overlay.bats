@@ -288,6 +288,53 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   ! [[ "$(terminal_notifier_log)" == *"-activate"* ]]
 }
 
+@test "standard: iTerm2 exact session focus via -execute when session tty known" {
+  # TERM_PROGRAM empty models tmux-inside-iTerm / detached contexts, where
+  # the bundle id comes from the ITERM_SESSION_ID fallback and the OSC 9
+  # escape path is unavailable.
+  local notify_script="$TEST_DIR/scripts/notify.sh"
+  TERM_PROGRAM="" PEON_PLATFORM=mac PEON_NOTIF_STYLE=standard PEON_SYNC=1 \
+    PEON_BUNDLE_ID="com.googlecode.iterm2" PEON_SESSION_TTY="/dev/ttys042" \
+    bash "$notify_script" "test msg" "test title" "blue" ""
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  [[ "$(terminal_notifier_log)" == *"-execute"* ]]
+  [[ "$(terminal_notifier_log)" == *"osascript"* ]]
+  [[ "$(terminal_notifier_log)" == *"ttys042"* ]]
+}
+
+@test "standard: no -execute for iTerm2 when session tty unknown" {
+  local notify_script="$TEST_DIR/scripts/notify.sh"
+  TERM_PROGRAM="" PEON_PLATFORM=mac PEON_NOTIF_STYLE=standard PEON_SYNC=1 \
+    PEON_BUNDLE_ID="com.googlecode.iterm2" PEON_SESSION_TTY="" \
+    bash "$notify_script" "test msg" "test title" "blue" ""
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  [[ "$(terminal_notifier_log)" == *"-activate"* ]]
+  ! [[ "$(terminal_notifier_log)" == *"-execute"* ]]
+}
+
+@test "standard: VS Code family window focus via open -b with workspace dir" {
+  local notify_script="$TEST_DIR/scripts/notify.sh"
+  cd "$TEST_DIR"  # not a git repo, so the workspace dir falls back to cwd
+  TERM_PROGRAM=vscode PEON_PLATFORM=mac PEON_NOTIF_STYLE=standard PEON_SYNC=1 \
+    PEON_BUNDLE_ID="com.microsoft.VSCode" \
+    bash "$notify_script" "test msg" "test title" "blue" ""
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  [[ "$(terminal_notifier_log)" == *"-execute"* ]]
+  [[ "$(terminal_notifier_log)" == *"/usr/bin/open -b com.microsoft.VSCode"* ]]
+  [[ "$(terminal_notifier_log)" == *"$TEST_DIR"* ]]
+}
+
+@test "standard: cmux click command takes precedence over terminal focus fallback" {
+  local notify_script="$TEST_DIR/scripts/notify.sh"
+  PEON_PLATFORM=mac PEON_NOTIF_STYLE=standard PEON_SYNC=1 \
+    PEON_BUNDLE_ID="com.googlecode.iterm2" PEON_SESSION_TTY="/dev/ttys042" \
+    PEON_CLICK_COMMAND="/usr/local/bin/custom-focus arg1" \
+    bash "$notify_script" "test msg" "test title" "blue" ""
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  [[ "$(terminal_notifier_log)" == *"custom-focus"* ]]
+  ! [[ "$(terminal_notifier_log)" == *"osascript"* ]]
+}
+
 # ============================================================
 # Standard mode fallback
 # ============================================================
