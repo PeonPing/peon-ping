@@ -3804,8 +3804,9 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
 
     function Get-PeonCodexAdapterMarkers([string]$InstallRoot) {
         $markers = New-Object System.Collections.Generic.List[string]
+        $normalizedRoot = Normalize-PeonCodexPath $InstallRoot
         foreach ($adapterName in @("codex.ps1", "codex.sh")) {
-            $adapterPath = Join-Path (Join-Path $InstallRoot "adapters") $adapterName
+            $adapterPath = "$normalizedRoot/adapters/$adapterName"
             foreach ($marker in (Get-PeonCodexMarkers $adapterPath)) {
                 $markers.Add($marker)
             }
@@ -3886,17 +3887,79 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
     }
 
     function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
-        $managedPattern = '(?ms)\r?\n?# peon-ping Codex hooks begin.*?# peon-ping Codex hooks end\r?\n?'
-        $contentWithoutBlocks = ([regex]$managedPattern).Replace($Content, {
-            param($match)
-            if (Test-PeonCodexTextForInstall $match.Value $InstallRoot) { "`n" } else { $match.Value }
-        })
-
-        $lines = @($contentWithoutBlocks -split "\r?\n")
+        if ([string]::IsNullOrEmpty($Content)) { return "" }
+        $newline = if ($Content.Contains("`r`n")) { "`r`n" } else { "`n" }
+        $lines = @($Content -split "\r?\n")
+        $structuralLine = New-Object 'bool[]' $lines.Count
+        $multilineDelimiter = ""
+        for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
+            $structuralLine[$lineIndex] = -not $multilineDelimiter
+            if ($multilineDelimiter) {
+                if ($lines[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
+                continue
+            }
+            if ($lines[$lineIndex].TrimStart().StartsWith('#')) { continue }
+            foreach ($delimiter in @('"""', "'''")) {
+                $delimiterCount = ([regex]::Matches($lines[$lineIndex], [regex]::Escape($delimiter))).Count
+                if (($delimiterCount % 2) -eq 1) {
+                    $multilineDelimiter = $delimiter
+                    break
+                }
+            }
+        }
         $kept = New-Object System.Collections.Generic.List[string]
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $line = $lines[$i]
-            if ($line.Trim() -match '^notify\s*=') {
+            $parentMatch = if ($structuralLine[$i]) {
+                [regex]::Match($line, '^\s*\[\[hooks\.([^\.\]]+)\]\]\s*(?:#.*)?$')
+            } else { [System.Text.RegularExpressions.Match]::Empty }
+            if ($parentMatch.Success) {
+                $eventName = $parentMatch.Groups[1].Value
+                $parentLines = New-Object System.Collections.Generic.List[string]
+                $parentLines.Add($line)
+                while (($i + 1) -lt $lines.Count -and
+                    ((-not $structuralLine[$i + 1]) -or $lines[$i + 1] -notmatch '^\s*\[\[?[^\]]+\]\]?') -and
+                    $lines[$i + 1].Trim() -notin @('# peon-ping Codex hooks begin', '# peon-ping Codex hooks end')) {
+                    $i++
+                    $parentLines.Add($lines[$i])
+                }
+
+                $childBlocks = New-Object System.Collections.Generic.List[object]
+                while (($i + 1) -lt $lines.Count -and
+                    $structuralLine[$i + 1] -and
+                    $lines[$i + 1] -match "^\s*\[\[hooks\.$([regex]::Escape($eventName))\.hooks\]\]\s*(?:#.*)?$") {
+                    $i++
+                    $childLines = New-Object System.Collections.Generic.List[string]
+                    $childLines.Add($lines[$i])
+                    while (($i + 1) -lt $lines.Count -and
+                        ((-not $structuralLine[$i + 1]) -or $lines[$i + 1] -notmatch '^\s*\[\[?[^\]]+\]\]?') -and
+                        $lines[$i + 1].Trim() -notin @('# peon-ping Codex hooks begin', '# peon-ping Codex hooks end')) {
+                        $i++
+                        $childLines.Add($lines[$i])
+                    }
+                    $childBlocks.Add(@($childLines))
+                }
+
+                $remainingChildren = New-Object System.Collections.Generic.List[object]
+                $removedChild = $false
+                foreach ($childBlock in $childBlocks) {
+                    $childText = @($childBlock | Where-Object {
+                        $_.Trim() -match '^command(?:_windows|Windows)?\s*='
+                    }) -join $newline
+                    if (Test-PeonCodexTextForInstall $childText $InstallRoot) {
+                        $removedChild = $true
+                    } else {
+                        $remainingChildren.Add($childBlock)
+                    }
+                }
+
+                if ((-not $removedChild) -or $remainingChildren.Count -gt 0) {
+                    foreach ($parentLine in $parentLines) { $kept.Add($parentLine) }
+                    foreach ($childBlock in $remainingChildren) {
+                        foreach ($childLine in $childBlock) { $kept.Add($childLine) }
+                    }
+                }
+            } elseif ($line.Trim() -match '^notify\s*=') {
                 $blockLines = New-Object System.Collections.Generic.List[string]
                 $blockLines.Add($line)
                 $balance = Get-PeonTomlBracketDelta $line
@@ -3914,13 +3977,81 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
                 $kept.Add($line)
             }
         }
-        return ($kept -join "`n").TrimEnd()
+
+        # Codex may append its own tables before our legacy end marker. Remove
+        # only the marker lines for this install root, never the content between.
+        $markerStructuralLine = New-Object 'bool[]' $kept.Count
+        $multilineDelimiter = ""
+        for ($lineIndex = 0; $lineIndex -lt $kept.Count; $lineIndex++) {
+            $markerStructuralLine[$lineIndex] = -not $multilineDelimiter
+            if ($multilineDelimiter) {
+                if ($kept[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
+                continue
+            }
+            if ($kept[$lineIndex].TrimStart().StartsWith('#')) { continue }
+            foreach ($delimiter in @('"""', "'''")) {
+                $delimiterCount = ([regex]::Matches($kept[$lineIndex], [regex]::Escape($delimiter))).Count
+                if (($delimiterCount % 2) -eq 1) {
+                    $multilineDelimiter = $delimiter
+                    break
+                }
+            }
+        }
+        $withoutMarkers = New-Object System.Collections.Generic.List[string]
+        $insideTargetMarkers = $false
+        for ($i = 0; $i -lt $kept.Count; $i++) {
+            $line = $kept[$i]
+            if ($markerStructuralLine[$i] -and $line.Trim() -eq '# peon-ping Codex hooks begin') {
+                $next = $i + 1
+                while ($next -lt $kept.Count -and [string]::IsNullOrWhiteSpace($kept[$next])) { $next++ }
+                $markerInstallDir = if ($next -lt $kept.Count) {
+                    Get-PeonCodexBlockInstallDir ("$line$newline$($kept[$next])")
+                } else { "" }
+                $isTargetMarker = $false
+                foreach ($installMarker in (Get-PeonCodexMarkers $InstallRoot)) {
+                    if ([string]::Equals($markerInstallDir, $installMarker, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $isTargetMarker = $true
+                        break
+                    }
+                }
+                if ($isTargetMarker) {
+                    $insideTargetMarkers = $true
+                    while (($i + 1) -lt $next) { $i++ }
+                    $i = $next
+                    continue
+                }
+            }
+            if ($insideTargetMarkers -and $markerStructuralLine[$i] -and $line.Trim() -eq '# peon-ping Codex hooks end') {
+                $insideTargetMarkers = $false
+                continue
+            }
+            $withoutMarkers.Add($line)
+        }
+        return ($withoutMarkers -join $newline).TrimEnd("`r", "`n")
+    }
+
+    function Set-PeonCodexConfigAtomic([string]$Path, [string]$Content) {
+        $directory = Split-Path -Parent $Path
+        $leaf = Split-Path -Leaf $Path
+        $tempPath = Join-Path $directory ".$leaf.peon-ping-$PID-$([guid]::NewGuid().ToString('N')).tmp"
+        $backupPath = "$tempPath.backup"
+        try {
+            Set-Content -Path $tempPath -Value $Content -Encoding UTF8
+            if (Test-Path $Path) {
+                [System.IO.File]::Replace($tempPath, $Path, $backupPath)
+            } else {
+                Move-Item -Path $tempPath -Destination $Path
+            }
+        } finally {
+            Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
+        }
     }
 
     $codexAdapterPath = Join-Path $InstallDir "adapters\codex.ps1"
     $installDirLiteral = ConvertTo-PowerShellSingleQuotedString $InstallDir
     $adapterLiteral = ConvertTo-PowerShellSingleQuotedString $codexAdapterPath
-    $codexHookCommand = "powershell -NoProfile -NonInteractive -Command `"`$env:CLAUDE_PEON_DIR = $installDirLiteral; & $adapterLiteral`""
+    $codexHookCommand = "powershell -NoProfile -NonInteractive -Command `"try { `$env:CLAUDE_PEON_DIR = $installDirLiteral; if (Test-Path -LiteralPath $adapterLiteral) { `$hookInput = [Console]::In.ReadToEnd(); `$hookInput | & powershell -NoProfile -NonInteractive -File $adapterLiteral 2>`$null | Out-Null } } catch {}; exit 0`""
 
     $codexBegin = "# peon-ping Codex hooks begin"
     $codexEnd = "# peon-ping Codex hooks end"
@@ -3935,8 +4066,10 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
     )
 
     $codexContent = ""
+    $codexNewline = "`n"
     if (Test-Path $CodexConfigFile) {
         $codexContent = Get-Content $CodexConfigFile -Raw
+        if ($codexContent.Contains("`r`n")) { $codexNewline = "`r`n" }
     }
 
     $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
@@ -3953,20 +4086,21 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
         $codexBlock.Add("[[hooks.$($evt.Name).hooks]]")
         $codexBlock.Add('type = "command"')
         $codexBlock.Add("command = $(ConvertTo-TomlBasicString $codexHookCommand)")
+        $codexBlock.Add("command_windows = $(ConvertTo-TomlBasicString $codexHookCommand)")
         $codexBlock.Add("timeout = 30")
         $codexBlock.Add("")
     }
     $codexBlock.Add($codexEnd)
 
-    $codexBlockText = $codexBlock -join "`n"
+    $codexBlockText = $codexBlock -join $codexNewline
     if ($codexContent) {
-        $codexContent = "$codexContent`n`n$codexBlockText`n"
+        $codexContent = "$codexContent$codexNewline$codexNewline$codexBlockText$codexNewline"
     } else {
-        $codexContent = "$codexBlockText`n"
+        $codexContent = "$codexBlockText$codexNewline"
     }
 
     New-Item -ItemType Directory -Path $CodexDir -Force | Out-Null
-    Set-Content -Path $CodexConfigFile -Value $codexContent -Encoding UTF8
+    Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
     Write-Host "  Codex hooks registered for: $($codexEvents.Name -join ', ')" -ForegroundColor Green
     Write-Host "  Open Codex /hooks to review and trust the peon-ping commands if prompted." -ForegroundColor Yellow
 }

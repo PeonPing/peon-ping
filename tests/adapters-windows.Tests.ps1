@@ -1167,6 +1167,7 @@ Describe "uninstall.ps1" {
         $script:uninstallContent | Should -Match '\.codex\\config\.toml'
         $script:uninstallContent | Should -Match 'peon-ping Codex hooks begin'
         $script:uninstallContent | Should -Match ([regex]::Escape('adapters[\\/]+codex\.(sh|ps1)'))
+        $script:uninstallContent | Should -Match '\[System\.IO\.File\]::Replace'
     }
 
     It "Codex cleanup removes only the current install root" {
@@ -1200,13 +1201,48 @@ Describe "uninstall.ps1" {
             $content = @"
 model = "gpt-5"
 
+documentation = """
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "documented C:/Users/me[1]/.claude/hooks/peon-ping/adapters/codex.ps1"
+# peon-ping Codex hooks begin
+# install_dir = $currentInstall
+# peon-ping Codex hooks end
+"""
+
+literal_documentation = '''
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+command_windows = "documented C:/Users/me[1]/.claude/hooks/peon-ping/adapters/codex.ps1"
+'''
+
 # peon-ping Codex hooks begin
 # install_dir = $currentInstall
 [[hooks.Stop]]
+matcher = ""
 [[hooks.Stop.hooks]]
 type = "command"
 command = "powershell -NoProfile -File '$currentInstall\adapters\codex.ps1'"
 timeout = 10
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "powershell -NoProfile -File 'C:\Tools\user-stop.ps1'"
+timeout = 20
+
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command_windows = "powershell -NoProfile -File '$currentInstall\adapters\codex.ps1'"
+timeout = 10
+
+[hooks.state]
+trusted = true
+
+[[skills.config]]
+path = "C:\Users\me[1]\.codex\skills\review\SKILL.md"
+enabled = true
 # peon-ping Codex hooks end
 
 # peon-ping Codex hooks begin
@@ -1240,6 +1276,17 @@ notify = [
             $cleaned | Should -Match ([regex]::Escape("$otherInstall\adapters\codex.ps1"))
             $cleaned | Should -Match ([regex]::Escape("$oldPrefixInstall\adapters\codex.ps1"))
             $cleaned | Should -Match 'model = "gpt-5"'
+            $cleaned | Should -Match '(?m)^\[hooks\.state\]\r?$'
+            $cleaned | Should -Match '(?m)^trusted = true\r?$'
+            $cleaned | Should -Match '(?m)^\[\[skills\.config\]\]\r?$'
+            $cleaned | Should -Match ([regex]::Escape('C:\Tools\user-stop.ps1'))
+            $cleaned | Should -Match '(?m)^matcher = ""\r?$'
+            $cleaned | Should -Match 'command = "documented C:/Users/me\[1\]/\.claude/hooks/peon-ping/adapters/codex\.ps1"'
+            $cleaned | Should -Match 'command_windows = "documented C:/Users/me\[1\]/\.claude/hooks/peon-ping/adapters/codex\.ps1"'
+            $cleaned | Should -Match "(?s)documentation = `"`"`".*?# peon-ping Codex hooks begin.*?# install_dir = $([regex]::Escape($currentInstall)).*?# peon-ping Codex hooks end.*?`"`"`""
+            $cleaned.Contains("`r`n") | Should -BeTrue
+            ($cleaned.Replace("`r`n", "")) | Should -Not -Match "`n"
+            (Remove-PeonCodexConfigText $cleaned $currentInstall) | Should -BeExactly $cleaned
         } finally {
             $env:USERPROFILE = $oldUserProfile
         }
@@ -1931,6 +1978,37 @@ Describe "install.ps1 Default Config" {
         $codexInstallerBlock | Should -Not -BeNullOrEmpty
         $codexInstallerBlock | Should -Not -Match 'PostToolUse'
         $codexInstallerBlock | Should -Not -Match 'PreToolUse'
+        $script:installContent | Should -Match 'command_windows = '
+        $script:installContent | Should -Match 'if \(Test-Path -LiteralPath \$adapterLiteral\)'
+        $script:installContent | Should -Match '\[Console\]::In\.ReadToEnd\(\)'
+        $script:installContent | Should -Match '\$hookInput \| & powershell'
+        $script:installContent | Should -Match '& powershell -NoProfile -NonInteractive -File \$adapterLiteral'
+        $script:installContent | Should -Match '2>`\$null \| Out-Null'
+        $script:installContent | Should -Match 'catch \{\}; exit 0'
+        $script:installContent | Should -Match '\[System\.IO\.File\]::Replace'
+    }
+
+    It "Codex hook wrapper ignores and silences a failing adapter process" -Skip:($env:OS -ne 'Windows_NT') {
+        $adapter = Join-Path ([System.IO.Path]::GetTempPath()) "peon-codex-fail-$([guid]::NewGuid().ToString('N')).ps1"
+        $capture = "$adapter.stdin"
+        $captureLiteral = "'" + $capture.Replace("'", "''") + "'"
+        Set-Content -Path $adapter -Value @"
+[System.IO.File]::WriteAllText($captureLiteral, [Console]::In.ReadToEnd())
+Write-Output "unexpected stdout"
+[Console]::Error.WriteLine("unexpected stderr")
+exit 37
+"@ -Encoding UTF8
+        try {
+            $adapterLiteral = "'" + $adapter.Replace("'", "''") + "'"
+            $wrapper = "try { if (Test-Path -LiteralPath $adapterLiteral) { `$hookInput = [Console]::In.ReadToEnd(); `$hookInput | & powershell -NoProfile -NonInteractive -File $adapterLiteral 2>`$null | Out-Null } } catch {}; exit 0"
+            $output = '{"hook_event_name":"Stop"}' | & powershell -NoProfile -NonInteractive -Command $wrapper 2>&1
+            $LASTEXITCODE | Should -Be 0
+            $output | Should -BeNullOrEmpty
+            (Get-Content -Path $capture -Raw) | Should -Match '"hook_event_name":"Stop"'
+        } finally {
+            Remove-Item -Path $adapter -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $capture -Force -ErrorAction SilentlyContinue
+        }
     }
 
     It "installer Codex cleanup removes only the current install root" {
@@ -1963,13 +2041,48 @@ Describe "install.ps1 Default Config" {
             $content = @"
 model = "gpt-5"
 
+documentation = """
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "documented C:/Users/me[1]/.claude/hooks/peon-ping/adapters/codex.ps1"
+# peon-ping Codex hooks begin
+# install_dir = $currentInstall
+# peon-ping Codex hooks end
+"""
+
+literal_documentation = '''
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+command_windows = "documented C:/Users/me[1]/.claude/hooks/peon-ping/adapters/codex.ps1"
+'''
+
 # peon-ping Codex hooks begin
 # install_dir = $currentInstall
 [[hooks.Stop]]
+matcher = ""
 [[hooks.Stop.hooks]]
 type = "command"
 command = "powershell -NoProfile -File '$currentInstall\adapters\codex.ps1'"
 timeout = 10
+
+[[hooks.Stop.hooks]]
+type = "command"
+command_windows = "powershell -NoProfile -File 'C:\Tools\user-stop.ps1'"
+timeout = 20
+
+[[hooks.UserPromptSubmit]]
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command_windows = "powershell -NoProfile -File '$currentInstall\adapters\codex.ps1'"
+timeout = 10
+
+[hooks.state]
+trusted = true
+
+[[skills.config]]
+path = "C:\Users\me[1]\.codex\skills\review\SKILL.md"
+enabled = true
 # peon-ping Codex hooks end
 
 # peon-ping Codex hooks begin
@@ -1993,6 +2106,17 @@ notify = [
             $cleaned | Should -Not -Match '(?m)^notify\s*='
             $cleaned | Should -Match ([regex]::Escape("$oldPrefixInstall\adapters\codex.ps1"))
             $cleaned | Should -Match 'model = "gpt-5"'
+            $cleaned | Should -Match '(?m)^\[hooks\.state\]\r?$'
+            $cleaned | Should -Match '(?m)^trusted = true\r?$'
+            $cleaned | Should -Match '(?m)^\[\[skills\.config\]\]\r?$'
+            $cleaned | Should -Match ([regex]::Escape('C:\Tools\user-stop.ps1'))
+            $cleaned | Should -Match '(?m)^matcher = ""\r?$'
+            $cleaned | Should -Match 'command = "documented C:/Users/me\[1\]/\.claude/hooks/peon-ping/adapters/codex\.ps1"'
+            $cleaned | Should -Match 'command_windows = "documented C:/Users/me\[1\]/\.claude/hooks/peon-ping/adapters/codex\.ps1"'
+            $cleaned | Should -Match "(?s)documentation = `"`"`".*?# peon-ping Codex hooks begin.*?# install_dir = $([regex]::Escape($currentInstall)).*?# peon-ping Codex hooks end.*?`"`"`""
+            $cleaned.Contains("`r`n") | Should -BeTrue
+            ($cleaned.Replace("`r`n", "")) | Should -Not -Match "`n"
+            (Remove-PeonCodexConfigText $cleaned $currentInstall) | Should -BeExactly $cleaned
         } finally {
             $env:USERPROFILE = $oldUserProfile
         }

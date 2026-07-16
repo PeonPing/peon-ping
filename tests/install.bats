@@ -24,6 +24,7 @@ setup() {
   cp -r "$(dirname "$BATS_TEST_FILENAME")/../skills" "$CLONE_DIR/" 2>/dev/null || true
   mkdir -p "$CLONE_DIR/scripts"
   cp "$(dirname "$BATS_TEST_FILENAME")/../scripts/"*.sh "$CLONE_DIR/scripts/" 2>/dev/null || true
+  cp "$(dirname "$BATS_TEST_FILENAME")/../scripts/"*.py "$CLONE_DIR/scripts/" 2>/dev/null || true
   mkdir -p "$CLONE_DIR/adapters"
   cp "$(dirname "$BATS_TEST_FILENAME")/../adapters/"*.sh "$CLONE_DIR/adapters/" 2>/dev/null || true
 
@@ -167,10 +168,149 @@ for event in ['PreToolUse', 'PostToolUse', 'PostCompact', 'Notification', 'Sessi
     assert f'[[hooks.{event}]]' not in cfg, f'{event} should not be registered\\n{cfg}'
 assert 'notify =' not in cfg, cfg
 assert 'CLAUDE_PEON_DIR=' in cfg, cfg
+assert 'if [ -f ' in cfg and '|| true; fi' in cfg, cfg
 assert 'adapters/codex.sh' in cfg, cfg
 assert cfg.count('timeout = 30') == 7, cfg
 print('OK')
 "
+}
+
+@test "Codex hook exits zero when its adapter has been removed" {
+  mkdir -p "$TEST_HOME/.codex"
+  echo 'model = "gpt-5"' > "$TEST_HOME/.codex/config.toml"
+
+  bash "$CLONE_DIR/install.sh"
+  command=$(/usr/bin/python3 -c "
+import json
+from pathlib import Path
+for line in Path('$TEST_HOME/.codex/config.toml').read_text().splitlines():
+    if line.startswith('command = ') and 'adapters/codex.sh' in line:
+        print(json.loads(line.split('=', 1)[1].strip()))
+        break
+")
+  rm "$INSTALL_DIR/adapters/codex.sh"
+
+  run /bin/sh -lc "$command"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "Codex update and uninstall preserve state skills and sibling handlers" {
+  mkdir -p "$TEST_HOME/.codex"
+  cat > "$TEST_HOME/.codex/config.toml" <<TOML
+model = "gpt-5"
+
+notes = """
+# peon-ping Codex hooks begin
+# install_dir = $INSTALL_DIR
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+  command = "bash $INSTALL_DIR/adapters/codex.sh"
+# peon-ping Codex hooks end
+"""
+
+# peon-ping Codex hooks begin
+# install_dir = $INSTALL_DIR
+[[hooks.Stop]]
+matcher = ""
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "CLAUDE_PEON_DIR=$INSTALL_DIR bash $INSTALL_DIR/adapters/codex.sh"
+timeout = 30
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "python3 /tmp/user-stop.py"
+
+[hooks.state]
+enabled = true
+
+[hooks.state.trusted_hashes]
+"user-hook" = "sha256:keep-me"
+
+[[skills.config]]
+path = "/tmp/user-skill/SKILL.md"
+enabled = false
+
+# peon-ping Codex hooks end
+TOML
+
+  bash "$CLONE_DIR/install.sh"
+
+  /usr/bin/python3 -c "
+from pathlib import Path
+cfg = Path('$TEST_HOME/.codex/config.toml').read_text()
+assert cfg.count('[hooks.state]') == 1, cfg
+assert 'sha256:keep-me' in cfg, cfg
+assert cfg.count('[[skills.config]]') == 1, cfg
+assert '/tmp/user-skill/SKILL.md' in cfg, cfg
+assert cfg.count('python3 /tmp/user-stop.py') == 1, cfg
+commands = [line for line in cfg.splitlines() if line.startswith('command = ')]
+assert sum('$INSTALL_DIR/adapters/codex.sh' in line for line in commands) == 7, cfg
+assert '  command = ' + chr(34) + 'bash $INSTALL_DIR/adapters/codex.sh' + chr(34) in cfg, cfg
+print('OK')
+"
+
+  bash "$INSTALL_DIR/uninstall.sh"
+
+  /usr/bin/python3 -c "
+from pathlib import Path
+cfg = Path('$TEST_HOME/.codex/config.toml').read_text()
+assert '[hooks.state]' in cfg and 'sha256:keep-me' in cfg, cfg
+assert '[[skills.config]]' in cfg and '/tmp/user-skill/SKILL.md' in cfg, cfg
+assert 'python3 /tmp/user-stop.py' in cfg, cfg
+assert cfg.count('$INSTALL_DIR/adapters/codex.sh') == 1, cfg
+assert '  command = ' + chr(34) + 'bash $INSTALL_DIR/adapters/codex.sh' + chr(34) in cfg, cfg
+assert cfg.count('# peon-ping Codex hooks begin') == 1, cfg
+print('OK')
+"
+}
+
+@test "Codex config symlink and CRLF survive install and uninstall" {
+  mkdir -p "$TEST_HOME/.codex" "$TEST_HOME/dotfiles"
+  /usr/bin/python3 -c "
+from pathlib import Path
+Path('$TEST_HOME/dotfiles/codex.toml').write_bytes(b'model = ' + bytes([34]) + b'gpt-5' + bytes([34]) + b'\\r\\n')
+"
+  ln -s "$TEST_HOME/dotfiles/codex.toml" "$TEST_HOME/.codex/config.toml"
+
+  bash "$CLONE_DIR/install.sh"
+
+  [ -L "$TEST_HOME/.codex/config.toml" ]
+  /usr/bin/python3 -c "
+from pathlib import Path
+data = Path('$TEST_HOME/dotfiles/codex.toml').read_bytes()
+assert b'adapters/codex.sh' in data, data
+assert b'\\r\\n' in data, data
+assert b'\\n' not in data.replace(b'\\r\\n', b''), data
+"
+
+  bash "$INSTALL_DIR/uninstall.sh"
+
+  [ -L "$TEST_HOME/.codex/config.toml" ]
+  /usr/bin/python3 -c "
+from pathlib import Path
+data = Path('$TEST_HOME/dotfiles/codex.toml').read_bytes()
+assert b'adapters/codex.sh' not in data, data
+assert data == b'model = ' + bytes([34]) + b'gpt-5' + bytes([34]) + b'\\r\\n', data
+"
+}
+
+@test "uninstall aborts safely when the Codex config helper is missing" {
+  mkdir -p "$TEST_HOME/.codex"
+  echo 'model = "gpt-5"' > "$TEST_HOME/.codex/config.toml"
+  bash "$CLONE_DIR/install.sh"
+  rm "$INSTALL_DIR/scripts/codex-config.py"
+
+  run bash "$INSTALL_DIR/uninstall.sh"
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"cannot safely remove Codex hooks"* ]]
+  [[ "$output" != *"Uninstall complete"* ]]
+  [ -d "$INSTALL_DIR" ]
+  grep -q "$INSTALL_DIR/adapters/codex.sh" "$TEST_HOME/.codex/config.toml"
 }
 
 @test "install replaces stale skill symlink from older package managers" {
