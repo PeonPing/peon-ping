@@ -3,14 +3,44 @@
 # Removes peon hooks and optionally restores notify.sh
 set -euo pipefail
 
+# Refuse to run via pipe to ensure path resolution is safe and deterministic
+if [ -z "${BASH_SOURCE[0]:-}" ] || [ ! -f "${BASH_SOURCE[0]}" ]; then
+  echo "Error: Running the uninstaller via piped stdin (e.g., curl | bash) is not supported." >&2
+  echo "Please run the local uninstaller script instead:" >&2
+  echo "  bash \"\${CLAUDE_CONFIG_DIR:-\$HOME/.claude}\"/hooks/peon-ping/uninstall.sh        # global" >&2
+  echo "  bash .claude/hooks/peon-ping/uninstall.sh                                  # project-local" >&2
+  exit 1
+fi
+
 INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Hard gatekeeper for resolved INSTALL_DIR
+if [ -z "$INSTALL_DIR" ] || [ "$INSTALL_DIR" = "/" ] || [ "$INSTALL_DIR" = "$HOME" ]; then
+  echo "Error: Invalid or dangerous INSTALL_DIR: $INSTALL_DIR" >&2
+  exit 1
+fi
+
+# Positive verification: Ensure this is actually a peon-ping directory
+if [ ! -f "$INSTALL_DIR/peon.sh" ]; then
+  echo "Security Error: Target directory does not appear to be a valid peon-ping installation (missing peon.sh)." >&2
+  exit 1
+fi
+
+
+# Resolve and validate BASE_DIR
 BASE_DIR="$(cd "$INSTALL_DIR/../.." && pwd)"
+if [ -z "$BASE_DIR" ] || [ "$BASE_DIR" = "/" ] || [ "$BASE_DIR" = "$HOME" ]; then
+  echo "Error: Invalid or dangerous BASE_DIR: $BASE_DIR" >&2
+  exit 1
+fi
+
 SETTINGS="$BASE_DIR/settings.json"
 
 IS_LOCAL=true
 if [ "$BASE_DIR" = "$HOME/.claude" ]; then
   IS_LOCAL=false
 fi
+
 
 # Hooks are always written to global settings (install.sh design).
 # When uninstalling a local install, also clean hooks from global settings.
@@ -403,6 +433,11 @@ fi
 for SKILL_NAME in peon-ping-toggle peon-ping-config peon-ping-use peon-ping-log peon-ping-rename; do
   SKILL_DIR="$BASE_DIR/skills/$SKILL_NAME"
   if [ -d "$SKILL_DIR" ]; then
+    # Sanity check before deletion
+    if [ -z "$SKILL_DIR" ] || [ "$SKILL_DIR" = "/" ] || [ "$SKILL_DIR" = "$HOME" ]; then
+      echo "Security Error: Refusing to delete $SKILL_DIR" >&2
+      exit 1
+    fi
     echo ""
     echo "Removing $SKILL_DIR..."
     rm -rf "$SKILL_DIR"
@@ -412,6 +447,11 @@ done
 
 # --- Remove install directory ---
 if [ -d "$INSTALL_DIR" ]; then
+  # Sanity check before deletion
+  if [ -z "$INSTALL_DIR" ] || [ "$INSTALL_DIR" = "/" ] || [ "$INSTALL_DIR" = "$HOME" ]; then
+    echo "Security Error: Refusing to delete $INSTALL_DIR" >&2
+    exit 1
+  fi
   echo ""
   echo "Removing $INSTALL_DIR..."
   rm -rf "$INSTALL_DIR"
