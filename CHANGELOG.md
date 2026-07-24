@@ -1,3 +1,8 @@
+## v2.35.1 (2026-07-24)
+
+### Fixed
+- **`peon setup` (and every other config write) no longer crashes on a fresh install.** On a brand-new machine, before any pack is downloaded, `PEON_DIR` resolves to `~/.openpeon`, but that directory did not exist yet. The setup wizard and CLI commands write `config.json` with `json.dump(cfg, open(config_path, 'w'))` and no `os.makedirs`, so the first write died with `FileNotFoundError`, which is exactly the flow the README's Configuration section walks users through. `peon.sh` now ensures the data dir exists once, right after `PEON_DIR` is resolved, which covers every config and state write at the root. Reported and root-caused by @hodak. Closes #561.
+
 ## v2.35.0 (2026-07-19)
 
 ### Added

@@ -320,6 +320,21 @@ JSON
 }
 
 # ============================================================
+# Fresh install (#561)
+# ============================================================
+
+@test "config-writing command creates the data dir on a fresh install (#561)" {
+  # Simulate a brand-new machine: no ~/.openpeon, no ~/.claude/hooks/peon-ping.
+  # PEON_DIR resolves to ~/.openpeon via the fallback chain, and a config write
+  # must not crash with FileNotFoundError when that dir does not exist yet.
+  local fresh="$TEST_DIR/fresh561-home"
+  run env HOME="$fresh" CLAUDE_CONFIG_DIR="$fresh/.claude" CLAUDE_PEON_DIR="" \
+    bash "$PEON_SH" volume 0.5
+  [ "$status" -eq 0 ]
+  [ -f "$fresh/.openpeon/config.json" ]
+}
+
+# ============================================================
 # Disabled config
 # ============================================================
 

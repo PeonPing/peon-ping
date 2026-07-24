@@ -187,6 +187,9 @@ if [ ! -d "$PEON_DIR/packs" ]; then
   fi
   unset _hooks_dir
 fi
+# Ensure the data dir exists before any config/state write (#561: fresh install
+# has no ~/.openpeon yet, and the setup wizard writes config.json directly).
+mkdir -p "$PEON_DIR" 2>/dev/null || true
 # Local project config overrides global config
 _local_config="${PWD}/.claude/hooks/peon-ping/config.json"
 if [ -f "$_local_config" ]; then
