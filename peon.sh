@@ -465,12 +465,13 @@ _resolve_tts_backend() {
   case "$backend" in
     native)     echo "tts-native.sh" ;;
     elevenlabs) echo "tts-elevenlabs.sh" ;;
+    minimax)    echo "tts-minimax.sh" ;;
     piper)      echo "tts-piper.sh" ;;
     auto)
       # Probe in priority order: prefer premium when installed.
       # Each candidate is resolved inline (no recursive self-call).
       local candidate
-      for candidate in tts-elevenlabs.sh tts-piper.sh tts-native.sh; do  # keep in sync with named cases above
+      for candidate in tts-elevenlabs.sh tts-minimax.sh tts-piper.sh tts-native.sh; do  # keep in sync with named cases above
         find_bundled_script "$candidate" >/dev/null 2>&1 || continue
         echo "$candidate" && return 0
       done
