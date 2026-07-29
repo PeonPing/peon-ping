@@ -61,9 +61,13 @@ function run(argv) {
   // All overlays with the same slot will coordinate dismissal
   var dismissNotificationName = 'com.peonping.dismiss.' + slot;
 
-  // Register a click handler if we have a target bundle ID, IDE PID, or persistent mode
+  // Register a click handler if we have a target bundle ID, IDE PID, persistent
+  // mode, or a custom click command. The last case covers relay notifications
+  // for remote ssh sessions: the hosting terminal isn't known at notify time
+  // (it's discovered on click by ssh-focus.sh), so there's no bundle id to key
+  // on — the click command alone must make the overlay clickable.
   var clickHandler = null;
-  if (bundleId || idePid > 0 || persistent) {
+  if (bundleId || idePid > 0 || persistent || clickCommand) {
     function activateBundle(targetBundleId) {
       if (!targetBundleId) return false;
       var ws = $.NSWorkspace.sharedWorkspace;
