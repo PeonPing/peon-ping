@@ -1,7 +1,7 @@
 ---
 name: peon-ping-rename
 description: Rename the current Claude session for peon-ping notifications and terminal tab title. Use when user wants to give this session a custom name like "/peon-ping-rename Auth Refactor". Call with no argument to reset to auto-detect.
-user_invocable: true
+user-invocable: true
 license: MIT
 metadata:
   author: PeonPing

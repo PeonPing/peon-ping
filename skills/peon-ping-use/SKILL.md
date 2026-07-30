@@ -1,7 +1,7 @@
 ---
 name: peon-ping-use
 description: Set which voice pack (character voice) plays for the current chat session. Automatically enables session_override rotation mode if not already set. Use when user wants a specific character voice like GLaDOS, Peon, or Kerrigan for this conversation.
-user_invocable: true
+user-invocable: true
 license: MIT
 metadata:
   author: PeonPing
