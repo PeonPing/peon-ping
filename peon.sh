@@ -751,11 +751,44 @@ play_sound() {
   esac
 }
 
+# --- Live tmux client context (click-to-focus) ---
+# Echoes "<bundle_id>|<client_tty>|<terminal_pid>" describing the client attached
+# to this pane's session at this instant — empty fields when nothing is attached,
+# and an empty bundle id off macOS. Memoized because both consumers below want a
+# slice of it and the lookup forks ps/lsappinfo a few times.
+_peon_tmux_client_context() {
+  if [ -n "${_PEON_TMUX_CTX_RESOLVED:-}" ]; then
+    printf '%s\n' "${_PEON_TMUX_CTX:-}"
+    return 0
+  fi
+  _PEON_TMUX_CTX_RESOLVED=1
+  _PEON_TMUX_CTX=""
+  { [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ]; } || return 0
+  local _helper
+  _helper="$(find_bundled_script "local-focus.sh")" 2>/dev/null || return 0
+  [ -x "$_helper" ] || return 0
+  _PEON_TMUX_CTX="$("$_helper" --print-context "${TMUX%%,*}" "$TMUX_PANE" "" "$(command -v tmux 2>/dev/null)" 2>/dev/null)"
+  printf '%s\n' "$_PEON_TMUX_CTX"
+}
+
 # --- Terminal bundle ID detection (macOS click-to-focus) ---
 # Returns the macOS bundle identifier for the current terminal emulator,
 # or empty string if unknown. Used with terminal-notifier -activate and
 # mac-overlay.js click handler to focus the right terminal on notification click.
 _mac_terminal_bundle_id() {
+  # Inside tmux, ask tmux — not this process's environment. The env below names
+  # the emulator the session was FIRST attached from and never updates, so it
+  # goes stale the moment the terminal is restarted or the session is re-attached
+  # from another one, and it is empty for emulators that export no identity at
+  # all (kitty, alacritty). scripts/local-focus.sh derives the app from the
+  # client attached right now; see its header for the full rationale.
+  if [ -n "${TMUX:-}" ] && ! _is_cmux_session; then
+    local _live_bundle
+    _live_bundle="$(_peon_tmux_client_context)"
+    _live_bundle="${_live_bundle%%|*}"
+    [ -n "$_live_bundle" ] && { echo "$_live_bundle"; return; }
+  fi
+
   case "${TERM_PROGRAM:-}" in
     ghostty)
       if _is_cmux_session; then
@@ -787,6 +820,11 @@ _mac_terminal_bundle_id() {
         echo "com.googlecode.iterm2"
       elif [ -n "${WARP_IS_LOCAL_SHELL_SESSION:-}" ]; then
         echo "dev.warp.Warp-Stable"
+      elif [ -n "${KITTY_WINDOW_ID:-}" ] || [ -n "${KITTY_PID:-}" ]; then
+        # kitty and alacritty set no TERM_PROGRAM, so they only ever reach here.
+        echo "net.kovidgoyal.kitty"
+      elif [ -n "${ALACRITTY_WINDOW_ID:-}" ] || [ -n "${ALACRITTY_SOCKET:-}" ]; then
+        echo "org.alacritty"
       else
         echo ""
       fi ;;
@@ -920,7 +958,14 @@ _mac_bundle_id_from_pid() {
 _resolve_session_tty() {
   [ -n "${PEON_SESSION_TTY:-}" ] && return 0
   if [ -n "${TMUX:-}" ]; then
-    PEON_SESSION_TTY=$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)
+    # Take the tty from the same deterministic client pick the click path uses:
+    # with several clients on one session, an untargeted `display-message`
+    # answers for whichever tmux considers current, which need not be ours.
+    PEON_SESSION_TTY="$(_peon_tmux_client_context)"
+    PEON_SESSION_TTY="${PEON_SESSION_TTY#*|}"
+    PEON_SESSION_TTY="${PEON_SESSION_TTY%%|*}"
+    [ -z "$PEON_SESSION_TTY" ] && \
+      PEON_SESSION_TTY=$(tmux display-message -p '#{client_tty}' 2>/dev/null || true)
   else
     # Walk the full process tree; keep the LAST (highest ancestor) tty found.
     # Claude Code spawns hooks from worker processes that may have their own
@@ -997,6 +1042,10 @@ send_notification() {
       export PEON_SYNC="0"
       [ "${PEON_TEST:-0}" = "1" ] && export PEON_SYNC="1"
       if [ "$PEON_PLATFORM" = "mac" ]; then
+        # Prime the live tmux client lookup here, in this shell: both consumers
+        # below run in command substitutions, where the memoization would die
+        # with the subshell and the lookup would run twice.
+        _peon_tmux_client_context >/dev/null
         export PEON_BUNDLE_ID="$(_mac_terminal_bundle_id)"
         export PEON_IDE_PID="$(_mac_ide_pid)"
         # Warp's per-session deep link; opening it on click focuses the exact tab.

@@ -119,6 +119,14 @@ _find_cmux_focus_helper() {
   return 1
 }
 
+_find_local_focus_helper() {
+  local p="$PEON_DIR/scripts/local-focus.sh"
+  [ -x "$p" ] && { echo "$p"; return 0; }
+  p="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/local-focus.sh"
+  [ -x "$p" ] && { echo "$p"; return 0; }
+  return 1
+}
+
 _find_cmux_workspace_field_helper() {
   local p="$PEON_DIR/scripts/cmux-workspace-field.sh"
   [ -f "$p" ] && { echo "$p"; return 0; }
@@ -317,7 +325,24 @@ case "$PEON_PLATFORM" in
     if [ -z "$click_command" ] && [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ] && command -v tmux >/dev/null 2>&1; then
       _pp_tsock=$(printf '%q' "${TMUX%%,*}")
       _pp_tpane=$(printf '%q' "$TMUX_PANE")
-      click_command="tmux -S $_pp_tsock switch-client -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-window -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-pane -t $_pp_tpane 2>/dev/null"
+      _pp_local_focus=""
+      if [ "$PEON_PLATFORM" = "mac" ]; then
+        _pp_local_focus="$(_find_local_focus_helper)" 2>/dev/null || _pp_local_focus=""
+      fi
+      if [ -n "$_pp_local_focus" ]; then
+        # macOS: hand the whole click to local-focus.sh, which re-derives the
+        # hosting terminal from the tmux client attached at CLICK time (the user
+        # may have restarted or swapped terminals since this notification was
+        # posted), raises it, then switches that client to our pane. bundle_id
+        # rides along as the fallback for the one case tmux can't answer — see
+        # scripts/local-focus.sh.
+        # Pin the tmux binary resolved here: the click runs under `bash -lc`,
+        # where PATH may resolve a different (version-mismatched) tmux.
+        _pp_tmuxbin="$(command -v tmux 2>/dev/null || true)"
+        click_command="$(printf '%q %s %s %q %q' "$_pp_local_focus" "$_pp_tsock" "$_pp_tpane" "$bundle_id" "$_pp_tmuxbin")"
+      else
+        click_command="tmux -S $_pp_tsock switch-client -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-window -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-pane -t $_pp_tpane 2>/dev/null"
+      fi
     fi
     if [ -z "$click_command" ]; then
       click_command="$(_terminal_focus_click_command "$bundle_id" "${PEON_SESSION_TTY:-}")" || true
