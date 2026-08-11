@@ -430,9 +430,12 @@ param(
     [Parameter(ValueFromRemainingArguments)]$ExtraArgs = @()
 )
 
-# 8-second self-timeout safety net — kills this process if anything blocks unexpectedly.
+# 8-second self-timeout safety net: kills this process if anything blocks unexpectedly.
 # Uses System.Timers.Timer (not Forms.Timer) so it works in headless PowerShell without a message pump.
-# Must fire before ANY I/O (config read, state read, stdin read).
+# Scope: Register-ObjectEvent runs its action on the pipeline thread the next time that
+# thread goes idle, so this covers work that is slow but still executing statements. It
+# cannot interrupt a thread parked inside one blocking call, which is why the stdin read
+# further down bounds itself instead of relying on this timer.
 if (-not $Command) {
     $safetyTimer = New-Object System.Timers.Timer
     $safetyTimer.Interval = 8000
@@ -2503,14 +2506,22 @@ if (-not $config.enabled) {
 $_activePack = Get-ActivePack $config
 & $peonLog 'config' @{ loaded = $ConfigPath; volume = [string]$config.volume; pack = $_activePack; enabled = 'True' }
 
-# Read hook input from stdin (StreamReader with UTF-8 auto-strips BOM on Windows)
+# Read hook input from stdin (StreamReader with UTF-8 auto-strips BOM on Windows).
+# Bounded at 2s, matching the `timeout 2 cat` guard peon.sh uses for the same reason:
+# a host can open the stdin pipe and never close the write end, and a synchronous
+# ReadToEnd() then parks this thread for the life of the process. The safety timer at
+# the top of this script cannot rescue that case, so on timeout leave $hookInput empty
+# and fall through to the no-input guard below, which exits 0.
 $hookInput = ""
 try {
     if (-not [Console]::IsInputRedirected) { exit 0 }
     $stream = [Console]::OpenStandardInput()
     $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
-    $hookInput = $reader.ReadToEnd()
-    $reader.Close()
+    $readTask = $reader.ReadToEndAsync()
+    if ($readTask.Wait(2000)) {
+        $hookInput = $readTask.Result
+        $reader.Close()
+    }
 } catch {
     exit 0
 }

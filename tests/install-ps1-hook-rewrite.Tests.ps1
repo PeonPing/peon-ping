@@ -123,3 +123,87 @@ Describe "install.ps1 Copilot CLI camelCase fallback" {
         $content | Should -Match 'elseif \(\$event\.sessionId\) \{ \$event\.sessionId \}'
     }
 }
+
+Describe "install.ps1 hook stdin read is bounded" {
+    # A host can hand the hook a stdin pipe and never close the write end. A plain
+    # ReadToEnd() then parks the pipeline thread for the life of the process, and the
+    # 8-second safety timer cannot help: Register-ObjectEvent runs its action on that
+    # same blocked thread. peon.sh has guarded this since #445 with `timeout 2 cat`;
+    # these tests hold the PowerShell path to the same bound.
+
+    BeforeAll {
+        # Lift the hook body out of the here-string that install.ps1 writes to peon.ps1.
+        $lines = Get-Content $script:InstallPs1
+        $startLine = ($lines | Select-String -Pattern '^\$hookScript = @' | Select-Object -First 1).LineNumber
+        $endLine = ($lines | Select-String -Pattern "^'@" | Where-Object { $_.LineNumber -gt $startLine } | Select-Object -First 1).LineNumber
+        $script:HookBody = $lines[$startLine..($endLine - 2)] -join "`n"
+    }
+
+    # Asserted as booleans rather than `$HookBody | Should -Match`, so a failure reports
+    # one line instead of dumping the whole 3000-line hook body into the CI log.
+    It "uses a timed async read rather than a blocking ReadToEnd" {
+        ($script:HookBody -match '\$readTask = \$reader\.ReadToEndAsync\(\)') |
+            Should -BeTrue -Because 'the stdin read must not block indefinitely'
+        ($script:HookBody -match '\$readTask\.Wait\(2000\)') |
+            Should -BeTrue -Because 'the read is bounded at 2s, matching peon.sh'
+    }
+
+    It "no longer calls ReadToEnd() unbounded in the hook body" {
+        ($script:HookBody -match '\$reader\.ReadToEnd\(\)') |
+            Should -BeFalse -Because 'the unbounded read is what wedged the process'
+    }
+
+    It "exits instead of hanging when stdin never closes" {
+        # The bug is an indefinite hang, so the ceiling only has to separate "bounded"
+        # from "forever". Bound is 2s plus interpreter startup.
+        $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) "peon-stdin-$([guid]::NewGuid().ToString('N'))"
+        New-Item -ItemType Directory -Path $sandbox -Force | Out-Null
+        $peon = Join-Path $sandbox 'peon.ps1'
+        $proc = $null
+        try {
+            Set-Content -Path $peon -Value $script:HookBody -Encoding UTF8
+            Copy-Item (Join-Path $script:RepoRoot 'config.json') (Join-Path $sandbox 'config.json') -Force
+
+            $psi = [System.Diagnostics.ProcessStartInfo]::new('powershell.exe',
+                "-NoProfile -NonInteractive -File `"$peon`"")
+            $psi.RedirectStandardInput = $true
+            $psi.UseShellExecute = $false
+            $proc = [System.Diagnostics.Process]::Start($psi)
+
+            # Write the payload a host sends, then hold the write end open.
+            $proc.StandardInput.Write('{"hook_event_name":"SessionStart","session_id":"pester-stdin"}')
+            $proc.StandardInput.Flush()
+
+            $proc.WaitForExit(20000) | Should -BeTrue -Because 'the hook must not block forever on a stdin pipe that never closes'
+        } finally {
+            if ($proc -and -not $proc.HasExited) { $proc.Kill(); $proc.WaitForExit(5000) | Out-Null }
+            Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "still reads the payload when stdin closes normally" {
+        $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) "peon-stdin-$([guid]::NewGuid().ToString('N'))"
+        New-Item -ItemType Directory -Path $sandbox -Force | Out-Null
+        $peon = Join-Path $sandbox 'peon.ps1'
+        $proc = $null
+        try {
+            Set-Content -Path $peon -Value $script:HookBody -Encoding UTF8
+            Copy-Item (Join-Path $script:RepoRoot 'config.json') (Join-Path $sandbox 'config.json') -Force
+
+            $psi = [System.Diagnostics.ProcessStartInfo]::new('powershell.exe',
+                "-NoProfile -NonInteractive -File `"$peon`"")
+            $psi.RedirectStandardInput = $true
+            $psi.UseShellExecute = $false
+            $proc = [System.Diagnostics.Process]::Start($psi)
+
+            $proc.StandardInput.Write('{"hook_event_name":"SessionStart","session_id":"pester-stdin"}')
+            $proc.StandardInput.Close()
+
+            $proc.WaitForExit(20000) | Should -BeTrue
+            $proc.ExitCode | Should -Be 0
+        } finally {
+            if ($proc -and -not $proc.HasExited) { $proc.Kill(); $proc.WaitForExit(5000) | Out-Null }
+            Remove-Item $sandbox -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
