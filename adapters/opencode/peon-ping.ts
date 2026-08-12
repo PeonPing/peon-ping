@@ -19,6 +19,7 @@
  *   session.idle                 → Stop
  *   session.error                → PostToolUseFailure
  *   permission.asked             → PermissionRequest
+ *   question(.v2).asked          → Notification (elicitation_dialog)
  *
  * Requires peon-ping installed: brew install PeonPing/tap/peon-ping
  *   or: curl -fsSL peonping.com/install | bash
@@ -29,6 +30,8 @@ import * as path from "node:path"
 import * as os from "node:os"
 import { spawn } from "node:child_process"
 import type { Plugin } from "@opencode-ai/plugin"
+
+const MAX_PENDING_QUESTION_IDS = 100
 
 const PEON_SH_PATHS = [
   path.join(os.homedir(), ".claude", "hooks", "peon-ping", "peon.sh"),
@@ -65,11 +68,12 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
   const subagentSessionIds = new Set<string>()
   const busySessions = new Set<string>()
   let lastSessionStart = 0
+  const pendingQuestionIds = new Set<string>()
 
-  function firePeon(event: string): void {
+  function firePeon(event: string, notificationType = ""): void {
     const payload = JSON.stringify({
       hook_event_name: event,
-      notification_type: "",
+      notification_type: notificationType,
       cwd,
       session_id: sessionId,
       permission_mode: "",
@@ -140,6 +144,31 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
         case "permission.asked": {
           setTabTitle(`\u25cf ${projectName}: needs approval`)
           firePeon("PermissionRequest")
+          break
+        }
+
+        case "question.asked":
+        case "question.v2.asked": {
+          const properties = (event as any).properties
+          if (isSubagent(properties?.sessionID)) break
+          const requestId = properties?.id
+          if (typeof requestId !== "string" || pendingQuestionIds.has(requestId)) break
+          if (pendingQuestionIds.size >= MAX_PENDING_QUESTION_IDS) {
+            pendingQuestionIds.delete(pendingQuestionIds.values().next().value!)
+          }
+          pendingQuestionIds.add(requestId)
+          setTabTitle(`\u25cf ${projectName}: needs input`)
+          firePeon("Notification", "elicitation_dialog")
+          break
+        }
+
+        case "question.replied":
+        case "question.rejected":
+        case "question.v2.replied":
+        case "question.v2.rejected": {
+          const properties = (event as any).properties
+          const requestId = properties?.requestID ?? properties?.id
+          if (typeof requestId === "string") pendingQuestionIds.delete(requestId)
           break
         }
 
