@@ -162,6 +162,49 @@ Describe "Category A: Codex Adapter" {
     }
 }
 
+Describe "Category A: Grok Adapter" {
+    BeforeAll {
+        $script:grokContent = Get-Content (Join-Path $script:AdaptersDir "grok.ps1") -Raw
+    }
+
+    It "maps session_start to SessionStart" {
+        $script:grokContent | Should -Match 'session_start'
+        $script:grokContent | Should -Match '\$mapped = "SessionStart"'
+    }
+
+    It "maps stop end_turn to Stop" {
+        $script:grokContent | Should -Match 'end_turn'
+        $script:grokContent | Should -Match '\$mapped = "Stop"'
+    }
+
+    It "maps permission_prompt to PermissionRequest" {
+        $script:grokContent | Should -Match 'permission_prompt'
+        $script:grokContent | Should -Match '\$mapped = "PermissionRequest"'
+    }
+
+    It "maps pre_compact to PreCompact" {
+        $script:grokContent | Should -Match 'pre_compact'
+        $script:grokContent | Should -Match '\$mapped = "PreCompact"'
+    }
+
+    It "keeps PreToolUse and PostToolUse silent" {
+        $script:grokContent | Should -Match 'pre_tool_use'
+        $script:grokContent | Should -Match 'post_tool_use'
+        $script:grokContent | Should -Match 'exit 0'
+    }
+
+    It "prefixes session ids with grok-" {
+        $script:grokContent | Should -Match 'grok-\$safeSid'
+        $script:grokContent | Should -Match 'source\s+= "grok"'
+    }
+
+    It "pipes JSON to peon.ps1 and discards stdout" {
+        $script:grokContent | Should -Match 'peon\.ps1'
+        $script:grokContent | Should -Match 'ConvertTo-Json'
+        $script:grokContent | Should -Match '>\s*\$null'
+    }
+}
+
 Describe "Category A: Gemini Adapter" {
     BeforeAll {
         $script:geminiContent = Get-Content (Join-Path $script:AdaptersDir "gemini.ps1") -Raw

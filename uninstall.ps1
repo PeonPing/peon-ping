@@ -152,6 +152,20 @@ if (Test-Path $CursorHooksFile) {
     }
 }
 
+# --- Remove Grok Build hooks ---
+$GrokHooksFile = Join-Path $env:USERPROFILE ".grok\hooks\peon-ping.json"
+
+if (Test-Path $GrokHooksFile) {
+    Write-Host ""
+    Write-Host "Removing Grok Build hooks..."
+    try {
+        Remove-Item -Path $GrokHooksFile -Force
+        Write-Host "  Removed $GrokHooksFile" -ForegroundColor Green
+    } catch {
+        Write-Host "  Warning: Could not remove ${GrokHooksFile}: $_" -ForegroundColor Yellow
+    }
+}
+
 # --- Remove GitHub Copilot CLI hooks ---
 $CopilotHooksFile = Join-Path $env:USERPROFILE ".copilot\hooks\peon-ping.json"
 

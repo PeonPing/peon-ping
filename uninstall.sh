@@ -185,6 +185,14 @@ _remove_copilot_hooks() {
   echo "Removed Copilot CLI hooks: $copilot_hooks"
 }
 
+# Remove Grok Build hooks if ~/.grok/hooks/peon-ping.json exists
+_remove_grok_hooks() {
+  local grok_hooks="$HOME/.grok/hooks/peon-ping.json"
+  [ -f "$grok_hooks" ] || return 0
+  rm -f "$grok_hooks"
+  echo "Removed Grok Build hooks: $grok_hooks"
+}
+
 # Remove Codex hooks managed by peon-ping in ~/.codex/config.toml
 _remove_codex_hooks() {
   local codex_config="$HOME/.codex/config.toml"
@@ -218,6 +226,10 @@ _remove_cursor_hooks
 # Remove Copilot CLI hooks
 echo "Removing Copilot CLI hooks..."
 _remove_copilot_hooks
+
+# Remove Grok Build hooks
+echo "Removing Grok Build hooks..."
+_remove_grok_hooks
 
 # Remove OpenAI Codex hooks
 echo "Removing Codex hooks..."

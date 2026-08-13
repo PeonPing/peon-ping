@@ -6,11 +6,11 @@
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![MSYS2](https://img.shields.io/badge/MSYS2-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01) ![Qwen Code](https://img.shields.io/badge/Qwen_Code-adapter-ffab01) ![iFlow CLI](https://img.shields.io/badge/iFlow_CLI-adapter-ffab01) ![Trae](https://img.shields.io/badge/Trae-adapter-ffab01) ![Kiro IDE](https://img.shields.io/badge/Kiro_IDE-adapter-ffab01) ![ECA](https://img.shields.io/badge/ECA-adapter-ffab01)
+![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Grok Build](https://img.shields.io/badge/Grok_Build-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01) ![Qwen Code](https://img.shields.io/badge/Qwen_Code-adapter-ffab01) ![iFlow CLI](https://img.shields.io/badge/iFlow_CLI-adapter-ffab01) ![Trae](https://img.shields.io/badge/Trae-adapter-ffab01) ![Kiro IDE](https://img.shields.io/badge/Kiro_IDE-adapter-ffab01) ![ECA](https://img.shields.io/badge/ECA-adapter-ffab01)
 
 **Game character voice lines + visual overlay notifications when your AI coding agent needs attention — or let the agent pick its own sound via MCP.**
 
-AI coding agents don't notify you when they finish or need permission. You tab away, lose focus, and waste 15 minutes getting back into flow. peon-ping fixes this with voice lines and bold on-screen banners from Warcraft, StarCraft, Portal, Zelda, and more — works with **Claude Code**, **Amp**, **GitHub Copilot**, **Codex**, **Cursor**, **OpenCode**, **Kilo CLI**, **Kiro**, **Kimi Code**, **Windsurf**, **Google Antigravity**, **Rovo Dev CLI**, **DeepAgents**, **Qwen Code**, **iFlow CLI**, **Trae**, **Kiro IDE**, **ECA**, and any MCP client.
+AI coding agents don't notify you when they finish or need permission. You tab away, lose focus, and waste 15 minutes getting back into flow. peon-ping fixes this with voice lines and bold on-screen banners from Warcraft, StarCraft, Portal, Zelda, and more — works with **Claude Code**, **Amp**, **GitHub Copilot**, **Codex**, **Grok Build**, **Cursor**, **OpenCode**, **Kilo CLI**, **Kiro**, **Kimi Code**, **Windsurf**, **Google Antigravity**, **Rovo Dev CLI**, **DeepAgents**, **Qwen Code**, **iFlow CLI**, **Trae**, **Kiro IDE**, **ECA**, and any MCP client.
 
 **See it in action** &rarr; [peonping.com](https://peonping.com/)
 
@@ -726,6 +726,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Gemini CLI** | Adapter | Add hooks pointing to `adapters/gemini.sh` (or `.ps1` on Windows) ([setup](#gemini-cli-setup)) |
 | **GitHub Copilot CLI** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers hooks at `~/.copilot/hooks/peon-ping.json` if `~/.copilot` exists. Per-repo manual wiring also available via `adapters/copilot.sh` / `.ps1` ([setup](#github-copilot-cli-setup)) |
 | **OpenAI Codex** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers stable hooks in `~/.codex/config.toml` if `~/.codex` exists. The adapter is also available for manual wiring ([setup](#openai-codex-setup)) |
+| **Grok Build** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-register hooks at `~/.grok/hooks/peon-ping.json` if `~/.grok` exists. The adapter is also available for manual wiring ([setup](#grok-build-setup)) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
 | **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
 | **Kilo CLI** | Adapter | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1` ([setup](#kilo-cli-setup)) |
@@ -770,6 +771,22 @@ The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionR
 3. Restart Codex if it was already running during installation.
 
 peon-ping writes inline hooks to `~/.codex/config.toml` instead of creating `hooks.json`, matching the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to avoid mixing both hook representations in the same config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
+
+### Grok Build setup
+
+Grok Build sends camelCase hook payloads (`hookEventName`, `sessionId`, `notificationType`) with snake_case event values (`session_start`, `stop`). That is not what `peon.sh` reads natively, so peon-ping ships `adapters/grok.sh` (and `grok.ps1` on Windows) instead of pointing Grok at `peon.sh` directly.
+
+If `~/.grok` already exists, the Unix and Windows installers write `~/.grok/hooks/peon-ping.json` automatically. If you install Grok Build later, re-run the peon-ping installer.
+
+Registered events: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`, `PostToolUseFailure`, and `PreCompact`. `PreToolUse`, `PostToolUse`, `PostCompact`, and `PermissionDenied` are left unregistered — per-tool hooks are too noisy. Session-end `Stop` fires (`reason: shutdown` or `channel_closed`) are treated as cleanup, not a completion chime. Shell failures arrive as `toolName: run_terminal_command` and are rewritten to Bash so `task.error` still plays.
+
+**Setup:**
+
+1. Install the peon-ping runtime (`curl | bash`, Homebrew + `peon-ping-setup`, or `install.ps1`).
+
+2. If Grok was already running, reload hooks with `/hooks` then `r`, or start a new session. Project hooks need `/hooks-trust` once; `~/.grok/hooks/` is always trusted.
+
+Grok can also scan `~/.claude/settings.json`. Those Claude hooks still call `peon.sh` with Grok's camelCase envelope, so they stay silent. The native `~/.grok/hooks/peon-ping.json` file is the one that actually plays sounds. To hide the unused Claude entries from Grok's `/hooks` list, set `[compat.claude] hooks = false` in `~/.grok/config.toml`.
 
 ### Amp setup
 

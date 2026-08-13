@@ -6,7 +6,7 @@
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![MSYS2](https://img.shields.io/badge/MSYS2-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01)
+![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Grok Build](https://img.shields.io/badge/Grok_Build-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01)
 
 **AIコーディングエージェントが注意を必要とする時に、ゲームキャラクターのボイスライン＋ビジュアルオーバーレイ通知を再生 — またはMCPでエージェント自身にサウンドを選ばせることも可能。**
 
@@ -616,6 +616,7 @@ peon-ping はフックをサポートする任意のエージェント型 IDE �
 | **Gemini CLI** | アダプター | `adapters/gemini.sh`（Windows では `.ps1`）を指すフックを追加（[セットアップ](#gemini-cli-セットアップ)） |
 | **GitHub Copilot** | アダプター | `.github/hooks/hooks.json` に `adapters/copilot.sh`（または `.ps1`）を指すフックを追加（[セットアップ](#github-copilot-セットアップ)） |
 | **OpenAI Codex** | 組み込み（自動検出） | `~/.codex` が存在する場合、`install.sh` / `install.ps1` が `~/.codex/config.toml` に stable hooks を自動登録。アダプターの手動接続も可能（[セットアップ](#openai-codex-セットアップ)） |
+| **Grok Build** | 組み込み（自動検出） | `~/.grok` が存在する場合、`install.sh` / `install.ps1` が `~/.grok/hooks/peon-ping.json` にフックを自動登録。アダプターの手動接続も可能（[セットアップ](#grok-build-セットアップ)） |
 | **Cursor** | 組み込み | `curl \| bash`、`peon-ping-setup`、または Windows `install.ps1` が自動検出して登録。Windows では **設定 → 機能 → サードパーティスキル** を有効にして、Cursor が `~/.claude/settings.json` を読み込み SessionStart/Stop サウンドを再生するようにしてください。 |
 | **OpenCode** | アダプター | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1`（[セットアップ](#opencode-セットアップ)） |
 | **Kilo CLI** | アダプター | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1`（[セットアップ](#kilo-cli-セットアップ)） |
@@ -635,6 +636,14 @@ peon-ping はフックをサポートする任意のエージェント型 IDE �
 Codex サポートは stable Codex hooks API と peon-ping アダプターを使用します。`~/.codex` がすでに存在する場合、Unix / Windows インストーラーは `~/.codex/config.toml` に peon 管理の設定ブロックを自動で追加します。Codex を後からインストールした場合は、peon-ping インストーラーを再実行してください。
 
 登録される Codex イベントは `SessionStart`、`UserPromptSubmit`、`PermissionRequest`、`PreCompact`、`SubagentStart`、`SubagentStop`、`Stop` です。`SessionStart` は `startup`、`resume`、`clear` にだけマッチします。Codex のコンテキスト圧縮は `PreCompact` で扱うため、compact 起点の `SessionStart` はスキップします。`PreToolUse`、`PostToolUse`、`PostCompact` は意図的に登録しません。Codex には失敗専用の別 hook がなく、成功したツール hook は peon-ping には多すぎるため、Codex アダプターは `PostToolUse` を無視します。
+
+### Grok Build セットアップ
+
+Grok Build のフック入力は camelCase（`hookEventName`、`sessionId`）で、イベント値は snake_case（`session_start`、`stop`）です。`peon.sh` はその形式を直接読めないため、`adapters/grok.sh`（Windows では `grok.ps1`）を使います。
+
+`~/.grok` が既にあれば、インストーラーが `~/.grok/hooks/peon-ping.json` を自動で書き込みます。Grok Build を後から入れた場合は peon-ping インストーラーを再実行してください。
+
+登録イベント: `SessionStart`、`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`Notification`、`SubagentStart`、`SubagentStop`、`PostToolUseFailure`、`PreCompact`。セッション終了時の `Stop`（`shutdown` / `channel_closed`）は完了音ではなくクリーンアップとして扱います。既に起動中の Grok では `/hooks` のあと `r` で再読み込みするか、新しいセッションを開いてください。
 
 **セットアップ：**
 
