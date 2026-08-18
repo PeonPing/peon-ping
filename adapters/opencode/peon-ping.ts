@@ -88,10 +88,7 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
     return !!sid && subagentSessionIds.has(sid)
   }
 
-  setTimeout(() => {
-    setTabTitle(`${projectName}: ready`)
-    firePeon("SessionStart")
-  }, 100)
+  setTabTitle(`${projectName}: ready`)
 
   return {
     event: async ({ event }) => {
