@@ -62,7 +62,7 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
   const cwd = directory || process.cwd()
   const sessionId = `oc-${Date.now()}`
   const subagentSessionIds = new Set<string>()
-  let isBusy = false
+  const busySessions = new Set<string>()
 
   function firePeon(event: string): void {
     const payload = JSON.stringify({
@@ -122,7 +122,7 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
         case "session.idle": {
           const sid = (event as any).properties?.sessionID
           if (isSubagent(sid)) break
-          isBusy = false
+          if (sid) busySessions.delete(sid)
           setTabTitle(`\u25cf ${projectName}: done`)
           firePeon("Stop")
           break
@@ -131,7 +131,7 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
         case "session.error": {
           const sid = (event as any).properties?.sessionID
           if (isSubagent(sid)) break
-          isBusy = false
+          if (sid) busySessions.delete(sid)
           setTabTitle(`\u25cf ${projectName}: error`)
           firePeon("PostToolUseFailure")
           break
@@ -149,13 +149,13 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
           const status = event.properties?.status
           const statusType = typeof status === "object" ? (status as any)?.type : status
           if (statusType === "busy" || statusType === "running") {
-            if (!isBusy) {
-              isBusy = true
+            if (sid && !busySessions.has(sid)) {
+              busySessions.add(sid)
               setTabTitle(`${projectName}: working`)
               firePeon("UserPromptSubmit")
             }
           } else {
-            isBusy = false
+            if (sid) busySessions.delete(sid)
           }
           break
         }
