@@ -415,6 +415,9 @@ for arg in "$@"; do
   fi
   # Mobile push notification services
   if [[ "$arg" == *"ntfy.sh"* ]] || [[ "$arg" == *"ntfy/"* ]]; then
+    # Record exact argv boundaries; the "$*" line below loses argument grouping,
+    # which matters when headers contain spaces (e.g. Authorization).
+    printf '%s\n' "$@" >> "${CLAUDE_PEON_DIR}/mobile_curl_argv.log"
     echo "MOBILE_NTFY: $*" >> "${CLAUDE_PEON_DIR}/mobile_curl.log"
     exit 0
   fi

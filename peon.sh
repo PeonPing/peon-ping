@@ -1226,14 +1226,14 @@ print('MOBILE_PRIORITY=' + q(str(mn.get('priority', '') or '')))
     ntfy)
       [ -z "$MOBILE_TOPIC" ] && return 0
       local ntfy_url="${MOBILE_SERVER}/${MOBILE_TOPIC}"
-      local auth_header=""
-      [ -n "$MOBILE_TOKEN" ] && auth_header="-H \"Authorization: Bearer ${MOBILE_TOKEN}\""
+      local -a auth_args=()
+      [ -n "$MOBILE_TOKEN" ] && auth_args=(-H "Authorization: Bearer ${MOBILE_TOKEN}")
       if [ "$use_bg" = true ]; then
         nohup curl -sf \
           -H "Title: $title" \
           -H "Priority: $priority" \
           -H "Tags: video_game" \
-          $auth_header \
+          "${auth_args[@]+"${auth_args[@]}"}" \
           -d "$msg" \
           "$ntfy_url" >/dev/null 2>&1 &
       else
@@ -1241,7 +1241,7 @@ print('MOBILE_PRIORITY=' + q(str(mn.get('priority', '') or '')))
           -H "Title: $title" \
           -H "Priority: $priority" \
           -H "Tags: video_game" \
-          $auth_header \
+          "${auth_args[@]+"${auth_args[@]}"}" \
           -d "$msg" \
           "$ntfy_url" >/dev/null 2>&1
       fi
