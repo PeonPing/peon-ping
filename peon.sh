@@ -3708,10 +3708,14 @@ if not mn or not mn.get('service') or not mn.get('enabled', True):
     sys.exit(1)
 print('service=' + mn.get('service', ''))
 " > /dev/null 2>&1 || { echo "peon-ping: mobile not configured" >&2; exit 1; }
-        send_mobile_notification "Test notification from peon-ping" "peon-ping" "blue"
-        wait
-        echo "peon-ping: test notification sent"
-        exit 0 ;;
+        PEON_TEST=1
+        if send_mobile_notification "Test notification from peon-ping" "peon-ping" "blue"; then
+          echo "peon-ping: test notification sent"
+          exit 0
+        else
+          echo "peon-ping: test notification failed" >&2
+          exit 1
+        fi ;;
       *)
         echo "Usage: peon mobile <ntfy|pushover|telegram|on|off|status|test>" >&2
         echo "" >&2

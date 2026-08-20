@@ -3005,6 +3005,33 @@ JSON
   grep -Fx 'Authorization: Bearer tok_with_space inside' "$TEST_DIR/mobile_curl_argv.log"
 }
 
+@test "mobile test reports success when notification is sent" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic", "server": "https://ntfy.sh" }
+}
+JSON
+  # Unset PEON_TEST so the CLI itself must request synchronous delivery.
+  run env -u PEON_TEST bash "$PEON_SH" mobile test
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"test notification sent"* ]]
+  mobile_was_called
+}
+
+@test "mobile test fails when notification delivery fails" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{
+  "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {},
+  "mobile_notify": { "enabled": true, "service": "ntfy", "topic": "test-topic", "server": "https://ntfy.sh" }
+}
+JSON
+  touch "$TEST_DIR/.mock_mobile_fail"
+  run env -u PEON_TEST bash "$PEON_SH" mobile test
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"test notification failed"* ]]
+}
+
 @test "mobile ntfy sends push on PermissionRequest" {
   cat > "$TEST_DIR/config.json" <<'JSON'
 {
