@@ -63,6 +63,7 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
   const sessionId = `oc-${Date.now()}`
   const subagentSessionIds = new Set<string>()
   const busySessions = new Set<string>()
+  let lastSessionStart = 0
 
   function firePeon(event: string): void {
     const payload = JSON.stringify({
@@ -100,6 +101,7 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
             break
           }
           setTabTitle(`${projectName}: ready`)
+          lastSessionStart = Date.now()
           firePeon("SessionStart")
           break
         }
@@ -148,8 +150,10 @@ export const PeonPingPlugin: Plugin = async ({ directory }) => {
           if (statusType === "busy" || statusType === "running") {
             if (sid && !busySessions.has(sid)) {
               busySessions.add(sid)
-              setTabTitle(`${projectName}: working`)
-              firePeon("UserPromptSubmit")
+              if (Date.now() - lastSessionStart > 3000) {
+                setTabTitle(`${projectName}: working`)
+                firePeon("UserPromptSubmit")
+              }
             }
           } else {
             if (sid) busySessions.delete(sid)
