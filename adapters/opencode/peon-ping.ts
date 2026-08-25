@@ -45,6 +45,7 @@ function findPeonSh(): string | null {
 }
 
 function setTabTitle(title: string): void {
+  if (!process.stdout.isTTY) return
   process.stdout.write(`\x1b]0;${title}\x07`)
 }
 
