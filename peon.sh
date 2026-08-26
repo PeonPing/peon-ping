@@ -1086,15 +1086,76 @@ send_notification() {
       local json_title json_msg
       json_title=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$title" 2>/dev/null || echo "\"$title\"")
       json_msg=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$msg" 2>/dev/null || echo "\"$msg\"")
+
+      # Build the request body, embedding click-to-focus context in a `focus`
+      # object so the Mac can, on click, raise the terminal tab hosting this ssh
+      # session and switch the *remote* tmux to this agent's pane. Everything is
+      # assembled by python3 (fed via env, never shell-interpolated) so untrusted
+      # strings can't break out of the JSON. `focus` is only emitted for real SSH
+      # sessions inside tmux — a devcontainer's tmux socket lives in the container
+      # and is unreachable from the Mac, so it stays out.
+      # Resolve the tmux binary that runs THIS session's server. The host must
+      # use the same binary when it reaches back in over ssh — a stock
+      # non-interactive ssh often lands on a different/older tmux (e.g. system
+      # 2.8 vs the server's 3.7b), and a version-mismatched client just prints
+      # "lost server" and the pane never switches. $TMUX is
+      # "<socket>,<server_pid>,<session>", so /proc/<server_pid>/exe is the
+      # exact server binary; fall back to whatever tmux is on PATH.
+      local _pp_tmux_bin=""
+      if [ -n "${TMUX:-}" ]; then
+        local _pp_spid
+        _pp_spid="$(printf '%s' "$TMUX" | cut -d, -f2)"
+        [ -n "$_pp_spid" ] && _pp_tmux_bin="$(readlink -f "/proc/$_pp_spid/exe" 2>/dev/null)"
+        [ -z "$_pp_tmux_bin" ] && _pp_tmux_bin="$(command -v tmux 2>/dev/null)"
+      fi
+
+      local relay_body=""
+      relay_body=$(
+        PP_TITLE="$title" PP_MSG="$msg" PP_COLOR="$color" \
+        PP_PLATFORM="$PEON_PLATFORM" \
+        PP_HOST="$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo '')" \
+        PP_SSH_CONN="${SSH_CONNECTION:-}" \
+        PP_TMUX="${TMUX:-}" PP_TMUX_PANE="${TMUX_PANE:-}" \
+        PP_TMUX_BIN="$_pp_tmux_bin" \
+        PP_SESSION_ID="${SESSION_ID:-}" PP_RELAY_PORT="$relay_port" \
+        python3 - <<'PYBODY' 2>/dev/null
+import json, os
+body = {
+    "title": os.environ.get("PP_TITLE", ""),
+    "message": os.environ.get("PP_MSG", ""),
+    "color": os.environ.get("PP_COLOR", "red") or "red",
+}
+platform = os.environ.get("PP_PLATFORM", "")
+tmux = os.environ.get("PP_TMUX", "")
+if platform == "ssh" and tmux:
+    ssh_conn = os.environ.get("PP_SSH_CONN", "")
+    parts = ssh_conn.split()
+    server_ip = parts[2] if len(parts) >= 3 else ""
+    body["focus"] = {
+        "host": os.environ.get("PP_HOST", ""),
+        "server_ip": server_ip,
+        "tmux_socket": tmux.split(",", 1)[0],
+        "tmux_pane": os.environ.get("PP_TMUX_PANE", ""),
+        "tmux_bin": os.environ.get("PP_TMUX_BIN", ""),
+        "session_id": os.environ.get("PP_SESSION_ID", ""),
+        "ssh_conn": ssh_conn,
+        "relay_port": os.environ.get("PP_RELAY_PORT", ""),
+    }
+print(json.dumps(body))
+PYBODY
+      )
+      # Fallback when python3 is unavailable: minimal body, no focus context.
+      [ -z "$relay_body" ] && relay_body="{\"title\":${json_title},\"message\":${json_msg},\"color\":\"$color\"}"
+
       if [ "$use_bg" = true ]; then
         nohup curl -sf -X POST \
           -H "Content-Type: application/json" \
-          -d "{\"title\":${json_title},\"message\":${json_msg},\"color\":\"$color\"}" \
+          -d "$relay_body" \
           "http://${relay_host}:${relay_port}/notify" >/dev/null 2>&1 &
       else
         curl -sf -X POST \
           -H "Content-Type: application/json" \
-          -d "{\"title\":${json_title},\"message\":${json_msg},\"color\":\"$color\"}" \
+          -d "$relay_body" \
           "http://${relay_host}:${relay_port}/notify" >/dev/null 2>&1
       fi
       ;;

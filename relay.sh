@@ -189,6 +189,7 @@ import json
 import os
 import posixpath
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -411,24 +412,128 @@ def play_sound_on_host(path, volume):
             )
 
 
-def send_notification_on_host(title, message, color="red"):
+# Whitelist patterns for the click-to-focus `focus` payload. These strings
+# arrive over HTTP from a remote (possibly untrusted) session and are handed to
+# a click-to-run helper on the host, so every field is format-checked here and
+# the whole `focus` object is dropped if any field fails. Crucially the values
+# never enter a shell string — they ride as PEON_FOCUS_* env vars (see
+# send_notification_on_host) into scripts/ssh-focus.sh, which is invoked by a
+# constant path with no arguments.
+_FOCUS_PATTERNS = {
+    "host":        re.compile(r"^[A-Za-z0-9.:_-]{1,255}$"),
+    "server_ip":   re.compile(r"^[A-Za-z0-9.:_-]{0,255}$"),
+    "tmux_socket": re.compile(r"^/[A-Za-z0-9._/-]{1,256}$"),
+    "tmux_pane":   re.compile(r"^%?[0-9]{1,12}$"),
+    "session_id":  re.compile(r"^[A-Za-z0-9._-]{1,128}$"),
+    "relay_port":  re.compile(r"^[0-9]{1,5}$"),
+}
+# Optional fields (validated if present, but absence is fine).
+_FOCUS_OPTIONAL = {
+    "tmux_bin":    re.compile(r"^/[A-Za-z0-9._/-]{1,256}$"),
+}
+
+
+def validate_focus(focus):
+    """Validate a `focus` dict from /notify. Returns a clean dict of str values,
+    or None if it is missing/malformed. Requires the fields needed to both find
+    the local ssh tab and switch the remote tmux pane."""
+    if not isinstance(focus, dict):
+        return None
+    out = {}
+    for key, pat in _FOCUS_PATTERNS.items():
+        val = focus.get(key, "")
+        if not isinstance(val, str):
+            return None
+        if not pat.match(val):
+            return None
+        out[key] = val
+    # Optional fields: keep only if present and well-formed, else empty.
+    for key, pat in _FOCUS_OPTIONAL.items():
+        val = focus.get(key, "")
+        out[key] = val if (isinstance(val, str) and pat.match(val)) else ""
+    # ssh_conn must be exactly four whitespace-separated ip/port tokens.
+    ssh_conn = focus.get("ssh_conn", "")
+    if not isinstance(ssh_conn, str):
+        return None
+    conn_parts = ssh_conn.split()
+    if len(conn_parts) == 4 and all(
+        re.match(r"^[A-Za-z0-9.:_-]{1,255}$", p) for p in conn_parts
+    ):
+        out["ssh_conn"] = ssh_conn
+    else:
+        out["ssh_conn"] = ""
+    # The remote tmux switch is the whole point; require pane + socket.
+    if not out["tmux_pane"] or not out["tmux_socket"]:
+        return None
+    return out
+
+
+def send_notification_on_host(title, message, color="red", focus=None):
     """Send a desktop notification using the host's native notification system.
 
     Delegates to scripts/notify.sh which handles overlay/standard styles, icons,
     click-to-focus, WSL toast/forms, and Linux notify-send.
     Falls back to inline osascript/notify-send if notify.sh is missing.
+
+    When `focus` (a validated dict) is present on macOS and enabled in config,
+    wires up a click handler that jumps to the ssh tab + remote tmux pane via
+    scripts/ssh-focus.sh. All focus data is passed as PEON_FOCUS_* env, never
+    interpolated into a shell command.
     """
     notify_script = os.path.join(PEON_DIR, "scripts", "notify.sh")
     if os.path.isfile(notify_script):
         config = load_config()
         icon_path = ""  # let notify.sh resolve pack icon via _resolve_pack_icon()
         env = os.environ.copy()
+        # The relay is a long-lived daemon; its own ambient TMUX/TERM context is
+        # never the remote session's. Scrub the vars notify.sh would otherwise use
+        # to fabricate a click target, so a relayed notification is clickable only
+        # via the focus context we set below (or not at all) — never via whatever
+        # shell happened to launch the daemon.
+        for _amb in ("TMUX", "TMUX_PANE", "PEON_SESSION_TTY", "PEON_CLICK_COMMAND"):
+            env.pop(_amb, None)
         env["PEON_PLATFORM"] = HOST_PLATFORM
         env["PEON_NOTIF_STYLE"] = config.get("notification_style", "overlay")
         env["PEON_NOTIF_POSITION"] = config.get("notification_position", "top-center")
         env["PEON_NOTIF_DISMISS"] = str(config.get("notification_dismiss_seconds", 4))
         env["PEON_DIR"] = PEON_DIR
         env["PEON_SYNC"] = os.environ.get("PEON_TEST", "0")
+
+        if (
+            focus
+            and HOST_PLATFORM == "mac"
+            and config.get("relay_click_focus", True)
+        ):
+            ssh_focus = os.path.join(PEON_DIR, "scripts", "ssh-focus.sh")
+            if os.path.isfile(ssh_focus):
+                # Constant path, no args — click handler runs `bash -lc <path>`.
+                env["PEON_CLICK_COMMAND"] = ssh_focus
+                env["PEON_FOCUS_HOST"] = focus.get("host", "")
+                env["PEON_FOCUS_SERVER_IP"] = focus.get("server_ip", "")
+                env["PEON_FOCUS_SSH_CONN"] = focus.get("ssh_conn", "")
+                env["PEON_FOCUS_TMUX_SOCKET"] = focus.get("tmux_socket", "")
+                env["PEON_FOCUS_TMUX_PANE"] = focus.get("tmux_pane", "")
+                env["PEON_FOCUS_TMUX_BIN"] = focus.get("tmux_bin", "")
+                env["PEON_FOCUS_SESSION_ID"] = focus.get("session_id", "")
+                env["PEON_FOCUS_RELAY_PORT"] = focus.get("relay_port", "")
+                # Optional override to force a terminal app; normally unset since
+                # ssh-focus.sh auto-discovers the terminal from the ssh process.
+                force_bundle = config.get("relay_terminal_bundle_id", "")
+                if force_bundle:
+                    env["PEON_BUNDLE_ID"] = force_bundle
+                # Pre-warm the ssh connection now, while the notification is on
+                # screen, so the click-time pane switch reuses a ready master
+                # instead of paying a ~3s cold (GSSAPI) connect. Fire-and-forget.
+                if config.get("relay_prewarm_ssh", True):
+                    try:
+                        subprocess.Popen(
+                            ["bash", ssh_focus, "--prewarm"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            env=env,
+                        )
+                    except Exception:
+                        pass
+
         subprocess.Popen(
             ["bash", notify_script, message, title, color, icon_path],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -628,8 +733,12 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
         title = str(body.get("title", "peon-ping"))[:256]
         message = str(body.get("message", ""))[:512]
         color = str(body.get("color", "red"))
+        # Optional click-to-focus context; validate_focus() returns None if it
+        # is absent or any field is malformed, in which case the notification
+        # still shows (just not clickable-to-focus).
+        focus = validate_focus(body.get("focus"))
 
-        send_notification_on_host(title, message, color)
+        send_notification_on_host(title, message, color, focus)
 
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
