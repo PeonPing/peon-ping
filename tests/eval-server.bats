@@ -37,7 +37,7 @@ PY
 # in the time it takes to append one byte per wav, and "is it busy" depends on
 # whether curl happened to flush the SSE stream first. Bounded at 30s so a test
 # that forgets to release cannot wedge the suite.
-if [ -n "$PEON_TEST_HOLD" ]; then
+if [ -n "$PEON_TEST_HOLD" ] && [ -f "$PEON_TEST_HOLD" ]; then
   for _ in $(seq 1 300); do [ -f "$PEON_TEST_HOLD" ] || break; sleep 0.1; done
 fi
 for f in sounds/*.wav; do
@@ -471,6 +471,14 @@ PYEOF
 }
 
 @test "concurrent reroll POSTs: exactly one 202, rest 409, one job file" {
+  # Hold the accepted job open for the duration of the race. Ten curls do not
+  # land simultaneously: each is a process spawn, and on a loaded runner the
+  # last can arrive after a job that finishes in the time it takes to append one
+  # byte per wav. The server is then idle again and hands out a second 202,
+  # which is correct behaviour and a failed assertion. Holding the job makes
+  # "exactly one wins" the thing actually under test.
+  touch "$TMP/claude-hold"
+
   # NOTE: wait on the explicit PIDs, not a bare `wait` — a bare `wait` blocks on
   # every background job in this shell, including setup()'s long-lived SERVER_PID
   # (eval-server.py runs serve_forever() until SIGTERM), which would hang forever.
@@ -482,6 +490,7 @@ PYEOF
     pids+=("$!")
   done
   for pid in "${pids[@]}"; do wait "$pid"; done
+  rm -f "$TMP/claude-hold"
   count_202=0
   count_409=0
   for i in $(seq 1 10); do
