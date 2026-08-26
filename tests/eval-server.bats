@@ -32,13 +32,22 @@ PY
 # wav under ./sounds (cwd is DRAFT, per the B3 fix) so the server's before/after
 # change-detection sees a genuine change and reports "done" rather than "failed".
 [ -n "$FAKE_CLAUDE_FAIL" ] && { echo "boom" >&2; exit 1; }
+# Block while the hold file exists, so a test that needs the server observably
+# busy can hold the job open instead of racing it. Without this, a job finishes
+# in the time it takes to append one byte per wav, and "is it busy" depends on
+# whether curl happened to flush the SSE stream first. Bounded at 30s so a test
+# that forgets to release cannot wedge the suite.
+if [ -n "$PEON_TEST_HOLD" ]; then
+  for _ in $(seq 1 300); do [ -f "$PEON_TEST_HOLD" ] || break; sleep 0.1; done
+fi
 for f in sounds/*.wav; do
   [ -f "$f" ] && printf '\0' >> "$f"
 done
 exit 0
 EOF
   chmod +x "$TMP/fake-claude"
-  python3 "$BATS_TEST_DIRNAME/../scripts/eval-server.py" --draft "$DRAFT" --claude-bin "$TMP/fake-claude" --no-open --print-port > "$TMP/port.txt" 2> "$TMP/server.err" &
+  export PEON_TEST_HOLD="$TMP/claude-hold"
+  PEON_TEST_HOLD="$PEON_TEST_HOLD" python3 "$BATS_TEST_DIRNAME/../scripts/eval-server.py" --draft "$DRAFT" --claude-bin "$TMP/fake-claude" --no-open --print-port > "$TMP/port.txt" 2> "$TMP/server.err" &
   SERVER_PID=$!
   # Wait on BOTH the port line and the lockfile: the tests need both, and the
   # lockfile is what a stalled bind actually withholds. The old 5s budget was
@@ -60,7 +69,21 @@ EOF
   TOKEN="$(python3 -c "import json; print(json.load(open('$DRAFT/.eval-server.json'))['token'])")"
 }
 
-teardown() { kill "$SERVER_PID" 2>/dev/null || true; pkill -9 -f "eval-server.py --draft $DRAFT " 2>/dev/null || true; rm -rf "$TMP"; }
+# Wait for the server to report a job in flight. /api/pack's "busy" is the exact
+# state the 409s below are asserting on, so poll that rather than inferring it
+# from the SSE stream's arrival order.
+wait_until_busy() {
+  local port="$1" token="$2"
+  for _ in $(seq 1 100); do
+    curl -sf -H "X-Eval-Token: $token" "http://127.0.0.1:$port/api/pack" 2>/dev/null \
+      | grep -q '"busy": true' && return 0
+    sleep 0.1
+  done
+  echo "server never reported busy on port $port" >&2
+  return 1
+}
+
+teardown() { rm -f "$TMP/claude-hold" 2>/dev/null || true; kill "$SERVER_PID" 2>/dev/null || true; pkill -9 -f "eval-server.py --draft $DRAFT " 2>/dev/null || true; rm -rf "$TMP"; }
 
 @test "GET / serves the eval UI" {
   run curl -sf "http://127.0.0.1:$PORT/"
@@ -343,17 +366,23 @@ json.dump(m, open(p, 'w'))
 }
 
 @test "reroll returns 409 while a job is busy" {
+  # Hold the job open, then wait on the server's own busy flag. Waiting on the
+  # SSE "started" line instead made this a race: curl buffers the stream when
+  # its stdout is a file, so "started" could surface only once "done" pushed it
+  # through, by which point the job was over and the second POST got 202.
+  touch "$TMP/claude-hold"
   curl -sf -N "http://127.0.0.1:$PORT/api/events?t=$TOKEN" > "$TMP/sse.txt" &
   SSE_PID=$!
   sleep 0.2
   run curl -sf -X POST -H "X-Eval-Token: $TOKEN" -H "content-type: application/json" \
       -d '{"scope":"pack","caption":"softer"}' "http://127.0.0.1:$PORT/api/reroll"
   printf '%s' "$output" | grep -q '"job"'
-  for _ in $(seq 1 50); do grep -q '"started"' "$TMP/sse.txt" 2>/dev/null && break; sleep 0.1; done
+  wait_until_busy "$PORT" "$TOKEN"
   run curl -s -o /dev/null -w "%{http_code}" -X POST -H "X-Eval-Token: $TOKEN" -H "content-type: application/json" \
       -d '{"scope":"pack","caption":"softer again"}' "http://127.0.0.1:$PORT/api/reroll"
+  rm -f "$TMP/claude-hold"
   [ "$output" = "409" ]
-  for _ in $(seq 1 50); do grep -q '"done"' "$TMP/sse.txt" 2>/dev/null && break; sleep 0.1; done
+  for _ in $(seq 1 100); do grep -q '"done"' "$TMP/sse.txt" 2>/dev/null && break; sleep 0.1; done
   kill "$SSE_PID" 2>/dev/null || true
 }
 
@@ -618,7 +647,8 @@ EOF
 
 @test "approve returns 409 busy while a reroll job is in flight" {
   APPROVED="$TMP/approved"
-  PEON_APPROVED_DIR="$APPROVED" python3 "$BATS_TEST_DIRNAME/../scripts/eval-server.py" \
+  touch "$TMP/claude-hold"
+  PEON_APPROVED_DIR="$APPROVED" PEON_TEST_HOLD="$TMP/claude-hold" python3 "$BATS_TEST_DIRNAME/../scripts/eval-server.py" \
       --draft "$DRAFT" --claude-bin "$TMP/fake-claude" --no-open --print-port > "$TMP/port7.txt" &
   SERVER_PID7=$!
   for _ in $(seq 1 50); do grep -q PORT= "$TMP/port7.txt" 2>/dev/null && break; sleep 0.1; done
@@ -630,12 +660,13 @@ EOF
   run curl -sf -X POST -H "X-Eval-Token: $TOKEN7" -H "content-type: application/json" \
       -d '{"scope":"pack","caption":"softer"}' "http://127.0.0.1:$PORT7/api/reroll"
   printf '%s' "$output" | grep -q '"job"'
-  for _ in $(seq 1 50); do grep -q '"started"' "$TMP/sse7.txt" 2>/dev/null && break; sleep 0.1; done
+  wait_until_busy "$PORT7" "$TOKEN7"
   run curl -s -o /dev/null -w "%{http_code}" -X POST -H "X-Eval-Token: $TOKEN7" -H "content-type: application/json" \
       -d '{"install":false}' "http://127.0.0.1:$PORT7/api/approve"
+  rm -f "$TMP/claude-hold"
   [ "$output" = "409" ]
   [ -d "$DRAFT" ]
-  for _ in $(seq 1 50); do grep -q '"done"' "$TMP/sse7.txt" 2>/dev/null && break; sleep 0.1; done
+  for _ in $(seq 1 100); do grep -q '"done"' "$TMP/sse7.txt" 2>/dev/null && break; sleep 0.1; done
   kill "$SSE_PID7" 2>/dev/null || true
   kill "$SERVER_PID7" 2>/dev/null || true
 }
