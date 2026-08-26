@@ -78,7 +78,7 @@ begin {
         if (-not $script:TracePath) { return }
         try {
             $json = $Fields | ConvertTo-Json -Depth 4 -Compress
-            Set-Content -Path $script:TracePath -Value $json -Encoding UTF8
+            [System.IO.File]::WriteAllText($script:TracePath, ($json + [Environment]::NewLine), (New-Object System.Text.UTF8Encoding $false))
         } catch {
             Write-DebugLine "trace write failed: $_"
         }

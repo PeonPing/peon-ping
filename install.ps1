@@ -326,13 +326,13 @@ if ($Updating -and (Test-Path $configPath)) {
     } catch {
         $raw = $raw -replace '"volume"\s*:\s*\r?\n(\s*)"', '"volume": 0.5,$1"'
     }
-    Set-Content -Path $configPath -Value $raw -Encoding UTF8
+    Write-PeonTextFile -Path $configPath -Content $raw
 }
 
 # --- Install state ---
 $statePath = Join-Path $InstallDir ".state.json"
 if (-not $Updating) {
-    Set-Content -Path $statePath -Value "{}" -Encoding UTF8
+    Write-PeonTextFile -Path $statePath -Content "{}"
 }
 
 # --- Install helper scripts ---
@@ -452,10 +452,45 @@ function Get-UnixTimeSeconds {
     return [int64]([Math]::Floor(((Get-Date).ToUniversalTime() - $epoch).TotalSeconds))
 }
 
-# Raw config read; repair is done at install/update time, so hook only needs plain read.
+# Strip a leading UTF-8 BOM (U+FEFF) from text read off disk, so a config written
+# by an older peon-ping (Set-Content -Encoding UTF8 under PS 5.1) is repaired by the
+# next write instead of carrying its BOM forever.
+function Remove-Utf8Bom {
+    param([AllowEmptyString()][AllowNull()][string]$Text)
+    if ($null -eq $Text) { return $Text }
+    return $Text.TrimStart([char]0xFEFF)
+}
+
+# Write text to a file as UTF-8 without a BOM, on every PowerShell version.
+# Windows PowerShell 5.1's `Set-Content -Encoding UTF8` emits a BOM (there is no
+# utf8NoBOM token before PowerShell 6) and strict JSON readers reject it, so every
+# file this hook writes goes through here.
+function Write-PeonTextFile {
+    param(
+        [Parameter(Mandatory = $true, Position = 0)][string]$Path,
+        [Parameter(Position = 1, ValueFromPipeline = $true)][AllowEmptyString()][AllowNull()][string[]]$Content,
+        [switch]$NoNewline
+    )
+    begin { $lines = New-Object System.Collections.Generic.List[string] }
+    process {
+        if ($null -ne $Content) {
+            foreach ($line in $Content) { $lines.Add([string]$line) }
+        }
+    }
+    end {
+        # Match Set-Content: join pipeline items with a newline, terminate the file
+        # with one.
+        $text = ($lines -join [Environment]::NewLine)
+        if (-not $NoNewline -and $text.Length -gt 0) { $text += [Environment]::NewLine }
+        [System.IO.File]::WriteAllText($Path, $text, (New-Object System.Text.UTF8Encoding $false))
+    }
+}
+
+# Raw config read; repair is done at install/update time, so hook only needs plain
+# read (minus any BOM an older install left behind).
 function Get-PeonConfigRaw {
     param([string]$Path)
-    return Get-Content $Path -Raw
+    return Remove-Utf8Bom (Get-Content $Path -Raw)
 }
 
 # Write a config object to a JSON file with culture-safe serialization.
@@ -466,7 +501,7 @@ function Set-PeonConfig {
     $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
     try {
         [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-        $Config | ConvertTo-Json -Depth 10 | Set-Content $Path -Encoding UTF8
+        $Config | ConvertTo-Json -Depth 10 | Write-PeonTextFile $Path
     } finally {
         [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
     }
@@ -636,7 +671,7 @@ function Set-SelectedPack {
     $updated = $raw -replace '"default_pack"\s*:\s*"[^"]*"', "`"default_pack`": `"$PackName`""
     $updated = $updated -replace '"active_pack"\s*:\s*"[^"]*"', "`"active_pack`": `"$PackName`""
     if ($updated -ne $raw) {
-        Set-Content $ConfigPath -Value $updated -Encoding UTF8
+        Write-PeonTextFile $ConfigPath $updated
     }
 }
 
@@ -768,7 +803,7 @@ function Write-StateAtomic {
     $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
     try {
         [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-        $State | ConvertTo-Json -Depth 3 | Set-Content $tmp -Encoding UTF8
+        $State | ConvertTo-Json -Depth 3 | Write-PeonTextFile $tmp
         if ($PSVersionTable.PSVersion.Major -ge 7) {
             # PS 7+ / .NET Core: Move-Item -Force performs atomic overwrite (no delete gap).
             Move-Item -Path $tmp -Destination $Path -Force
@@ -961,7 +996,7 @@ function Invoke-TtsSpeak {
         -ArgumentList "-NoProfile", "-NonInteractive", "-Command",
             "[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$b64')) | & '$scriptPath' -voice '$Voice' -rate $Rate -vol $Volume" `
         -WindowStyle Hidden -PassThru
-    $proc.Id | Set-Content $pidFile
+    Write-PeonTextFile $pidFile ([string]$proc.Id)
 }
 
 # --- CLI commands ---
@@ -982,7 +1017,7 @@ if ($Command) {
             $newState = -not $cfg.enabled
             $raw = Get-Content $ConfigPath -Raw
             $updated = $raw -replace '"enabled"\s*:\s*(true|false)', "`"enabled`": $($newState.ToString().ToLower())"
-            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
+            if ($updated -ne $raw) { Write-PeonTextFile $ConfigPath $updated }
             $state = if ($newState) { "ENABLED" } else { "PAUSED" }
             Write-Host "peon-ping: $state" -ForegroundColor Cyan
             return
@@ -990,14 +1025,14 @@ if ($Command) {
         "^(--)?(pause|mute)$" {
             $raw = Get-Content $ConfigPath -Raw
             $updated = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": false'
-            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
+            if ($updated -ne $raw) { Write-PeonTextFile $ConfigPath $updated }
             Write-Host "peon-ping: PAUSED" -ForegroundColor Yellow
             return
         }
         "^(--)?(resume|unmute)$" {
             $raw = Get-Content $ConfigPath -Raw
             $updated = $raw -replace '"enabled"\s*:\s*(true|false)', '"enabled": true'
-            if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
+            if ($updated -ne $raw) { Write-PeonTextFile $ConfigPath $updated }
             Write-Host "peon-ping: ENABLED" -ForegroundColor Green
             return
         }
@@ -1725,7 +1760,7 @@ if ($Command) {
                 $volStr = $vol.ToString([System.Globalization.CultureInfo]::InvariantCulture)
                 $raw = Get-Content $ConfigPath -Raw
                 $updated = $raw -replace '"volume"\s*:\s*[\d.]+(,?)', "`"volume`": $volStr`$1"
-                if ($updated -ne $raw) { Set-Content $ConfigPath -Value $updated -Encoding UTF8 }
+                if ($updated -ne $raw) { Write-PeonTextFile $ConfigPath $updated }
                 Write-Host "peon-ping: volume set to $vol" -ForegroundColor Green
             } else {
                 $cfg = Get-PeonConfigRaw $ConfigPath | ConvertFrom-Json
@@ -1741,7 +1776,7 @@ if ($Command) {
                     $cfgObj | Add-Member -NotePropertyName 'debug' -NotePropertyValue $true -Force
                     $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
                     [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    $cfgObj | ConvertTo-Json -Depth 10 | Write-PeonTextFile $ConfigPath
                     [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
                     $logDir = Join-Path $InstallDir "logs"
                     Write-Host "peon-ping: debug logging enabled -- logs at $logDir" -ForegroundColor Green
@@ -1752,7 +1787,7 @@ if ($Command) {
                     $cfgObj | Add-Member -NotePropertyName 'debug' -NotePropertyValue $false -Force
                     $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
                     [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-                    $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                    $cfgObj | ConvertTo-Json -Depth 10 | Write-PeonTextFile $ConfigPath
                     [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
                     Write-Host "peon-ping: debug logging disabled" -ForegroundColor Yellow
                     return
@@ -1978,7 +2013,7 @@ if ($Command) {
                 $changed = $true
             }
             if ($changed) {
-                $cfgObj | ConvertTo-Json -Depth 10 | Set-Content $ConfigPath -Encoding UTF8
+                $cfgObj | ConvertTo-Json -Depth 10 | Write-PeonTextFile $ConfigPath
                 Write-Host "peon-ping: config migrated (active_pack -> default_pack, agentskill -> session_override, exclude_dirs, ide_rules, notification_title_ide)" -ForegroundColor Green
             }
             # Re-run install.ps1 from a temp directory. Download install-utils.ps1
@@ -3373,7 +3408,7 @@ if ($env:PEON_TEST -eq "1") {
         TTS_VOLUME       = $ttsVolume
         TTS_MODE         = $ttsMode
         TRAINER_TTS_TEXT = $trainerTtsText
-    } | ConvertTo-Json | Set-Content -Path $ttsLogPath -Encoding UTF8
+    } | ConvertTo-Json | Write-PeonTextFile -Path $ttsLogPath
 }
 
 # --- Desktop notification dispatch ---
@@ -3413,7 +3448,7 @@ exit 0
 '@
 
 $hookScriptPath = Join-Path $InstallDir "peon.ps1"
-Set-Content -Path $hookScriptPath -Value $hookScript -Encoding UTF8
+Write-PeonTextFile -Path $hookScriptPath -Content $hookScript
 Unblock-File -Path $hookScriptPath -ErrorAction SilentlyContinue
 
 # --- Install adapter scripts ---
@@ -3535,7 +3570,7 @@ $hookCmd = "powershell -NoProfile -NonInteractive -File `"$hookScriptPath`""
 $settings = [PSCustomObject]@{}
 if (Test-Path $SettingsFile) {
     try {
-        $settings = Get-Content $SettingsFile -Raw | ConvertFrom-Json
+        $settings = Remove-Utf8Bom (Get-Content $SettingsFile -Raw) | ConvertFrom-Json
     } catch {
         $settings = [PSCustomObject]@{}
     }
@@ -3595,7 +3630,7 @@ foreach ($evt in $events) {
     }
 }
 
-$settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsFile -Encoding UTF8
+$settings | ConvertTo-Json -Depth 10 | Write-PeonTextFile $SettingsFile
 Write-Host "  Hooks registered for: $($events -join ', ')" -ForegroundColor Green
 
 # --- Register UserPromptSubmit hook for /peon-ping-use command ---
@@ -3606,7 +3641,7 @@ $beforeSubmitHookPath = Join-Path $InstallDir "scripts\hook-handle-use.ps1"
 $beforeSubmitCmd = "powershell -NoProfile -NonInteractive -File `"$beforeSubmitHookPath`""
 
 # Reload settings to ensure we have the latest
-$settings = Get-Content $SettingsFile -Raw | ConvertFrom-Json
+$settings = Remove-Utf8Bom (Get-Content $SettingsFile -Raw) | ConvertFrom-Json
 
 $beforeSubmitHook = [PSCustomObject]@{
     type = "command"
@@ -3653,7 +3688,7 @@ if ($settings.hooks | Get-Member -Name "beforeSubmitPrompt" -MemberType NoteProp
     $settings.hooks.PSObject.Properties.Remove("beforeSubmitPrompt")
 }
 
-$settings | ConvertTo-Json -Depth 10 | Set-Content $SettingsFile -Encoding UTF8
+$settings | ConvertTo-Json -Depth 10 | Write-PeonTextFile $SettingsFile
 Write-Host "  UserPromptSubmit hook registered for /peon-ping-use" -ForegroundColor Green
 } # end if ($ClaudeCodeDetected)
 
@@ -3673,7 +3708,7 @@ if ((-not $Local) -and (Test-Path $CursorDir)) {
     
     if (Test-Path $CursorHooksFile) {
         try {
-            $content = Get-Content $CursorHooksFile -Raw
+            $content = Remove-Utf8Bom (Get-Content $CursorHooksFile -Raw)
             if ($content) {
                 $cursorData = $content | ConvertFrom-Json
             }
@@ -3731,7 +3766,7 @@ if ((-not $Local) -and (Test-Path $CursorDir)) {
     # Ensure directory exists
     New-Item -ItemType Directory -Path $CursorDir -Force | Out-Null
     
-    $cursorData | ConvertTo-Json -Depth 10 | Set-Content $CursorHooksFile -Encoding UTF8
+    $cursorData | ConvertTo-Json -Depth 10 | Write-PeonTextFile $CursorHooksFile
     Write-Host "  Cursor beforeSubmitPrompt hook registered" -ForegroundColor Green
 }
 
@@ -3775,7 +3810,7 @@ if ((-not $Local) -and (Test-Path $CopilotDir)) {
     }
 
     New-Item -ItemType Directory -Path $CopilotHooksDir -Force | Out-Null
-    $copilotData | ConvertTo-Json -Depth 10 | Set-Content $CopilotHooksFile -Encoding UTF8
+    $copilotData | ConvertTo-Json -Depth 10 | Write-PeonTextFile $CopilotHooksFile
     Write-Host "  Copilot CLI hooks registered for: $($copilotEvents -join ', ')" -ForegroundColor Green
 }
 
@@ -3818,7 +3853,7 @@ if ((-not $Local) -and (Test-Path $GrokDir)) {
         }
 
         New-Item -ItemType Directory -Path $GrokHooksDir -Force | Out-Null
-        $grokData | ConvertTo-Json -Depth 10 | Set-Content $GrokHooksFile -Encoding UTF8
+        $grokData | ConvertTo-Json -Depth 10 | Write-PeonTextFile $GrokHooksFile
         Write-Host "  Grok Build hooks registered for: $($grokEvents -join ', ')" -ForegroundColor Green
         Write-Host "  Reload hooks in a running Grok session (/hooks then r) or start a new one." -ForegroundColor Yellow
     } else {
@@ -4103,7 +4138,7 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
         $tempPath = Join-Path $directory ".$leaf.peon-ping-$PID-$([guid]::NewGuid().ToString('N')).tmp"
         $backupPath = "$tempPath.backup"
         try {
-            Set-Content -Path $tempPath -Value $Content -Encoding UTF8
+            Write-PeonTextFile -Path $tempPath -Content $Content
             if (Test-Path $Path) {
                 [System.IO.File]::Replace($tempPath, $Path, $backupPath)
             } else {
@@ -4135,7 +4170,7 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
     $codexContent = ""
     $codexNewline = "`n"
     if (Test-Path $CodexConfigFile) {
-        $codexContent = Get-Content $CodexConfigFile -Raw
+        $codexContent = Remove-Utf8Bom (Get-Content $CodexConfigFile -Raw)
         if ($codexContent.Contains("`r`n")) { $codexNewline = "`r`n" }
     }
 
@@ -4184,7 +4219,7 @@ if ((-not $Local) -and (Test-Path $DeepagentsDir)) {
 
     # Load or create hooks.json
     if (Test-Path $DeepagentsHooksFile) {
-        $daData = Get-Content $DeepagentsHooksFile -Raw | ConvertFrom-Json
+        $daData = Remove-Utf8Bom (Get-Content $DeepagentsHooksFile -Raw) | ConvertFrom-Json
     } else {
         $daData = [PSCustomObject]@{ hooks = @() }
     }
@@ -4209,7 +4244,7 @@ if ((-not $Local) -and (Test-Path $DeepagentsDir)) {
     # Ensure directory exists
     New-Item -ItemType Directory -Path $DeepagentsDir -Force | Out-Null
 
-    $daData | ConvertTo-Json -Depth 10 | Set-Content $DeepagentsHooksFile -Encoding UTF8
+    $daData | ConvertTo-Json -Depth 10 | Write-PeonTextFile $DeepagentsHooksFile
     $daEvents = @("session.start", "session.end", "task.complete", "input.required", "task.error", "tool.error", "user.prompt", "permission.request", "compact")
     Write-Host "  Hooks registered for: $($daEvents -join ', ')" -ForegroundColor Green
 }

@@ -427,3 +427,143 @@ Describe "CLI error handling for missing config" {
         $outputStr | Should -Match "not configured|not found"
     }
 }
+
+# ============================================================
+# Encoding: every file peon-ping writes must be UTF-8 with no BOM
+#
+# Windows PowerShell 5.1's `Set-Content -Encoding UTF8` writes a BOM, and a BOM
+# on ~/.claude/settings.json makes the Claude Desktop app log a SyntaxError and
+# read neither hooks nor permissions. These tests check the bytes on disk under
+# the shell that actually reproduces it (powershell.exe, 5.1), because a source
+# grep stops holding the moment someone adds a new writer.
+# ============================================================
+
+# Resolved at discovery time: -Skip: is evaluated before BeforeAll runs.
+$script:WinPS = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+$script:SkipNoWinPS = -not $script:WinPS
+
+Describe "UTF-8 encoding without BOM" {
+    BeforeAll {
+        # Re-resolved for the run phase; the discovery-time copy above only feeds -Skip:.
+        $script:WinPS = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+
+        function script:New-EncodingTestDir {
+            $dir = Join-Path ([System.IO.Path]::GetTempPath()) "peon-bom-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+            return $dir
+        }
+
+        # Run a script under Windows PowerShell 5.1, where -Encoding UTF8 means
+        # "UTF-8 with BOM". Via -File so paths with spaces need no quoting dance.
+        function script:Invoke-WindowsPowerShellScript {
+            param([string]$Dir, [string]$Body)
+            $scriptPath = Join-Path $Dir "run-$([guid]::NewGuid().ToString('N').Substring(0,6)).ps1"
+            [System.IO.File]::WriteAllText($scriptPath, $Body, (New-Object System.Text.UTF8Encoding $false))
+            & $script:WinPS -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $scriptPath 2>&1
+        }
+
+        function script:Test-HasUtf8Bom {
+            param([string]$Path)
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            return ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
+        }
+
+        function script:Write-BomFile {
+            param([string]$Path, [string]$Text)
+            [System.IO.File]::WriteAllText($Path, $Text, (New-Object System.Text.UTF8Encoding $true))
+        }
+    }
+
+    Context "install-time writers (scripts/install-utils.ps1)" {
+        BeforeEach { $script:dir = New-EncodingTestDir }
+        AfterEach { Remove-Item -Path $script:dir -Recurse -Force -ErrorAction SilentlyContinue }
+
+        It "Set-PeonConfig writes config.json with no BOM under Windows PowerShell 5.1" -Skip:$script:SkipNoWinPS {
+            $target = Join-Path $script:dir "config.json"
+            $utils = Join-Path $script:RepoRoot "scripts\install-utils.ps1"
+            Invoke-WindowsPowerShellScript -Dir $script:dir -Body @"
+. '$utils'
+Set-PeonConfig ([PSCustomObject]@{ default_pack = 'peon'; volume = 0.5; enabled = `$true }) '$target'
+"@
+            Test-Path $target | Should -Be $true
+            Test-HasUtf8Bom $target | Should -Be $false
+        }
+
+        It "the settings.json writer used by install.ps1 leaves no BOM under Windows PowerShell 5.1" -Skip:$script:SkipNoWinPS {
+            # Exactly the expression install.ps1 uses to register hooks:
+            #   $settings | ConvertTo-Json -Depth 10 | Write-PeonTextFile $SettingsFile
+            $target = Join-Path $script:dir "settings.json"
+            $utils = Join-Path $script:RepoRoot "scripts\install-utils.ps1"
+            Invoke-WindowsPowerShellScript -Dir $script:dir -Body @"
+. '$utils'
+`$settings = [PSCustomObject]@{ hooks = [PSCustomObject]@{ SessionStart = @() } }
+`$settings | ConvertTo-Json -Depth 10 | Write-PeonTextFile '$target'
+"@
+            Test-Path $target | Should -Be $true
+            Test-HasUtf8Bom $target | Should -Be $false
+            (Get-Content $target -Raw | ConvertFrom-Json).hooks | Should -Not -BeNullOrEmpty
+        }
+
+        It "Write-PeonTextFile overwrites an existing BOM'd file without a BOM" -Skip:$script:SkipNoWinPS {
+            # Upgrade path: a settings.json left BOM'd by an older peon-ping must
+            # come back clean, not keep its BOM forever.
+            $target = Join-Path $script:dir "settings.json"
+            Write-BomFile -Path $target -Text '{ "hooks": {} }'
+            Test-HasUtf8Bom $target | Should -Be $true
+
+            $utils = Join-Path $script:RepoRoot "scripts\install-utils.ps1"
+            Invoke-WindowsPowerShellScript -Dir $script:dir -Body @"
+. '$utils'
+`$settings = Remove-Utf8Bom (Get-Content '$target' -Raw) | ConvertFrom-Json
+`$settings | ConvertTo-Json -Depth 10 | Write-PeonTextFile '$target'
+"@
+            Test-HasUtf8Bom $target | Should -Be $false
+        }
+
+        It "Remove-Utf8Bom strips a leading BOM and leaves clean text alone" {
+            . (Join-Path $script:RepoRoot "scripts\install-utils.ps1")
+            (Remove-Utf8Bom ([char]0xFEFF + '{}')) | Should -Be '{}'
+            (Remove-Utf8Bom '{}') | Should -Be '{}'
+            (Remove-Utf8Bom $null) | Should -BeNullOrEmpty
+        }
+    }
+
+    Context "runtime writers (the generated peon.ps1)" {
+        BeforeEach { $script:env = New-TestHookEnv -ConfigOverrides @{ enabled = $true } }
+        AfterEach { Remove-TestHookEnv -Dir $script:env.Dir }
+
+        It "--pause leaves config.json with no BOM under Windows PowerShell 5.1" -Skip:$script:SkipNoWinPS {
+            & $script:WinPS -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script:env.HookPath -Command "--pause" 2>&1 | Out-Null
+
+            Test-HasUtf8Bom $script:env.ConfigPath | Should -Be $false
+            (Get-Content $script:env.ConfigPath -Raw | ConvertFrom-Json).enabled | Should -Be $false
+        }
+
+        It "--volume repairs a config.json that already carries a BOM" -Skip:$script:SkipNoWinPS {
+            # The runtime hook re-wrote config.json on every peon command, so a
+            # user already in the broken state stays broken until a write repairs it.
+            $original = Get-Content $script:env.ConfigPath -Raw
+            Write-BomFile -Path $script:env.ConfigPath -Text $original
+            Test-HasUtf8Bom $script:env.ConfigPath | Should -Be $true
+
+            & $script:WinPS -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script:env.HookPath -Command "--volume" -Arg1 "0.3" 2>&1 | Out-Null
+
+            Test-HasUtf8Bom $script:env.ConfigPath | Should -Be $false
+            (Get-Content $script:env.ConfigPath -Raw | ConvertFrom-Json).volume | Should -Be 0.3
+        }
+    }
+
+    Context "source guard" {
+        # Secondary net only. The byte assertions above are what actually holds;
+        # this just makes an accidental reintroduction fail loudly and early.
+        It "no PowerShell writer uses Set-Content -Encoding UTF8" {
+            $offenders = @(
+                Get-ChildItem -Path $script:RepoRoot -Filter "*.ps1" -Recurse |
+                    Where-Object { $_.FullName -notmatch '[\\/]tests[\\/]' } |
+                    Where-Object { (Get-Content $_.FullName -Raw) -match '(?m)^[^#\r\n]*Set-Content[^\r\n]*-Encoding\s+UTF8' } |
+                    ForEach-Object { $_.FullName.Substring($script:RepoRoot.Length + 1) }
+            )
+            $offenders -join ", " | Should -BeExactly ""
+        }
+    }
+}

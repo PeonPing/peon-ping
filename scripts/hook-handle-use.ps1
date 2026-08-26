@@ -154,8 +154,10 @@ try {
     $config | Add-Member -NotePropertyName "pack_rotation" -NotePropertyValue $packRotation -Force
     
     # Write updated config
-    $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -NoNewline
-    Add-Content $configPath "`n"
+    # UTF-8 without a BOM in one write: Set-Content -Encoding UTF8 emits a BOM on
+    # Windows PowerShell 5.1 and strict JSON readers reject it.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($configPath, (($config | ConvertTo-Json -Depth 10) + "`n"), $utf8NoBom)
     
 } catch {
     Write-Response -Continue $false -Message "[X] Failed to update config: $_"
@@ -187,8 +189,8 @@ try {
     $state.session_packs | Add-Member -NotePropertyName $sessionId -NotePropertyValue $packData -Force
     
     # Write updated state
-    $state | ConvertTo-Json -Depth 10 | Set-Content $statePath -NoNewline
-    Add-Content $statePath "`n"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($statePath, (($state | ConvertTo-Json -Depth 10) + "`n"), $utf8NoBom)
     
 } catch {
     Write-Response -Continue $false -Message "[X] Failed to update state: $_"

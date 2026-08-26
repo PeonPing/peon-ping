@@ -1771,7 +1771,7 @@ Describe "Embedded peon.ps1 Hook Script" {
     }
 
     It "Invoke-TtsSpeak writes PID to .tts.pid" {
-        $script:peonHookContent | Should -Match '\$proc\.Id.*Set-Content.*\$pidFile'
+        $script:peonHookContent | Should -Match 'Write-PeonTextFile \$pidFile.*\$proc\.Id'
     }
 
     It "Invoke-TtsSpeak returns early on empty text" {
@@ -2539,7 +2539,7 @@ Describe "path_rules: CLI Commands - Structural" {
 
     It "bind writes path_rules to config.json" {
         $script:peonHookContent | Should -Match 'cfgObj\.path_rules = \$pathRules'
-        $script:peonHookContent | Should -Match 'ConvertTo-Json.*Set-Content'
+        $script:peonHookContent | Should -Match 'ConvertTo-Json.*Write-PeonTextFile'
     }
 
     It "bind updates existing rule for same pattern (upsert)" {
@@ -3044,7 +3044,7 @@ Describe "path_rules: CLI Commands - Structural" {
 
     It "bind writes path_rules to config.json" {
         $script:peonHookContent | Should -Match 'cfgObj\.path_rules = \$pathRules'
-        $script:peonHookContent | Should -Match 'ConvertTo-Json.*Set-Content'
+        $script:peonHookContent | Should -Match 'ConvertTo-Json.*Write-PeonTextFile'
     }
 
     It "bind updates existing rule for same pattern (upsert)" {

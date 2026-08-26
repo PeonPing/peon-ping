@@ -82,7 +82,10 @@ if (-not (Test-Path $configPath)) {
     $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
     try {
         [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-        $config | ConvertTo-Json -Depth 3 | Set-Content $configPath -Encoding UTF8
+        # UTF-8 without a BOM: Set-Content -Encoding UTF8 writes one on Windows
+        # PowerShell 5.1, and a BOM trips strict JSON parsers.
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($configPath, (($config | ConvertTo-Json -Depth 3) + [Environment]::NewLine), $utf8NoBom)
     } finally {
         [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
     }

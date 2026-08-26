@@ -9,6 +9,38 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Strip a leading UTF-8 BOM (U+FEFF) from text read off disk. Older peon-ping
+# versions wrote JSON with Set-Content -Encoding UTF8, which under Windows
+# PowerShell 5.1 means UTF-8 *with* BOM; uninstalling should hand the file back
+# clean rather than preserve it.
+function Remove-Utf8Bom {
+    param([AllowEmptyString()][AllowNull()][string]$Text)
+    if ($null -eq $Text) { return $Text }
+    return $Text.TrimStart([char]0xFEFF)
+}
+
+# Write text to a file as UTF-8 without a BOM, on every PowerShell version.
+# `Set-Content -Encoding UTF8` writes a BOM on PS 5.1, and strict JSON readers
+# (the Claude Desktop settings loader among them) reject it outright.
+function Write-PeonTextFile {
+    param(
+        [Parameter(Mandatory = $true, Position = 0)][string]$Path,
+        [Parameter(Position = 1, ValueFromPipeline = $true)][AllowEmptyString()][AllowNull()][string[]]$Content,
+        [switch]$NoNewline
+    )
+    begin { $lines = New-Object System.Collections.Generic.List[string] }
+    process {
+        if ($null -ne $Content) {
+            foreach ($line in $Content) { $lines.Add([string]$line) }
+        }
+    }
+    end {
+        $text = ($lines -join [Environment]::NewLine)
+        if (-not $NoNewline -and $text.Length -gt 0) { $text += [Environment]::NewLine }
+        [System.IO.File]::WriteAllText($Path, $text, (New-Object System.Text.UTF8Encoding $false))
+    }
+}
+
 Write-Host "=== peon-ping uninstaller ===" -ForegroundColor Cyan
 Write-Host ""
 
@@ -38,7 +70,7 @@ if (Test-Path $SettingsFile) {
     Write-Host "Removing peon hooks from settings.json..."
 
     try {
-        $settingsObj = Get-Content $SettingsFile -Raw | ConvertFrom-Json
+        $settingsObj = Remove-Utf8Bom (Get-Content $SettingsFile -Raw) | ConvertFrom-Json
         $eventsChanged = @()
 
         if ($settingsObj.hooks) {
@@ -80,7 +112,7 @@ if (Test-Path $SettingsFile) {
             }
 
             $settingsObj.hooks = $hooksObj
-            $settingsObj | ConvertTo-Json -Depth 10 | Set-Content $SettingsFile -Encoding UTF8
+            $settingsObj | ConvertTo-Json -Depth 10 | Write-PeonTextFile $SettingsFile
 
             if ($eventsChanged.Count -gt 0) {
                 Write-Host "  Removed hooks for: $($eventsChanged -join ', ')" -ForegroundColor Green
@@ -102,7 +134,7 @@ if (Test-Path $CursorHooksFile) {
     Write-Host "Removing Cursor hooks..."
     
     try {
-        $cursorData = Get-Content $CursorHooksFile -Raw | ConvertFrom-Json
+        $cursorData = Remove-Utf8Bom (Get-Content $CursorHooksFile -Raw) | ConvertFrom-Json
         $eventsChanged = @()
         
         if ($cursorData.hooks) {
@@ -139,7 +171,7 @@ if (Test-Path $CursorHooksFile) {
                 }
                 $cursorData.hooks = $hooksObj
             }
-            $cursorData | ConvertTo-Json -Depth 10 | Set-Content $CursorHooksFile -Encoding UTF8
+            $cursorData | ConvertTo-Json -Depth 10 | Write-PeonTextFile $CursorHooksFile
             
             if ($eventsChanged.Count -gt 0) {
                 Write-Host "  Removed Cursor hooks for: $($eventsChanged -join ', ')" -ForegroundColor Green
@@ -437,7 +469,7 @@ function Set-PeonCodexConfigAtomic([string]$Path, [string]$Content) {
     $tempPath = Join-Path $directory ".$leaf.peon-ping-$PID-$([guid]::NewGuid().ToString('N')).tmp"
     $backupPath = "$tempPath.backup"
     try {
-        Set-Content -Path $tempPath -Value $Content -Encoding UTF8
+        Write-PeonTextFile -Path $tempPath -Content $Content
         if (Test-Path $Path) {
             [System.IO.File]::Replace($tempPath, $Path, $backupPath)
         } else {
@@ -453,7 +485,7 @@ if (Test-Path $CodexConfigFile) {
     Write-Host ""
     Write-Host "Removing Codex hooks..."
     try {
-        $codexContent = Get-Content $CodexConfigFile -Raw
+        $codexContent = Remove-Utf8Bom (Get-Content $CodexConfigFile -Raw)
         $originalCodexContent = $codexContent
         $codexNewline = if ($codexContent.Contains("`r`n")) { "`r`n" } else { "`n" }
 
