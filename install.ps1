@@ -911,10 +911,11 @@ function Resolve-TtsBackend {
     switch ($Backend) {
         "native"     { return "tts-native.ps1" }
         "elevenlabs" { return "tts-elevenlabs.ps1" }
+        "minimax"    { return "tts-minimax.ps1" }
         "piper"      { return "tts-piper.ps1" }
         "auto" {
             # Probe in priority order: prefer premium when installed.
-            foreach ($b in @("elevenlabs", "piper", "native")) {
+            foreach ($b in @("elevenlabs", "minimax", "piper", "native")) {
                 $scriptName = Resolve-TtsBackend -Backend $b
                 $full = Join-Path $InstallDir "scripts\$scriptName"
                 if (Test-Path $full) { return $scriptName }
