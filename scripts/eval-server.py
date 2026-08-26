@@ -2,6 +2,7 @@
 """peon eval server: same-origin UI + API for judging a draft pack. Stdlib only."""
 import argparse, glob, itertools, json, os, re, secrets, sys, threading, queue, subprocess, time, webbrowser, shutil, signal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import socketserver
 from urllib.parse import urlsplit, parse_qs
 
 DRAFT = None          # draft dir (abs)
@@ -434,6 +435,24 @@ class Handler(BaseHTTPRequestHandler):
             if not ok:
                 STATE["busy"] = False
 
+class FastBindServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer that binds without a reverse-DNS lookup.
+
+    http.server's server_bind() calls socket.getfqdn(host), which does a reverse
+    lookup on the bind address. On a host with no reverse record for 127.0.0.1
+    that call blocks until the resolver gives up (GitHub's macOS runners are the
+    reliable case: it stalls past the point where callers assume the server is
+    dead). The result is only ever used to populate server_name for CGI variables
+    this server never emits, so bind without it and keep startup instant.
+    """
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = host
+        self.server_port = port
+
+
 def main():
     global DRAFT, CLAUDE_BIN, SERVER, PORT, TOKEN
     ap = argparse.ArgumentParser()
@@ -449,7 +468,7 @@ def main():
         sys.stderr.write("no openpeon.json in %s\n" % DRAFT)
         sys.exit(1)
     TOKEN = secrets.token_urlsafe(32)
-    SERVER = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    SERVER = FastBindServer(("127.0.0.1", args.port), Handler)
     port = SERVER.server_address[1]
     PORT = port
     lock = os.path.join(DRAFT, ".eval-server.json")

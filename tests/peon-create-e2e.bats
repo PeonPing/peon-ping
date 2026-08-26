@@ -54,9 +54,20 @@ teardown() {
 
   # now really serve it and approve
   PEON_APPROVED_DIR="$HOME/.peon-ping/packs" python3 "$BATS_TEST_DIRNAME/../scripts/eval-server.py" \
-    --draft "$HOME/.peon-ping/drafts/calmtest" --no-open --print-port --claude-bin /usr/bin/true > "$TMP/port.txt" &
+    --draft "$HOME/.peon-ping/drafts/calmtest" --no-open --print-port --claude-bin /usr/bin/true > "$TMP/port.txt" 2> "$TMP/server.err" &
   SERVER_PID=$!
-  for _ in $(seq 1 50); do grep -q PORT= "$TMP/port.txt" 2>/dev/null && break; sleep 0.1; done
+  # Same wait budget and diagnostics as tests/eval-server.bats: wait on the
+  # lockfile as well as the port line, and report a stalled startup instead of
+  # letting it surface as a missing .eval-server.json further down.
+  for _ in $(seq 1 300); do
+    grep -q PORT= "$TMP/port.txt" 2>/dev/null && [ -f "$HOME/.peon-ping/drafts/calmtest/.eval-server.json" ] && break
+    sleep 0.1
+  done
+  if ! grep -q PORT= "$TMP/port.txt" 2>/dev/null; then
+    echo "eval-server did not come up within 30s" >&2
+    cat "$TMP/port.txt" "$TMP/server.err" >&2
+    return 1
+  fi
   PORT="$(sed -n 's/^PORT=//p' "$TMP/port.txt")"
   TOKEN="$(python3 -c "import json; print(json.load(open('$HOME/.peon-ping/drafts/calmtest/.eval-server.json'))['token'])")"
   run curl -sf -X POST -H "X-Eval-Token: $TOKEN" -H "content-type: application/json" \

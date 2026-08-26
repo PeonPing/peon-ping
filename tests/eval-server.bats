@@ -38,9 +38,24 @@ done
 exit 0
 EOF
   chmod +x "$TMP/fake-claude"
-  python3 "$BATS_TEST_DIRNAME/../scripts/eval-server.py" --draft "$DRAFT" --claude-bin "$TMP/fake-claude" --no-open --print-port > "$TMP/port.txt" &
+  python3 "$BATS_TEST_DIRNAME/../scripts/eval-server.py" --draft "$DRAFT" --claude-bin "$TMP/fake-claude" --no-open --print-port > "$TMP/port.txt" 2> "$TMP/server.err" &
   SERVER_PID=$!
-  for _ in $(seq 1 50); do grep -q PORT= "$TMP/port.txt" 2>/dev/null && break; sleep 0.1; done
+  # Wait on BOTH the port line and the lockfile: the tests need both, and the
+  # lockfile is what a stalled bind actually withholds. The old 5s budget was
+  # tight enough that a slow runner read as a dead server, so every test in this
+  # file failed with an unexplained FileNotFoundError. Give it room, then say
+  # exactly what happened instead of failing on a missing file three lines later.
+  for _ in $(seq 1 300); do
+    grep -q PORT= "$TMP/port.txt" 2>/dev/null && [ -f "$DRAFT/.eval-server.json" ] && break
+    sleep 0.1
+  done
+  if ! grep -q PORT= "$TMP/port.txt" 2>/dev/null || [ ! -f "$DRAFT/.eval-server.json" ]; then
+    echo "eval-server did not come up within 30s" >&2
+    echo "--- server stdout ---" >&2; cat "$TMP/port.txt" >&2
+    echo "--- server stderr ---" >&2; cat "$TMP/server.err" >&2
+    ps -p "$SERVER_PID" >&2 || echo "server pid $SERVER_PID is no longer running" >&2
+    return 1
+  fi
   PORT="$(sed -n 's/^PORT=//p' "$TMP/port.txt")"
   TOKEN="$(python3 -c "import json; print(json.load(open('$DRAFT/.eval-server.json'))['token'])")"
 }
