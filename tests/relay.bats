@@ -259,8 +259,11 @@ start_relay() {
   # different from the port the daemon was actually started on.
   run env -u PEON_RELAY_PORT bash "$RELAY_SH" --status --peon-dir="$TEST_DIR"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"port $RELAY_PORT"* ]]
-  [[ "$output" != *"port 19998"* ]]
+  # grep -q rather than a non-final bare [[ ]]: under macOS bash 3.2 a failing
+  # bare [[ ]] only gates the test when it is the body's last statement, so the
+  # positive assertion below would otherwise pass no matter what --status said.
+  printf '%s' "$output" | grep -q "port $RELAY_PORT"
+  ! printf '%s' "$output" | grep -q "port 19998"
 }
 
 @test "relay --daemon prevents duplicate start" {
