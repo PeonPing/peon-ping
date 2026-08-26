@@ -238,6 +238,34 @@ start_relay() {
   RELAY_PID=""
 }
 
+@test "relay --status reports the port the daemon actually started on, not the caller's env/default" {
+  # Regression: --status previously echoed whatever RELAY_PORT resolved to
+  # in *its own* invocation (env var or hardcoded 19998 default) instead of
+  # the port the running daemon actually bound, so a status check made
+  # without the original PEON_RELAY_PORT/--port would report a stale port
+  # for a genuinely healthy daemon.
+  bash "$RELAY_SH" --daemon --port="$RELAY_PORT" --peon-dir="$TEST_DIR" > /dev/null 2>&1
+  RELAY_PID=$(cat "$TEST_DIR/.relay.pid" 2>/dev/null)
+
+  for i in $(seq 1 30); do
+    if "$REAL_CURL" -sf "http://127.0.0.1:$RELAY_PORT/health" > /dev/null 2>&1; then
+      break
+    fi
+    sleep 0.1
+  done
+
+  # Query status with no --port and no PEON_RELAY_PORT set, so RELAY_PORT
+  # inside this invocation falls back to the hardcoded 19998 default —
+  # different from the port the daemon was actually started on.
+  run env -u PEON_RELAY_PORT bash "$RELAY_SH" --status --peon-dir="$TEST_DIR"
+  [ "$status" -eq 0 ]
+  # grep -q rather than a non-final bare [[ ]]: under macOS bash 3.2 a failing
+  # bare [[ ]] only gates the test when it is the body's last statement, so the
+  # positive assertion below would otherwise pass no matter what --status said.
+  printf '%s' "$output" | grep -q "port $RELAY_PORT"
+  ! printf '%s' "$output" | grep -q "port 19998"
+}
+
 @test "relay --daemon prevents duplicate start" {
   # Start first instance
   bash "$RELAY_SH" --daemon --port="$RELAY_PORT" --peon-dir="$TEST_DIR" > /dev/null 2>&1

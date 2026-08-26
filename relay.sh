@@ -75,6 +75,7 @@ for arg in "$@"; do
 done
 
 PIDFILE="$PEON_DIR/.relay.pid"
+PORTFILE="$PEON_DIR/.relay.port"
 LOGFILE="$PEON_DIR/.relay.log"
 
 # --- Handle --stop ---
@@ -83,10 +84,10 @@ if [ "$DAEMON_ACTION" = "stop" ]; then
     pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null
-      rm -f "$PIDFILE"
+      rm -f "$PIDFILE" "$PORTFILE"
       echo "peon-ping relay stopped (PID $pid)"
     else
-      rm -f "$PIDFILE"
+      rm -f "$PIDFILE" "$PORTFILE"
       echo "peon-ping relay was not running (stale PID file removed)"
     fi
   else
@@ -100,10 +101,18 @@ if [ "$DAEMON_ACTION" = "status" ]; then
   if [ -f "$PIDFILE" ]; then
     pid=$(cat "$PIDFILE" 2>/dev/null)
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      echo "peon-ping relay is running (PID $pid, port $RELAY_PORT)"
+      # Prefer the port the daemon actually bound (persisted at start time)
+      # over the env/flag-derived RELAY_PORT, which reflects only this
+      # invocation's environment and may not match how the daemon was started.
+      _status_port="$RELAY_PORT"
+      if [ -f "$PORTFILE" ]; then
+        _saved_port=$(cat "$PORTFILE" 2>/dev/null)
+        [ -n "$_saved_port" ] && _status_port="$_saved_port"
+      fi
+      echo "peon-ping relay is running (PID $pid, port $_status_port)"
       exit 0
     else
-      rm -f "$PIDFILE"
+      rm -f "$PIDFILE" "$PORTFILE"
       echo "peon-ping relay is not running (stale PID file removed)"
       exit 1
     fi
@@ -150,11 +159,14 @@ if [ "$DAEMON_MODE" = "true" ]; then
       echo "peon-ping relay already running (PID $old_pid)"
       exit 0
     fi
-    rm -f "$PIDFILE"
+    rm -f "$PIDFILE" "$PORTFILE"
   fi
 
   # Fork to background
   nohup bash "$0" --port="$RELAY_PORT" --bind="$BIND_ADDR" --peon-dir="$PEON_DIR" > "$LOGFILE" 2>&1 &
+  # Write PORTFILE before PIDFILE so a --status racing right after start
+  # never observes a PIDFILE without a matching PORTFILE.
+  echo "$RELAY_PORT" > "$PORTFILE"
   echo "$!" > "$PIDFILE"
   echo "peon-ping relay started in background (PID $!)"
   echo "  Listening: ${BIND_ADDR}:${RELAY_PORT}"
