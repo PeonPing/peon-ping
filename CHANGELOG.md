@@ -1,3 +1,8 @@
+## Unreleased
+
+### Added
+- **Grok Build adapter.** Grok's hook stdin is camelCase (`hookEventName`, `sessionId`) with snake_case event values (`session_start`, `stop`), so calling `peon.sh` directly stays silent. `adapters/grok.sh` and `adapters/grok.ps1` translate that envelope to CESP. When `~/.grok` exists, `install.sh` / `install.ps1` write `~/.grok/hooks/peon-ping.json` for `SessionStart`, `UserPromptSubmit`, `Stop`, `StopFailure`, `Notification`, subagent start/stop, `PostToolUseFailure`, and `PreCompact`. Noisy per-tool hooks stay unregistered. Session-end `Stop` fires (`reason: shutdown` / `channel_closed`) are treated as cleanup, not a completion chime. `run_terminal_command` failures map to Bash so `task.error` still plays. Stop-gate stdout is discarded so a chime cannot keep the agent working.
+
 ## v2.36.0 (2026-08-09)
 
 ### Added

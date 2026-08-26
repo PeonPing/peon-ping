@@ -669,6 +669,7 @@ else
   curl -fsSL "$REPO_BASE/adapters/trae.sh" -o "$INSTALL_DIR/adapters/trae.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/adapters/kiro-ide.sh" -o "$INSTALL_DIR/adapters/kiro-ide.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/adapters/eca.sh" -o "$INSTALL_DIR/adapters/eca.sh" 2>/dev/null || true
+  curl -fsSL "$REPO_BASE/adapters/grok.sh" -o "$INSTALL_DIR/adapters/grok.sh" 2>/dev/null || true
   mkdir -p "$INSTALL_DIR/scripts"
   curl -fsSL "$REPO_BASE/scripts/hook-handle-use.sh" -o "$INSTALL_DIR/scripts/hook-handle-use.sh" 2>/dev/null || true
   curl -fsSL "$REPO_BASE/scripts/codex-config.py" -o "$INSTALL_DIR/scripts/codex-config.py"
@@ -1460,6 +1461,57 @@ with open(hooks_file, 'w') as f:
 
 print('Copilot CLI hooks registered for: ' + ', '.join(events))
 "
+fi
+
+# --- Register Grok Build hooks if ~/.grok exists ---
+# Wires user-level hooks at ~/.grok/hooks/peon-ping.json pointing at
+# adapters/grok.sh. Grok's stdin is camelCase with snake_case event
+# values, so peon.sh cannot be invoked directly.
+GROK_DIR="$HOME/.grok"
+GROK_HOOKS_DIR="$GROK_DIR/hooks"
+GROK_HOOKS_FILE="$GROK_HOOKS_DIR/peon-ping.json"
+GROK_ADAPTER="$INSTALL_DIR/adapters/grok.sh"
+
+if [ "$LOCAL_MODE" != true ] && [ -d "$GROK_DIR" ]; then
+  echo ""
+  echo "Detected Grok Build installation, registering hooks..."
+
+  if [ -f "$GROK_ADAPTER" ]; then
+    mkdir -p "$GROK_HOOKS_DIR"
+    python3 -c "
+import json, os
+
+hooks_file = '$(py_path "$GROK_HOOKS_FILE")'
+adapter = '$(py_path "$GROK_ADAPTER")'
+
+events = [
+    'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'StopFailure',
+    'Notification', 'SubagentStart', 'SubagentStop', 'PostToolUseFailure',
+    'PreCompact',
+]
+
+hooks = {}
+for evt in events:
+    hooks[evt] = [{
+        'hooks': [{
+            'type': 'command',
+            'command': adapter,
+            'timeout': 10,
+        }]
+    }]
+
+os.makedirs(os.path.dirname(hooks_file), exist_ok=True)
+with open(hooks_file, 'w') as f:
+    json.dump({'hooks': hooks}, f, indent=2)
+    f.write('\n')
+
+print('Grok Build hooks registered for: ' + ', '.join(events))
+print('Reload hooks in a running Grok session (/hooks then r) or start a new one.')
+"
+  else
+    rm -f "$GROK_HOOKS_FILE"
+    echo "Warning: Grok adapter is missing; stale peon-ping hooks were removed instead of registered."
+  fi
 fi
 
 # --- Register OpenAI Codex hooks if ~/.codex exists ---

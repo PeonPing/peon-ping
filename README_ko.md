@@ -6,7 +6,7 @@
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![MSYS2](https://img.shields.io/badge/MSYS2-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01)
+![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Grok Build](https://img.shields.io/badge/Grok_Build-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01)
 
 **AI 코딩 에이전트가 관심을 요청할 때 게임 캐릭터 음성 + 시각 오버레이 알림을 재생하거나, MCP를 통해 에이전트가 직접 효과음을 선택할 수 있습니다.**
 
@@ -322,6 +322,7 @@ peon-ping은 훅을 지원하는 모든 에이전트 기반 IDE에서 동작합�
 | **Gemini CLI** | 어댑터 | `~/.gemini/settings.json`에 `adapters/gemini.sh` 훅 추가 ([설정](#gemini-cli-설정)) |
 | **GitHub Copilot** | 어댑터 | `.github/hooks/hooks.json`에 `adapters/copilot.sh` 훅 추가 ([설정](#github-copilot-설정)) |
 | **OpenAI Codex** | 내장(자동 감지) | `~/.codex`가 있으면 `install.sh` / `install.ps1`이 `~/.codex/config.toml`에 stable hooks를 자동 등록. 수동 어댑터 연결도 가능 ([설정](#openai-codex-설정)) |
+| **Grok Build** | 내장(자동 감지) | `~/.grok`가 있으면 `install.sh` / `install.ps1`이 `~/.grok/hooks/peon-ping.json`에 훅을 자동 등록. 수동 어댑터 연결도 가능 ([설정](#grok-build-설정)) |
 | **Cursor** | 내장 | `curl \| bash` 또는 `peon-ping-setup`이 자동 감지 후 Cursor 훅 등록 |
 | **OpenCode** | 어댑터 | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh \| bash` ([설정](#opencode-설정)) |
 | **Kilo CLI** | 어댑터 | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/kilo.sh \| bash` ([설정](#kilo-cli-설정)) |
@@ -336,6 +337,14 @@ peon-ping은 훅을 지원하는 모든 에이전트 기반 IDE에서 동작합�
 `~/.codex`가 이미 있으면 Unix/Windows 설치 관리자가 `~/.codex/config.toml`에 peon-ping 관리 stable hooks 블록을 자동으로 추가합니다. Codex를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
 
 등록되는 이벤트는 `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PreCompact`, `SubagentStart`, `SubagentStop`, `Stop`입니다. `SessionStart`는 `startup`, `resume`, `clear`에만 매칭되며, 압축 흐름은 `PreCompact`가 처리합니다. `PreToolUse`, `PostToolUse`, `PostCompact`는 등록하지 않으며, Codex 어댑터는 `PostToolUse`를 무시합니다. Codex가 요청하면 `/hooks`에서 peon-ping 명령을 검토하고 신뢰 처리하세요.
+
+### Grok Build 설정
+
+Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트 값은 snake_case(`session_start`, `stop`)입니다. `peon.sh`는 이 형식을 바로 읽지 못하므로 `adapters/grok.sh`(Windows는 `grok.ps1`)를 사용합니다.
+
+`~/.grok`가 이미 있으면 설치 관리자가 `~/.grok/hooks/peon-ping.json`을 자동으로 씁니다. Grok Build를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
+
+등록 이벤트: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`, `PostToolUseFailure`, `PreCompact`. 세션 종료 `Stop`(`shutdown` / `channel_closed`)은 완료음이 아니라 정리로 처리합니다. 이미 실행 중인 Grok에서는 `/hooks` 후 `r`로 다시 읽거나 새 세션을 여세요.
 
 **설정 방법:**
 

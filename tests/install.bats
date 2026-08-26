@@ -138,6 +138,39 @@ print('OK')
 "
 }
 
+@test "fresh install registers Grok Build hooks when ~/.grok exists" {
+  mkdir -p "$TEST_HOME/.grok"
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$TEST_HOME/.grok/hooks/peon-ping.json" ]
+  /usr/bin/python3 -c "
+import json
+data = json.load(open('$TEST_HOME/.grok/hooks/peon-ping.json'))
+hooks = data.get('hooks', {})
+for event in ['SessionStart', 'UserPromptSubmit', 'Stop', 'Notification', 'PostToolUseFailure', 'PreCompact']:
+    assert event in hooks, f'{event} not in grok hooks'
+    cmds = [h.get('command','') for entry in hooks[event] for h in entry.get('hooks',[])]
+    assert any('adapters/grok.sh' in c for c in cmds), f'grok.sh not registered for {event}: {cmds}'
+assert 'PreToolUse' not in hooks
+assert 'PostToolUse' not in hooks
+print('OK')
+"
+}
+
+@test "--local install does not modify user Grok hooks" {
+  mkdir -p "$TEST_HOME/.grok"
+  cd "$PROJECT_DIR"
+  bash "$CLONE_DIR/install.sh" --local
+  [ ! -f "$TEST_HOME/.grok/hooks/peon-ping.json" ]
+}
+
+@test "uninstall removes Grok Build hooks" {
+  mkdir -p "$TEST_HOME/.grok"
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$TEST_HOME/.grok/hooks/peon-ping.json" ]
+  bash "$INSTALL_DIR/uninstall.sh"
+  [ ! -f "$TEST_HOME/.grok/hooks/peon-ping.json" ]
+}
+
 @test "fresh install registers Codex stable hooks when ~/.codex exists" {
   mkdir -p "$TEST_HOME/.codex"
   cat > "$TEST_HOME/.codex/config.toml" <<TOML

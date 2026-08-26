@@ -2,7 +2,7 @@
 
 > Game character voice lines + visual overlay notifications when your AI coding agent needs attention.
 
-peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 90+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, Amp, GitHub Copilot, Cursor, OpenCode, Codex, Kiro, Kimi Code, Windsurf, DeepAgents, Qwen Code, iFlow CLI, Trae, Kiro IDE, ECA, and any MCP-compatible AI agent.
+peon-ping plays voice lines and shows bold on-screen overlay banners from Warcraft, StarCraft, Portal, Zelda, and 90+ other games when your AI coding agent finishes a task, needs permission, or hits an error. Works with Claude Code, Amp, GitHub Copilot, Cursor, OpenCode, Codex, Grok Build, Kiro, Kimi Code, Windsurf, DeepAgents, Qwen Code, iFlow CLI, Trae, Kiro IDE, ECA, and any MCP-compatible AI agent.
 
 ## Links
 
@@ -68,6 +68,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - Gemini CLI (adapter)
 - GitHub Copilot CLI (built-in: install.sh and install.ps1 auto-register PascalCase hooks at ~/.copilot/hooks/peon-ping.json when ~/.copilot exists, no per-repo setup needed; PascalCase event names trigger the VS Code-compatible payload format that peon.sh/peon.ps1 reads natively. Per-repo wiring also available via adapters/copilot.sh / .ps1 with .github/hooks/hooks.json. Skips postToolUse to avoid debounce flooding; correctly maps agentStop -> Stop. Requires PowerShell 7+ on Windows.)
 - OpenAI Codex (built-in auto-detect: install.sh and install.ps1 register stable hooks in ~/.codex/config.toml when ~/.codex exists; registered events are SessionStart, UserPromptSubmit, PermissionRequest, PreCompact, SubagentStart, SubagentStop, and Stop. SessionStart matches startup/resume/clear only; compaction is handled by PreCompact. PreToolUse, PostToolUse, and PostCompact are intentionally not registered; PostToolUse is ignored because Codex has no separate failure-only hook.)
+- Grok Build (built-in auto-detect: install.sh and install.ps1 write ~/.grok/hooks/peon-ping.json when ~/.grok exists, pointing at adapters/grok.sh or grok.ps1. Grok stdin is camelCase with snake_case event values, so peon.sh cannot be invoked directly. Registered events: SessionStart, SessionEnd, UserPromptSubmit, Stop, StopFailure, Notification, SubagentStart, SubagentStop, PostToolUseFailure, PreCompact. Session-end Stop (reason shutdown/channel_closed) is treated as SessionEnd. run_terminal_command failures map to Bash for task.error. Stop-gate stdout is discarded.)
 - Cursor
 - OpenCode
 - Kilo CLI

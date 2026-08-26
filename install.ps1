@@ -514,12 +514,14 @@ function Normalize-IdeId {
         "trae" { return "trae" }
         "kiro-ide" { return "kiro-ide" }
         "eca" { return "eca" }
+        "grok" { return "grok" }
+        "grok-build" { return "grok" }
         default { return $key }
     }
 }
 
 function Get-KnownIdeIds {
-    return @("claude", "codex", "cursor", "opencode", "kilo", "kiro", "gemini", "copilot", "windsurf", "kimi", "antigravity", "amp", "deepagents", "openclaw", "rovodev")
+    return @("claude", "codex", "cursor", "opencode", "kilo", "kiro", "gemini", "copilot", "windsurf", "kimi", "antigravity", "amp", "deepagents", "openclaw", "rovodev", "grok")
 }
 
 function Expand-UserPath {
@@ -580,6 +582,7 @@ function Detect-SessionIde {
         "iflow-" = "iflow"
         "trae-" = "trae"
         "eca-" = "eca"
+        "grok-" = "grok"
     }
     foreach ($prefix in $prefixes.Keys) {
         if ($sid.StartsWith($prefix)) { return $prefixes[$prefix] }
@@ -2600,6 +2603,7 @@ $ideDisplayNames = @{
     'trae' = 'Trae'
     'kiro-ide' = 'Kiro IDE'
     'eca' = 'ECA'
+    'grok' = 'Grok Build'
 }
 $ideLabel = ''
 if ($sessionIde) {
@@ -3420,7 +3424,8 @@ $adapterFiles = @(
     "codex.ps1", "gemini.ps1", "copilot.ps1", "windsurf.ps1",
     "kiro.ps1", "openclaw.ps1", "amp.ps1", "antigravity.ps1",
     "kimi.ps1", "opencode.ps1", "kilo.ps1", "deepagents.ps1",
-    "qwen.ps1", "iflow.ps1", "trae.ps1", "kiro-ide.ps1", "eca.ps1"
+    "qwen.ps1", "iflow.ps1", "trae.ps1", "kiro-ide.ps1", "eca.ps1",
+    "grok.ps1"
 )
 
 $sourceAdaptersDir = Join-Path $ScriptDir "adapters"
@@ -3771,6 +3776,56 @@ if ((-not $Local) -and (Test-Path $CopilotDir)) {
     New-Item -ItemType Directory -Path $CopilotHooksDir -Force | Out-Null
     $copilotData | ConvertTo-Json -Depth 10 | Set-Content $CopilotHooksFile -Encoding UTF8
     Write-Host "  Copilot CLI hooks registered for: $($copilotEvents -join ', ')" -ForegroundColor Green
+}
+
+# --- Register Grok Build hooks if ~/.grok exists ---
+# Wires user-level hooks at %USERPROFILE%\.grok\hooks\peon-ping.json
+# pointing at adapters/grok.ps1. Grok's stdin is camelCase with snake_case
+# event values, so peon.ps1 cannot be invoked directly.
+$GrokDir = Join-Path $env:USERPROFILE ".grok"
+$GrokHooksDir = Join-Path $GrokDir "hooks"
+$GrokHooksFile = Join-Path $GrokHooksDir "peon-ping.json"
+$GrokAdapter = Join-Path $adaptersDir "grok.ps1"
+
+if ((-not $Local) -and (Test-Path $GrokDir)) {
+    Write-Host ""
+    Write-Host "Detected Grok Build installation, registering hooks..."
+
+    if (Test-Path $GrokAdapter) {
+        $grokHookCmd = "powershell -NoProfile -NonInteractive -File `"$GrokAdapter`""
+        $grokEvents = @(
+            "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop", "StopFailure",
+            "Notification", "SubagentStart", "SubagentStop", "PostToolUseFailure",
+            "PreCompact"
+        )
+        $grokHooks = [ordered]@{}
+        foreach ($evt in $grokEvents) {
+            $grokHooks[$evt] = @(
+                [PSCustomObject]@{
+                    hooks = @(
+                        [PSCustomObject]@{
+                            type    = "command"
+                            command = $grokHookCmd
+                            timeout = 10
+                        }
+                    )
+                }
+            )
+        }
+        $grokData = [PSCustomObject]@{
+            hooks = [PSCustomObject]$grokHooks
+        }
+
+        New-Item -ItemType Directory -Path $GrokHooksDir -Force | Out-Null
+        $grokData | ConvertTo-Json -Depth 10 | Set-Content $GrokHooksFile -Encoding UTF8
+        Write-Host "  Grok Build hooks registered for: $($grokEvents -join ', ')" -ForegroundColor Green
+        Write-Host "  Reload hooks in a running Grok session (/hooks then r) or start a new one." -ForegroundColor Yellow
+    } else {
+        if (Test-Path $GrokHooksFile) {
+            Remove-Item -Path $GrokHooksFile -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "  Warning: Grok adapter is missing; stale peon-ping hooks were removed instead of registered." -ForegroundColor Yellow
+    }
 }
 
 # --- Register OpenAI Codex hooks if ~/.codex exists ---

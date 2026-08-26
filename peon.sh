@@ -1675,6 +1675,8 @@ IDE_ALIASES = {
     'open_claw': 'openclaw',
     'rovodev': 'rovodev',
     'rovo': 'rovodev',
+    'grok': 'grok',
+    'grok-build': 'grok',
 }
 
 def normalize_ide_id(value):
@@ -1990,6 +1992,21 @@ if os.path.isdir(codex_dir):
         ides.append(('OpenAI Codex', codex_dir, 'installed'))
     else:
         ides.append(('OpenAI Codex', codex_dir, 'detected (not set up)'))
+
+grok_dir = os.path.join(home, '.grok')
+grok_hooks = os.path.join(grok_dir, 'hooks', 'peon-ping.json')
+if os.path.isdir(grok_dir):
+    grok_installed = False
+    if os.path.isfile(grok_hooks):
+        try:
+            grok_text = open(grok_hooks).read()
+            grok_installed = 'grok.sh' in grok_text or 'grok.ps1' in grok_text
+        except Exception:
+            grok_installed = False
+    if grok_installed:
+        ides.append(('Grok Build', grok_dir, 'installed'))
+    else:
+        ides.append(('Grok Build', grok_dir, 'detected (not set up)'))
 
 if ides:
     for name, path, st in ides:
@@ -2806,9 +2823,10 @@ IDE_ALIASES = {
     'kimi': 'kimi', 'antigravity': 'antigravity', 'amp': 'amp', 'deepagents': 'deepagents',
     'deep-agents': 'deepagents', 'deep_agents': 'deepagents', 'openclaw': 'openclaw',
     'open-claw': 'openclaw', 'open_claw': 'openclaw', 'rovodev': 'rovodev', 'rovo': 'rovodev',
+    'grok': 'grok', 'grok-build': 'grok',
 }
 KNOWN_IDES = ['claude', 'codex', 'cursor', 'opencode', 'kilo', 'kiro', 'gemini', 'copilot', 'windsurf',
-              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev']
+              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev', 'grok']
 
 def normalize_ide_id(value):
     raw = str(value or '').strip().lower()
@@ -2876,6 +2894,7 @@ IDE_ALIASES = {
     'kimi': 'kimi', 'antigravity': 'antigravity', 'amp': 'amp', 'deepagents': 'deepagents',
     'deep-agents': 'deepagents', 'deep_agents': 'deepagents', 'openclaw': 'openclaw',
     'open-claw': 'openclaw', 'open_claw': 'openclaw', 'rovodev': 'rovodev', 'rovo': 'rovodev',
+    'grok': 'grok', 'grok-build': 'grok',
 }
 
 def normalize_ide_id(value):
@@ -2917,9 +2936,10 @@ IDE_ALIASES = {
     'kimi': 'kimi', 'antigravity': 'antigravity', 'amp': 'amp', 'deepagents': 'deepagents',
     'deep-agents': 'deepagents', 'deep_agents': 'deepagents', 'openclaw': 'openclaw',
     'open-claw': 'openclaw', 'open_claw': 'openclaw', 'rovodev': 'rovodev', 'rovo': 'rovodev',
+    'grok': 'grok', 'grok-build': 'grok',
 }
 KNOWN_IDES = ['claude', 'codex', 'cursor', 'opencode', 'kilo', 'kiro', 'gemini', 'copilot', 'windsurf',
-              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev']
+              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev', 'grok']
 
 def normalize_ide_id(value):
     raw = str(value or '').strip().lower()
@@ -5452,6 +5472,8 @@ IDE_ALIASES = {
     'trae': 'trae',
     'kiro-ide': 'kiro-ide',
     'eca': 'eca',
+    'grok': 'grok',
+    'grok-build': 'grok',
 }
 
 def normalize_ide_id(value):
@@ -5489,6 +5511,7 @@ def detect_session_ide(source_value, event_payload, session_value):
         ('iflow-', 'iflow'),
         ('trae-', 'trae'),
         ('eca-', 'eca'),
+        ('grok-', 'grok'),
     )
     for prefix, ide in prefix_map:
         if sid.startswith(prefix):
@@ -5517,6 +5540,7 @@ IDE_DISPLAY_NAMES = {
     'trae': 'Trae',
     'kiro-ide': 'Kiro IDE',
     'eca': 'ECA',
+    'grok': 'Grok Build',
 }
 
 def display_ide_name(ide_id):
