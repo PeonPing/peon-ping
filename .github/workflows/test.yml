@@ -18,6 +18,27 @@ jobs:
       - name: Run tests
         run: bats tests/
 
+  test-opencode:
+    # The opencode adapter is TypeScript, so bats cannot reach it. Its vitest
+    # suite existed and passed but nothing ran it, which meant 58 tests gated
+    # nothing and three PRs could touch the adapter without CI noticing.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adapters/opencode
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run vitest
+        run: npx vitest run
+
   test-windows:
     runs-on: windows-latest
     steps:
