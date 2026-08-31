@@ -6,6 +6,7 @@ setup() {
   setup_test_env
 
   CODEX_SH="${PEON_SH%/peon.sh}/adapters/codex.sh"
+  export PEON_CODEX_ACTIVATION_ID="activation-1"
 
   # Adapter resolves peon.sh via CLAUDE_PEON_DIR
   ln -sf "$PEON_SH" "$TEST_DIR/peon.sh"
@@ -144,10 +145,108 @@ assert last.get('cwd') == '/tmp/codex-proj', last
   ! afplay_was_called
 }
 
-@test "stable UserPromptSubmit plays no sound" {
+@test "first UserPromptSubmit without SessionStart plays one fallback greeting" {
   run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
   [ "$CODEX_EXIT" -eq 0 ]
-  ! afplay_was_called
+  [ "$(afplay_call_count)" -eq 1 ]
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
+
+  # The original prompt still reaches peon.sh for status/spam bookkeeping.
+  "$PEON_PY" -c "
+import json
+state = json.load(open('$TEST_DIR/.state.json'))
+assert len(state.get('prompt_timestamps', {}).get('codex-s1', [])) == 1, state
+"
+}
+
+@test "additional prompts in the same activation do not replay the greeting" {
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+}
+
+@test "real SessionStart followed by a prompt produces one greeting" {
+  run_codex "" '{"hook_event_name":"SessionStart","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+}
+
+@test "late SessionStart after a fallback does not duplicate the greeting" {
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+
+  run_codex "" '{"hook_event_name":"SessionStart","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+}
+
+@test "concurrent fallback and SessionStart produce one greeting" {
+  printf '%s' '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}' \
+    | bash "$CODEX_SH" >/dev/null 2>&1 &
+  prompt_pid=$!
+  printf '%s' '{"hook_event_name":"SessionStart","session_id":"s1"}' \
+    | bash "$CODEX_SH" >/dev/null 2>&1 &
+  start_pid=$!
+
+  wait "$prompt_pid"
+  wait "$start_pid"
+  [ "$(afplay_call_count)" -eq 1 ]
+}
+
+@test "same session id in a new activation gets one fallback greeting" {
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+
+  export PEON_CODEX_ACTIVATION_ID="activation-2"
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 2 ]
+}
+
+@test "expired activation marker allows one new fallback greeting" {
+  export PEON_CODEX_ACTIVATION_TTL_SECONDS=1
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 1 ]
+
+  "$PEON_PY" -c "
+import json
+path = '$TEST_DIR/.codex-activation-state.json'
+state = json.load(open(path))
+for record in state.get('activations', {}).values():
+    record['last_seen'] -= 2
+json.dump(state, open(path, 'w'))
+"
+
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 2 ]
+}
+
+@test "prompt bookkeeping is preserved after fallback" {
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+  run_codex "" '{"hook_event_name":"UserPromptSubmit","session_id":"s1"}'
+  [ "$CODEX_EXIT" -eq 0 ]
+
+  "$PEON_PY" -c "
+import json
+state = json.load(open('$TEST_DIR/.state.json'))
+assert len(state.get('prompt_timestamps', {}).get('codex-s1', [])) == 3, state
+"
 }
 
 @test "stable PostCompact is silent" {

@@ -29,13 +29,58 @@ else
   CODEX_STDIN="$(cat)"
 fi
 
+# A restored Codex thread can reuse its session id while skipping SessionStart.
+# Prefer the current Codex process as the activation boundary so a relaunched
+# client can greet again without turning every prompt into a greeting. The env
+# override keeps the boundary deterministic for tests and unusual launchers.
+resolve_codex_activation_id() {
+  if [ "${PEON_CODEX_ACTIVATION_ID+x}" = "x" ]; then
+    printf '%s' "$PEON_CODEX_ACTIVATION_ID"
+    return
+  fi
+
+  local pid="$PPID"
+  local depth=0
+  local comm=""
+  local comm_base=""
+  local args=""
+  local started=""
+  local parent=""
+  while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null && [ "$depth" -lt 12 ]; do
+    comm="$(ps -p "$pid" -o comm= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+    args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+    comm_base="${comm##*/}"
+    if [ "$comm_base" = "codex" ] || [ "$comm_base" = "codex.exe" ] || [[ "$args" == *"@openai/codex"* ]]; then
+      started="$(ps -p "$pid" -o lstart= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)"
+      printf '%s|%s|%s' "$pid" "$started" "$comm"
+      return
+    fi
+    parent="$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d '[:space:]')"
+    [ -n "$parent" ] || break
+    pid="$parent"
+    depth=$((depth + 1))
+  done
+}
+
+CODEX_ACTIVATION_ID="$(resolve_codex_activation_id)"
+
 # Map to a CESP payload. Silent events (PreToolUse, PostToolUse) print nothing,
 # so peon.sh is never invoked for per-tool-call chatter.
-MAPPED_JSON="$(_CODEX_EVENT="$CODEX_EVENT" _CODEX_STDIN="$CODEX_STDIN" python3 - <<'PY'
+MAPPED_JSON="$(_CODEX_EVENT="$CODEX_EVENT" \
+  _CODEX_STDIN="$CODEX_STDIN" \
+  _CODEX_ACTIVATION_ID="$CODEX_ACTIVATION_ID" \
+  _PEON_DIR="$PEON_DIR" \
+  _CODEX_ACTIVATION_TTL_SECONDS="${PEON_CODEX_ACTIVATION_TTL_SECONDS:-1800}" \
+  _CODEX_START_GRACE_SECONDS="${PEON_CODEX_START_GRACE_SECONDS:-3}" \
+  python3 - <<'PY'
+import fcntl
+import hashlib
 import json
 import os
 import re
 import sys
+import tempfile
+import time
 
 
 def first_non_empty(*values):
@@ -48,6 +93,121 @@ def first_non_empty(*values):
         else:
             return value
     return ""
+
+
+def positive_float(value, default):
+    try:
+        parsed = float(value)
+        return parsed if parsed > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def write_json_atomic(path, value):
+    directory = os.path.dirname(path)
+    descriptor, temporary_path = tempfile.mkstemp(prefix=".codex-activation.", dir=directory)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(value, handle, separators=(",", ":"))
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+
+
+def update_activation_state(mapped_event, session_id):
+    peon_dir = os.environ.get("_PEON_DIR", "").strip()
+    if not peon_dir or not session_id:
+        return "unchanged"
+
+    activation_id = os.environ.get("_CODEX_ACTIVATION_ID", "").strip()
+    activation_ttl = positive_float(
+        os.environ.get("_CODEX_ACTIVATION_TTL_SECONDS", ""), 1800
+    )
+    grace_seconds = positive_float(
+        os.environ.get("_CODEX_START_GRACE_SECONDS", ""), 3
+    )
+    now = time.time()
+    state_path = os.path.join(peon_dir, ".codex-activation-state.json")
+    lock_path = os.path.join(peon_dir, ".codex-activation-state.lock")
+    os.makedirs(peon_dir, exist_ok=True)
+
+    # When no Codex process can be found, the session id falls back to an
+    # inactivity lease instead of becoming a permanent lifetime marker.
+    boundary = activation_id or "inactivity-lease"
+    key = hashlib.sha256(f"{session_id}\0{boundary}".encode("utf-8")).hexdigest()
+
+    with open(lock_path, "a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            try:
+                with open(state_path, encoding="utf-8") as handle:
+                    state = json.load(handle)
+            except (FileNotFoundError, json.JSONDecodeError, OSError):
+                state = {}
+            if not isinstance(state, dict):
+                state = {}
+            activations = state.get("activations", {})
+            if not isinstance(activations, dict):
+                activations = {}
+
+            # Keep the adapter-specific state bounded independently of peon.sh.
+            prune_before = now - 7 * 86400
+            activations = {
+                item_key: item
+                for item_key, item in activations.items()
+                if isinstance(item, dict)
+                and isinstance(item.get("last_seen"), (int, float))
+                and item["last_seen"] >= prune_before
+            }
+            record = activations.get(key)
+            if record and now - record.get("last_seen", 0) >= activation_ttl:
+                activations.pop(key, None)
+                record = None
+
+            action = "unchanged"
+            if mapped_event == "SessionStart":
+                greeted_at = record.get("greeted_at", 0) if record else 0
+                if record and now - greeted_at < grace_seconds:
+                    record["last_seen"] = now
+                    action = "suppress-start"
+                else:
+                    activations[key] = {
+                        "session_id": session_id,
+                        "activation_id": activation_id,
+                        "source": "SessionStart",
+                        "greeted_at": now,
+                        "last_seen": now,
+                    }
+                    action = "emit-start"
+            elif mapped_event == "UserPromptSubmit":
+                if record:
+                    record["last_seen"] = now
+                    action = "emit-prompt"
+                else:
+                    activations[key] = {
+                        "session_id": session_id,
+                        "activation_id": activation_id,
+                        "source": "UserPromptSubmit",
+                        "greeted_at": now,
+                        "last_seen": now,
+                    }
+                    action = "fallback-start"
+            elif mapped_event == "SessionEnd":
+                activations.pop(key, None)
+            elif record:
+                record["last_seen"] = now
+
+            state["version"] = 1
+            state["activations"] = activations
+            write_json_atomic(state_path, state)
+            return action
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
 raw_stdin = os.environ.get("_CODEX_STDIN", "").strip()
@@ -186,10 +346,29 @@ if mapped_event == "PostToolUseFailure":
         error = f"Codex event: {raw_event}"
     payload["error"] = str(error)[:180]
 
-print(json.dumps(payload))
+try:
+    activation_action = update_activation_state(mapped_event, session_id)
+except Exception:
+    # Sound integration state must never block a Codex hook.
+    activation_action = "unchanged"
+
+if mapped_event == "SessionStart" and activation_action == "suppress-start":
+    sys.exit(0)
+
+payloads = [payload]
+if mapped_event == "UserPromptSubmit" and activation_action == "fallback-start":
+    fallback = dict(payload)
+    fallback["hook_event_name"] = "SessionStart"
+    payloads.insert(0, fallback)
+
+for item in payloads:
+    print(json.dumps(item))
 PY
 )" || MAPPED_JSON=""
 
 if [ -n "$MAPPED_JSON" ]; then
-  printf '%s' "$MAPPED_JSON" | bash "$PEON_SH"
+  while IFS= read -r mapped_json; do
+    [ -n "$mapped_json" ] || continue
+    printf '%s' "$mapped_json" | bash "$PEON_SH"
+  done <<< "$MAPPED_JSON"
 fi
