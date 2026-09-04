@@ -125,13 +125,13 @@ nix develop  # or use direnv
 { inputs, pkgs, ... }:
 
 let
-  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/cursor.sh";
+  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/cursor.sh";
 in {
   imports = [ inputs.peon-ping.homeManagerModules.default ];
 
   programs.peon-ping = {
     enable = true;
-    package = inputs.peon-ping.packages.${pkgs.system}.default;
+    package = inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default;
     claudeCodeIntegration = true;
 
     settings = {
@@ -201,7 +201,7 @@ in {
 
 **その他の IDE フック**: peon-ping と無関係な IDE 設定を上書きしないよう、その他の IDE フックは引き続き任意です。peon-ping は [`adapters/`](https://github.com/PeonPing/peon-ping/tree/main/adapters) 配下に `cursor.sh` などのアダプタースクリプトを提供しており、次のように接続できます：
   ```sh
-  ${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
+  ${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
   ```
   上記の Cursor の例を参照してください
 
