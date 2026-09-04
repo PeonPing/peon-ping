@@ -151,13 +151,13 @@ For reproducible setups, use the Home Manager module:
 { inputs, pkgs, ... }:
 
 let
-  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/cursor.sh";
+  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/cursor.sh";
 in {
   imports = [ inputs.peon-ping.homeManagerModules.default ];
 
   programs.peon-ping = {
     enable = true;
-    package = inputs.peon-ping.packages.${pkgs.system}.default;
+    package = inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default;
     claudeCodeIntegration = true;
 
     settings = {
@@ -227,7 +227,7 @@ For packs listed on [openpeon.com](https://openpeon.com/), find the GitHub repos
 
 **Other IDE hooks**: adapters for other IDEs are still opt-in so the module does not overwrite unrelated IDE settings. peon-ping provides adapter scripts such as `cursor.sh` in [`adapters/`](https://github.com/PeonPing/peon-ping/tree/main/adapters), and you can wire them like this:
   ```sh
-  ${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
+  ${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
   ```
   See the Cursor example above.
 
