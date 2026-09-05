@@ -503,6 +503,42 @@ if (Test-Path $CodexConfigFile) {
     }
 }
 
+# --- Remove Kimi Code hooks ---
+# The adapter owns the managed [[hooks]] block in Kimi's config.toml
+# (~/.kimi-code, or ~/.kimi for the older kimi-cli), so hand the removal to it.
+# Its -Uninstall also reaps the watcher daemon the adapter used to be, which is
+# why it runs even when no config carries the block.
+$KimiAdapter = Join-Path $InstallDir "adapters\kimi.ps1"
+if (Test-Path $KimiAdapter) {
+    Write-Host ""
+    Write-Host "Removing Kimi Code hooks..."
+
+    $kimiWithBlock = @(
+        (Join-Path $env:USERPROFILE ".kimi-code\config.toml"),
+        (Join-Path $env:USERPROFILE ".kimi\config.toml")
+    ) | Where-Object {
+        (Test-Path $_) -and (Select-String -LiteralPath $_ -SimpleMatch "# peon-ping Kimi hooks begin" -Quiet)
+    }
+
+    $kimiTargets = if ($kimiWithBlock) { $kimiWithBlock } else { @(Join-Path $env:USERPROFILE ".kimi-code\config.toml") }
+    foreach ($kimiConfig in $kimiTargets) {
+        try {
+            $env:KIMI_CONFIG = $kimiConfig
+            & powershell -NoProfile -NonInteractive -File $KimiAdapter -Uninstall | Out-Null
+            if ($kimiWithBlock -contains $kimiConfig) {
+                Write-Host "  Removed Kimi Code hooks from $kimiConfig" -ForegroundColor Green
+            }
+        } catch {
+            Write-Host "  Warning: Could not update ${kimiConfig}: $_" -ForegroundColor Yellow
+        } finally {
+            Remove-Item Env:\KIMI_CONFIG -ErrorAction SilentlyContinue
+        }
+    }
+    if (-not $kimiWithBlock) {
+        Write-Host "  No peon-ping Kimi Code hooks found" -ForegroundColor DarkGray
+    }
+}
+
 # --- Remove skills ---
 Write-Host ""
 Write-Host "Removing skills..."

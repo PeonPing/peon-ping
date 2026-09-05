@@ -744,7 +744,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Kiro IDE** | Adapter | Agent hooks in `.kiro/hooks/*.kiro.hook` calling `adapters/kiro-ide.sh` (or `.ps1`) ([setup](#kiro-ide-setup)) |
 | **ECA** | Adapter | Add a shell hook pointing to `adapters/eca.sh` (or `.ps1`) ([setup](#eca-setup)) |
 
-> **Windows:** All adapters have native PowerShell (`.ps1`) versions. The Windows installer (`install.ps1`) copies them to `~/.claude/hooks/peon-ping/adapters/`. Filesystem watchers (Amp, Antigravity, Kimi, Trae) use .NET `FileSystemWatcher` instead of fswatch/inotifywait — no extra dependencies needed.
+> **Windows:** All adapters have native PowerShell (`.ps1`) versions. The Windows installer (`install.ps1`) copies them to `~/.claude/hooks/peon-ping/adapters/`. Filesystem watchers (Amp, Antigravity, Trae) use .NET `FileSystemWatcher` instead of fswatch/inotifywait — no extra dependencies needed.
 
 ### OpenAI Codex setup
 
@@ -1140,20 +1140,27 @@ If `~/.rovodev/config.yml` exists when you run `install.sh` or `peon-ping-setup`
 
 ### Kimi Code setup
 
-A filesystem watcher adapter for [Kimi Code CLI](https://github.com/MoonshotAI/kimi-cli) (MoonshotAI). Kimi Code writes Wire Mode events to `~/.kimi/sessions/` — this adapter watches those files as a background daemon and translates events to CESP format.
+[Kimi Code CLI](https://github.com/MoonshotAI/kimi-code) (MoonshotAI) ships its own hook system, and this adapter plugs straight into it. `--install` writes a marked `[[hooks]]` block into `~/.kimi-code/config.toml`; Kimi then runs the adapter once per event and hands it the payload as JSON on stdin, which the adapter tags and forwards to `peon.sh`.
 
 ```bash
-# Install (starts background daemon)
+# Register hooks in Kimi's config.toml
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --install
 
-# Check status / stop
+# Check status / remove them again
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --status
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --uninstall
 ```
 
-Requires `fswatch` (`brew install fswatch`) on macOS or `inotifywait` (`apt install inotify-tools`) on Linux. The `curl | bash` installer auto-detects Kimi Code and starts the daemon.
+```powershell
+# Windows
+powershell -File ~\.claude\hooks\peon-ping\adapters\kimi.ps1 -Install
+```
 
-**On macOS, `--install` registers a LaunchAgent** at `~/Library/LaunchAgents/com.peonping.kimi-adapter.plist` so the watcher auto-starts on login and auto-restarts on crash — survives reboots without re-running `--install`. Set `KIMI_NO_LAUNCHD=1` to fall back to `nohup`+pidfile (e.g. for tests). Linux always uses `nohup`+pidfile.
+No background daemon and no `fswatch`/`inotify-tools` — the hooks are event-driven. Run `kimi doctor` after installing to validate the config, then restart Kimi Code. `--install` is idempotent and `--uninstall` restores the file byte for byte, so it is safe to re-run over an existing config. Both `curl | bash` and `install.ps1` auto-detect Kimi Code — `~/.kimi-code` or the older `~/.kimi` — and register the hooks for you, whether or not Claude Code is installed alongside it.
+
+Upgrading from the watcher build needs nothing extra: `--install` stops that daemon and removes its macOS LaunchAgent before registering hooks, so it cannot double up the sounds. `uninstall.sh` / `uninstall.ps1` take the `[[hooks]]` block back out of Kimi's config.
+
+Eleven of Kimi's sixteen hook events are registered. `PreToolUse`, `PostToolUse` and `PostCompact` are left out because they fire on every tool call, and `Interrupt`/`Notification` have no CESP category.
 
 **Kimi-only install (no Claude required):**
 
@@ -1163,18 +1170,20 @@ If you don't have Claude Code and just want peon-ping for Kimi, install with `--
 curl -fsSL peonping.com/install | bash -s -- --kimi
 ```
 
-Files land in `~/.kimi/hooks/peon-ping/` instead of `~/.claude/hooks/peon-ping/`, and no `~/.claude/` directory is created. The installer also auto-detects this layout: running it with no flags on a machine that has `~/.kimi/` but no `~/.claude/` selects `--kimi` mode automatically. The watcher daemon starts during install and re-starts on every login via the LaunchAgent.
+Files land in `~/.kimi-code/hooks/peon-ping/` instead of `~/.claude/hooks/peon-ping/`, and no `~/.claude/` directory is created. The installer also auto-detects this layout: running it with no flags on a machine that has `~/.kimi-code/` but no `~/.claude/` selects `--kimi` mode automatically. An existing install under the older `~/.kimi/` keeps working in place.
 
 **Sharing voice packs with a Claude install:**
 
-If `~/.claude/hooks/peon-ping/packs/` already exists with packs, a `--kimi` install symlinks `~/.kimi/hooks/peon-ping/packs` at it instead of re-downloading. One pack download serves both IDEs, and `peon packs install <name>` from either side updates the shared set. State, config, and mute toggles stay isolated per install. Pass `--no-shared-packs` (or `--packs=` / `--all`) to download a separate copy.
+If `~/.claude/hooks/peon-ping/packs/` already exists with packs, a `--kimi` install symlinks `~/.kimi-code/hooks/peon-ping/packs` at it instead of re-downloading. One pack download serves both IDEs, and `peon packs install <name>` from either side updates the shared set. State, config, and mute toggles stay isolated per install. Pass `--no-shared-packs` (or `--packs=` / `--all`) to download a separate copy.
 
 **Event mapping:**
 
-- New session → Greeting sound (*"Ready to work?"*, *"Yes?"*)
-- Agent finishes turn → Completion sound (*"Work, work."*, *"Job's done!"*)
-- Context compaction → Token limit sound
-- Sub-agent spawned → Sub-agent tracking
+- `SessionStart` → Greeting sound (*"Ready to work?"*, *"Yes?"*)
+- `Stop` → Completion sound (*"Work, work."*, *"Job's done!"*)
+- `PermissionRequest` → Permission sound — Kimi is waiting on your approval
+- `PostToolUseFailure` / `StopFailure` → Error sound
+- `PreCompact` → Token limit sound
+- `SubagentStart` / `SubagentStop` → Sub-agent tracking
 
 ### Tool-agnostic install root (`--openpeon`)
 

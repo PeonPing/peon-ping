@@ -637,116 +637,107 @@ Emit-Event "SessionStart" "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
     }
 }
 
-Describe "Functional: kimi.ps1 Process-WireLine maps events" {
-    It "maps TurnEnd to Stop with correct session_id" {
-        $kimiSource = Get-Content (Join-Path $script:AdaptersDir "kimi.ps1") -Raw
-
-        if ($kimiSource -match '(?s)(function Process-WireLine \{.*?\n\})') {
-            $procFunc = $matches[1]
-        } else {
-            throw "Could not extract Process-WireLine from kimi.ps1"
-        }
-
-        $wrapper = @"
-`$ErrorActionPreference = "SilentlyContinue"
-$procFunc
-`$result = Process-WireLine '{"message":{"type":"TurnEnd"}}' "abc12345-dead-beef" "C:\test"
-`$result | ConvertTo-Json -Compress
-"@
-
-        $wrapperFile = Join-Path ([System.IO.Path]::GetTempPath()) "test-kimi-$([guid]::NewGuid().ToString('N').Substring(0,8)).ps1"
-        Set-Content -Path $wrapperFile -Value $wrapper -Encoding UTF8
-        try {
-            $output = & powershell -NoProfile -NonInteractive -File $wrapperFile 2>$null
-            $json = $output | ConvertFrom-Json
-            $json.event | Should -Be "Stop"
-            $json.session_id | Should -Be "kimi-abc12345"
-            $json.cwd | Should -Be "C:\test"
-        } finally {
-            Remove-Item $wrapperFile -Force -ErrorAction SilentlyContinue
-        }
+Describe "Functional: kimi.ps1 hook event mapping" {
+    BeforeEach {
+        $script:testDir = New-TestPeonDir
+        $env:CLAUDE_PEON_DIR = $script:testDir
+    }
+    AfterEach {
+        Remove-Item Env:\CLAUDE_PEON_DIR -ErrorAction SilentlyContinue
+        Remove-TestPeonDir $script:testDir
     }
 
-    It "maps CompactionBegin to PreCompact" {
-        $kimiSource = Get-Content (Join-Path $script:AdaptersDir "kimi.ps1") -Raw
+    It "forwards <hookEvent> as <mapped>" -ForEach @(
+        @{ hookEvent = "SessionStart";       mapped = "SessionStart" },
+        @{ hookEvent = "SessionEnd";         mapped = "SessionEnd" },
+        @{ hookEvent = "UserPromptSubmit";   mapped = "UserPromptSubmit" },
+        @{ hookEvent = "Stop";               mapped = "Stop" },
+        @{ hookEvent = "PermissionRequest";  mapped = "PermissionRequest" },
+        @{ hookEvent = "SubagentStart";      mapped = "SubagentStart" },
+        @{ hookEvent = "SubagentStop";       mapped = "SubagentStop" },
+        @{ hookEvent = "PreCompact";         mapped = "PreCompact" },
+        # The turn failed as a whole; peon.ps1 has no category for that, so it
+        # borrows the tool-failure path and sounds task.error.
+        @{ hookEvent = "StopFailure";        mapped = "PostToolUseFailure" },
+        # Silent in peon.ps1 -- it only clears the "needs approval" tab title.
+        @{ hookEvent = "PermissionResult";   mapped = "PreToolUse" }
+    ) {
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        "{`"hook_event_name`":`"$hookEvent`",`"session_id`":`"session_abc123`",`"cwd`":`"C:\\proj`"}" |
+            & powershell -NoProfile -NonInteractive -File $adapter
 
-        if ($kimiSource -match '(?s)(function Process-WireLine \{.*?\n\})') {
-            $procFunc = $matches[1]
-        } else {
-            throw "Could not extract Process-WireLine from kimi.ps1"
-        }
-
-        $wrapper = @"
-`$ErrorActionPreference = "SilentlyContinue"
-$procFunc
-`$result = Process-WireLine '{"message":{"type":"CompactionBegin"}}' "uuid12345678" "C:\proj"
-`$result | ConvertTo-Json -Compress
-"@
-
-        $wrapperFile = Join-Path ([System.IO.Path]::GetTempPath()) "test-kimi-compact-$([guid]::NewGuid().ToString('N').Substring(0,8)).ps1"
-        Set-Content -Path $wrapperFile -Value $wrapper -Encoding UTF8
-        try {
-            $output = & powershell -NoProfile -NonInteractive -File $wrapperFile 2>$null
-            $json = $output | ConvertFrom-Json
-            $json.event | Should -Be "PreCompact"
-        } finally {
-            Remove-Item $wrapperFile -Force -ErrorAction SilentlyContinue
-        }
+        $json = Get-PeonInputLog $script:testDir
+        $json | Should -Not -BeNullOrEmpty
+        $json.hook_event_name | Should -Be $mapped
+        $json.session_id | Should -Be "kimi-abc123"
+        $json.source | Should -Be "kimi"
     }
 
-    It "maps SubagentEvent with TurnBegin to SubagentStart" {
-        $kimiSource = Get-Content (Join-Path $script:AdaptersDir "kimi.ps1") -Raw
+    It "drops <hookEvent> without invoking peon.ps1" -ForEach @(
+        @{ hookEvent = "PreToolUse" }, @{ hookEvent = "PostToolUse" },
+        @{ hookEvent = "PostCompact" }, @{ hookEvent = "Interrupt" },
+        @{ hookEvent = "Notification" }
+    ) {
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        "{`"hook_event_name`":`"$hookEvent`",`"session_id`":`"session_abc123`"}" |
+            & powershell -NoProfile -NonInteractive -File $adapter
 
-        if ($kimiSource -match '(?s)(function Process-WireLine \{.*?\n\})') {
-            $procFunc = $matches[1]
-        } else {
-            throw "Could not extract Process-WireLine from kimi.ps1"
-        }
-
-        $wireJson = '{"message":{"type":"SubagentEvent","payload":{"message":{"type":"TurnBegin"}}}}'
-
-        $wrapper = @"
-`$ErrorActionPreference = "SilentlyContinue"
-$procFunc
-`$result = Process-WireLine '$wireJson' "subagent-uuid1" "C:\proj"
-`$result | ConvertTo-Json -Compress
-"@
-
-        $wrapperFile = Join-Path ([System.IO.Path]::GetTempPath()) "test-kimi-sub-$([guid]::NewGuid().ToString('N').Substring(0,8)).ps1"
-        Set-Content -Path $wrapperFile -Value $wrapper -Encoding UTF8
-        try {
-            $output = & powershell -NoProfile -NonInteractive -File $wrapperFile 2>$null
-            $json = $output | ConvertFrom-Json
-            $json.event | Should -Be "SubagentStart"
-        } finally {
-            Remove-Item $wrapperFile -Force -ErrorAction SilentlyContinue
-        }
+        Get-PeonInputLog $script:testDir | Should -BeNullOrEmpty
     }
 
-    It "returns null for unrecognized wire event" {
-        $kimiSource = Get-Content (Join-Path $script:AdaptersDir "kimi.ps1") -Raw
+    It "strips the session_ prefix and adds the kimi- one peon.ps1 routes on" {
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        '{"hook_event_name":"Stop","session_id":"session_9f3c1a2b-1eae-4f94"}' |
+            & powershell -NoProfile -NonInteractive -File $adapter
 
-        if ($kimiSource -match '(?s)(function Process-WireLine \{.*?\n\})') {
-            $procFunc = $matches[1]
-        } else {
-            throw "Could not extract Process-WireLine from kimi.ps1"
-        }
+        $json = Get-PeonInputLog $script:testDir
+        $json.session_id | Should -Be "kimi-9f3c1a2b-1eae-4f94"
+    }
 
-        $wrapper = @"
-`$ErrorActionPreference = "SilentlyContinue"
-$procFunc
-`$result = Process-WireLine '{"message":{"type":"SomeRandomEvent"}}' "uuid999" "C:\proj"
-if (`$null -eq `$result) { Write-Output "NULL" } else { Write-Output "NOT_NULL" }
-"@
+    It "falls back to a synthetic session id when Kimi sends none" {
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        '{"hook_event_name":"Stop","session_id":""}' |
+            & powershell -NoProfile -NonInteractive -File $adapter
 
-        $wrapperFile = Join-Path ([System.IO.Path]::GetTempPath()) "test-kimi-null-$([guid]::NewGuid().ToString('N').Substring(0,8)).ps1"
-        Set-Content -Path $wrapperFile -Value $wrapper -Encoding UTF8
-        try {
-            $output = & powershell -NoProfile -NonInteractive -File $wrapperFile 2>$null
-            $output.Trim() | Should -Be "NULL"
-        } finally {
-            Remove-Item $wrapperFile -Force -ErrorAction SilentlyContinue
-        }
+        $json = Get-PeonInputLog $script:testDir
+        $json.session_id | Should -Match '^kimi-\d+$'
+    }
+
+    It "pulls the message out of the error object Kimi 0.41 sends" {
+        # PostToolUseFailure carries { code, message, retryable }, not a string.
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        '{"hook_event_name":"PostToolUseFailure","session_id":"session_a1","tool_name":"Bash","error":{"code":"internal","message":"Process exited with code 7\nCommand failed.","retryable":false}}' |
+            & powershell -NoProfile -NonInteractive -File $adapter
+
+        $json = Get-PeonInputLog $script:testDir
+        $json.error | Should -Be "Process exited with code 7 Command failed."
+        $json.error | Should -Not -Match '@\{'
+    }
+
+    It "attributes a StopFailure with no tool to Bash so task.error sounds" {
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        '{"hook_event_name":"StopFailure","session_id":"session_a1"}' |
+            & powershell -NoProfile -NonInteractive -File $adapter
+
+        $json = Get-PeonInputLog $script:testDir
+        $json.tool_name | Should -Be "Bash"
+        $json.error | Should -Be "turn failed"
+    }
+
+    It "exits 0 on malformed stdin so Kimi never reads it as a block" {
+        # Kimi treats exit code 2 as "block this operation" on UserPromptSubmit,
+        # PreToolUse and Stop.
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        'not json at all' | & powershell -NoProfile -NonInteractive -File $adapter
+        $LASTEXITCODE | Should -Be 0
+        Get-PeonInputLog $script:testDir | Should -BeNullOrEmpty
+    }
+
+    It "exits 0 and stays silent when hook_event_name is missing" {
+        $adapter = Join-Path $script:AdaptersDir "kimi.ps1"
+        '{"session_id":"session_a1"}' | & powershell -NoProfile -NonInteractive -File $adapter
+        $LASTEXITCODE | Should -Be 0
+        Get-PeonInputLog $script:testDir | Should -BeNullOrEmpty
     }
 }
 

@@ -629,7 +629,7 @@ peon-ping はフックをサポートする任意のエージェント型 IDE �
 | **DeepAgents** | アダプター | `bash adapters/deepagents.sh` / `powershell adapters/deepagents.ps1`（[セットアップ](#deepagents-セットアップ)） |
 | **oh-my-pi (omp)** | アダプター | `bash adapters/omp.sh`（[セットアップ](#oh-my-pi-omp-セットアップ)） |
 
-> **Windows:** すべてのアダプターにネイティブ PowerShell（`.ps1`）バージョンがあります。Windows インストーラー（`install.ps1`）はそれらを `~/.claude/hooks/peon-ping/adapters/` にコピーします。ファイルシステムウォッチャー（Amp、Antigravity、Kimi）は fswatch/inotifywait の代わりに .NET `FileSystemWatcher` を使用 — 追加の依存関係は不要。
+> **Windows:** すべてのアダプターにネイティブ PowerShell（`.ps1`）バージョンがあります。Windows インストーラー（`install.ps1`）はそれらを `~/.claude/hooks/peon-ping/adapters/` にコピーします。ファイルシステムウォッチャー（Amp、Antigravity）は fswatch/inotifywait の代わりに .NET `FileSystemWatcher` を使用 — 追加の依存関係は不要。
 
 ### OpenAI Codex セットアップ
 
@@ -996,20 +996,27 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/ki
 
 ### Kimi Code セットアップ
 
-[Kimi Code CLI](https://github.com/MoonshotAI/kimi-cli)（MoonshotAI）用のファイルシステムウォッチャーアダプター。Kimi Code は Wire Mode イベントを `~/.kimi/sessions/` に書き込み、このアダプターはバックグラウンドデーモンとしてファイルを監視し CESP フォーマットに変換します。
+[Kimi Code CLI](https://github.com/MoonshotAI/kimi-code)（MoonshotAI）は独自のフック機構を備えており、このアダプターはそこに直接接続します。`--install` は `~/.kimi-code/config.toml` にマーカー付きの `[[hooks]]` ブロックを書き込みます。以後 Kimi はイベントごとにアダプターを実行し、ペイロードを JSON として stdin に渡します。アダプターはそれにタグを付けて `peon.sh` へ転送します。
 
 ```bash
-# インストール（バックグラウンドデーモンを起動）
+# Kimi の config.toml にフックを登録
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --install
 
-# ステータス確認 / 停止
+# ステータス確認 / 解除
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --status
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --uninstall
 ```
 
-macOS では `fswatch`（`brew install fswatch`）、Linux では `inotifywait`（`apt install inotify-tools`）が必要。`curl | bash` インストーラーは Kimi Code を自動検出してデーモンを起動します。
+```powershell
+# Windows
+powershell -File ~\.claude\hooks\peon-ping\adapters\kimi.ps1 -Install
+```
 
-**macOS では `--install` が LaunchAgent を登録します**（`~/Library/LaunchAgents/com.peonping.kimi-adapter.plist`）。ウォッチャーはログイン時に自動起動し、クラッシュ時には自動的に再起動します — 再起動後に `--install` を再実行する必要はありません。テスト用などに `nohup`+pidfile にフォールバックするには `KIMI_NO_LAUNCHD=1` を設定してください。Linux は常に `nohup`+pidfile を使用します。
+バックグラウンドデーモンは不要で、`fswatch`/`inotify-tools` も要りません — フックはイベント駆動です。インストール後に `kimi doctor` で設定を検証し、Kimi Code を再起動してください。`--install` は冪等で、`--uninstall` はファイルをバイト単位で元に戻すため、既存の設定に対して繰り返し実行しても安全です。`curl | bash` と `install.ps1` はどちらも Kimi Code（`~/.kimi-code`、または以前の `~/.kimi`）を自動検出してフックを登録します。Claude Code が併存していても同じです。
+
+旧来のウォッチャー版からの更新に追加作業は要りません: `--install` はフックを登録する前にそのデーモンを停止し、macOS の LaunchAgent も削除するため、音が二重に鳴ることはありません。`uninstall.sh` / `uninstall.ps1` は Kimi の設定から `[[hooks]]` ブロックを取り除きます。
+
+Kimi の 16 個のフックイベントのうち 11 個を登録します。`PreToolUse`、`PostToolUse`、`PostCompact` はツール呼び出しごとに発火するため除外し、`Interrupt`/`Notification` は対応する CESP カテゴリがありません。
 
 **Kimi 専用インストール（Claude 不要）：**
 
@@ -1019,19 +1026,20 @@ Claude Code がなく、Kimi 用にだけ peon-ping をインストールした�
 curl -fsSL peonping.com/install | bash -s -- --kimi
 ```
 
-ファイルは `~/.claude/hooks/peon-ping/` ではなく `~/.kimi/hooks/peon-ping/` にインストールされ、`~/.claude/` ディレクトリは作成されません。インストーラーは自動検出も行います。`~/.kimi/` があり `~/.claude/` がないマシンで引数なしで実行すると、自動的に `--kimi` モードが選択されます。ウォッチャーデーモンはインストール時に起動し、LaunchAgent によりログインのたびに再起動します。
+ファイルは `~/.claude/hooks/peon-ping/` ではなく `~/.kimi-code/hooks/peon-ping/` にインストールされ、`~/.claude/` ディレクトリは作成されません。インストーラーは自動検出も行います。`~/.kimi-code/` があり `~/.claude/` がないマシンで引数なしで実行すると、自動的に `--kimi` モードが選択されます。旧来の `~/.kimi/` 配下にある既存インストールはそのまま動作します。
 
 **Claude インストールとボイスパックを共有：**
 
-`~/.claude/hooks/peon-ping/packs/` に既にパックが存在する場合、`--kimi` インストールは再ダウンロードする代わりに `~/.kimi/hooks/peon-ping/packs` をそこへシンボリックリンクします。一度のダウンロードで両方の IDE に対応し、どちらから `peon packs install <name>` を実行しても共有パックセットが更新されます。状態、設定、ミュート切り替えはインストールごとに独立しています。`--no-shared-packs`（または `--packs=` / `--all`）を渡すと、別のコピーをダウンロードします。
+`~/.claude/hooks/peon-ping/packs/` に既にパックが存在する場合、`--kimi` インストールは再ダウンロードする代わりに `~/.kimi-code/hooks/peon-ping/packs` をそこへシンボリックリンクします。一度のダウンロードで両方の IDE に対応し、どちらから `peon packs install <name>` を実行しても共有パックセットが更新されます。状態、設定、ミュート切り替えはインストールごとに独立しています。`--no-shared-packs`（または `--packs=` / `--all`）を渡すと、別のコピーをダウンロードします。
 
 **イベントマッピング：**
 
-- 新しいセッション → 挨拶サウンド（*"Ready to work?"*、*"Yes?"*）
-- エージェントのターン完了 → 完了サウンド（*"Work, work."*、*"Job's done!"*）
-- コンテキスト圧縮 → トークン制限サウンド
-- サブエージェント起動 → サブエージェント追跡
-
+- `SessionStart` → 挨拶サウンド（*"Ready to work?"*、*"Yes?"*）
+- `Stop` → 完了サウンド（*"Work, work."*、*"Job's done!"*）
+- `PermissionRequest` → 許可サウンド — Kimi が承認を待っています
+- `PostToolUseFailure` / `StopFailure` → エラーサウンド
+- `PreCompact` → トークン制限サウンド
+- `SubagentStart` / `SubagentStop` → サブエージェント追跡
 ### oh-my-pi (omp) セットアップ
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）用のネイティブ TypeScript 拡張。[CESP v1.0](https://github.com/PeonPing/openpeon) に完全準拠。omp の `ExtensionAPI` ライフサイクルイベントを購読し、`peon.sh` を通じてルーティングします。omp ユーザーが peon-ping のすべての機能を利用できます：サウンドパック、デスクトップ通知、トレーナーリマインダー、モバイルプッシュ、SSH/devcontainer リレー、タブタイトル更新。
