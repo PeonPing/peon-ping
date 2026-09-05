@@ -1156,7 +1156,9 @@ bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --uninstall
 powershell -File ~\.claude\hooks\peon-ping\adapters\kimi.ps1 -Install
 ```
 
-No background daemon and no `fswatch`/`inotify-tools` — the hooks are event-driven. Run `kimi doctor` after installing to validate the config, then restart Kimi Code. `--install` is idempotent and `--uninstall` restores the file byte for byte, so it is safe to re-run over an existing config. Both `curl | bash` and `install.ps1` auto-detect Kimi Code and register the hooks for you.
+No background daemon and no `fswatch`/`inotify-tools` — the hooks are event-driven. Run `kimi doctor` after installing to validate the config, then restart Kimi Code. `--install` is idempotent and `--uninstall` restores the file byte for byte, so it is safe to re-run over an existing config. Both `curl | bash` and `install.ps1` auto-detect Kimi Code — `~/.kimi-code` or the older `~/.kimi` — and register the hooks for you, whether or not Claude Code is installed alongside it.
+
+Upgrading from the watcher build needs nothing extra: `--install` stops that daemon and removes its macOS LaunchAgent before registering hooks, so it cannot double up the sounds. `uninstall.sh` / `uninstall.ps1` take the `[[hooks]]` block back out of Kimi's config.
 
 Eleven of Kimi's sixteen hook events are registered. `PreToolUse`, `PostToolUse` and `PostCompact` are left out because they fire on every tool call, and `Interrupt`/`Notification` have no CESP category.
 

@@ -1570,12 +1570,19 @@ if [ -d "$HOME/.rovodev" ]; then
   fi
 fi
 
-# --- Auto-detect Kimi Code CLI and start watcher daemon ---
-KIMI_DIR="$HOME/.kimi"
-if [ -d "$KIMI_DIR" ]; then
+# --- Auto-detect Kimi Code and register its native hooks ---
+# ~/.kimi-code is Kimi Code's home; ~/.kimi belongs to the older kimi-cli. The
+# adapter picks between them itself, so detection only has to spot either one.
+# CLAUDE_PEON_DIR is passed explicitly because the adapter bakes it into the
+# hook command it registers, and this install dir is not always ~/.claude.
+if [ -d "$HOME/.kimi-code" ] || [ -d "$HOME/.kimi" ]; then
   echo ""
-  echo "Detected Kimi Code CLI installation, starting adapter..."
-  bash "$INSTALL_DIR/adapters/kimi.sh" --install
+  echo "Detected Kimi Code installation, registering hooks..."
+  if [ -f "$INSTALL_DIR/adapters/kimi.sh" ]; then
+    CLAUDE_PEON_DIR="$INSTALL_DIR" bash "$INSTALL_DIR/adapters/kimi.sh" --install || true
+  else
+    echo "Warning: $INSTALL_DIR/adapters/kimi.sh missing — skipping hook registration."
+  fi
 fi
 
 # --- Auto-detect deepagents-cli and register hooks ---

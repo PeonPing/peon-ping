@@ -593,10 +593,69 @@ Describe "Category B: Kimi Adapter" {
 
     It "drives Kimi's native hooks instead of watching the filesystem" {
         # The adapter used to tail wire.jsonl as a daemon. Kimi Code ships a
-        # hook system, so there is no watcher, no pidfile and no daemon left.
+        # hook system, so there is no watcher and no daemon left -- the pidfile
+        # survives only as something to clean up (Stop-LegacyWatcher).
         $script:kimiContent | Should -Not -Match 'FileSystemWatcher'
         $script:kimiContent | Should -Not -Match 'wire\.jsonl'
-        $script:kimiContent | Should -Not -Match '\.kimi-adapter\.pid'
+        $script:kimiContent | Should -Match 'function Stop-LegacyWatcher'
+    }
+
+    It "stops the watcher daemon it replaced and clears its pidfile" {
+        # An update only replaces the script on disk, so the old daemon would
+        # keep running and every sound would play twice.
+        $legacy = Start-Process -FilePath "powershell" `
+            -ArgumentList "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 60" `
+            -PassThru -WindowStyle Hidden
+        $pidFile = Join-Path $script:kimiPeonDir ".kimi-adapter.pid"
+        Set-Content -Path $pidFile -Value $legacy.Id -Encoding ASCII
+        try {
+            $result = Invoke-KimiAdapter -Config (New-KimiConfig "") -AdapterArgs @("-Install")
+            $result.ExitCode | Should -Be 0
+            Test-Path $pidFile | Should -BeFalse
+            $legacy.WaitForExit(5000) | Should -BeTrue
+        } finally {
+            if (-not $legacy.HasExited) { Stop-Process -Id $legacy.Id -Force -ErrorAction SilentlyContinue }
+            Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "clears a stale pidfile without killing whatever reused the pid" {
+        # The pid outlives the process that wrote it, so one now belonging to
+        # something else has to be left alone.
+        $unrelated = Start-Process -FilePath "cmd.exe" `
+            -ArgumentList "/c", "ping -n 60 127.0.0.1 > nul" `
+            -PassThru -WindowStyle Hidden
+        $pidFile = Join-Path $script:kimiPeonDir ".kimi-adapter.pid"
+        Set-Content -Path $pidFile -Value $unrelated.Id -Encoding ASCII
+        try {
+            $result = Invoke-KimiAdapter -Config (New-KimiConfig "") -AdapterArgs @("-Install")
+            $result.ExitCode | Should -Be 0
+            Test-Path $pidFile | Should -BeFalse
+            $unrelated.HasExited | Should -BeFalse
+        } finally {
+            Stop-Process -Id $unrelated.Id -Force -ErrorAction SilentlyContinue
+            Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "reaps the watcher daemon on -Uninstall too" {
+        $config = New-KimiConfig ""
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+
+        $legacy = Start-Process -FilePath "powershell" `
+            -ArgumentList "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 60" `
+            -PassThru -WindowStyle Hidden
+        $pidFile = Join-Path $script:kimiPeonDir ".kimi-adapter.pid"
+        Set-Content -Path $pidFile -Value $legacy.Id -Encoding ASCII
+        try {
+            $result = Invoke-KimiAdapter -Config $config -AdapterArgs @("-Uninstall")
+            $result.ExitCode | Should -Be 0
+            Test-Path $pidFile | Should -BeFalse
+            $legacy.WaitForExit(5000) | Should -BeTrue
+        } finally {
+            if (-not $legacy.HasExited) { Stop-Process -Id $legacy.Id -Force -ErrorAction SilentlyContinue }
+            Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     It "prefers ~/.kimi-code and falls back to the older ~/.kimi" {
@@ -1270,6 +1329,14 @@ Describe "uninstall.ps1" {
         $script:uninstallContent | Should -Match 'peon-ping Codex hooks begin'
         $script:uninstallContent | Should -Match ([regex]::Escape('adapters[\\/]+codex\.(sh|ps1)'))
         $script:uninstallContent | Should -Match '\[System\.IO\.File\]::Replace'
+    }
+
+    It "cleans up Kimi Code hooks" {
+        # The adapter owns the managed block in Kimi's config.toml, so the
+        # uninstaller hands the removal to it rather than editing the TOML.
+        $script:uninstallContent | Should -Match 'adapters\\kimi\.ps1'
+        $script:uninstallContent | Should -Match '\.kimi-code\\config\.toml'
+        $script:uninstallContent | Should -Match '-Uninstall'
     }
 
     It "Codex cleanup removes only the current install root" {

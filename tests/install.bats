@@ -1099,6 +1099,45 @@ _kimi_test_teardown() {
   _kimi_test_teardown
 }
 
+@test "a Claude install also registers Kimi hooks when ~/.kimi-code exists" {
+  # ~/.claude is present, so this is a normal Claude install rather than --kimi
+  # mode -- Kimi Code still has to get its hooks.
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi-code"
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$INSTALL_DIR/peon.sh" ]
+  config="$TEST_HOME/.kimi-code/config.toml"
+  [ -f "$config" ]
+  grep -qF "# peon-ping Kimi hooks begin" "$config"
+  # The hook has to point at this install dir, not at a guess.
+  grep -qF "CLAUDE_PEON_DIR='$INSTALL_DIR'" "$config"
+  _kimi_test_teardown
+}
+
+@test "a Claude install registers Kimi hooks for a legacy ~/.kimi too" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$TEST_HOME/.kimi/config.toml" ]
+  grep -qF "# peon-ping Kimi hooks begin" "$TEST_HOME/.kimi/config.toml"
+  _kimi_test_teardown
+}
+
+@test "uninstall removes the Kimi Code hooks block" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi-code"
+  printf 'model = "kimi-k2"\n' > "$TEST_HOME/.kimi-code/config.toml"
+  bash "$CLONE_DIR/install.sh"
+  grep -qF "# peon-ping Kimi hooks begin" "$TEST_HOME/.kimi-code/config.toml"
+
+  bash "$INSTALL_DIR/uninstall.sh"
+  run grep -qF "# peon-ping Kimi hooks begin" "$TEST_HOME/.kimi-code/config.toml"
+  [ "$status" -ne 0 ]
+  # Only our block goes; the user's own config stays.
+  grep -qF 'model = "kimi-k2"' "$TEST_HOME/.kimi-code/config.toml"
+  _kimi_test_teardown
+}
+
 @test "--kimi flag appears in --help output" {
   run bash "$CLONE_DIR/install.sh" --help
   [ "$status" -eq 0 ]

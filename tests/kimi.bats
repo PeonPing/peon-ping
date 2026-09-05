@@ -19,6 +19,13 @@ setup() {
   export KIMI_DIR="$TEST_DIR/kimi_home"
   export KIMI_CONFIG="$KIMI_DIR/config.toml"
   mkdir -p "$KIMI_DIR"
+
+  # --install/--uninstall reap the old watcher's LaunchAgent out of $HOME, so
+  # the management flags run against a throwaway one.
+  KIMI_FAKE_HOME="$TEST_DIR/fake_home"
+  mkdir -p "$KIMI_FAKE_HOME/Library/LaunchAgents"
+  LEGACY_PLIST="$KIMI_FAKE_HOME/Library/LaunchAgents/com.peonping.kimi-adapter.plist"
+  LEGACY_PIDFILE="$TEST_DIR/.kimi-adapter.pid"
 }
 
 teardown() {
@@ -36,7 +43,28 @@ run_kimi() {
 
 # Run a management flag (--install / --uninstall / --status).
 run_kimi_flag() {
-  run bash "$KIMI_SH" "$1"
+  run env HOME="$KIMI_FAKE_HOME" bash "$KIMI_SH" "$1"
+}
+
+# Stand in for the watcher daemon this adapter replaced: a background process
+# whose command line still says "kimi", plus the pidfile it used to hold.
+start_legacy_watcher() {
+  cat > "$TEST_DIR/kimi-watcher-stub.sh" <<'STUB'
+#!/bin/bash
+sleep 30
+STUB
+  chmod +x "$TEST_DIR/kimi-watcher-stub.sh"
+  bash "$TEST_DIR/kimi-watcher-stub.sh" &
+  LEGACY_PID=$!
+  echo "$LEGACY_PID" > "$LEGACY_PIDFILE"
+}
+
+# A killed child sticks around as a zombie until it is waited on, so kill -0
+# would still succeed. Read the process state instead.
+legacy_watcher_is_gone() {
+  local state
+  state="$(ps -p "$LEGACY_PID" -o stat= 2>/dev/null | tr -d ' ')"
+  [ -z "$state" ] || [ "${state:0:1}" = "Z" ]
 }
 
 seed_config() {
@@ -53,9 +81,11 @@ seed_config() {
 }
 
 @test "adapter no longer needs a filesystem watcher" {
-  # Dropping the daemon dropped the fswatch/inotify-tools requirement.
-  run grep -E "fswatch|inotifywait|wire\.jsonl|kimi-adapter\.pid" "$KIMI_SH"
+  # Dropping the daemon dropped the fswatch/inotify-tools requirement. The
+  # pidfile survives only as something to clean up -- see stop_legacy_watcher.
+  run grep -E "fswatch|inotifywait|wire\.jsonl" "$KIMI_SH"
   [ "$status" -ne 0 ]
+  grep -q "stop_legacy_watcher" "$KIMI_SH"
 }
 
 # ============================================================
@@ -183,6 +213,68 @@ event = "PreToolUse"
 @test "an unknown flag is rejected" {
   run bash "$KIMI_SH" --nope
   [ "$status" -eq 1 ]
+}
+
+# ============================================================
+# Migration off the watcher daemon this adapter replaced
+# ============================================================
+
+@test "--install unloads the LaunchAgent the watcher daemon left behind" {
+  # Its plist has KeepAlive=true and runs this script with no arguments, which
+  # is now hook mode: it would read an empty stdin, exit 0, and be restarted
+  # every ten seconds forever.
+  : > "$LEGACY_PLIST"
+  run_kimi_flag --install
+  [ "$status" -eq 0 ]
+  [ ! -f "$LEGACY_PLIST" ]
+  grep -qF "# peon-ping Kimi hooks begin" "$KIMI_CONFIG"
+}
+
+@test "--install stops the watcher daemon and clears its pidfile" {
+  start_legacy_watcher
+  run_kimi_flag --install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stopped the old Kimi watcher daemon"* ]]
+  [ ! -f "$LEGACY_PIDFILE" ]
+  legacy_watcher_is_gone
+}
+
+@test "--uninstall stops the watcher daemon too" {
+  : > "$LEGACY_PLIST"
+  start_legacy_watcher
+  run_kimi_flag --uninstall
+  [ "$status" -eq 0 ]
+  [ ! -f "$LEGACY_PLIST" ]
+  [ ! -f "$LEGACY_PIDFILE" ]
+  legacy_watcher_is_gone
+}
+
+@test "a stale pidfile is cleared without killing whatever reused the pid" {
+  # The pid outlives the process that wrote it, so a pid now belonging to
+  # something else must be left alone.
+  sleep 30 &
+  unrelated_pid=$!
+  echo "$unrelated_pid" > "$LEGACY_PIDFILE"
+
+  run_kimi_flag --install
+  [ "$status" -eq 0 ]
+  [ ! -f "$LEGACY_PIDFILE" ]
+  kill -0 "$unrelated_pid"
+  kill "$unrelated_pid" 2>/dev/null || true
+}
+
+@test "the adapter resolves its install dir from its own path" {
+  # Copied into an install root that is not ~/.claude (--local, --kimi, a custom
+  # CLAUDE_CONFIG_DIR) and run without CLAUDE_PEON_DIR, it still has to find
+  # peon.sh -- and bake the right dir into the hook command it registers.
+  root="$TEST_DIR/custom_root"
+  mkdir -p "$root/adapters"
+  cp "$KIMI_SH" "$root/adapters/kimi.sh"
+  ln -sf "$PEON_SH" "$root/peon.sh"
+
+  run env -u CLAUDE_PEON_DIR HOME="$KIMI_FAKE_HOME" bash "$root/adapters/kimi.sh" --install
+  [ "$status" -eq 0 ]
+  grep -qF "CLAUDE_PEON_DIR='$root'" "$KIMI_CONFIG"
 }
 
 # ============================================================

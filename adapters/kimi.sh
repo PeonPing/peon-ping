@@ -16,13 +16,28 @@
 #   bash adapters/kimi.sh --uninstall   Remove them again
 #   bash adapters/kimi.sh --status      Show whether hooks are registered
 #
+# --install and --uninstall also reap the watcher daemon this adapter used to
+# be, so updating from v2.37.0 or earlier does not leave it running.
+#
 # Kimi treats a hook exit code of 2 as "block this operation" on UserPromptSubmit,
 # PreToolUse and Stop, so every path here exits 0 and peon.sh's stdout is
 # discarded. Terminal tab titles still work: peon.sh writes those to /dev/tty.
 
 set -uo pipefail
 
-PEON_DIR="${CLAUDE_PEON_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping}"
+if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
+  PEON_DIR="$CLAUDE_PEON_DIR"
+else
+  # adapters/ sits inside the install root, so an adapter copied into a
+  # non-default one (--local, --kimi, a custom CLAUDE_CONFIG_DIR) can resolve it
+  # from its own path instead of guessing ~/.claude. kimi.ps1 does the same.
+  _self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+  if [ -n "$_self_dir" ] && [ -f "$_self_dir/../peon.sh" ]; then
+    PEON_DIR="$(cd "$_self_dir/.." && pwd)"
+  else
+    PEON_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
+  fi
+fi
 PEON_SH="$PEON_DIR/peon.sh"
 
 # Kimi Code lives in ~/.kimi-code. ~/.kimi is the older kimi-cli; prefer the
@@ -33,6 +48,11 @@ elif [ -f "$HOME/.kimi-code/config.toml" ]; then
   KIMI_DIR="$HOME/.kimi-code"
 elif [ -f "$HOME/.kimi/config.toml" ]; then
   KIMI_DIR="$HOME/.kimi"
+elif [ ! -d "$HOME/.kimi-code" ] && [ -d "$HOME/.kimi" ]; then
+  # Neither home holds a config yet. An existing kimi-cli one still beats
+  # creating a Kimi Code config that nothing on this machine reads. Matches how
+  # install.sh picks the install root.
+  KIMI_DIR="$HOME/.kimi"
 else
   KIMI_DIR="$HOME/.kimi-code"
 fi
@@ -40,6 +60,13 @@ KIMI_CONFIG="${KIMI_CONFIG:-$KIMI_DIR/config.toml}"
 
 BEGIN_MARKER="# peon-ping Kimi hooks begin"
 END_MARKER="# peon-ping Kimi hooks end"
+
+# Leftovers from the watcher daemon this adapter replaced. See
+# stop_legacy_watcher below.
+LEGACY_PIDFILE="$PEON_DIR/.kimi-adapter.pid"
+LEGACY_LOGFILE="$PEON_DIR/.kimi-adapter.log"
+LEGACY_LAUNCHD_LABEL="com.peonping.kimi-adapter"
+LEGACY_LAUNCHD_PLIST="$HOME/Library/LaunchAgents/${LEGACY_LAUNCHD_LABEL}.plist"
 
 # Events peon-ping registers, out of the sixteen in Kimi's HOOK_EVENT_TYPES.
 # PreToolUse/PostToolUse fire on every tool call, PostCompact duplicates
@@ -65,6 +92,49 @@ BOLD=$'\033[1m' DIM=$'\033[2m' RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[3
 info()  { printf "%s>%s %s\n" "$GREEN" "$RESET" "$*"; }
 warn()  { printf "%s!%s %s\n" "$YELLOW" "$RESET" "$*"; }
 error() { printf "%sx%s %s\n" "$RED" "$RESET" "$*" >&2; }
+
+stop_legacy_watcher() {
+  # Up to v2.37.0 this adapter was a filesystem watcher daemon. An update only
+  # replaces the script on disk, so the old daemon survives it and keeps piping
+  # its own events to peon.sh -- every sound twice once the hooks are live. The
+  # macOS LaunchAgent is worse: it has KeepAlive=true and runs this script with
+  # no arguments, which is now hook mode, so it reads an empty stdin, exits 0,
+  # and launchd restarts it every ten seconds forever. Reap both.
+  local found=0
+
+  if [ -f "$LEGACY_LAUNCHD_PLIST" ]; then
+    if command -v launchctl >/dev/null 2>&1; then
+      launchctl unload "$LEGACY_LAUNCHD_PLIST" 2>/dev/null || true
+    fi
+    rm -f "$LEGACY_LAUNCHD_PLIST"
+    found=1
+  fi
+
+  if [ -f "$LEGACY_PIDFILE" ]; then
+    local pid args
+    pid="$(tr -dc '0-9' < "$LEGACY_PIDFILE" 2>/dev/null)"
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      # A pid outlives the process that wrote it, so only kill one that still
+      # looks like the watcher rather than whatever inherited the number.
+      args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+      case "$args" in
+        *kimi*)
+          pkill -P "$pid" 2>/dev/null || true
+          kill "$pid" 2>/dev/null || true
+          found=1
+          ;;
+      esac
+    fi
+    rm -f "$LEGACY_PIDFILE"
+  fi
+
+  rm -f "$LEGACY_LOGFILE"
+
+  if [ "$found" = 1 ]; then
+    info "Stopped the old Kimi watcher daemon (native hooks replace it)"
+  fi
+  return 0
+}
 
 self_path() {
   local src="${BASH_SOURCE[0]}"
@@ -139,6 +209,7 @@ EOF
     ;;
 
   --uninstall)
+    stop_legacy_watcher
     if [ ! -f "$KIMI_CONFIG" ]; then
       info "Nothing to remove ($KIMI_CONFIG does not exist)."
       exit 0
@@ -155,6 +226,7 @@ EOF
 
   --install)
     [ -f "$PEON_SH" ] || { error "peon.sh not found at $PEON_SH"; exit 1; }
+    stop_legacy_watcher
     mkdir -p "$KIMI_DIR"
     [ -f "$KIMI_CONFIG" ] || : > "$KIMI_CONFIG"
 

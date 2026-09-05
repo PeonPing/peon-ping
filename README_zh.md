@@ -1038,7 +1038,9 @@ bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --uninstall
 powershell -File ~\.claude\hooks\peon-ping\adapters\kimi.ps1 -Install
 ```
 
-无需后台守护进程，也不再需要 `fswatch`/`inotify-tools` — hooks 是事件驱动的。安装后运行 `kimi doctor` 校验配置，然后重启 Kimi Code。`--install` 是幂等的，`--uninstall` 会逐字节还原文件，因此可以安全地在已有配置上重复运行。`curl | bash` 与 `install.ps1` 都会自动检测 Kimi Code 并完成注册。
+无需后台守护进程，也不再需要 `fswatch`/`inotify-tools` — hooks 是事件驱动的。安装后运行 `kimi doctor` 校验配置，然后重启 Kimi Code。`--install` 是幂等的，`--uninstall` 会逐字节还原文件，因此可以安全地在已有配置上重复运行。`curl | bash` 与 `install.ps1` 都会自动检测 Kimi Code（`~/.kimi-code` 或更早的 `~/.kimi`）并完成注册，无论是否同时装了 Claude Code。
+
+从旧的 watcher 版本升级不需要额外操作：`--install` 会先停掉那个守护进程、删除它在 macOS 上的 LaunchAgent，再注册 hooks，因此不会出现声音播两遍。`uninstall.sh` / `uninstall.ps1` 会把 `[[hooks]]` 块从 Kimi 的配置里移除。
 
 Kimi 的十六个 hook 事件中注册了十一个。`PreToolUse`、`PostToolUse`、`PostCompact` 因为每次工具调用都会触发而被排除，`Interrupt`/`Notification` 则没有对应的 CESP 类别。
 

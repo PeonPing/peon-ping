@@ -16,6 +16,9 @@
 #   powershell -NoProfile -File adapters/kimi.ps1 -Status      Report state
 #   powershell -NoProfile -File adapters/kimi.ps1              Hook mode (stdin)
 #
+# -Install and -Uninstall also reap the watcher daemon this adapter used to be,
+# so updating from v2.37.0 or earlier does not leave it running.
+#
 # Kimi treats a hook exit code of 2 as "block this operation" on UserPromptSubmit,
 # PreToolUse and Stop, so every path here exits 0 and peon.ps1's stdout is
 # discarded.
@@ -50,6 +53,9 @@ if (-not $KimiDir) {
     $kimiLegacy = Join-Path $env:USERPROFILE ".kimi"
     if (Test-Path (Join-Path $kimiCode "config.toml")) { $KimiDir = $kimiCode }
     elseif (Test-Path (Join-Path $kimiLegacy "config.toml")) { $KimiDir = $kimiLegacy }
+    # Neither home holds a config yet. An existing kimi-cli one still beats
+    # creating a Kimi Code config that nothing on this machine reads.
+    elseif ((-not (Test-Path $kimiCode)) -and (Test-Path $kimiLegacy)) { $KimiDir = $kimiLegacy }
     else { $KimiDir = $kimiCode }
 }
 
@@ -58,6 +64,11 @@ if (-not $KimiConfig) { $KimiConfig = Join-Path $KimiDir "config.toml" }
 
 $BeginMarker = "# peon-ping Kimi hooks begin"
 $EndMarker   = "# peon-ping Kimi hooks end"
+
+# Leftovers from the watcher daemon this adapter replaced. See
+# Stop-LegacyWatcher below.
+$LegacyPidFile = Join-Path $PeonDir ".kimi-adapter.pid"
+$LegacyLogFile = Join-Path $PeonDir ".kimi-adapter.log"
 
 # Events peon-ping registers, out of the sixteen in Kimi's HOOK_EVENT_TYPES.
 # PreToolUse/PostToolUse fire on every tool call, PostCompact duplicates
@@ -101,6 +112,36 @@ function Get-ErrorText($value) {
         elseif ($value -isnot [System.Management.Automation.PSCustomObject]) { $text = "$value" }
     }
     return ($text -replace '\s+', ' ').Trim()
+}
+
+function Stop-LegacyWatcher {
+    # Up to v2.37.0 this adapter was a filesystem watcher daemon holding a
+    # pidfile. An update only replaces the script on disk, so that process
+    # survives it and keeps piping its own events to peon.ps1 -- every sound
+    # twice once the hooks are live. Reap it before registering them.
+    if (-not (Test-Path $LegacyPidFile)) {
+        Remove-Item $LegacyLogFile -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    $stopped = $false
+    $pidText = (Get-Content -LiteralPath $LegacyPidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $legacyPid = 0
+    if ([int]::TryParse("$pidText".Trim(), [ref]$legacyPid) -and $legacyPid -gt 0) {
+        $proc = Get-Process -Id $legacyPid -ErrorAction SilentlyContinue
+        # A pid outlives the process that wrote it, so only stop one that still
+        # looks like the watcher rather than whatever inherited the number.
+        if ($proc -and $proc.ProcessName -match '^(powershell|pwsh)$') {
+            Stop-Process -Id $legacyPid -Force -ErrorAction SilentlyContinue
+            $stopped = $true
+        }
+    }
+
+    Remove-Item $LegacyPidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $LegacyLogFile -Force -ErrorAction SilentlyContinue
+    if ($stopped) {
+        Write-Host "Stopped the old Kimi watcher daemon (native hooks replace it)"
+    }
 }
 
 function Get-StrippedConfig([string]$path) {
@@ -186,6 +227,7 @@ if ($Status) {
 }
 
 if ($Uninstall) {
+    Stop-LegacyWatcher
     if (-not (Test-Path $KimiConfig)) {
         Write-Host "Nothing to remove ($KimiConfig does not exist)."
         exit 0
@@ -207,6 +249,7 @@ if ($Install) {
         Write-Host "peon.ps1 not found at $PeonScript" -ForegroundColor Red
         exit 1
     }
+    Stop-LegacyWatcher
     if (-not (Test-Path $KimiDir)) { New-Item -ItemType Directory -Path $KimiDir -Force | Out-Null }
 
     $adapterPath = $MyInvocation.MyCommand.Path

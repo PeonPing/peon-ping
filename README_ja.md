@@ -1012,7 +1012,9 @@ bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --uninstall
 powershell -File ~\.claude\hooks\peon-ping\adapters\kimi.ps1 -Install
 ```
 
-バックグラウンドデーモンは不要で、`fswatch`/`inotify-tools` も要りません — フックはイベント駆動です。インストール後に `kimi doctor` で設定を検証し、Kimi Code を再起動してください。`--install` は冪等で、`--uninstall` はファイルをバイト単位で元に戻すため、既存の設定に対して繰り返し実行しても安全です。`curl | bash` と `install.ps1` はどちらも Kimi Code を自動検出してフックを登録します。
+バックグラウンドデーモンは不要で、`fswatch`/`inotify-tools` も要りません — フックはイベント駆動です。インストール後に `kimi doctor` で設定を検証し、Kimi Code を再起動してください。`--install` は冪等で、`--uninstall` はファイルをバイト単位で元に戻すため、既存の設定に対して繰り返し実行しても安全です。`curl | bash` と `install.ps1` はどちらも Kimi Code（`~/.kimi-code`、または以前の `~/.kimi`）を自動検出してフックを登録します。Claude Code が併存していても同じです。
+
+旧来のウォッチャー版からの更新に追加作業は要りません: `--install` はフックを登録する前にそのデーモンを停止し、macOS の LaunchAgent も削除するため、音が二重に鳴ることはありません。`uninstall.sh` / `uninstall.ps1` は Kimi の設定から `[[hooks]]` ブロックを取り除きます。
 
 Kimi の 16 個のフックイベントのうち 11 個を登録します。`PreToolUse`、`PostToolUse`、`PostCompact` はツール呼び出しごとに発火するため除外し、`Interrupt`/`Notification` は対応する CESP カテゴリがありません。
 
