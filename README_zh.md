@@ -634,7 +634,7 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 | **Kiro IDE** | 适配器 | 在 `.kiro/hooks/*.kiro.hook` 中添加调用 `adapters/kiro-ide.sh`（或 `.ps1`）的 Agent 钩子（[设置](#kiro-ide-设置)） |
 | **ECA** | 适配器 | 添加指向 `adapters/eca.sh`（或 `.ps1`）的 shell 钩子（[设置](#eca-设置)） |
 
-> **Windows：** 所有适配器都有原生 PowerShell（`.ps1`）版本。Windows 安装程序（`install.ps1`）会将其复制到 `~/.claude/hooks/peon-ping/adapters/`。文件系统监视器（Amp、Antigravity、Kimi、Trae）使用 .NET `FileSystemWatcher` 而非 fswatch/inotifywait — 无需额外依赖。
+> **Windows：** 所有适配器都有原生 PowerShell（`.ps1`）版本。Windows 安装程序（`install.ps1`）会将其复制到 `~/.claude/hooks/peon-ping/adapters/`。文件系统监视器（Amp、Antigravity、Trae）使用 .NET `FileSystemWatcher` 而非 fswatch/inotifywait — 无需额外依赖。
 
 ### OpenAI Codex 设置
 
@@ -1022,20 +1022,25 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/ki
 
 ### Kimi Code 设置
 
-[Kimi Code CLI](https://github.com/MoonshotAI/kimi-cli)（MoonshotAI）的文件系统监视适配器。Kimi Code 将 Wire Mode 事件写入 `~/.kimi/sessions/` — 该适配器作为后台守护进程监视这些文件并将事件转换为 CESP 格式。
+[Kimi Code CLI](https://github.com/MoonshotAI/kimi-code)（MoonshotAI）自带 hook 系统，该适配器直接接入其中。`--install` 会在 `~/.kimi-code/config.toml` 中写入带标记的 `[[hooks]]` 块；此后 Kimi 每触发一个事件就运行一次适配器，并通过 stdin 传入 JSON 负载，适配器加上标记后转发给 `peon.sh`。
 
 ```bash
-# 安装（启动后台守护进程）
+# 在 Kimi 的 config.toml 中注册 hooks
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --install
 
-# 查看状态 / 停止
+# 查看状态 / 移除
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --status
 bash ~/.claude/hooks/peon-ping/adapters/kimi.sh --uninstall
 ```
 
-macOS 需要 `fswatch`（`brew install fswatch`），Linux 需要 `inotifywait`（`apt install inotify-tools`）。`curl | bash` 安装器会自动检测 Kimi Code 并启动守护进程。
+```powershell
+# Windows
+powershell -File ~\.claude\hooks\peon-ping\adapters\kimi.ps1 -Install
+```
 
-**macOS 上 `--install` 会注册 LaunchAgent**（`~/Library/LaunchAgents/com.peonping.kimi-adapter.plist`），监听器会在登录时自动启动并在崩溃时自动重启 — 重启后无需重新运行 `--install`。设置 `KIMI_NO_LAUNCHD=1` 可回退到 `nohup`+pidfile（例如用于测试）。Linux 始终使用 `nohup`+pidfile。
+无需后台守护进程，也不再需要 `fswatch`/`inotify-tools` — hooks 是事件驱动的。安装后运行 `kimi doctor` 校验配置，然后重启 Kimi Code。`--install` 是幂等的，`--uninstall` 会逐字节还原文件，因此可以安全地在已有配置上重复运行。`curl | bash` 与 `install.ps1` 都会自动检测 Kimi Code 并完成注册。
+
+Kimi 的十六个 hook 事件中注册了十一个。`PreToolUse`、`PostToolUse`、`PostCompact` 因为每次工具调用都会触发而被排除，`Interrupt`/`Notification` 则没有对应的 CESP 类别。
 
 **仅 Kimi 安装（无需 Claude）：**
 
@@ -1045,19 +1050,20 @@ macOS 需要 `fswatch`（`brew install fswatch`），Linux 需要 `inotifywait`�
 curl -fsSL peonping.com/install | bash -s -- --kimi
 ```
 
-文件会安装到 `~/.kimi/hooks/peon-ping/` 而不是 `~/.claude/hooks/peon-ping/`，也不会创建 `~/.claude/` 目录。安装器还会自动检测：在仅有 `~/.kimi/` 但没有 `~/.claude/` 的机器上，无参数运行安装器会自动进入 `--kimi` 模式。监视守护进程会在安装时启动，并通过 LaunchAgent 在每次登录时重新启动。
+文件会安装到 `~/.kimi-code/hooks/peon-ping/` 而不是 `~/.claude/hooks/peon-ping/`，也不会创建 `~/.claude/` 目录。安装器还会自动检测：在仅有 `~/.kimi-code/` 但没有 `~/.claude/` 的机器上，无参数运行安装器会自动进入 `--kimi` 模式。已安装在旧版 `~/.kimi/` 下的实例会原地继续可用。
 
 **与 Claude 安装共享语音包：**
 
-如果 `~/.claude/hooks/peon-ping/packs/` 已存在并包含语音包，`--kimi` 安装会将 `~/.kimi/hooks/peon-ping/packs` 软链接到它，而不是重新下载。一次下载即可服务两个 IDE，从任一侧执行 `peon packs install <name>` 都会更新共享的包集。状态、配置和静音切换在每个安装中保持独立。传递 `--no-shared-packs`（或 `--packs=` / `--all`）以下载独立副本。
+如果 `~/.claude/hooks/peon-ping/packs/` 已存在并包含语音包，`--kimi` 安装会将 `~/.kimi-code/hooks/peon-ping/packs` 软链接到它，而不是重新下载。一次下载即可服务两个 IDE，从任一侧执行 `peon packs install <name>` 都会更新共享的包集。状态、配置和静音切换在每个安装中保持独立。传递 `--no-shared-packs`（或 `--packs=` / `--all`）以下载独立副本。
 
 **事件映射：**
 
-- 新会话 → 问候音效（*"Ready to work?"*、*"Yes?"*）
-- Agent 完成回合 → 完成音效（*"Work, work."*、*"Job's done!"*）
-- 上下文压缩 → Token 限制音效
-- 子 Agent 启动 → 子 Agent 跟踪
-
+- `SessionStart` → 问候音效（*"Ready to work?"*、*"Yes?"*）
+- `Stop` → 完成音效（*"Work, work."*、*"Job's done!"*）
+- `PermissionRequest` → 授权音效 — Kimi 正在等待你批准
+- `PostToolUseFailure` / `StopFailure` → 错误音效
+- `PreCompact` → Token 限制音效
+- `SubagentStart` / `SubagentStop` → 子 Agent 跟踪
 ### 工具无关的安装根目录（`--openpeon`）
 
 将全部内容（钩子、语音包、`settings.json`）安装到 `~/.openpeon` 而非 `~/.claude`：

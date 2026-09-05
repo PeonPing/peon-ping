@@ -1003,33 +1003,18 @@ MOCK_CURL
 # Kimi-direct install support (--kimi flag, no Claude required)
 # ============================================================
 #
-# These tests install adapters/kimi.sh which spawns a watcher daemon. We force
-# the nohup+pidfile path with KIMI_NO_LAUNCHD=1 (so we never touch the real
-# user's LaunchAgents) and stub fswatch so the spawned daemon exits cleanly
-# instead of blocking forever.
+# install.sh --kimi installs peon-ping under Kimi's home and then calls
+# adapters/kimi.sh --install, which registers a [[hooks]] block in Kimi's own
+# config.toml. There is no watcher daemon to stub or reap any more.
 _kimi_test_setup() {
-  export KIMI_NO_LAUNCHD=1
-  cat > "$MOCK_BIN/fswatch" <<'SCRIPT'
-#!/bin/bash
-exit 0
-SCRIPT
-  chmod +x "$MOCK_BIN/fswatch"
+  :
 }
 
 _kimi_test_teardown() {
-  # Reap any stray daemon spawned by install.sh's kimi.sh --install
-  for pidfile in "$TEST_HOME/.kimi/hooks/peon-ping/.kimi-adapter.pid" "$TEST_HOME/.claude/hooks/peon-ping/.kimi-adapter.pid"; do
-    if [ -f "$pidfile" ]; then
-      pid=$(cat "$pidfile" 2>/dev/null)
-      if [ -n "$pid" ]; then
-        pkill -P "$pid" 2>/dev/null || true
-        kill "$pid" 2>/dev/null || true
-      fi
-    fi
-  done
+  :
 }
 
-@test "--kimi installs to ~/.kimi/hooks/peon-ping" {
+@test "--kimi installs to the legacy ~/.kimi/hooks/peon-ping" {
   _kimi_test_setup
   mkdir -p "$TEST_HOME/.kimi"
   bash "$CLONE_DIR/install.sh" --kimi
@@ -1067,6 +1052,49 @@ _kimi_test_teardown() {
   mkdir -p "$TEST_HOME/.kimi"
   bash "$CLONE_DIR/install.sh"
   [ -f "$TEST_HOME/.kimi/hooks/peon-ping/peon.sh" ]
+  [ ! -d "$TEST_HOME/.claude" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi installs to ~/.kimi-code/hooks/peon-ping on a Kimi Code machine" {
+  # ~/.kimi-code is Kimi Code's home; ~/.kimi belongs to the older kimi-cli.
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi-code"
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ -f "$TEST_HOME/.kimi-code/hooks/peon-ping/peon.sh" ]
+  [ -f "$TEST_HOME/.kimi-code/hooks/peon-ping/adapters/kimi.sh" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi keeps an existing ~/.kimi install in place" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi"
+  bash "$CLONE_DIR/install.sh" --kimi
+  [ -f "$TEST_HOME/.kimi/hooks/peon-ping/peon.sh" ]
+  [ ! -d "$TEST_HOME/.kimi-code/hooks" ]
+  _kimi_test_teardown
+}
+
+@test "--kimi registers a hooks block in Kimi's config.toml" {
+  _kimi_test_setup
+  mkdir -p "$TEST_HOME/.kimi-code"
+  bash "$CLONE_DIR/install.sh" --kimi
+  config="$TEST_HOME/.kimi-code/config.toml"
+  [ -f "$config" ]
+  grep -qF "# peon-ping Kimi hooks begin" "$config"
+  grep -qF 'event = "SessionStart"' "$config"
+  grep -qF 'event = "PermissionRequest"' "$config"
+  # The install dir is not ~/.claude here, so the hook command has to carry it.
+  grep -qF "CLAUDE_PEON_DIR=" "$config"
+  _kimi_test_teardown
+}
+
+@test "auto-detects kimi when ~/.kimi-code exists and ~/.claude does not" {
+  _kimi_test_setup
+  rm -rf "$TEST_HOME/.claude"
+  mkdir -p "$TEST_HOME/.kimi-code"
+  bash "$CLONE_DIR/install.sh"
+  [ -f "$TEST_HOME/.kimi-code/hooks/peon-ping/peon.sh" ]
   [ ! -d "$TEST_HOME/.claude" ]
   _kimi_test_teardown
 }

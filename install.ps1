@@ -4207,6 +4207,36 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
     Write-Host "  Open Codex /hooks to review and trust the peon-ping commands if prompted." -ForegroundColor Yellow
 }
 
+# --- Register Kimi Code hooks if ~/.kimi-code exists ---
+# Kimi Code reads `[[hooks]]` entries from its own config.toml and hands each
+# event to the command as JSON on stdin. adapters/kimi.ps1 owns that managed
+# block (begin/end markers, idempotent rewrite), so registering is a call into
+# it rather than a second copy of the TOML logic here.
+$KimiCodeDir = Join-Path $env:USERPROFILE ".kimi-code"
+$KimiLegacyDir = Join-Path $env:USERPROFILE ".kimi"
+$KimiHomeDir = ""
+if (Test-Path (Join-Path $KimiCodeDir "config.toml")) { $KimiHomeDir = $KimiCodeDir }
+elseif (Test-Path (Join-Path $KimiLegacyDir "config.toml")) { $KimiHomeDir = $KimiLegacyDir }
+elseif (Test-Path $KimiCodeDir) { $KimiHomeDir = $KimiCodeDir }
+
+if ((-not $Local) -and $KimiHomeDir) {
+    Write-Host ""
+    Write-Host "Detected Kimi Code installation, registering hooks..."
+
+    $kimiAdapterPath = Join-Path $InstallDir "adapters\kimi.ps1"
+    if (Test-Path $kimiAdapterPath) {
+        & powershell -NoProfile -NonInteractive -File $kimiAdapterPath -Install | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  Kimi Code hooks registered in $(Join-Path $KimiHomeDir 'config.toml')" -ForegroundColor Green
+            Write-Host "  Run 'kimi doctor' to validate, then restart Kimi Code." -ForegroundColor Yellow
+        } else {
+            Write-Host "  Warning: kimi.ps1 -Install exited $LASTEXITCODE; hooks were not registered." -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  Warning: $kimiAdapterPath is missing; skipping Kimi hook registration." -ForegroundColor Yellow
+    }
+}
+
 # --- Auto-detect deepagents-cli and register hooks ---
 $DeepagentsDir = Join-Path $env:USERPROFILE ".deepagents"
 $DeepagentsHooksFile = Join-Path $DeepagentsDir "hooks.json"

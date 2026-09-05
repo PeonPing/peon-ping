@@ -544,11 +544,44 @@ Describe "Category B: Kimi Adapter" {
     BeforeAll {
         $script:kimiPath = Join-Path $script:AdaptersDir "kimi.ps1"
         $script:kimiContent = Get-Content $script:kimiPath -Raw
-        # AST-extracted functions
-        $script:kimiEmitEvent = Get-FunctionAst $script:kimiPath "Emit-Event"
-        $script:kimiProcessWireLine = Get-FunctionAst $script:kimiPath "Process-WireLine"
-        $script:kimiResolveKimiCwd = Get-FunctionAst $script:kimiPath "Resolve-KimiCwd"
-        $script:kimiHandleWireChange = Get-FunctionAst $script:kimiPath "Handle-WireChange"
+
+        # A throwaway peon dir and Kimi config so -Install/-Uninstall never
+        # touch a real ~/.kimi-code. The space in the path is deliberate: the
+        # hook command has to survive cmd.exe word splitting.
+        $script:kimiSandbox = Join-Path ([System.IO.Path]::GetTempPath()) "peon kimi-$([guid]::NewGuid().ToString('N').Substring(0,8))"
+        $script:kimiPeonDir = Join-Path $script:kimiSandbox "peon dir"
+        New-Item -ItemType Directory -Path (Join-Path $script:kimiPeonDir "adapters") -Force | Out-Null
+        Set-Content -Path (Join-Path $script:kimiPeonDir "peon.ps1") -Value "exit 0" -Encoding UTF8
+        Copy-Item $script:kimiPath (Join-Path $script:kimiPeonDir "adapters\kimi.ps1") -Force
+        $script:kimiSandboxAdapter = Join-Path $script:kimiPeonDir "adapters\kimi.ps1"
+        $script:kimiConfigDir = Join-Path $script:kimiSandbox ".kimi-code"
+        New-Item -ItemType Directory -Path $script:kimiConfigDir -Force | Out-Null
+
+        function Invoke-KimiAdapter {
+            param([string]$Config, [string[]]$AdapterArgs)
+            $env:CLAUDE_PEON_DIR = $script:kimiPeonDir
+            $env:KIMI_DIR = $script:kimiConfigDir
+            $env:KIMI_CONFIG = $Config
+            try {
+                $out = & powershell -NoProfile -NonInteractive -File $script:kimiSandboxAdapter @AdapterArgs 2>&1
+                return [PSCustomObject]@{ ExitCode = $LASTEXITCODE; Output = ($out -join "`n") }
+            } finally {
+                Remove-Item Env:\CLAUDE_PEON_DIR, Env:\KIMI_DIR, Env:\KIMI_CONFIG -ErrorAction SilentlyContinue
+            }
+        }
+
+        function New-KimiConfig {
+            param([string]$Body)
+            $path = Join-Path $script:kimiConfigDir "config-$([guid]::NewGuid().ToString('N').Substring(0,8)).toml"
+            [System.IO.File]::WriteAllText($path, $Body, (New-Object System.Text.UTF8Encoding $false))
+            return $path
+        }
+    }
+
+    AfterAll {
+        if ($script:kimiSandbox -and (Test-Path $script:kimiSandbox)) {
+            Remove-Item $script:kimiSandbox -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
     It "has Install/Uninstall/Status/Help flags" {
@@ -558,108 +591,134 @@ Describe "Category B: Kimi Adapter" {
         $script:kimiContent | Should -Match '\[switch\]\$Help'
     }
 
-    It "uses FileSystemWatcher" {
-        $script:kimiContent | Should -Match 'System\.IO\.FileSystemWatcher'
+    It "drives Kimi's native hooks instead of watching the filesystem" {
+        # The adapter used to tail wire.jsonl as a daemon. Kimi Code ships a
+        # hook system, so there is no watcher, no pidfile and no daemon left.
+        $script:kimiContent | Should -Not -Match 'FileSystemWatcher'
+        $script:kimiContent | Should -Not -Match 'wire\.jsonl'
+        $script:kimiContent | Should -Not -Match '\.kimi-adapter\.pid'
     }
 
-    It "watches wire.jsonl files with subdirectory recursion" {
-        $script:kimiContent | Should -Match 'wire\.jsonl'
-        $script:kimiContent | Should -Match 'IncludeSubdirectories.*true'
+    It "prefers ~/.kimi-code and falls back to the older ~/.kimi" {
+        $script:kimiContent | Should -Match '"\.kimi-code"'
+        $script:kimiContent | Should -Match '"\.kimi"'
     }
 
-    It "has /clear detection logic" {
-        $script:kimiContent | Should -Match 'ClearGraceSeconds'
-        $script:kimiContent | Should -Match 'lastNewSession'
+    It "registers hooks and says so" {
+        $result = Invoke-KimiAdapter -Config (New-KimiConfig "") -AdapterArgs @("-Install")
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Match 'registered for Kimi Code'
     }
 
-    It "reads new bytes from wire.jsonl using offset tracking" {
-        $script:kimiContent | Should -Match 'sessionOffset'
-        $script:kimiContent | Should -Match 'FileStream'
+    It "writes a [[hooks]] entry for <hookEvent>" -ForEach @(
+        @{ hookEvent = "SessionStart" }, @{ hookEvent = "SessionEnd" },
+        @{ hookEvent = "UserPromptSubmit" }, @{ hookEvent = "Stop" },
+        @{ hookEvent = "StopFailure" }, @{ hookEvent = "PermissionRequest" },
+        @{ hookEvent = "PermissionResult" }, @{ hookEvent = "PostToolUseFailure" },
+        @{ hookEvent = "SubagentStart" }, @{ hookEvent = "SubagentStop" },
+        @{ hookEvent = "PreCompact" }
+    ) {
+        $config = New-KimiConfig ""
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        Get-Content $config -Raw | Should -Match "event = ""$hookEvent"""
     }
 
-    It "has PID file management" {
-        $script:kimiContent | Should -Match '\.kimi-adapter\.pid'
+    It "leaves the per-tool-call and no-category events unregistered" {
+        $config = New-KimiConfig ""
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        $written = Get-Content $config -Raw
+        foreach ($skipped in @("PreToolUse", "PostToolUse", "PostCompact", "Interrupt", "Notification")) {
+            $written | Should -Not -Match "event = ""$skipped"""
+        }
     }
 
-    # AST-based function extraction tests
-    It "Emit-Event function is extractable via AST" {
-        $script:kimiEmitEvent | Should -Not -BeNullOrEmpty
-        $script:kimiEmitEvent.Count | Should -Be 1
+    It "quotes the adapter path so a profile with a space still starts" {
+        # Kimi spawns hooks with Node's shell:true, i.e. cmd.exe /d /s /c on
+        # Windows, which splits an unquoted C:\Users\First Last\... in half.
+        $config = New-KimiConfig ""
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        $command = ([regex]::Match((Get-Content $config -Raw), "(?m)^command = '(.+)'\r?$")).Groups[1].Value
+        $command | Should -Match '^powershell -NoProfile -NonInteractive -File "'
+        $command | Should -Match 'peon dir'
+        $command | Should -Match '"$'
     }
 
-    It "Emit-Event accepts EventName, SessionId, and Cwd parameters" {
-        $paramNames = Get-ParamNames $script:kimiEmitEvent[0]
-        $paramNames | Should -Contain "EventName"
-        $paramNames | Should -Contain "SessionId"
-        $paramNames | Should -Contain "Cwd"
+    It "keeps an existing hook and appends the block behind markers" {
+        $config = New-KimiConfig "default_model = ""kimi-code/kimi-for-coding""`n`n[[hooks]]`nevent = ""PreToolUse""`ncommand = ""other-tool""`n"
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        $written = Get-Content $config -Raw
+        $written | Should -Match 'command = "other-tool"'
+        $written | Should -Match '# peon-ping Kimi hooks begin'
+        $written | Should -Match '# peon-ping Kimi hooks end'
     }
 
-    It "Emit-Event pipes JSON to peon.ps1" {
-        $body = $script:kimiEmitEvent[0].Extent.Text
-        $body | Should -Match 'ConvertTo-Json'
-        $body | Should -Match 'PeonScript'
+    It "is idempotent across repeated installs" {
+        $config = New-KimiConfig "default_model = ""x""`n"
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        $first = Get-Content $config -Raw
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        Get-Content $config -Raw | Should -Be $first
     }
 
-    It "Process-WireLine function is extractable via AST" {
-        $script:kimiProcessWireLine | Should -Not -BeNullOrEmpty
-        $script:kimiProcessWireLine.Count | Should -Be 1
+    It "restores <name> byte for byte on uninstall" -ForEach @(
+        @{ name = "a config with no trailing blank line"; body = "default_model = ""x""`n[[hooks]]`nevent = ""PreToolUse""`n" },
+        @{ name = "a config that already ended in a blank line"; body = "default_model = ""x""`n[[hooks]]`nevent = ""PreToolUse""`n`n" },
+        @{ name = "a CRLF config"; body = "default_model = ""x""`r`n[[hooks]]`r`nevent = ""PreToolUse""`r`n" },
+        @{ name = "an empty config"; body = "" }
+    ) {
+        $config = New-KimiConfig $body
+        $before = [System.IO.File]::ReadAllBytes($config)
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Uninstall") | Out-Null
+        $after = [System.IO.File]::ReadAllBytes($config)
+        (@(Compare-Object $after $before -SyncWindow 0)).Count | Should -Be 0
     }
 
-    It "Process-WireLine accepts Line, Uuid, and Cwd parameters" {
-        $paramNames = Get-ParamNames $script:kimiProcessWireLine[0]
-        $paramNames | Should -Contain "Line"
-        $paramNames | Should -Contain "Uuid"
-        $paramNames | Should -Contain "Cwd"
+    It "keeps the newline style the config already used" {
+        $config = New-KimiConfig "default_model = ""x""`r`n"
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        $raw = Get-Content $config -Raw
+        $raw | Should -Match "`r`n"
+        ($raw -replace "`r`n", "") | Should -Not -Match "`n"
     }
 
-    It "Process-WireLine maps TurnEnd to Stop" {
-        $body = $script:kimiProcessWireLine[0].Extent.Text
-        $body | Should -Match '"TurnEnd"'
-        $body | Should -Match '"Stop"'
+    It "reports the registered event count via -Status" {
+        $config = New-KimiConfig ""
+        Invoke-KimiAdapter -Config $config -AdapterArgs @("-Install") | Out-Null
+        $result = Invoke-KimiAdapter -Config $config -AdapterArgs @("-Status")
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Match '\(11 events\)'
     }
 
-    It "Process-WireLine maps CompactionBegin to PreCompact" {
-        $body = $script:kimiProcessWireLine[0].Extent.Text
-        $body | Should -Match '"CompactionBegin"'
-        $body | Should -Match '"PreCompact"'
+    It "exits non-zero from -Status when nothing is registered" {
+        $result = Invoke-KimiAdapter -Config (New-KimiConfig "default_model = ""x""`n") -AdapterArgs @("-Status")
+        $result.ExitCode | Should -Be 1
+        $result.Output | Should -Match 'not registered'
     }
 
-    It "Process-WireLine maps SubagentEvent with TurnBegin to SubagentStart" {
-        $body = $script:kimiProcessWireLine[0].Extent.Text
-        $body | Should -Match '"SubagentEvent"'
-        $body | Should -Match '"SubagentStart"'
+    It "reports rather than silently failing when peon.ps1 is missing" {
+        # $ErrorActionPreference is SilentlyContinue for hook mode, so the
+        # install failure has to reach the host stream to be visible at all.
+        $bare = Join-Path $script:kimiSandbox "no-peon"
+        New-Item -ItemType Directory -Path (Join-Path $bare "adapters") -Force | Out-Null
+        Copy-Item $script:kimiPath (Join-Path $bare "adapters\kimi.ps1") -Force
+        $out = & powershell -NoProfile -NonInteractive -File (Join-Path $bare "adapters\kimi.ps1") -Install 2>&1
+        $LASTEXITCODE | Should -Be 1
+        ($out -join "`n") | Should -Match 'peon\.ps1 not found'
     }
 
-    It "Process-WireLine maps TurnBegin for session detection" {
-        $body = $script:kimiProcessWireLine[0].Extent.Text
-        $body | Should -Match '"TurnBegin"'
-    }
-
-    It "Process-WireLine builds session_id with kimi- prefix" {
-        $body = $script:kimiProcessWireLine[0].Extent.Text
-        $body | Should -Match 'kimi-'
-        $body | Should -Match 'session_id'
-    }
-
-    It "Resolve-KimiCwd function is extractable via AST" {
-        $script:kimiResolveKimiCwd | Should -Not -BeNullOrEmpty
-        $script:kimiResolveKimiCwd.Count | Should -Be 1
-    }
-
-    It "Resolve-KimiCwd uses MD5 hashing" {
-        $body = $script:kimiResolveKimiCwd[0].Extent.Text
-        $body | Should -Match 'MD5'
-    }
-
-    It "Handle-WireChange function is extractable via AST" {
-        $script:kimiHandleWireChange | Should -Not -BeNullOrEmpty
-        $script:kimiHandleWireChange.Count | Should -Be 1
-    }
-
-    It "Handle-WireChange uses FileStream for offset-based reading" {
-        $body = $script:kimiHandleWireChange[0].Extent.Text
-        $body | Should -Match 'FileStream'
-        $body | Should -Match 'sessionOffset'
+    It "exits 0 on every path so Kimi never reads the hook as a block" {
+        # Kimi treats exit code 2 as "block this operation" on UserPromptSubmit,
+        # PreToolUse and Stop.
+        $env:CLAUDE_PEON_DIR = $script:kimiPeonDir
+        try {
+            foreach ($payload in @('{"hook_event_name":"Stop","session_id":"session_a1"}', '{"hook_event_name":"PreToolUse"}', 'garbage', '')) {
+                $payload | & powershell -NoProfile -NonInteractive -File $script:kimiSandboxAdapter 2>$null | Out-Null
+                $LASTEXITCODE | Should -Be 0
+            }
+        } finally {
+            Remove-Item Env:\CLAUDE_PEON_DIR -ErrorAction SilentlyContinue
+        }
     }
 }
 

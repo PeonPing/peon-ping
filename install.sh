@@ -37,7 +37,7 @@ Options:
   --global             Install globally (default)
   --local              Install in current project (.claude)
   --openclaw           Install as OpenClaw skill (~/.openclaw/skills)
-  --kimi               Install for Kimi Code only (~/.kimi/hooks/peon-ping;
+  --kimi               Install for Kimi Code only (~/.kimi-code/hooks/peon-ping;
                        no Claude config required). When ~/.claude/hooks/
                        peon-ping/packs exists, Kimi's packs/ is symlinked
                        to it so a single install serves both IDEs.
@@ -45,7 +45,7 @@ Options:
                        tool-agnostic root; peon.sh auto-discovers its packs via
                        the packs-anchored fallback when ~/.claude is absent).
   --no-shared-packs    Disable the --kimi pack symlink and download a
-                       separate copy of packs into ~/.kimi/...
+                       separate copy of packs into ~/.kimi-code/...
   --init-local-config  Create local config only, then exit
   --all                Install all packs
   --no-rc              Skip .bashrc/.zshrc/fish config modifications
@@ -67,7 +67,13 @@ if [ "$OPENPEON_MODE" = true ]; then
 fi
 LOCAL_BASE="$PWD/.claude"
 OPENCLAW_BASE="$HOME/.openclaw"
-KIMI_BASE="$HOME/.kimi"
+# Kimi Code keeps its config in ~/.kimi-code; ~/.kimi is the older kimi-cli.
+# Prefer the former, but keep an existing ~/.kimi install working in place.
+if [ -d "$HOME/.kimi-code" ] || [ ! -d "$HOME/.kimi" ]; then
+  KIMI_BASE="$HOME/.kimi-code"
+else
+  KIMI_BASE="$HOME/.kimi"
+fi
 
 # --- Handle --rovodev-only mode (for homebrew delegation) ---
 if [ "$ROVODEV_ONLY" = true ]; then
@@ -323,7 +329,7 @@ fi
 if [ "$KIMI_MODE" = true ]; then
   BASE_DIR="$KIMI_BASE"
   INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
-  SETTINGS=""  # Kimi reads events via wire.jsonl; no settings.json hook write
+  SETTINGS=""  # Kimi hooks live in its own config.toml; no settings.json write
 elif [ "$OPENCLAW_MODE" = true ]; then
   BASE_DIR="$OPENCLAW_BASE"
   INSTALL_DIR="$BASE_DIR/hooks/peon-ping"
@@ -1088,21 +1094,21 @@ fi
 
 # --- Kimi-only install ---
 # Skip every Claude-specific step below: settings.json hook write, Cursor /
-# Rovo / DeepAgents hook registration, other-scope cleanup. The Kimi adapter
-# is a watcher daemon that reads wire.jsonl and pipes CESP events to peon.sh,
-# so it needs the install dir but no hook configuration.
+# Rovo / DeepAgents hook registration, other-scope cleanup. Kimi has its own
+# hook system, so the adapter registers a managed [[hooks]] block in Kimi's
+# config.toml instead of anything under ~/.claude.
 if [ "$KIMI_MODE" = true ]; then
   echo ""
-  echo "Starting Kimi Code adapter..."
+  echo "Registering Kimi Code hooks..."
 
   if [ -f "$INSTALL_DIR/adapters/kimi.sh" ]; then
     chmod +x "$INSTALL_DIR/adapters/kimi.sh"
     # Pass CLAUDE_PEON_DIR explicitly so the adapter resolves into the Kimi
     # install dir even though it isn't under ~/.claude. The adapter writes this
-    # into its LaunchAgent plist on macOS so the env survives reboot.
+    # into the hook command it registers, so the env survives a restart.
     CLAUDE_PEON_DIR="$INSTALL_DIR" bash "$INSTALL_DIR/adapters/kimi.sh" --install || true
   else
-    echo "Warning: $INSTALL_DIR/adapters/kimi.sh missing — skipping daemon start."
+    echo "Warning: $INSTALL_DIR/adapters/kimi.sh missing — skipping hook registration."
   fi
 
   # Initialize state for fresh installs (mirrors the post-summary block below)
@@ -1119,9 +1125,18 @@ if [ "$KIMI_MODE" = true ]; then
   echo ""
   echo "Install dir: $INSTALL_DIR"
   echo "Config:      $INSTALL_DIR/config.json"
-  echo "Sessions:    $KIMI_BASE/sessions"
+  # The adapter resolves Kimi's config dir itself (~/.kimi-code, falling back to
+  # ~/.kimi), which need not match the install root, so report what it picked.
+  if [ -f "$HOME/.kimi-code/config.toml" ]; then
+    KIMI_HOOK_CONFIG="$HOME/.kimi-code/config.toml"
+  elif [ -f "$HOME/.kimi/config.toml" ]; then
+    KIMI_HOOK_CONFIG="$HOME/.kimi/config.toml"
+  else
+    KIMI_HOOK_CONFIG="$HOME/.kimi-code/config.toml"
+  fi
+  echo "Kimi hooks:  $KIMI_HOOK_CONFIG"
   echo ""
-  echo "Daemon controls:"
+  echo "Hook controls:"
   echo "  bash $INSTALL_DIR/adapters/kimi.sh --status"
   echo "  bash $INSTALL_DIR/adapters/kimi.sh --uninstall"
   echo ""
