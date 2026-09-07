@@ -3785,6 +3785,34 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   [ "$count" -ge 7 ]
 }
 
+@test "mac overlay bundle id falls back to __CFBundleIdentifier for desktop-app hosts" {
+  # Codex desktop and Claude Code desktop run hooks with no TERM_PROGRAM and no
+  # terminal env markers; the only identity they pass down is the app bundle id.
+  export PEON_PLATFORM=mac
+  mkdir -p "$TEST_DIR/scripts"
+  touch "$TEST_DIR/scripts/mac-overlay.js"
+  export __CFBundleIdentifier=com.anthropic.claudefordesktop
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/overlay.log" ]
+  args=$(tail -1 "$TEST_DIR/overlay.log")
+  [[ "$args" == *"com.anthropic.claudefordesktop"* ]]
+}
+
+@test "mac overlay bundle id prefers a known terminal over __CFBundleIdentifier" {
+  # A terminal-hosted session still resolves through the TERM_PROGRAM table.
+  export PEON_PLATFORM=mac
+  mkdir -p "$TEST_DIR/scripts"
+  touch "$TEST_DIR/scripts/mac-overlay.js"
+  export TERM_PROGRAM=Apple_Terminal
+  export __CFBundleIdentifier=com.openai.codex
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  args=$(tail -1 "$TEST_DIR/overlay.log")
+  [[ "$args" == *"com.apple.Terminal"* ]]
+  [[ "$args" != *"com.openai.codex"* ]]
+}
+
 @test "mac overlay IDE PID argument is numeric" {
   export PEON_PLATFORM=mac
   mkdir -p "$TEST_DIR/scripts"

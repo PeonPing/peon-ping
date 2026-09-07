@@ -826,6 +826,15 @@ _mac_terminal_bundle_id() {
         echo "net.kovidgoyal.kitty"
       elif [ -n "${ALACRITTY_WINDOW_ID:-}" ] || [ -n "${ALACRITTY_SOCKET:-}" ]; then
         echo "org.alacritty"
+      elif [ -n "${__CFBundleIdentifier:-}" ]; then
+        # GUI hosts that run the agent without a terminal emulator — Codex desktop
+        # (com.openai.codex), Claude Code desktop (com.anthropic.claudefordesktop) —
+        # set no TERM_PROGRAM at all, so nothing above matches and the overlay is
+        # click-through. Every process launched from a macOS app bundle inherits
+        # the host's __CFBundleIdentifier, which is exactly the app showing the
+        # session; activating it is the right click-to-focus target. Known
+        # terminals never reach this arm: their TERM_PROGRAM/env cases win above.
+        echo "$__CFBundleIdentifier"
       else
         echo ""
       fi ;;
