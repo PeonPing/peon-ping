@@ -776,6 +776,72 @@ print(p.get('pack', ''))
   [ "$pending" = "peon" ]
 }
 
+# ------------------------------------------------------------
+# subagent_input_required
+# ------------------------------------------------------------
+
+@test "subagent_input_required: subagent PermissionRequest (agent_id) plays input.required" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true }
+JSON
+  # A subagent's permission prompt still blocks on the user, so it must stay audible
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"parent12","agent_id":"agt5","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "subagent_input_required: subagent elicitation_dialog Notification (agent_id) plays input.required" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true }
+JSON
+  run_peon '{"hook_event_name":"Notification","notification_type":"elicitation_dialog","cwd":"/tmp/myproject","session_id":"parent13","agent_id":"agt6","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "subagent_input_required: other subagent events (agent_id) stay suppressed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true }
+JSON
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"parent14","agent_id":"agt7","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","error":"Exit code 1","cwd":"/tmp/myproject","session_id":"parent14","agent_id":"agt7","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"parent14","agent_id":"agt7","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "subagent_input_required: separate-session subagent PermissionRequest plays input.required" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true, "pack_rotation": ["peon","peon"] }
+JSON
+  # Subagent tracked via the SubagentStart timing heuristic rather than agent_id
+  run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent15","permission_mode":"default"}'
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"sub15","permission_mode":"default"}'
+  # Age the subagent's SessionStart past the 3s replay-suppression window
+  "$PEON_PY" -c "
+import json
+state = json.load(open('$TEST_DIR/.state.json'))
+state.setdefault('session_start_times', {})['sub15'] = 0
+json.dump(state, open('$TEST_DIR/.state.json', 'w'))
+"
+  count_before=$(afplay_call_count)
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"sub15","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count_after=$(afplay_call_count)
+  [ "$count_after" -gt "$count_before" ]
+}
+
+@test "subagent_input_required: off by default leaves subagent PermissionRequest suppressed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true }
+JSON
+  run_peon '{"hook_event_name":"Notification","notification_type":"elicitation_dialog","cwd":"/tmp/myproject","session_id":"parent16","agent_id":"agt8","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
 # ============================================================
 # Update check
 # ============================================================

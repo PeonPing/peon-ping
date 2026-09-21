@@ -199,6 +199,7 @@ Claude에게 직접 설정을 변경해달라고 요청할 수도 있습니다 �
 - **annoyed_threshold / annoyed_window_seconds**: N초 내 몇 번의 프롬프트가 `user.spam` 이스터에그를 트리거하는지
 - **silent_window_seconds**: N초 미만으로 완료된 작업의 `task.complete` 소리와 알림을 억제 (예: `10`으로 설정하면 10초 이상 걸린 작업에서만 소리가 남)
 - **suppress_subagent_complete** (boolean, 기본값: `false`): 서브 에이전트 세션이 끝날 때 `task.complete` 소리와 알림을 억제. Claude Code의 Task 도구가 서브 에이전트를 병렬로 실행하면 각각 완료 시 알림이 울리는데, `true`로 설정하면 부모 세션의 완료 알림만 울립니다.
+- **subagent_input_required** (boolean, 기본값: `false`): `suppress_subagent_complete: true`일 때만 의미가 있습니다. Claude Code는 서브 에이전트의 권한 요청(및 MCP elicitation 대화 상자)을 부모 세션으로 전달하고, 응답할 때까지 서브 에이전트는 대기합니다. `true`로 설정하면 이러한 프롬프트에서는 `input.required` 소리와 알림이 계속 울리고, 그 외의 모든 서브 에이전트 이벤트는 조용히 유지됩니다.
 - **default_pack**: 더 구체적인 규칙이 없을 때 사용할 기본 팩 (기본값: `"peon"`). 이전의 `active_pack` 키를 대체하며, 기존 설정은 `peon update` 시 자동으로 마이그레이션됩니다.
 - **path_rules**: `{ "pattern": "...", "pack": "..." }` 객체 배열. 작업 디렉토리를 기준으로 글로브 매칭 (`*`, `?`)을 사용해 세션에 팩을 할당합니다. 첫 번째로 일치하는 규칙이 적용됩니다. `pack_rotation`과 `default_pack`보다 우선하지만, `session_override` 할당에는 밀립니다.
   ```json

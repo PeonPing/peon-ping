@@ -1882,6 +1882,7 @@ ssc = c.get('session_start_cooldown_seconds', 30)
 pp('session start cooldown: ' + str(ssc) + 's')
 pp('suppress subagent complete: ' + ('on' if c.get('suppress_subagent_complete', False) else 'off'))
 pp('suppress delegate sessions: ' + ('on' if c.get('suppress_delegate_sessions', False) else 'off'))
+pp('subagent input required passthrough: ' + ('on' if c.get('subagent_input_required', False) else 'off'))
 
 trainer_cfg = c.get('trainer', {}) or {}
 if trainer_cfg.get('enabled', False):
@@ -5374,6 +5375,8 @@ annoyed_window = float(cfg.get('annoyed_window_seconds', cfg.get('spam_window_se
 silent_window = float(cfg.get('silent_window_seconds', 0))
 suppress_subagent_complete = str(cfg.get('suppress_subagent_complete', False)).lower() == 'true'
 suppress_delegate = str(cfg.get('suppress_delegate_sessions', False)).lower() == 'true'
+# Subagent permission prompts and elicitation dialogs block on the user, so they can bypass subagent suppression
+subagent_input_required = str(cfg.get('subagent_input_required', False)).lower() == 'true'
 headphones_only = str(cfg.get('headphones_only', False)).lower() == 'true'
 meeting_detect = str(cfg.get('meeting_detect', False)).lower() == 'true'
 focus_detect = str(cfg.get('focus_detect', False)).lower() == 'true'
@@ -5942,7 +5945,10 @@ if event in _dismiss_events and session_id and cfg.get('notification_stacking', 
 # sits after the auto-dismiss block so subagent tool activity still clears
 # stale notifications. SubagentStart/SubagentStop are excluded: their handlers
 # below cover pack inheritance and the flag-gated completion sound.
-if suppress_subagent_complete and agent_id and event not in ('SubagentStart', 'SubagentStop'):
+subagent_needs_input = subagent_input_required and (
+    event == 'PermissionRequest'
+    or (event == 'Notification' and ntype in ('permission_prompt', 'elicitation_dialog')))
+if suppress_subagent_complete and agent_id and event not in ('SubagentStart', 'SubagentStop') and not subagent_needs_input:
     log('route', category='none', suppressed=True, reason='subagent_event')
     log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
     write_state(state, state_file)
@@ -6045,7 +6051,7 @@ elif event == 'Notification':
         sys.exit(0)
 elif event == 'PermissionRequest':
     # Suppress permission sound/notification for known sub-agent sessions
-    if suppress_subagent_complete and session_id in state.get('subagent_sessions', {}):
+    if suppress_subagent_complete and not subagent_input_required and session_id in state.get('subagent_sessions', {}):
         log('route', category='input.required', suppressed=True, reason='subagent_session')
         log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         write_state(state, state_file)
