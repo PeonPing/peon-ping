@@ -4786,6 +4786,42 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+# Linux: the pw-dump mock prints this PipeWire graph fixture, one mic node.
+_write_pw_dump_fixture() {
+  # $1 = "running" | "suspended"
+  printf '%s' '[{"type":"PipeWire:Interface:Node","info":{"state":"'"$1"'","props":{"media.class":"Audio/Source"}}}]' > "$TEST_DIR/pw-dump.json"
+}
+
+@test "Linux meeting_detect skips sound while the mic is in use" {
+  export PEON_PLATFORM=linux
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['meeting_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_pw_dump_fixture running
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! linux_audio_was_called
+}
+
+@test "Linux meeting_detect plays sound while the mic is idle" {
+  export PEON_PLATFORM=linux
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['meeting_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_pw_dump_fixture suspended
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  linux_audio_was_called
+}
+
 # ============================================================
 # Focus / Do Not Disturb detection - honor macOS Focus
 # ============================================================

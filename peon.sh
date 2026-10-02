@@ -94,10 +94,16 @@ detect_meeting() {
       ;;
     linux)
       # Check mic via PipeWire/PulseAudio
-      if command -v wpctl &>/dev/null; then
-        local sources
-        sources=$(wpctl status 2>/dev/null | grep -A50 "Audio/Source" | grep "RUNNING") || true
-        [ -n "$sources" ] && return 0
+      if command -v pw-dump &>/dev/null; then
+        # A source node runs only while something captures from it.
+        pw-dump 2>/dev/null | python3 -c "
+import json, sys
+for o in json.load(sys.stdin):
+    info = o.get('info') or {}
+    if info.get('state') == 'running' and info.get('props', {}).get('media.class') == 'Audio/Source':
+        sys.exit(0)
+sys.exit(1)
+" 2>/dev/null && return 0
       elif command -v pactl &>/dev/null; then
         # pactl: any source-output that isn't a peak detector means mic is in use
         local total peak
