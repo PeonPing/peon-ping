@@ -373,7 +373,7 @@ peon-ping には3つの独立したコントロールがあり、自由に組み
   ]
   ```
 - **pack_rotation**: パック名の配列（例: `["peon", "sc_kerrigan", "peasant"]`）。`pack_rotation_mode` が `random` または `round-robin` の場合に使用。空 `[]` にすると `default_pack`（または `path_rules` / `ide_rules`）のみ使用。
-- **pack_rotation_mode**: `"random"`（デフォルト）、`"round-robin"`、または `"session_override"`。`random`/`round-robin` では各セッションが `pack_rotation` から1つのパックを選択。`session_override` では `/peon-ping-use <pack>` コマンドでセッションごとにパックを割り当て。無効または欠落したパックは階層をフォールバック。（`"agentskill"` は `"session_override"` のレガシーエイリアスとして受け入れられます。）
+- **pack_rotation_mode**: `"random"`（デフォルト）、`"round-robin"`、または `"session_override"`。`random`/`round-robin` では、同じディレクトリで他のセッションが動作中でも、独立した各セッションが `pack_rotation` から1つのパックを選択。既知のセッションの再開やコンパクションではパックを維持。新しいセッションIDのコンパクションでは、直近のアクティビティの端末とディレクトリが両方一致する場合のみ継承。別セッションのサブエージェントでは、`agent_id` が親の直近の `SubagentStart` と一致する場合のみ継承。`session_override` では `/peon-ping-use <pack>` コマンドでセッションごとにパックを割り当て。無効または欠落したパックは階層をフォールバック。（`"agentskill"` は `"session_override"` のレガシーエイリアスとして受け入れられます。）
 - **session_ttl_days**（数値、デフォルト: 7）: N 日以上古いセッションごとのパック割り当てを期限切れにします。`session_override` モード使用時に `.state.json` が無制限に増大するのを防ぎます。
 - **headphones_only**（ブール値、デフォルト: `false`）: ヘッドフォンまたは外部オーディオデバイスが検出された場合のみサウンドを再生。有効にすると内蔵スピーカーがアクティブ出力の場合にサウンドが抑制されます — オープンオフィスに便利。`peon status` でステータスを確認。macOS（`system_profiler` 経由）および Linux（PipeWire `wpctl` または PulseAudio `pactl` 経由）に対応。
 - **suppress_sound_when_tab_focused**（ブール値、デフォルト: `false`）: フックイベントを生成したターミナルタブが現在アクティブ/フォーカスされている場合、サウンド再生をスキップ。バックグラウンドタブでは他の場所で何かが起きたことをアラートとしてサウンドが再生されます。デスクトップとモバイル通知には影響しません。監視していないタブからのみオーディオキューが欲しい場合に便利。macOS のみ（`osascript` で最前面アプリと iTerm2 タブフォーカスを確認）。
