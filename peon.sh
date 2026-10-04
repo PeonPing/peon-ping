@@ -5718,8 +5718,8 @@ elif pack_rotation and rotation_mode in ('random', 'round-robin', 'shuffle'):
         # Shuffle: pick a random pack for every sound event, no session caching
         active_pack = random.choice(pack_rotation)
     else:
-        # Automatic rotation — detect context resets (new session_id within seconds
-        # of the last event, no Stop in between) and reuse the previous pack.
+        # Automatic rotation: reuse a pinned pack, or inherit only when the
+        # event identifies the same conversation or a spawned subagent.
         session_packs = state.get('session_packs', {})
         _sp_entry = session_packs.get(session_id)
         _sp_pack = _sp_entry.get('pack', '') if isinstance(_sp_entry, dict) else (_sp_entry or '')
@@ -5734,11 +5734,15 @@ elif pack_rotation and rotation_mode in ('random', 'round-robin', 'shuffle'):
                 la_evt = last_active.get('event', '')
                 la_pack = last_active.get('pack', '')
                 # Resume: keep whatever pack was last used for this session
-                if session_source == 'resume' and la_pack in pack_rotation:
+                if (session_source == 'resume' and session_id and la_sid == session_id
+                        and la_pack in pack_rotation):
                     active_pack = la_pack
                     inherited = True
-                # Subagent inheritance: parent just spawned a subagent, use parent's pack
-                elif state.get('pending_subagent_pack') and (time.time() - state['pending_subagent_pack'].get('ts', 0) < 30):
+                # A recent spawn alone cannot identify a child: unrelated
+                # sessions can start while the parent is working.
+                elif (agent_id and state.get('pending_subagent_pack')
+                        and agent_id == state['pending_subagent_pack'].get('agent_id')
+                        and time.time() - state['pending_subagent_pack'].get('ts', 0) < 30):
                     parent_pack = state['pending_subagent_pack'].get('pack', '')
                     if parent_pack in pack_rotation:
                         active_pack = parent_pack
@@ -5751,8 +5755,12 @@ elif pack_rotation and rotation_mode in ('random', 'round-robin', 'shuffle'):
                     subagent_sessions = dict((sid, ts) for sid, ts in subagent_sessions.items() if now_ts - ts < 300)
                     state['subagent_sessions'] = subagent_sessions
                     state_dirty = True
-                # Context reset: recent activity from another session, no Stop/SessionEnd
-                elif (la_sid and la_sid != session_id and la_pack in pack_rotation
+                # An explicit compact can change the session ID in the same
+                # terminal. Timing or a shared cwd alone cannot prove continuity.
+                elif (session_source == 'compact' and hook_tty
+                        and hook_tty == last_active.get('tty')
+                        and cwd and cwd == last_active.get('cwd')
+                        and la_sid and la_sid != session_id and la_pack in pack_rotation
                         and la_evt not in ('Stop', 'SessionEnd')
                         and time.time() - la_ts < 15):
                     active_pack = la_pack
@@ -5771,9 +5779,9 @@ else:
     # Default: path/IDE rule if matched, otherwise default_pack
     active_pack = _path_rule_pack or _ide_rule_pack or _default_pack
 
-# --- Track last active session for context-reset detection ---
+# --- Track last active session for diagnostics and identified continuity ---
 state['last_active'] = dict(session_id=session_id, pack=active_pack,
-                            timestamp=time.time(), event=event, cwd=cwd)
+                            timestamp=time.time(), event=event, cwd=cwd, tty=hook_tty)
 state_dirty = True
 
 # --- Project name (priority chain: session_names[id] > CLAUDE_SESSION_NAME > .peon-label > notification_title_script > project_name_map > title_override > git repo > folder) ---
@@ -5956,6 +5964,7 @@ if event == 'SessionStart':
     source = event_data.get('source', '')
     if source == 'compact':
         # Compaction is mid-conversation — greeting makes no sense, but maintain title
+        write_state(state, state_file)
         log('route', category='none', suppressed=True, reason='compact_source')
         log('exit', duration_ms=int((time.monotonic() - _peon_start) * 1000), exit=0)
         print('PROJECT=' + q(project or ''))
@@ -6100,7 +6109,7 @@ elif event == 'SubagentStop':
     msg_subtitle = ''
 elif event == 'SubagentStart':
     # Record parent's pack so spawned subagent sessions inherit it, then stay silent
-    state['pending_subagent_pack'] = dict(ts=time.time(), pack=active_pack)
+    state['pending_subagent_pack'] = dict(ts=time.time(), pack=active_pack, agent_id=agent_id)
     state_dirty = True
     write_state(state, state_file)
     # Maintain parent's tab title while subagent runs (no sound)
