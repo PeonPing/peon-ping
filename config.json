@@ -19,6 +19,7 @@
   "suppress_idle_prompt_repeats": true,
   "idle_prompt_suppress_window_seconds": 3600,
   "suppress_subagent_complete": false,
+  "subagent_input_required": false,
   "suppress_delegate_sessions": false,
   "no_rc": false,
   "pack_rotation": [],

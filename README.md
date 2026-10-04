@@ -151,13 +151,13 @@ For reproducible setups, use the Home Manager module:
 { inputs, pkgs, ... }:
 
 let
-  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/cursor.sh";
+  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/cursor.sh";
 in {
   imports = [ inputs.peon-ping.homeManagerModules.default ];
 
   programs.peon-ping = {
     enable = true;
-    package = inputs.peon-ping.packages.${pkgs.system}.default;
+    package = inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default;
     claudeCodeIntegration = true;
 
     settings = {
@@ -227,7 +227,7 @@ For packs listed on [openpeon.com](https://openpeon.com/), find the GitHub repos
 
 **Other IDE hooks**: adapters for other IDEs are still opt-in so the module does not overwrite unrelated IDE settings. peon-ping provides adapter scripts such as `cursor.sh` in [`adapters/`](https://github.com/PeonPing/peon-ping/tree/main/adapters), and you can wire them like this:
   ```sh
-  ${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
+  ${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
   ```
   See the Cursor example above.
 
@@ -461,6 +461,7 @@ This means you can:
 - **suppress_idle_prompt_repeats** (boolean, default: `true`): Claude Code re-fires its `idle_prompt` notification every ~60s while the terminal is unfocused. peon-ping routes `idle_prompt` to `task.complete` so you still get a sound when input is needed — but without dedupe the same sound replays on every poke. When `true`, an `idle_prompt` is suppressed if a `task.complete` for the same session already fired inside `idle_prompt_suppress_window_seconds`. Set to `false` to restore the periodic nudge.
 - **idle_prompt_suppress_window_seconds** (number, default: `3600`): Window used by `suppress_idle_prompt_repeats`. After a `task.complete` fires for a session, subsequent `idle_prompt` notifications for that session stay silent for this many seconds. Set to `0` to disable the window (effectively the same as `suppress_idle_prompt_repeats: false`).
 - **suppress_subagent_complete** (boolean, default: `false`): Suppress sounds and notifications from sub-agent activity. When Claude Code's Task tool dispatches parallel sub-agents, each one fires its own events: a completion sound on finish, `task.error` on failed Bash commands, `input.required` on permission requests. Set this to `true` to hear only the parent session's sounds. Events fired from inside a sub-agent are detected via the `agent_id` field Claude Code adds to their hook payloads; separate-session sub-agents (older clients, other IDEs) are still detected by the SubagentStart timing heuristic.
+- **subagent_input_required** (boolean, default: `false`): Only meaningful with `suppress_subagent_complete: true`. Claude Code passes a sub-agent's permission prompts (and MCP elicitation dialogs) through to you in the parent session, and the sub-agent blocks until you answer. Set this to `true` to keep `input.required` sounds and notifications for those prompts while every other sub-agent event stays silent.
 - **default_pack**: The fallback pack used when no more specific rule applies (default: `"peon"`). Replaces the old `active_pack` key — existing configs are migrated automatically on `peon update`.
 - **path_rules**: Array of `{ "pattern": "...", "pack": "..." }` objects. Assigns a pack to sessions based on the working directory using glob matching (`*`, `?`). First matching rule wins. Beats `pack_rotation` and `default_pack`; overridden by `session_override` assignments.
   ```json

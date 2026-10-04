@@ -458,6 +458,13 @@ fi
 SCRIPT
   chmod +x "$TEST_DIR/scripts/meeting-detect"
 
+  # Mock pw-dump (Linux meeting_detect) — prints the PipeWire graph fixture, if any
+  cat > "$MOCK_BIN/pw-dump" <<'SCRIPT'
+#!/bin/bash
+cat "${CLAUDE_PEON_DIR}/pw-dump.json" 2>/dev/null
+SCRIPT
+  chmod +x "$MOCK_BIN/pw-dump"
+
   # Copy notify.sh into test dir so send_notification() can find it
   _src_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   mkdir -p "$TEST_DIR/scripts"

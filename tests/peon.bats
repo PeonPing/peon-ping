@@ -776,6 +776,72 @@ print(p.get('pack', ''))
   [ "$pending" = "peon" ]
 }
 
+# ------------------------------------------------------------
+# subagent_input_required
+# ------------------------------------------------------------
+
+@test "subagent_input_required: subagent PermissionRequest (agent_id) plays input.required" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true }
+JSON
+  # A subagent's permission prompt still blocks on the user, so it must stay audible
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"parent12","agent_id":"agt5","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "subagent_input_required: subagent elicitation_dialog Notification (agent_id) plays input.required" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true }
+JSON
+  run_peon '{"hook_event_name":"Notification","notification_type":"elicitation_dialog","cwd":"/tmp/myproject","session_id":"parent13","agent_id":"agt6","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "subagent_input_required: other subagent events (agent_id) stay suppressed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true }
+JSON
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"parent14","agent_id":"agt7","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","error":"Exit code 1","cwd":"/tmp/myproject","session_id":"parent14","agent_id":"agt7","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"Notification","notification_type":"idle_prompt","cwd":"/tmp/myproject","session_id":"parent14","agent_id":"agt7","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
+@test "subagent_input_required: separate-session subagent PermissionRequest plays input.required" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true, "subagent_input_required": true, "pack_rotation": ["peon","peon"] }
+JSON
+  # Subagent tracked via the SubagentStart timing heuristic rather than agent_id
+  run_peon '{"hook_event_name":"SubagentStart","cwd":"/tmp/myproject","session_id":"parent15","permission_mode":"default"}'
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"sub15","permission_mode":"default"}'
+  # Age the subagent's SessionStart past the 3s replay-suppression window
+  "$PEON_PY" -c "
+import json
+state = json.load(open('$TEST_DIR/.state.json'))
+state.setdefault('session_start_times', {})['sub15'] = 0
+json.dump(state, open('$TEST_DIR/.state.json', 'w'))
+"
+  count_before=$(afplay_call_count)
+  run_peon '{"hook_event_name":"PermissionRequest","cwd":"/tmp/myproject","session_id":"sub15","permission_mode":"default","tool_name":"Bash"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  count_after=$(afplay_call_count)
+  [ "$count_after" -gt "$count_before" ]
+}
+
+@test "subagent_input_required: off by default leaves subagent PermissionRequest suppressed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "suppress_subagent_complete": true }
+JSON
+  run_peon '{"hook_event_name":"Notification","notification_type":"elicitation_dialog","cwd":"/tmp/myproject","session_id":"parent16","agent_id":"agt8","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! afplay_was_called
+}
+
 # ============================================================
 # Update check
 # ============================================================
@@ -3785,6 +3851,34 @@ json.dump(m, open('$TEST_DIR/packs/peon/manifest.json', 'w'))
   [ "$count" -ge 7 ]
 }
 
+@test "mac overlay bundle id falls back to __CFBundleIdentifier for desktop-app hosts" {
+  # Codex desktop and Claude Code desktop run hooks with no TERM_PROGRAM and no
+  # terminal env markers; the only identity they pass down is the app bundle id.
+  export PEON_PLATFORM=mac
+  mkdir -p "$TEST_DIR/scripts"
+  touch "$TEST_DIR/scripts/mac-overlay.js"
+  export __CFBundleIdentifier=com.anthropic.claudefordesktop
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/overlay.log" ]
+  args=$(tail -1 "$TEST_DIR/overlay.log")
+  [[ "$args" == *"com.anthropic.claudefordesktop"* ]]
+}
+
+@test "mac overlay bundle id prefers a known terminal over __CFBundleIdentifier" {
+  # A terminal-hosted session still resolves through the TERM_PROGRAM table.
+  export PEON_PLATFORM=mac
+  mkdir -p "$TEST_DIR/scripts"
+  touch "$TEST_DIR/scripts/mac-overlay.js"
+  export TERM_PROGRAM=Apple_Terminal
+  export __CFBundleIdentifier=com.openai.codex
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  args=$(tail -1 "$TEST_DIR/overlay.log")
+  [[ "$args" == *"com.apple.Terminal"* ]]
+  [[ "$args" != *"com.openai.codex"* ]]
+}
+
 @test "mac overlay IDE PID argument is numeric" {
   export PEON_PLATFORM=mac
   mkdir -p "$TEST_DIR/scripts"
@@ -4784,6 +4878,42 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   afplay_was_called
+}
+
+# Linux: the pw-dump mock prints this PipeWire graph fixture, one mic node.
+_write_pw_dump_fixture() {
+  # $1 = "running" | "suspended"
+  printf '%s' '[{"type":"PipeWire:Interface:Node","info":{"state":"'"$1"'","props":{"media.class":"Audio/Source"}}}]' > "$TEST_DIR/pw-dump.json"
+}
+
+@test "Linux meeting_detect skips sound while the mic is in use" {
+  export PEON_PLATFORM=linux
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['meeting_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_pw_dump_fixture running
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! linux_audio_was_called
+}
+
+@test "Linux meeting_detect plays sound while the mic is idle" {
+  export PEON_PLATFORM=linux
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['meeting_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_pw_dump_fixture suspended
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  linux_audio_was_called
 }
 
 # ============================================================

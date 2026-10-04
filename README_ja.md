@@ -125,13 +125,13 @@ nix develop  # or use direnv
 { inputs, pkgs, ... }:
 
 let
-  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/cursor.sh";
+  peonCursorAdapterPath = "${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/cursor.sh";
 in {
   imports = [ inputs.peon-ping.homeManagerModules.default ];
 
   programs.peon-ping = {
     enable = true;
-    package = inputs.peon-ping.packages.${pkgs.system}.default;
+    package = inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default;
     claudeCodeIntegration = true;
 
     settings = {
@@ -201,7 +201,7 @@ in {
 
 **その他の IDE フック**: peon-ping と無関係な IDE 設定を上書きしないよう、その他の IDE フックは引き続き任意です。peon-ping は [`adapters/`](https://github.com/PeonPing/peon-ping/tree/main/adapters) 配下に `cursor.sh` などのアダプタースクリプトを提供しており、次のように接続できます：
   ```sh
-  ${inputs.peon-ping.packages.${pkgs.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
+  ${inputs.peon-ping.packages.${pkgs.stdenv.hostPlatform.system}.default}/share/peon-ping/adapters/$YOUR_IDE.sh EVENT_NAME
   ```
   上記の Cursor の例を参照してください
 
@@ -350,6 +350,7 @@ peon-ping には3つの独立したコントロールがあり、自由に組み
 - **silent_window_seconds**: N 秒未満のタスクの `task.complete` サウンドと通知を抑制（例: `10` にすると10秒以上かかるタスクのみサウンドが再生される）
 - **session_start_cooldown_seconds**（数値、デフォルト: `30`）: 複数のワークスペースが同時に起動した時（例: OpenCode や Cursor で複数フォルダを開いた時）の挨拶サウンドの重複を排除。最初のセッション開始のみ挨拶が再生され、このウィンドウ内の後続セッションは無音。`0` に設定すると重複排除を無効にし、常に挨拶を再生。
 - **suppress_subagent_complete**（ブール値、デフォルト: `false`）: サブエージェントセッション終了時の `task.complete` サウンドと通知を抑制。Claude Code の Task ツールが並列サブエージェントを起動すると、各サブエージェントの完了時にサウンドが鳴ります — `true` に設定すると親セッションの完了サウンドのみ再生。
+- **subagent_input_required**（ブール値、デフォルト: `false`）: `suppress_subagent_complete: true` のときのみ有効。Claude Code はサブエージェントの権限確認（および MCP の elicitation ダイアログ）を親セッションに転送し、あなたが応答するまでサブエージェントは待機します。`true` に設定すると、これらのプロンプトでは `input.required` サウンドと通知が引き続き鳴り、他のサブエージェントイベントはすべて無音のままになります。
 - **default_pack**: より具体的なルールがない場合に使用されるフォールバックパック（デフォルト: `"peon"`）。旧 `active_pack` キーを置き換え — 既存の設定は `peon update` 時に自動移行。
 - **path_rules**: `{ "pattern": "...", "pack": "..." }` オブジェクトの配列。作業ディレクトリに基づいてグロブマッチング（`*`、`?`）でセッションにパックを割り当て。最初にマッチしたルールが適用。`pack_rotation` と `default_pack` より優先されますが、`session_override` には劣後します。
   ```json
