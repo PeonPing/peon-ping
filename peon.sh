@@ -6323,12 +6323,14 @@ if category and not paused:
             state_dirty = True
             file_ref = str(pick.get('file', ''))
             if '/' in file_ref:
-                candidate = os.path.realpath(os.path.join(pack_dir, file_ref))
+                sound_path = os.path.join(pack_dir, file_ref)
             else:
-                candidate = os.path.realpath(os.path.join(pack_dir, 'sounds', file_ref))
+                sound_path = os.path.join(pack_dir, 'sounds', file_ref)
+            candidate = os.path.realpath(sound_path)
             pack_root = os.path.realpath(pack_dir) + os.sep
             if candidate.startswith(pack_root):
-                sound_file = candidate
+                # Preserve the install path so relay requests stay relative when packs is a symlink.
+                sound_file = sound_path
             # Icon resolution chain (CESP §5.5)
             icon_candidate = ''
             if pick.get('icon'):
