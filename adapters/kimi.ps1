@@ -1,14 +1,27 @@
 # peon-ping adapter for Kimi Code CLI (MoonshotAI) (Windows)
-# Watches ~/.kimi/sessions/ for Wire Mode events (wire.jsonl)
-# and translates them into peon.ps1 CESP events.
+# Translates Kimi Code hook events into peon.ps1 stdin JSON.
 #
-# Uses System.IO.FileSystemWatcher (native .NET) instead of fswatch/inotifywait.
+# Kimi Code ships a native hook system: `[[hooks]]` entries in
+# ~/.kimi-code/config.toml run a shell command and deliver the event as JSON on
+# stdin. The payload keys are snake_case (`hook_event_name`, `session_id`,
+# `cwd`, `tool_name`, `tool_input`), which is already the shape peon.ps1 reads,
+# so this adapter only has to prefix the session id, tag the source, and drop
+# the events that would be noise.
+#
+# Docs: https://moonshotai.github.io/kimi-code/en/customization/hooks
 #
 # Usage:
-#   powershell -NoProfile -File adapters/kimi.ps1              # foreground
-#   powershell -NoProfile -File adapters/kimi.ps1 --install    # background daemon
-#   powershell -NoProfile -File adapters/kimi.ps1 --uninstall  # stop daemon
-#   powershell -NoProfile -File adapters/kimi.ps1 --status     # check daemon
+#   powershell -NoProfile -File adapters/kimi.ps1 -Install     Register hooks
+#   powershell -NoProfile -File adapters/kimi.ps1 -Uninstall   Remove them
+#   powershell -NoProfile -File adapters/kimi.ps1 -Status      Report state
+#   powershell -NoProfile -File adapters/kimi.ps1              Hook mode (stdin)
+#
+# -Install and -Uninstall also reap the watcher daemon this adapter used to be,
+# so updating from v2.37.0 or earlier does not leave it running.
+#
+# Kimi treats a hook exit code of 2 as "block this operation" on UserPromptSubmit,
+# PreToolUse and Stop, so every path here exits 0 and peon.ps1's stdout is
+# discarded.
 
 param(
     [switch]$Install,
@@ -19,312 +32,354 @@ param(
 
 $ErrorActionPreference = "SilentlyContinue"
 
-# --- Config ---
-$PeonDir = if ($env:CLAUDE_PEON_DIR) { $env:CLAUDE_PEON_DIR }
-           else { Join-Path $env:USERPROFILE ".claude\hooks\peon-ping" }
+# --- Locations ---------------------------------------------------------------
 
-$KimiDir = if ($env:KIMI_DIR) { $env:KIMI_DIR }
-           else { Join-Path $env:USERPROFILE ".kimi" }
-
-$SessionsDir = if ($env:KIMI_SESSIONS_DIR) { $env:KIMI_SESSIONS_DIR }
-               else { Join-Path $KimiDir "sessions" }
-
-$StopCooldown = if ($env:KIMI_STOP_COOLDOWN) { [int]$env:KIMI_STOP_COOLDOWN } else { 10 }
-$ClearGraceSeconds = if ($env:KIMI_CLEAR_GRACE) { [int]$env:KIMI_CLEAR_GRACE } else { 5 }
-
-$PidFile = Join-Path $PeonDir ".kimi-adapter.pid"
-$LogFile = Join-Path $PeonDir ".kimi-adapter.log"
+# Prefer the env var, then this script's own install root (adapters/..), so a
+# non-default install keeps working without embedding env vars in the TOML.
+$PeonDir = $env:CLAUDE_PEON_DIR
+if (-not $PeonDir) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    if ($scriptDir) { $PeonDir = Split-Path -Parent $scriptDir }
+}
+if (-not $PeonDir) { $PeonDir = Join-Path $env:USERPROFILE ".claude\hooks\peon-ping" }
 
 $PeonScript = Join-Path $PeonDir "peon.ps1"
 
-# --- Help ---
-if ($Help) {
-    Write-Host "Usage: powershell -NoProfile -File kimi.ps1 [--install|--uninstall|--status]"
-    Write-Host ""
-    Write-Host "  --install       Start Kimi Code watcher as a background daemon"
-    Write-Host "  --uninstall     Stop the background daemon"
-    Write-Host "  --status        Check if the daemon is running"
-    Write-Host "  (no args)       Run in foreground (Ctrl+C to stop)"
-    exit 0
+# Kimi Code lives in ~/.kimi-code. ~/.kimi is the older kimi-cli; prefer the
+# former and fall back so an existing kimi-cli install keeps working.
+$KimiDir = $env:KIMI_DIR
+if (-not $KimiDir) {
+    $kimiCode = Join-Path $env:USERPROFILE ".kimi-code"
+    $kimiLegacy = Join-Path $env:USERPROFILE ".kimi"
+    if (Test-Path (Join-Path $kimiCode "config.toml")) { $KimiDir = $kimiCode }
+    elseif (Test-Path (Join-Path $kimiLegacy "config.toml")) { $KimiDir = $kimiLegacy }
+    # Neither home holds a config yet. An existing kimi-cli one still beats
+    # creating a Kimi Code config that nothing on this machine reads.
+    elseif ((-not (Test-Path $kimiCode)) -and (Test-Path $kimiLegacy)) { $KimiDir = $kimiLegacy }
+    else { $KimiDir = $kimiCode }
 }
 
-# --- Daemon management ---
-if ($Uninstall) {
-    if (Test-Path $PidFile) {
-        $pid = Get-Content $PidFile -ErrorAction SilentlyContinue
-        if ($pid) {
-            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
-            if ($proc) {
-                Stop-Process -Id $pid -Force
-                Remove-Item $PidFile -Force
-                Write-Host "peon-ping Kimi adapter stopped (PID $pid)"
-            } else {
-                Remove-Item $PidFile -Force
-                Write-Host "peon-ping Kimi adapter was not running (stale PID file removed)"
-            }
-        }
+$KimiConfig = $env:KIMI_CONFIG
+if (-not $KimiConfig) { $KimiConfig = Join-Path $KimiDir "config.toml" }
+
+$BeginMarker = "# peon-ping Kimi hooks begin"
+$EndMarker   = "# peon-ping Kimi hooks end"
+
+# Leftovers from the watcher daemon this adapter replaced. See
+# Stop-LegacyWatcher below.
+$LegacyPidFile = Join-Path $PeonDir ".kimi-adapter.pid"
+$LegacyLogFile = Join-Path $PeonDir ".kimi-adapter.log"
+
+# Events peon-ping registers, out of the sixteen in Kimi's HOOK_EVENT_TYPES.
+# PreToolUse/PostToolUse fire on every tool call, PostCompact duplicates
+# PreCompact, and Interrupt/Notification have no CESP category, so those five
+# stay unregistered. PermissionResult is registered but silent: it maps to
+# PreToolUse so the tab title stops saying "needs approval" once the prompt is
+# answered.
+$HookEvents = @(
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "Stop",
+    "StopFailure",
+    "PermissionRequest",
+    "PermissionResult",
+    "PostToolUseFailure",
+    "SubagentStart",
+    "SubagentStop",
+    "PreCompact"
+)
+
+function Get-Field($obj, [string]$name) {
+    if ($null -eq $obj) { return $null }
+    $prop = $obj.PSObject.Properties[$name]
+    if ($null -eq $prop) { return $null }
+    return $prop.Value
+}
+
+function Get-ErrorText($value) {
+    # PostToolUseFailure carries `error` as an object -- Kimi 0.41 sends
+    # { code, message, retryable } -- so pull the message out rather than
+    # stringifying the whole thing into "@{code=...; message=...}". The text
+    # reaches a notification and a tab title, so collapse its whitespace.
+    if ($null -eq $value) { return "" }
+    $text = ""
+    if ($value -is [string]) {
+        $text = $value
     } else {
-        Write-Host "peon-ping Kimi adapter is not running (no PID file)"
+        $message = Get-Field $value 'message'
+        if ($message) { $text = "$message" }
+        elseif ($value -isnot [System.Management.Automation.PSCustomObject]) { $text = "$value" }
     }
+    return ($text -replace '\s+', ' ').Trim()
+}
+
+function Stop-LegacyWatcher {
+    # Up to v2.37.0 this adapter was a filesystem watcher daemon holding a
+    # pidfile. An update only replaces the script on disk, so that process
+    # survives it and keeps piping its own events to peon.ps1 -- every sound
+    # twice once the hooks are live. Reap it before registering them.
+    if (-not (Test-Path $LegacyPidFile)) {
+        Remove-Item $LegacyLogFile -Force -ErrorAction SilentlyContinue
+        return
+    }
+
+    $stopped = $false
+    $pidText = (Get-Content -LiteralPath $LegacyPidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $legacyPid = 0
+    if ([int]::TryParse("$pidText".Trim(), [ref]$legacyPid) -and $legacyPid -gt 0) {
+        $proc = Get-Process -Id $legacyPid -ErrorAction SilentlyContinue
+        # A pid outlives the process that wrote it, so only stop one that still
+        # looks like the watcher rather than whatever inherited the number.
+        if ($proc -and $proc.ProcessName -match '^(powershell|pwsh)$') {
+            Stop-Process -Id $legacyPid -Force -ErrorAction SilentlyContinue
+            $stopped = $true
+        }
+    }
+
+    Remove-Item $LegacyPidFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $LegacyLogFile -Force -ErrorAction SilentlyContinue
+    if ($stopped) {
+        Write-Host "Stopped the old Kimi watcher daemon (native hooks replace it)"
+    }
+}
+
+function Get-StrippedConfig([string]$path) {
+    # Return the config's lines with any previously installed block removed,
+    # marker lines included.
+    if (-not (Test-Path $path)) { return @() }
+    $kept = New-Object System.Collections.Generic.List[string]
+    $skip = $false
+    foreach ($line in (Get-Content -LiteralPath $path)) {
+        if ($line.StartsWith($BeginMarker)) {
+            # -Install writes exactly one blank separator line ahead of the
+            # marker, so take that one back with the block -- and only that one,
+            # or -Uninstall would eat a blank line the config already had.
+            if ($kept.Count -gt 0 -and [string]::IsNullOrWhiteSpace($kept[$kept.Count - 1])) {
+                $kept.RemoveAt($kept.Count - 1)
+            }
+            $skip = $true
+            continue
+        }
+        if ($line.StartsWith($EndMarker))   { $skip = $false; continue }
+        if (-not $skip) { $kept.Add($line) }
+    }
+    return $kept.ToArray()
+}
+
+function Get-ConfigNewline([string]$path) {
+    # Kimi writes config.toml from Node, so the file may well be LF even on
+    # Windows. Rewriting it wholesale in CRLF would touch every line, so keep
+    # whatever the file already uses.
+    if (Test-Path $path) {
+        $raw = [System.IO.File]::ReadAllText($path)
+        if ($raw.Contains("`r`n")) { return "`r`n" }
+        if ($raw.Contains("`n"))   { return "`n" }
+    }
+    return [Environment]::NewLine
+}
+
+function Write-ConfigLines([string]$path, [string[]]$lines, [string]$newline) {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    # No lines means the config held nothing but our block: leave it empty
+    # rather than writing a lone newline into it.
+    $text = if ($lines.Count -gt 0) { ($lines -join $newline) + $newline } else { "" }
+    [System.IO.File]::WriteAllText($path, $text, $utf8NoBom)
+}
+
+function ConvertTo-TomlString([string]$value) {
+    # A literal string takes a Windows path verbatim; a basic string would read
+    # every backslash as an escape. Only a path containing a single quote --
+    # which a literal string cannot express -- falls back to a basic string.
+    if ($value.Contains("'")) {
+        $escaped = $value.Replace('\', '\\').Replace('"', '\"')
+        return '"' + $escaped + '"'
+    }
+    return "'" + $value + "'"
+}
+
+# --- Management modes --------------------------------------------------------
+
+if ($Help) {
+    Write-Host "Usage: powershell -NoProfile -File kimi.ps1 [-Install|-Uninstall|-Status]"
+    Write-Host ""
+    Write-Host "  -Install     Register peon-ping hooks in $KimiConfig"
+    Write-Host "  -Uninstall   Remove them"
+    Write-Host "  -Status      Report whether they are registered"
+    Write-Host "  (no args)    Hook mode: read one Kimi event as JSON on stdin and forward it"
     exit 0
 }
 
 if ($Status) {
-    if (Test-Path $PidFile) {
-        $pid = Get-Content $PidFile -ErrorAction SilentlyContinue
-        $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
-        if ($proc) {
-            Write-Host "peon-ping Kimi adapter is running (PID $pid)"
-            exit 0
-        } else {
-            Remove-Item $PidFile -Force
-            Write-Host "peon-ping Kimi adapter is not running (stale PID file removed)"
-            exit 1
+    if ((Test-Path $KimiConfig) -and (Select-String -LiteralPath $KimiConfig -SimpleMatch $BeginMarker -Quiet)) {
+        $count = 0
+        $inBlock = $false
+        foreach ($line in (Get-Content -LiteralPath $KimiConfig)) {
+            if ($line.StartsWith($BeginMarker)) { $inBlock = $true; continue }
+            if ($line.StartsWith($EndMarker))   { $inBlock = $false; continue }
+            if ($inBlock -and $line.StartsWith("event = ")) { $count++ }
         }
-    } else {
-        Write-Host "peon-ping Kimi adapter is not running"
-        exit 1
+        Write-Host "peon-ping hooks registered in $KimiConfig ($count events)"
+        exit 0
     }
-}
-
-if ($Install) {
-    if (Test-Path $PidFile) {
-        $oldPid = Get-Content $PidFile -ErrorAction SilentlyContinue
-        $proc = Get-Process -Id $oldPid -ErrorAction SilentlyContinue
-        if ($proc) {
-            Write-Host "peon-ping Kimi adapter already running (PID $oldPid)"
-            exit 0
-        }
-        Remove-Item $PidFile -Force
-    }
-
-    $scriptPath = $MyInvocation.MyCommand.Path
-    $proc = Start-Process -WindowStyle Hidden -FilePath "powershell" `
-        -ArgumentList "-NoProfile", "-File", "`"$scriptPath`"" `
-        -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $LogFile
-    Set-Content -Path $PidFile -Value $proc.Id
-    Write-Host "peon-ping Kimi adapter started (PID $($proc.Id))"
-    Write-Host "  Watching: $SessionsDir"
-    Write-Host "  Log: $LogFile"
-    Write-Host "  Stop: powershell -NoProfile -File $scriptPath -Uninstall"
-    exit 0
-}
-
-# --- Preflight ---
-if (-not (Test-Path $PeonScript)) {
-    Write-Host "peon.ps1 not found at $PeonScript" -ForegroundColor Red
+    Write-Host "peon-ping hooks not registered in $KimiConfig"
     exit 1
 }
 
-if (-not (Test-Path $SessionsDir)) {
-    Write-Host "Kimi sessions directory not found: $SessionsDir" -ForegroundColor Yellow
-    Write-Host "Waiting for Kimi Code to create it..."
-    while (-not (Test-Path $SessionsDir)) {
-        Start-Sleep -Seconds 2
+if ($Uninstall) {
+    Stop-LegacyWatcher
+    if (-not (Test-Path $KimiConfig)) {
+        Write-Host "Nothing to remove ($KimiConfig does not exist)."
+        exit 0
     }
-    Write-Host "Sessions directory detected."
-}
-
-# --- State tracking ---
-$sessionState = @{}      # uuid -> "new" or "active"
-$sessionStopTime = @{}   # uuid -> epoch of last Stop emission
-$sessionOffset = @{}     # uuid -> byte offset in wire.jsonl
-$lastNewSession = $null  # @{ uuid = "..."; timestamp = epoch } for /clear detection
-
-# Record existing session UUIDs and set offsets to end of file
-Get-ChildItem -Path $SessionsDir -Recurse -Filter "wire.jsonl" -File 2>$null | ForEach-Object {
-    $uuid = $_.Directory.Name
-    $sessionState[$uuid] = "active"
-    $sessionOffset[$uuid] = $_.Length
-}
-
-# --- Resolve CWD from workspace hash ---
-function Resolve-KimiCwd {
-    param([string]$WorkspaceHash)
-    $kimiConfig = Join-Path $KimiDir "kimi.json"
-    if (-not (Test-Path $kimiConfig)) { return $PWD.Path }
-    try {
-        $data = Get-Content $kimiConfig -Raw | ConvertFrom-Json
-        foreach ($wd in $data.work_dirs) {
-            $path = $wd.path
-            $md5 = [System.Security.Cryptography.MD5]::Create()
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($path)
-            $hash = ($md5.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") }) -join ""
-            if ($hash -eq $WorkspaceHash) {
-                return $path
-            }
-        }
-    } catch { if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping: [kimi] Resolve-KimiCwd failed: $_" } }
-    return $PWD.Path
-}
-
-# --- Emit a peon.ps1 event ---
-function Emit-Event {
-    param([string]$EventName, [string]$SessionId, [string]$Cwd)
-    $payload = @{
-        hook_event_name   = $EventName
-        notification_type = ""
-        cwd               = $Cwd
-        session_id        = $SessionId
-        permission_mode   = ""
-        source            = "kimi"
-    } | ConvertTo-Json -Compress
-    $payload | powershell -NoProfile -NonInteractive -File $PeonScript 2>$null
-}
-
-# --- Process a single wire.jsonl line ---
-function Process-WireLine {
-    param([string]$Line, [string]$Uuid, [string]$Cwd)
-    try {
-        $data = $Line | ConvertFrom-Json
-        $msg = $data.message
-        if (-not $msg) { return $null }
-        $eventType = $msg.type
-
-        # Map wire events to peon.ps1 event names
-        $mapped = switch ($eventType) {
-            "TurnEnd"         { "Stop" }
-            "CompactionBegin" { "PreCompact" }
-            "TurnBegin"       { "TurnBegin" }
-            "SubagentEvent"   {
-                $nested = $msg.payload.message
-                if ($nested -and $nested.type -eq "TurnBegin") { "SubagentStart" }
-                else { $null }
-            }
-            default { $null }
-        }
-
-        if (-not $mapped) { return $null }
-
-        return @{
-            event      = $mapped
-            session_id = "kimi-$($Uuid.Substring(0, [Math]::Min(8, $Uuid.Length)))"
-            cwd        = $Cwd
-        }
-    } catch {
-        return $null
+    if (-not (Select-String -LiteralPath $KimiConfig -SimpleMatch $BeginMarker -Quiet)) {
+        Write-Host "Nothing to remove (no peon-ping block found)."
+        exit 0
     }
+    $nl = Get-ConfigNewline $KimiConfig
+    Write-ConfigLines $KimiConfig (Get-StrippedConfig $KimiConfig) $nl
+    Write-Host "Removed peon-ping hooks from $KimiConfig"
+    exit 0
 }
 
-# --- Handle a wire.jsonl file change ---
-function Handle-WireChange {
-    param([string]$FilePath)
-    $fname = Split-Path $FilePath -Leaf
-    if ($fname -ne "wire.jsonl") { return }
-
-    # Extract workspace_hash and session_uuid from path
-    $sessionDir = Split-Path $FilePath -Parent
-    $uuid = Split-Path $sessionDir -Leaf
-    if (-not $uuid) { return }
-    $workspaceDir = Split-Path $sessionDir -Parent
-    $workspaceHash = Split-Path $workspaceDir -Leaf
-
-    $cwd = Resolve-KimiCwd $workspaceHash
-
-    # Read new lines
-    $prevOffset = if ($sessionOffset.ContainsKey($uuid)) { $sessionOffset[$uuid] } else { 0 }
-    $fileSize = (Get-Item $FilePath).Length
-    if ($fileSize -le $prevOffset) { return }
-
-    try {
-        $fs = [System.IO.FileStream]::new($FilePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
-        $fs.Seek($prevOffset, [System.IO.SeekOrigin]::Begin) | Out-Null
-        $reader = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8)
-        $newContent = $reader.ReadToEnd()
-        $reader.Close()
-        $fs.Close()
-    } catch {
-        return
+if ($Install) {
+    if (-not (Test-Path $PeonScript)) {
+        # $ErrorActionPreference is SilentlyContinue for hook mode, which would
+        # swallow Write-Error, so report the failure on the host stream.
+        Write-Host "peon.ps1 not found at $PeonScript" -ForegroundColor Red
+        exit 1
     }
+    Stop-LegacyWatcher
+    if (-not (Test-Path $KimiDir)) { New-Item -ItemType Directory -Path $KimiDir -Force | Out-Null }
 
-    $sessionOffset[$uuid] = $fileSize
+    $adapterPath = $MyInvocation.MyCommand.Path
+    if (-not $adapterPath) { $adapterPath = Join-Path $PeonDir "adapters\kimi.ps1" }
 
-    # Process each new line
-    foreach ($line in $newContent -split "`n") {
-        $line = $line.Trim()
-        if (-not $line) { continue }
+    $nl = Get-ConfigNewline $KimiConfig
 
-        $parsed = Process-WireLine $line $uuid $cwd
-        if (-not $parsed) { continue }
+    # Rewriting from scratch keeps -Install idempotent.
+    $lines = New-Object System.Collections.Generic.List[string]
+    foreach ($line in (Get-StrippedConfig $KimiConfig)) { $lines.Add($line) }
 
-        $event = $parsed.event
-        $sessionId = $parsed.session_id
-        $eventCwd = $parsed.cwd
+    # Kimi spawns the hook with Node's `shell: true`, which on Windows means
+    # `cmd.exe /d /s /c "<command>"`. cmd splits on spaces, so the adapter path
+    # has to carry its own quotes or an install under "C:\Users\First Last\..."
+    # never starts.
+    $command = "powershell -NoProfile -NonInteractive -File `"$adapterPath`""
 
-        $prev = $sessionState[$uuid]
-
-        switch ($event) {
-            "TurnBegin" {
-                if (-not $prev) {
-                    # Brand new session
-                    $sessionState[$uuid] = "active"
-                    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-                    $script:lastNewSession = @{ uuid = $uuid; timestamp = $now }
-                    Write-Host "> New Kimi session: $($uuid.Substring(0, [Math]::Min(8, $uuid.Length)))"
-                    Emit-Event "SessionStart" $sessionId $eventCwd
-                } else {
-                    # Subsequent turn
-                    $sessionState[$uuid] = "active"
-                    Emit-Event "UserPromptSubmit" $sessionId $eventCwd
-                }
-            }
-            "Stop" {
-                $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-                $lastStop = if ($sessionStopTime.ContainsKey($uuid)) { $sessionStopTime[$uuid] } else { 0 }
-                if (($now - $lastStop) -lt $StopCooldown) { continue }
-
-                # Suppress Stop for old session when /clear just created a new one
-                if ($script:lastNewSession -and $script:lastNewSession.uuid -ne $uuid) {
-                    if (($now - $script:lastNewSession.timestamp) -lt $ClearGraceSeconds) {
-                        Write-Host "> Suppressed Stop for $($uuid.Substring(0, [Math]::Min(8, $uuid.Length))) (/clear detected)"
-                        continue
-                    }
-                }
-
-                $sessionStopTime[$uuid] = $now
-                $sessionState[$uuid] = "active"
-                Write-Host "> Agent finished turn: $($uuid.Substring(0, [Math]::Min(8, $uuid.Length)))"
-                Emit-Event "Stop" $sessionId $eventCwd
-            }
-            "PreCompact" {
-                Write-Host "> Context compaction: $($uuid.Substring(0, [Math]::Min(8, $uuid.Length)))"
-                Emit-Event "PreCompact" $sessionId $eventCwd
-            }
-            "SubagentStart" {
-                Write-Host "> Sub-agent started: $($uuid.Substring(0, [Math]::Min(8, $uuid.Length)))"
-                Emit-Event "SubagentStart" $sessionId $eventCwd
-            }
-        }
+    $lines.Add("")
+    $lines.Add($BeginMarker)
+    $lines.Add("# install_dir = $PeonDir")
+    foreach ($ev in $HookEvents) {
+        $lines.Add("")
+        $lines.Add("[[hooks]]")
+        $lines.Add("event = `"$ev`"")
+        $lines.Add("command = $(ConvertTo-TomlString $command)")
+        $lines.Add("timeout = 10")
     }
+    $lines.Add("")
+    $lines.Add($EndMarker)
+
+    Write-ConfigLines $KimiConfig $lines.ToArray() $nl
+
+    Write-Host "peon-ping hooks registered for Kimi Code"
+    Write-Host "  config:  $KimiConfig"
+    Write-Host "  adapter: $adapterPath"
+    Write-Host "  events:  $($HookEvents -join ' ')"
+    Write-Host ""
+    Write-Host "Run 'kimi doctor' to validate, then restart Kimi Code."
+    exit 0
 }
 
-# --- Start watching ---
-Write-Host "peon-ping Kimi Code adapter" -ForegroundColor Cyan
-Write-Host "Watching: $SessionsDir"
-Write-Host "Press Ctrl+C to stop."
+# --- Hook mode ---------------------------------------------------------------
 
-$watcher = New-Object System.IO.FileSystemWatcher
-$watcher.Path = $SessionsDir
-$watcher.Filter = "wire.jsonl"
-$watcher.IncludeSubdirectories = $true
-$watcher.NotifyFilter = [System.IO.NotifyFilters]::LastWrite -bor [System.IO.NotifyFilters]::FileName
-$watcher.EnableRaisingEvents = $true
+if (-not (Test-Path $PeonScript)) { exit 0 }
+if (-not [Console]::IsInputRedirected) { exit 0 }
 
-$action = {
-    $path = $Event.SourceEventArgs.FullPath
-    Handle-WireChange $path
-}
-
-Register-ObjectEvent $watcher "Changed" -Action $action | Out-Null
-Register-ObjectEvent $watcher "Created" -Action $action | Out-Null
-
-# Main loop: keep alive
+$inputJson = $null
 try {
-    while ($true) {
-        Start-Sleep -Seconds 1
-    }
-} finally {
-    $watcher.EnableRaisingEvents = $false
-    $watcher.Dispose()
-    Get-EventSubscriber | Unregister-Event
+    $stream = [Console]::OpenStandardInput()
+    $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+    $raw = $reader.ReadToEnd()
+    $reader.Close()
+    if ($raw) { $inputJson = $raw | ConvertFrom-Json }
+} catch {
+    if ($env:PEON_DEBUG -eq "1") { Write-Warning "peon-ping: [kimi] ConvertFrom-Json failed: $_" }
 }
+if ($null -eq $inputJson) { exit 0 }
+
+$event = "$(Get-Field $inputJson 'hook_event_name')".Trim()
+if (-not $event) { exit 0 }
+
+# The five events -Install leaves out. Dropped here too, in case someone wired
+# them by hand.
+$drop = @(
+    "PreToolUse", "PostToolUse", "PostCompact", "Interrupt", "Notification"
+)
+$pass = @(
+    "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop",
+    "PermissionRequest", "PostToolUseFailure", "SubagentStart",
+    "SubagentStop", "PreCompact"
+)
+
+$mapped = $null
+if ($drop -contains $event) {
+    exit 0
+} elseif ($pass -contains $event) {
+    $mapped = $event
+} elseif ($event -eq "StopFailure") {
+    # The turn itself failed. peon.ps1 has no separate category, so borrow the
+    # tool-failure path, which sounds task.error.
+    $mapped = "PostToolUseFailure"
+} elseif ($event -eq "PermissionResult") {
+    # Silent in peon.ps1: only clears the "needs approval" tab title.
+    $mapped = "PreToolUse"
+} else {
+    exit 0
+}
+
+# Kimi ids look like "session_<uuid>"; peon.ps1 infers the IDE from the
+# session_id prefix, so it has to start with "kimi-".
+$rawSid = "$(Get-Field $inputJson 'session_id')"
+$rawSid = $rawSid -replace '^session[_-]', ''
+$safeSid = ($rawSid -replace '[^A-Za-z0-9._:-]', '-').Trim('-')
+if (-not $safeSid) { $safeSid = "$PID" }
+
+$cwd = "$(Get-Field $inputJson 'cwd')"
+if (-not $cwd) { $cwd = $PWD.Path }
+
+$payload = @{
+    hook_event_name   = $mapped
+    notification_type = ""
+    cwd               = $cwd
+    session_id        = "kimi-$safeSid"
+    permission_mode   = "$(Get-Field $inputJson 'permission_mode')"
+    source            = "kimi"
+}
+
+$toolName = "$(Get-Field $inputJson 'tool_name')"
+if ($toolName) { $payload["tool_name"] = $toolName.Substring(0, [Math]::Min(64, $toolName.Length)) }
+
+if ($mapped -eq "PostToolUseFailure") {
+    # peon.ps1 only sounds task.error for a Bash failure carrying error text.
+    # StopFailure has no tool at all and is attributed to Bash the way codex.ps1
+    # does it.
+    if (-not $payload["tool_name"]) { $payload["tool_name"] = "Bash" }
+    $err = Get-ErrorText (Get-Field $inputJson 'error')
+    if (-not $err) { $err = Get-ErrorText (Get-Field $inputJson 'message') }
+    if (-not $err) {
+        if ($event -eq "StopFailure") { $err = "turn failed" }
+        else { $err = "$($payload['tool_name']) failed" }
+    }
+    $payload["error"] = $err.Substring(0, [Math]::Min(180, $err.Length))
+}
+
+$title = "$(Get-Field $inputJson 'session_title')"
+if ($title) { $payload["transcript_summary"] = $title.Substring(0, [Math]::Min(120, $title.Length)) }
+
+$payloadJson = $payload | ConvertTo-Json -Compress
+
+# stdout is swallowed: Kimi parses a hook's stdout as a decision document.
+$payloadJson | powershell -NoProfile -NonInteractive -File $PeonScript 2>$null | Out-Null
+
+exit 0
