@@ -5015,6 +5015,82 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+@test "focus_detect_mode=notifications: Focus still blocks the desktop notification" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+c['focus_detect_mode'] = 'notifications'
+c['notification_style'] = 'standard'
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_focus_fixture inactive
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(wc -l < "$TEST_DIR/terminal_notifier.log")" -eq 1 ]
+
+  _write_focus_fixture active
+  # Clear the 5s Stop debounce, which would otherwise drop the second notification.
+  /usr/bin/python3 -c "
+import json
+s = json.load(open('$TEST_DIR/.state.json'))
+s['last_stop_time'] = 0
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 2 ]
+  [ "$(wc -l < "$TEST_DIR/terminal_notifier.log")" -eq 1 ]
+}
+
+@test "meeting_detect: the mic is only checked when there is a sound to play" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['meeting_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  cat > "$TEST_DIR/scripts/meeting-detect" <<'SCRIPT'
+#!/bin/bash
+echo called >> "$CLAUDE_PEON_DIR/meeting-detect.log"
+echo MIC_NOT_IN_USE
+SCRIPT
+  chmod +x "$TEST_DIR/scripts/meeting-detect"
+
+  # task.acknowledge is off in the test config, so a prompt has nothing to play.
+  run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$TEST_DIR/meeting-detect.log" ]
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(grep -c called "$TEST_DIR/meeting-detect.log")" -eq 1 ]
+}
+
+@test "suppress_sound_when_tab_focused: the terminal is only queried when there is a sound to play" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  mv "$MOCK_BIN/osascript" "$MOCK_BIN/osascript.real"
+  cat > "$MOCK_BIN/osascript" <<'SCRIPT'
+#!/bin/bash
+[[ "$*" == *frontmost* ]] && echo frontmost >> "$CLAUDE_PEON_DIR/frontmost.log"
+exec "$(dirname "$0")/osascript.real" "$@"
+SCRIPT
+  chmod +x "$MOCK_BIN/osascript"
+
+  run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$TEST_DIR/frontmost.log" ]
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/frontmost.log" ]
+}
+
 @test "focus_detect_mode: invalid value falls back to all (suppresses sound)" {
   /usr/bin/python3 -c "
 import json
