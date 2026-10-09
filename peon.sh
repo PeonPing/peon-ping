@@ -6800,31 +6800,6 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
   exit 0
 fi
 
-# --- Auto-prune old log files (non-blocking, when debug logging is enabled) ---
-if [ "${PEON_DEBUG:-0}" = "1" ] || python3 -c "
-import json, os
-config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-exit(0 if cfg.get('debug', False) else 1)
-" 2>/dev/null; then
-  (
-    _retention=$(python3 -c "
-import json, os
-config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-print(cfg.get('debug_retention_days', 7))
-" 2>/dev/null)
-    _retention="${_retention:-7}"
-    _prune_old_logs "$_retention"
-  ) &>/dev/null &
-fi
-
 # Test-mode flag: evaluated once, used for sync/async dispatch and test observability writes.
 _PEON_SYNC=false
 [ "${PEON_TEST:-0}" = "1" ] && _PEON_SYNC=true
