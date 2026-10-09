@@ -6186,6 +6186,23 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ -z "${_PEON_LOG_FILE:-}" ]
 }
 
+@test "debug=false: a hook event starts python3 only once" {
+  # The routing block folds config, state and routing into one python3 call,
+  # and emits PEON_AUTO_PRUNE itself, so nothing else on the event path
+  # should start a second interpreter just to ask whether debug is on.
+  # UserPromptSubmit runs the full path but sends no desktop notification,
+  # whose helper (scripts/notify.sh) starts python3 for its own reasons.
+  cat > "$MOCK_BIN/python3" <<SCRIPT
+#!/bin/bash
+echo "\$1" >> "\$CLAUDE_PEON_DIR/python3.log"
+exec "$PEON_PY" "\$@"
+SCRIPT
+  chmod +x "$MOCK_BIN/python3"
+  run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(wc -l < "$TEST_DIR/python3.log")" -eq 1 ]
+}
+
 # --- PRD-002 Failure Scenario Tests ---
 # 5 scenarios: missing audio backend, bad config, pack not installed, timeout, state locked
 
