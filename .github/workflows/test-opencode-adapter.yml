@@ -12,6 +12,8 @@ on:
       - 'adapters/kilo.ps1'
       - 'tests/opencode-*.test.ts'
       - 'tests/kilo-compatibility.test.ts'
+      - 'adapters/omp/**'
+      - 'tests/omp-*.test.ts'
       - '.github/workflows/test-opencode-adapter.yml'
   push:
     branches: [main]
@@ -24,6 +26,8 @@ on:
       - 'adapters/kilo.ps1'
       - 'tests/opencode-*.test.ts'
       - 'tests/kilo-compatibility.test.ts'
+      - 'adapters/omp/**'
+      - 'tests/omp-*.test.ts'
       - '.github/workflows/test-opencode-adapter.yml'
 
 jobs:

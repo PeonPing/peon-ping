@@ -1087,8 +1087,8 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | omp 事件                               | peon-ping 事件        |
 |----------------------------------------|-----------------------|
 | `session_start`                        | `SessionStart`        |
-| `turn_start`                           | `UserPromptSubmit`    |
-| `turn_end`                             | `Stop`                |
+| `agent_start`                          | `UserPromptSubmit`    |
+| `agent_end` (unless `willContinue`)    | `Stop`                |
 | `tool_result` with `isError: true`     | `PostToolUseFailure`  |
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
