@@ -6829,21 +6829,6 @@ fi
 _PEON_SYNC=false
 [ "${PEON_TEST:-0}" = "1" ] && _PEON_SYNC=true
 
-HEADPHONES_DETECTED=true
-if [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
-  detect_headphones || HEADPHONES_DETECTED=false
-fi
-
-IN_MEETING=false
-if [ "${MEETING_DETECT:-false}" = "true" ]; then
-  detect_meeting && IN_MEETING=true
-fi
-
-IN_FOCUS=false
-if [ "${FOCUS_DETECT:-false}" = "true" ]; then
-  detect_focus && IN_FOCUS=true
-fi
-
 # Resolve session tty early so _run_sound_and_notify can check tab focus
 if [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
   _resolve_session_tty
@@ -7026,25 +7011,35 @@ _run_sound_and_notify() {
   fi
 
   local _focused=""  # lazy: empty = not yet checked
+  local _in_focus=""  # lazy: empty = not yet checked
+
+  # The checks below each start processes (a CoreAudio query, a Focus file
+  # parse, osascript), and most events have nothing to play or show. So run
+  # each one only when its answer could change what happens.
+  local _would_play=false _would_notify=false
+  [ -n "${SOUND_FILE:-}" ] && [ -f "$SOUND_FILE" ] && _would_play=true
+  [ "${TTS_ENABLED:-false}" = "true" ] && [ -n "${TTS_TEXT:-}" ] && _would_play=true
+  [ -n "${NOTIFY:-}" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ] && _would_notify=true
 
   # --- Shared suppression checks (apply to both sound and TTS) ---
   local _skip_sound=false
   # Check headphones_only: skip sound if enabled but no headphones detected
-  if [ "${HEADPHONES_ONLY:-false}" = "true" ] && [ "${HEADPHONES_DETECTED:-true}" = "false" ]; then
-    _skip_sound=true
+  if [ "$_would_play" = "true" ] && [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
+    detect_headphones || _skip_sound=true
   fi
   # Check meeting_detect: skip sound if in a meeting
-  if [ "$_skip_sound" = "false" ] && [ "${MEETING_DETECT:-false}" = "true" ] && [ "${IN_MEETING:-false}" = "true" ]; then
-    _skip_sound=true
+  if [ "$_would_play" = "true" ] && [ "$_skip_sound" = "false" ] && [ "${MEETING_DETECT:-false}" = "true" ]; then
+    detect_meeting && _skip_sound=true
   fi
   # Check focus_detect: skip sound if a macOS Focus / Do Not Disturb mode is
   # active and the suppression scope covers sound (mode 'all' or 'sound').
-  if [ "$_skip_sound" = "false" ] && [ "${FOCUS_DETECT:-false}" = "true" ] && [ "${IN_FOCUS:-false}" = "true" ] \
+  if [ "$_would_play" = "true" ] && [ "$_skip_sound" = "false" ] && [ "${FOCUS_DETECT:-false}" = "true" ] \
      && { [ "${FOCUS_DETECT_MODE:-all}" = "all" ] || [ "${FOCUS_DETECT_MODE:-all}" = "sound" ]; }; then
-    _skip_sound=true
+    [ -z "$_in_focus" ] && { detect_focus && _in_focus=true || _in_focus=false; }
+    [ "$_in_focus" = "true" ] && _skip_sound=true
   fi
   # Check suppress_sound_when_tab_focused: skip sound if tab is focused
-  if [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
+  if [ "$_would_play" = "true" ] && [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
     [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
     [ "$_focused" = "true" ] && _skip_sound=true
   fi
@@ -7087,9 +7082,10 @@ _run_sound_and_notify() {
   # only when the suppression scope covers notifications (mode 'all' or
   # 'notifications').
   local _focus_block=false
-  if [ "${FOCUS_DETECT:-false}" = "true" ] && [ "${IN_FOCUS:-false}" = "true" ] \
+  if [ "$_would_notify" = "true" ] && [ "${FOCUS_DETECT:-false}" = "true" ] \
      && { [ "${FOCUS_DETECT_MODE:-all}" = "all" ] || [ "${FOCUS_DETECT_MODE:-all}" = "notifications" ]; }; then
-    _focus_block=true
+    [ -z "$_in_focus" ] && { detect_focus && _in_focus=true || _in_focus=false; }
+    [ "$_in_focus" = "true" ] && _focus_block=true
   fi
   if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ] && [ "$_focus_block" = "false" ]; then
     local _force_cmux_standard_notify=false
