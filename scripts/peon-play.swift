@@ -12,6 +12,7 @@ import Foundation
 
 var volume: Float = 1.0
 var prerollMs: Double = 300   // silence pushed before the file to cover device wake-up
+var tailMs: Double = 500      // silence pushed after the file to flush device output latency
 var filePath: String?
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -21,13 +22,15 @@ while !args.isEmpty {
         volume = max(0, min(1, Float(args.removeFirst()) ?? 1.0))
     } else if arg == "-p", !args.isEmpty {
         prerollMs = max(0, Double(args.removeFirst()) ?? prerollMs)
+    } else if arg == "-t", !args.isEmpty {
+        tailMs = max(0, Double(args.removeFirst()) ?? tailMs)
     } else if filePath == nil {
         filePath = arg
     }
 }
 
 guard let filePath = filePath else {
-    fputs("Usage: peon-play [-v volume] [-p prerollMs] <file>\n", stderr)
+    fputs("Usage: peon-play [-v volume] [-p prerollMs] [-t tailMs] <file>\n", stderr)
     exit(1)
 }
 
@@ -112,9 +115,22 @@ if prerollFrames > 0,
     playerNode.scheduleBuffer(silence, at: nil, options: [])
 }
 
-playerNode.scheduleFile(audioFile, at: nil, completionCallbackType: .dataPlayedBack) { _ in
+// Tail: .dataPlayedBack fires once the node has rendered the last samples, but
+// the output device (notably Bluetooth, ~200-500ms) still has audio buffered.
+// Exiting then clips the end of the clip. Trailing silence pushes the real
+// audio through the pipeline before we exit.
+let tailFrames = AVAudioFrameCount((format.sampleRate * tailMs / 1000.0).rounded())
+let exitWhenPlayed: AVAudioPlayerNodeCompletionHandler = { _ in
     // Dispatch exit off the audio thread to avoid deadlock
     DispatchQueue.main.async { exit(0) }
+}
+if tailFrames > 0,
+   let tail = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: tailFrames) {
+    tail.frameLength = tailFrames
+    playerNode.scheduleFile(audioFile, at: nil, completionHandler: nil)
+    playerNode.scheduleBuffer(tail, at: nil, options: [], completionCallbackType: .dataPlayedBack, completionHandler: exitWhenPlayed)
+} else {
+    playerNode.scheduleFile(audioFile, at: nil, completionCallbackType: .dataPlayedBack, completionHandler: exitWhenPlayed)
 }
 playerNode.play()
 
