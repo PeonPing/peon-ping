@@ -5074,6 +5074,29 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+@test "terminal lookup reads the process table once, not twice per ancestor" {
+  # Tab-focus suppression resolves the session tty a second time, so this
+  # also checks that the second lookup reuses the first walk.
+  "$PEON_PY" -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  unset TMUX
+  cat > "$MOCK_BIN/ps" <<'SCRIPT'
+#!/bin/bash
+echo "$*" >> "$TEST_DIR/ps.log"
+exec /bin/ps "$@"
+SCRIPT
+  chmod +x "$MOCK_BIN/ps"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(grep -c -- '-A -o pid=,ppid=,tty=' "$TEST_DIR/ps.log")" -eq 1 ]
+  [ "$(grep -c -- '-o tty=$' "$TEST_DIR/ps.log")" -eq 0 ]
+}
+
 @test "Linux focus detection uses xdotool window class for zellij in Alacritty" {
   export PEON_PLATFORM=linux
   export XDG_SESSION_TYPE=x11

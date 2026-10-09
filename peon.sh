@@ -992,18 +992,47 @@ _resolve_session_tty() {
     # Claude Code spawns hooks from worker processes that may have their own
     # ptys, so the first tty in the tree is often a worker pty, not the
     # terminal tty. The highest ancestor with a tty is the terminal session.
-    local walk_pid="$PPID" last_tty=""
-    while [ "$walk_pid" -gt 1 ] 2>/dev/null; do
-      local walk_tty
-      walk_tty=$(ps -p "$walk_pid" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-      if [ -n "$walk_tty" ] && [ "$walk_tty" != "??" ]; then
-        last_tty="/dev/$walk_tty"
-      fi
-      walk_pid=$(ps -p "$walk_pid" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-    done
-    PEON_SESSION_TTY="$last_tty"
+    # The hook has usually done this exact walk already (_PEON_HOOK_TTY, same
+    # $PPID, same rule), so reuse it; the CLI paths that get here first walk now.
+    local last_tty
+    if [ -n "${_PEON_HOOK_TTY+set}" ]; then
+      last_tty="$_PEON_HOOK_TTY"
+    else
+      last_tty=$(_peon_walk_tty)
+    fi
+    PEON_SESSION_TTY="${last_tty:+/dev/$last_tty}"
   fi
   export PEON_SESSION_TTY
+}
+
+# Prints the tty of the highest ancestor process that has one (see above for
+# why the highest). Runs on every hook event, so it reads the process table
+# with one `ps` and walks it in awk: the old walk ran a `ps | sed` pair twice
+# per ancestor, about 50 processes per event.
+_peon_walk_tty() {
+  local _w="${PPID:-}" _last="" _t
+  _last=$(ps -A -o pid=,ppid=,tty= 2>/dev/null | awk -v p="$_w" '
+    { pp[$1] = $2; tt[$1] = $3 }
+    END {
+      if (NR == 0) { print "-"; exit }   # no table: tell the caller to fall back
+      last = ""
+      # The step cap only guards against a malformed table that loops.
+      for (n = 0; p + 0 > 1 && (p in pp) && n < 256; n++) {
+        if (tt[p] != "" && tt[p] != "??") last = tt[p]
+        p = pp[p]
+      }
+      print last
+    }')
+  if [ "$_last" = "-" ]; then
+    # No process table (a ps without -A or -o): walk with one ps per step.
+    _last=""
+    while [ -n "$_w" ] && [ "$_w" -gt 1 ] 2>/dev/null; do
+      _t=$(ps -p "$_w" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+      [ -n "$_t" ] && [ "$_t" != "??" ] && _last="$_t"
+      _w=$(ps -p "$_w" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+    done
+  fi
+  echo "$_last"
 }
 
 # --- Ghostty active terminal match (best-effort) ---
@@ -5260,16 +5289,7 @@ PAUSED=false
 # Walk the process tree to find the terminal TTY — stable across /clear (the process tree doesn't
 # change when session_id resets) and unique per terminal tab (each tab has its own PTY).
 # Using raw $PPID was unreliable because hooks run from worker subprocesses whose PIDs change per event.
-_peon_walk_tty() {
-  local _w="${PPID:-}" _last=""
-  while [ -n "$_w" ] && [ "$_w" -gt 1 ] 2>/dev/null; do
-    local _t
-    _t=$(ps -p "$_w" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-    [ -n "$_t" ] && [ "$_t" != "??" ] && _last="$_t"
-    _w=$(ps -p "$_w" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-  done
-  echo "$_last"
-}
+# (_peon_walk_tty is defined next to _resolve_session_tty.)
 _PEON_HOOK_TTY=$(_peon_walk_tty)
 export PEON_ENV_PAUSED="$PAUSED"
 export PEON_ENV_HOOK_TTY="$_PEON_HOOK_TTY"

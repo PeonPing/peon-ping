@@ -13,10 +13,16 @@ setup() {
 }
 JSON
   # Each invocation has a controlled terminal identity, including no terminal.
+  # The hook walks one `ps -A` table: keep the real parent chain and give every
+  # process the test's terminal. The per-pid cases serve the fallback walk.
   export TEST_HOOK_TTY=""
   cat > "$MOCK_BIN/ps" <<'SCRIPT'
 #!/bin/bash
 case "$*" in
+  "-A -o pid=,ppid=,tty=")
+    /bin/ps -A -o pid=,ppid= | while read -r pid ppid; do
+      printf '%s %s %s\n' "$pid" "$ppid" "${TEST_HOOK_TTY:-??}"
+    done ;;
   *"-o tty="*) printf '%s\n' "$TEST_HOOK_TTY" ;;
   *"-o ppid="*) echo 1 ;;
   *) /bin/ps "$@" ;;
@@ -115,6 +121,37 @@ PYTHON
   run_peon '{"hook_event_name":"SessionStart","source":"compact","cwd":"/tmp/project","session_id":"compacted"}'
   assert_session_pack compacted peon
   [ "$(afplay_call_count)" = "$count_before" ]
+}
+
+# A ps that rejects -A makes the hook fall back to one lookup per ancestor.
+use_ps_without_list_all() {
+  cat > "$MOCK_BIN/ps" <<'SCRIPT'
+#!/bin/bash
+case "$*" in
+  *"-A"*) exit 1 ;;
+  *"-o tty="*) printf '%s\n' "$TEST_HOOK_TTY" ;;
+  *"-o ppid="*) echo 1 ;;
+  *) /bin/ps "$@" ;;
+esac
+SCRIPT
+  chmod +x "$MOCK_BIN/ps"
+}
+
+@test "rotation: without ps -A, compact on the same terminal still inherits" {
+  use_ps_without_list_all
+  export TEST_HOOK_TTY=ttys001
+  run_peon '{"hook_event_name":"PreCompact","cwd":"/tmp/project","session_id":"first"}'
+  run_peon '{"hook_event_name":"SessionStart","source":"compact","cwd":"/tmp/project","session_id":"compacted"}'
+  assert_session_pack compacted peon
+}
+
+@test "rotation: without ps -A, compact from a different terminal still cannot inherit" {
+  use_ps_without_list_all
+  export TEST_HOOK_TTY=ttys001
+  run_peon '{"hook_event_name":"PreCompact","cwd":"/tmp/project","session_id":"first"}'
+  export TEST_HOOK_TTY=ttys002
+  run_peon '{"hook_event_name":"SessionStart","source":"compact","cwd":"/tmp/project","session_id":"compacted"}'
+  assert_session_pack compacted sc_kerrigan
 }
 
 @test "rotation: compact from a different terminal cannot inherit another session" {
