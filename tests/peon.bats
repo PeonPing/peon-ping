@@ -3641,6 +3641,51 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   ! afplay_was_called
 }
 
+# ============================================================
+# Repeat tool events take the fast exit once the session is working
+# ============================================================
+
+@test "repeat tool events in a working session leave state untouched" {
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/.working/s1" ]
+  before=$(cksum < "$TEST_DIR/.state.json")
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"PostToolUse","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(cksum < "$TEST_DIR/.state.json")" = "$before" ]
+}
+
+@test "a status change clears the working marker, so the next tool event runs in full" {
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ -f "$TEST_DIR/.working/s1" ]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ ! -f "$TEST_DIR/.working/s1" ]
+  before=$(cksum < "$TEST_DIR/.state.json")
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$(cksum < "$TEST_DIR/.state.json")" != "$before" ]
+  [ -f "$TEST_DIR/.working/s1" ]
+}
+
+@test "a tool event in a working session with a pending popup still dismisses it" {
+  sid="fastpath-popup-$$"
+  popup="/tmp/peon-ping-popups/.session-$sid"
+  run_peon "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$sid\"}"
+  [ -f "$TEST_DIR/.working/$sid" ]
+  mkdir -p /tmp/peon-ping-popups
+  echo "0|" > "$popup"
+  run_peon "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$sid\"}"
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$popup" ]
+}
+
+@test "stdin that arrives after the 2s read limit still exits cleanly" {
+  run bash -c '{ sleep 3; echo "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"s1\"}"; } | bash "$1"' _ "$PEON_SH"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"unbound variable"* ]]
+}
+
 @test "PreCompact plays resource.limit sound" {
   run_peon '{"hook_event_name":"PreCompact","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
