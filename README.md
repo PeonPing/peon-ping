@@ -1207,8 +1207,8 @@ The installer copies `peon-ping.ts` and `package.json` to `~/.omp/agent/extensio
 | omp event                              | peon-ping event       |
 |----------------------------------------|-----------------------|
 | `session_start`                        | `SessionStart`        |
-| `turn_start`                           | `UserPromptSubmit`    |
-| `turn_end`                             | `Stop`                |
+| `agent_start`                          | `UserPromptSubmit`    |
+| `agent_end` (unless `willContinue`)    | `Stop`                |
 | `tool_result` with `isError: true`     | `PostToolUseFailure`  |
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
