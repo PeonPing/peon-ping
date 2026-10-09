@@ -3,6 +3,45 @@
 # Replaces notify.sh — handles sounds, tab titles, and notifications
 set -uo pipefail
 
+# Fast path for repeated tool events. Claude Code fires PreToolUse and PostToolUse on
+# every tool call, subagents included. For those events the full path below only marks
+# the session "working" and dismisses its stale popups, so once a session is working
+# every further tool call changes nothing, yet each one starts over a hundred processes.
+# With several busy sessions those pile up faster than they finish and can exhaust the
+# per-user process limit. So when the session is already marked working and has no
+# popup, exit here, having used only builtins.
+# - The marker is written and removed further down, right after the Python block sets
+#   STATUS, so any event that moves the session to another status clears it.
+# - Its directory is computed with builtins too: PEON_DIR is resolved later with
+#   cd/dirname. CLAUDE_PEON_DIR, when set, keeps it per data dir (and per test).
+# - _PEON_FAST_INPUT is set first because bash 3.2 leaves it unset when `read -t` times
+#   out, and `set -u` would then fail the hook.
+# - The regexes live in variables because bash 3.2 matches quoted parts of an inline
+#   `=~` pattern literally.
+# - `$# -eq 0` and a non-terminal stdin keep this to hook calls: the script is also the
+#   `peon` CLI.
+_PEON_FAST_READ=false
+_PEON_FAST_SID=""
+_PEON_FAST_INPUT=""
+if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
+  _PEON_FAST_DIR="$CLAUDE_PEON_DIR/.working"
+else
+  _PEON_FAST_DIR="${TMPDIR:-/tmp}"
+  _PEON_FAST_DIR="${_PEON_FAST_DIR%/}/peon-ping-working-${UID:-0}"
+fi
+if [ $# -eq 0 ] && [ ! -t 0 ]; then
+  IFS= read -r -d '' -t 2 _PEON_FAST_INPUT || true
+  _PEON_FAST_READ=true
+  _peon_re='"session_id"[[:space:]]*:[[:space:]]*"([A-Za-z0-9_.-]+)"'
+  [[ $_PEON_FAST_INPUT =~ $_peon_re ]] && _PEON_FAST_SID=${BASH_REMATCH[1]}
+  _peon_re='"hook_event_name"[[:space:]]*:[[:space:]]*"(PreToolUse|PostToolUse)"'
+  if [ -n "$_PEON_FAST_SID" ] && [[ $_PEON_FAST_INPUT =~ $_peon_re ]] \
+     && [ -f "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] \
+     && [ ! -f "/tmp/peon-ping-popups/.session-$_PEON_FAST_SID" ]; then
+    exit 0
+  fi
+fi
+
 # --- Platform detection ---
 detect_platform() {
   case "$(uname -s)" in
@@ -5272,7 +5311,9 @@ fi
 # timeout fires (surfacing as "SessionStart:* hook error" in the UI). Cap
 # the read at 2s; empty INPUT is handled gracefully by the Python block
 # below (json.load fails → PEON_EXIT=true → clean exit with rc 0).
-if command -v timeout >/dev/null 2>&1; then
+if [ "$_PEON_FAST_READ" = true ]; then
+  INPUT=$_PEON_FAST_INPUT
+elif command -v timeout >/dev/null 2>&1; then
   INPUT=$(timeout 2 cat 2>/dev/null) || INPUT=""
 elif command -v gtimeout >/dev/null 2>&1; then
   INPUT=$(gtimeout 2 cat 2>/dev/null) || INPUT=""
@@ -6719,6 +6760,18 @@ PEON_LOCAL_PY_EOF
 # Config arrives through PEON_ENV_* and stdin, which -I leaves alone.
 _PEON_PYOUT=$(python3 -I "$_PEON_PY_TMP" <<< "$INPUT")
 eval "$_PEON_PYOUT"
+
+# Keep the fast path's marker (top of file) in step with the session's status: present
+# while the session is working, gone after any event that moves it to another status.
+# This sits before the PEON_EXIT check so early-exit events update it too.
+if [ -n "$_PEON_FAST_SID" ]; then
+  if [ "${STATUS:-}" = "working" ]; then
+    [ -d "$_PEON_FAST_DIR" ] || mkdir -p "$_PEON_FAST_DIR" 2>/dev/null
+    : > "$_PEON_FAST_DIR/$_PEON_FAST_SID" 2>/dev/null || true
+  elif [ -f "$_PEON_FAST_DIR/$_PEON_FAST_SID" ]; then
+    rm -f "$_PEON_FAST_DIR/$_PEON_FAST_SID"
+  fi
+fi
 
 # --- Override PROJECT with cmux workspace title ---
 # A cmux workspace's title is set by the user and doesn't have to match cwd/git
