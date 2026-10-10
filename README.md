@@ -921,9 +921,11 @@ A thin TypeScript adapter for [OpenCode v2](https://opencode.ai/v2/docs/build/pl
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh | bash
 ```
 
-The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/`, respecting `XDG_CONFIG_HOME`. On native Windows, run `powershell -NoProfile -File adapters/opencode.ps1` from a clone after installing peon-ping. The Windows adapter uses the same OpenCode discovery directory and invokes the installed `peon.ps1` directly, without Git Bash. Config, packs and playback are handled by the main peon-ping installation; use `peon config` and `peon packs` to manage them. `CLAUDE_PEON_DIR` selects a custom hook installation.
+The installer auto-detects your OpenCode version and installs the correct plugin variant:
+- **OpenCode 1.x** → `peon-ping-v1.ts` (v1 plugin contract with `server` export)
+- **OpenCode 2.x** → `peon-ping-v2.ts` (v2 plugin contract with `setup` export)
 
-This adapter requires OpenCode v2. See [the event mapping and compatibility notes](docs/opencode-v2-events.md) for its API contract and validation requirements.
+Both variants provide identical features: sound packs, desktop notifications, tab titles, and trainer reminders. The plugin is copied to `~/.config/opencode/plugins/peon-ping.ts` and creates a config at `~/.config/opencode/peon-ping/config.json`. Packs are stored at the shared CESP path (`~/.openpeon/packs/`).)
 
 **Features:**
 

@@ -17,7 +17,8 @@
 
 set -euo pipefail
 
-PLUGIN_URL="https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping.ts"
+PLUGIN_V1_URL="https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping-v1.ts"
+PLUGIN_V2_URL="https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping-v2.ts"
 OPENCODE_PLUGINS_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/plugins"
 PEON_SH_CANDIDATES=()
 if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
@@ -38,10 +39,12 @@ error() { printf "%sx%s %s\n" "$RED" "$RESET" "$*" >&2; }
 
 # --- Uninstall ---
 if [ "${1:-}" = "--uninstall" ]; then
-  info "Uninstalling peon-ping adapter from OpenCode..."
-  rm -f "$OPENCODE_PLUGINS_DIR/peon-ping.ts"
-  info "Adapter removed."
-  exit 0
+    info "Uninstalling peon-ping adapter from OpenCode..."
+    rm -f "$OPENCODE_PLUGINS_DIR/peon-ping.ts"
+    rm -f "$OPENCODE_PLUGINS_DIR/peon-ping-v1.ts"
+    rm -f "$OPENCODE_PLUGINS_DIR/peon-ping-v2.ts"
+    info "Adapter removed."
+    exit 0
 fi
 
 # --- Preflight: find peon.sh ---
@@ -63,6 +66,24 @@ fi
 if ! command -v curl &>/dev/null; then
   error "curl is required but not found."
   exit 1
+fi
+
+# --- Detect OpenCode version ---
+detect_opencode_version() {
+    local version
+    version=$(opencode --version 2>/dev/null || echo "unknown")
+    echo "$version"
+}
+
+OPENCODE_VERSION=$(detect_opencode_version)
+OPENCODE_MAJOR=$(echo "$OPENCODE_VERSION" | sed -n 's/^\([0-9]*\)\..*/\1/p')
+
+if [ "$OPENCODE_MAJOR" = "1" ]; then
+    PLUGIN_URL="$PLUGIN_V1_URL"
+    info "OpenCode $OPENCODE_VERSION detected (v1 contract)"
+else
+    PLUGIN_URL="$PLUGIN_V2_URL"
+    info "OpenCode $OPENCODE_VERSION detected (v2 contract)"
 fi
 
 # --- Install adapter ---

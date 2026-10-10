@@ -17,7 +17,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 # --- Config ---
-$PluginUrl = "https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping.ts"
+$PluginV1Url = "https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping-v1.ts"
+$PluginV2Url = "https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping-v2.ts"
 $RegistryUrl = "https://peonping.github.io/registry/index.json"
 $DefaultPack = "peon"
 
@@ -33,6 +34,8 @@ $PacksDir = Join-Path $env:USERPROFILE ".openpeon\packs"
 if ($Uninstall) {
     Write-Host "> Uninstalling peon-ping from OpenCode..."
     Remove-Item (Join-Path $PluginsDir "peon-ping.ts") -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $PluginsDir "peon-ping-v1.ts") -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $PluginsDir "peon-ping-v2.ts") -Force -ErrorAction SilentlyContinue
     Remove-Item $PeonConfigDir -Recurse -Force -ErrorAction SilentlyContinue
     Write-Host "> Plugin and config removed."
     Write-Host "> Sound packs in $PacksDir were preserved (shared with other adapters)."
@@ -42,6 +45,27 @@ if ($Uninstall) {
 
 # --- Install ---
 Write-Host "> Installing peon-ping for OpenCode..."
+
+# Detect OpenCode version
+$opencodeVersion = "unknown"
+try {
+    $opencodeVersion = (opencode --version 2>$null | Select-Object -First 1).ToString().Trim()
+} catch {
+    $opencodeVersion = "unknown"
+}
+
+$opencodeMajor = "unknown"
+if ($opencodeVersion -match '^(\d+)') {
+    $opencodeMajor = $matches[1]
+}
+
+if ($opencodeMajor -eq "1") {
+    $PluginUrl = $PluginV1Url
+    Write-Host "> OpenCode $opencodeVersion detected (v1 contract)"
+} else {
+    $PluginUrl = $PluginV2Url
+    Write-Host "> OpenCode $opencodeVersion detected (v2 contract)"
+}
 
 # Install plugin
 New-Item -ItemType Directory -Path $PluginsDir -Force | Out-Null

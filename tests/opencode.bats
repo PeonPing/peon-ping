@@ -27,7 +27,15 @@ SCRIPT
   # --- Mock bin directory ---
   MOCK_BIN="$(mktemp -d)"
 
-  # Mock curl — simulate downloading peon-ping.ts
+  # Mock opencode — default to v2
+  OPENCODE_VERSION="${OPENCODE_VERSION:-2.0.0}"
+  cat > "$MOCK_BIN/opencode" <<'MOCK_OC'
+#!/bin/bash
+echo "$OPENCODE_VERSION"
+MOCK_OC
+  chmod +x "$MOCK_BIN/opencode"
+
+  # Mock curl — simulate downloading peon-ping.ts (v1 or v2)
   cat > "$MOCK_BIN/curl" <<'MOCK_CURL'
 #!/bin/bash
 url=""
@@ -41,7 +49,7 @@ for ((i=0; i<${#args[@]}; i++)); do
 done
 
 case "$url" in
-  *peon-ping.ts)
+  *peon-ping-v1.ts|*peon-ping-v2.ts|*peon-ping.ts)
     if [ -n "$output" ]; then
       echo '// peon-ping plugin for OpenCode' > "$output"
     fi
@@ -135,6 +143,20 @@ teardown() {
   run bash "$OPENCODE_SH" --uninstall
   [ "$status" -eq 0 ]
   [ ! -f "$PLUGINS_DIR/peon-ping.ts" ]
+}
+
+# ============================================================
+# Version detection
+# ============================================================
+
+@test "detects OpenCode v1 and downloads peon-ping-v1.ts" {
+  OPENCODE_VERSION="1.18.35" bash "$OPENCODE_SH"
+  [ -f "$PLUGINS_DIR/peon-ping.ts" ]
+}
+
+@test "detects OpenCode v2 and downloads peon-ping-v2.ts" {
+  OPENCODE_VERSION="2.0.0" bash "$OPENCODE_SH"
+  [ -f "$PLUGINS_DIR/peon-ping.ts" ]
 }
 
 # ============================================================
