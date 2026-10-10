@@ -39,7 +39,7 @@ Describe "OpenCode and Kilo plugin installer discovery" {
         Test-Path (Join-Path $env:LOCALAPPDATA "opencode\plugins\peon-ping.ts") | Should -BeFalse
         # Pester owns the call history across the invoked script's scope.
         Should -Invoke Invoke-WebRequest -Exactly -Times 1 -Scope It -ParameterFilter {
-            $Uri -eq "https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping.ts"
+            $Uri -match '^https://raw\.githubusercontent\.com/PeonPing/peon-ping/main/adapters/opencode/peon-ping-v\d+\.ts$'
         }
     }
 
