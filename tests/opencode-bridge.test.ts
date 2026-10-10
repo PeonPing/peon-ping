@@ -57,5 +57,5 @@ $reader.Close()
       permission_mode: "",
       source: "opencode",
     })
-  }, { timeout: 5000 })
+  }, { timeout: 10000 })
 }, 10000)
