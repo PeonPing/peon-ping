@@ -26,6 +26,12 @@ import * as os from "node:os"
 import { spawn } from "node:child_process"
 import type { Plugin } from "@opencode-ai/plugin"
 
+const SCOPED_EVENT_TYPES = new Set([
+  "session.created", "session.deleted", "session.execution.started",
+  "session.execution.succeeded", "session.execution.failed", "session.execution.interrupted",
+  "permission.asked", "form.created", "form.replied", "form.cancelled",
+])
+
 const MAX_PENDING_QUESTION_IDS = 100
 
 const PEON_HOOK_PATHS = [
@@ -131,6 +137,42 @@ function createPeonPingPlugin(directory?: string): Plugin {
             break
           }
 
+          case "session.execution.started": {
+            const sid = (event as any).properties?.sessionID
+            if (isSubagent(sid) || busySessions.has(sid)) break
+            busySessions.add(sid)
+            const lastStart = lastSessionStart
+            if (lastStart === undefined || Date.now() - lastStart > 3000) {
+              setTabTitle(`${projectName}: ready`)
+              firePeon("SessionStart")
+            }
+            break
+          }
+
+          case "session.execution.succeeded": {
+            const sid = (event as any).properties?.sessionID
+            if (isSubagent(sid)) break
+            if (sid) busySessions.delete(sid)
+            setTabTitle(`\u25cf ${projectName}: done`)
+            firePeon("Stop")
+            break
+          }
+
+          case "session.execution.failed": {
+            const sid = (event as any).properties?.sessionID
+            if (isSubagent(sid)) break
+            if (sid) busySessions.delete(sid)
+            setTabTitle(`\u25cf ${projectName}: error`)
+            firePeon("PostToolUseFailure")
+            break
+          }
+
+          case "session.execution.interrupted": {
+            const sid = (event as any).properties?.sessionID
+            if (typeof sid === "string") busySessions.delete(sid)
+            break
+          }
+
           case "session.idle": {
             const sid = (event as any).properties?.sessionID
             if (isSubagent(sid)) break
@@ -152,6 +194,27 @@ function createPeonPingPlugin(directory?: string): Plugin {
           case "permission.asked": {
             setTabTitle(`\u25cf ${projectName}: needs approval`)
             firePeon("PermissionRequest")
+            break
+          }
+
+          case "form.created": {
+            const properties = (event as any).properties
+            const requestId = properties?.id
+            if (typeof requestId !== "string" || pendingQuestionIds.has(requestId)) break
+            if (pendingQuestionIds.size >= MAX_PENDING_QUESTION_IDS) {
+              pendingQuestionIds.delete(pendingQuestionIds.values().next().value!)
+            }
+            pendingQuestionIds.add(requestId)
+            setTabTitle(`\u25cf ${projectName}: needs input`)
+            firePeon("Notification", "elicitation_dialog")
+            break
+          }
+
+          case "form.replied":
+          case "form.cancelled": {
+            const properties = (event as any).properties
+            const requestId = properties?.requestID ?? properties?.id
+            if (typeof requestId === "string") pendingQuestionIds.delete(requestId)
             break
           }
 
