@@ -920,7 +920,11 @@ A native TypeScript plugin for [OpenCode](https://opencode.ai/) with full [CESP 
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh | bash
 ```
 
-The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/` and creates a config at `~/.config/opencode/peon-ping/config.json`. Packs are stored at the shared CESP path (`~/.openpeon/packs/`).
+The installer auto-detects your OpenCode version and installs the correct plugin variant:
+- **OpenCode 1.x** → `peon-ping-v1.ts` (v1 plugin contract with `server` export)
+- **OpenCode 2.x** → `peon-ping-v2.ts` (v2 plugin contract with `setup` export)
+
+Both variants provide identical features: sound packs, desktop notifications, tab titles, and trainer reminders. The plugin is copied to `~/.config/opencode/plugins/peon-ping.ts` and creates a config at `~/.config/opencode/peon-ping/config.json`. Packs are stored at the shared CESP path (`~/.openpeon/packs/`).
 
 **Features:**
 

@@ -681,6 +681,18 @@ Describe "Category C: OpenCode Installer" {
         $script:opencodeContent | Should -Match 'Invoke-WebRequest'
     }
 
+    It "detects OpenCode version and selects v1 URL for major version 1" {
+        $script:opencodeContent | Should -Match 'PluginV1Url'
+        $script:opencodeContent | Should -Match 'PluginV2Url'
+        $script:opencodeContent | Should -Match 'opencode --version'
+        $script:opencodeContent | Should -Match 'opencodeMajor.*-eq.*"1"'
+    }
+
+    It "removes both v1 and v2 plugin files on uninstall" {
+        $script:opencodeContent | Should -Match 'peon-ping-v1\.ts'
+        $script:opencodeContent | Should -Match 'peon-ping-v2\.ts'
+    }
+
     It "creates default config.json" {
         $script:opencodeContent | Should -Match 'config\.json'
         $script:opencodeContent | Should -Match 'default_pack'
