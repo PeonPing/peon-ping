@@ -469,7 +469,11 @@ peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.t
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh | bash
 ```
 
-설치 프로그램이 `peon-ping.ts`를 `~/.config/opencode/plugins/`에 복사하고, `~/.config/opencode/peon-ping/config.json`에 설정 파일을 생성합니다. 사운드 팩은 공유 CESP 경로(`~/.openpeon/packs/`)에 저장됩니다.
+설치 프로그램이 OpenCode 버전을 자동 감지하여 올바른 플러그인 변형을 설치합니다:
+- **OpenCode 1.x** → `peon-ping-v1.ts` (v1 플러그인 계약, `server` 익스포트)
+- **OpenCode 2.x** → `peon-ping-v2.ts` (v2 플러그인 계약, `setup` 익스포트)
+
+두 변형 모두 설치된 peon-ping 훅으로 이벤트를 전달합니다. 설정, 팩 선택 및 재생은 메인 peon-ping 설치가 처리합니다 — `peon config` 및 `peon packs`로 관리하세요. 플러그인은 `~/.config/opencode/plugins/peon-ping.ts`에 복사됩니다 (`XDG_CONFIG_HOME` 존중). 네이티브 Windows에서 `powershell -NoProfile -File adapters/opencode.ps1`로 클론에서 실행하면 Git Bash 없이 직접 `peon.ps1`을 호출합니다. 팩은 공유 CESP 경로(`~/.openpeon/packs/`)에서 제공됩니다.
 
 **기능:**
 
