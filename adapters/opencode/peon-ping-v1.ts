@@ -269,8 +269,9 @@ function createPeonPingPlugin(directory?: string): Plugin {
 
 /**
  * v1 plugin module export.
- * OpenCode 1.x expects: { server: Plugin }
+ * OpenCode 1.x path-loaded plugins MUST export `id` (the PluginModule type marks
+ * it optional, but the real loader enforces it at runtime).
  */
 export const server: Plugin = createPeonPingPlugin()
 
-export default { server }
+export default { id: "peon-ping", server }

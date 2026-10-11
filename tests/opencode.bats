@@ -211,3 +211,15 @@ teardown() {
   [ "$status" -eq 0 ]
   [ -f "$PLUGINS_DIR/peon-ping.ts" ]
 }
+
+# ============================================================
+# v1 plugin export validation (regression)
+# ============================================================
+
+@test "v1 plugin default export has non-empty id (loader requirement)" {
+  # The OpenCode loader rejects path-loaded plugins that lack an `id` field,
+  # even though the PluginModule type marks it optional.
+  v1_src="$(grep -n 'export default' "$REPO_ROOT/adapters/opencode/peon-ping-v1.ts")"
+  # Require an `id` key inside the default-export block (not exact-match)
+  [[ "$v1_src" == *"id:"* ]] && [[ "$v1_src" == *'"peon-ping"'* ]]
+}
