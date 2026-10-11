@@ -27,7 +27,15 @@ SCRIPT
   # --- Mock bin directory ---
   MOCK_BIN="$(mktemp -d)"
 
-  # Mock curl — simulate downloading peon-ping.ts
+  # Mock opencode — default to v2
+  OPENCODE_VERSION="${OPENCODE_VERSION:-2.0.0}"
+  cat > "$MOCK_BIN/opencode" <<'MOCK_OC'
+#!/bin/bash
+echo "$OPENCODE_VERSION"
+MOCK_OC
+  chmod +x "$MOCK_BIN/opencode"
+
+  # Mock curl — simulate downloading peon-ping.ts (v1 or v2)
   cat > "$MOCK_BIN/curl" <<'MOCK_CURL'
 #!/bin/bash
 url=""
@@ -41,7 +49,7 @@ for ((i=0; i<${#args[@]}; i++)); do
 done
 
 case "$url" in
-  *peon-ping.ts)
+  *peon-ping-v1.ts|*peon-ping-v2.ts|*peon-ping.ts)
     if [ -n "$output" ]; then
       echo '// peon-ping plugin for OpenCode' > "$output"
     fi
@@ -138,6 +146,20 @@ teardown() {
 }
 
 # ============================================================
+# Version detection
+# ============================================================
+
+@test "detects OpenCode v1 and downloads peon-ping-v1.ts" {
+  OPENCODE_VERSION="1.18.35" bash "$OPENCODE_SH"
+  [ -f "$PLUGINS_DIR/peon-ping.ts" ]
+}
+
+@test "detects OpenCode v2 and downloads peon-ping-v2.ts" {
+  OPENCODE_VERSION="2.0.0" bash "$OPENCODE_SH"
+  [ -f "$PLUGINS_DIR/peon-ping.ts" ]
+}
+
+# ============================================================
 # XDG_CONFIG_HOME support
 # ============================================================
 
@@ -188,4 +210,16 @@ teardown() {
   run bash "$OPENCODE_SH"
   [ "$status" -eq 0 ]
   [ -f "$PLUGINS_DIR/peon-ping.ts" ]
+}
+
+# ============================================================
+# v1 plugin export validation (regression)
+# ============================================================
+
+@test "v1 plugin default export has non-empty id (loader requirement)" {
+  # The OpenCode loader rejects path-loaded plugins that lack an `id` field,
+  # even though the PluginModule type marks it optional.
+  v1_src="$(grep -n 'export default' "$REPO_ROOT/adapters/opencode/peon-ping-v1.ts")"
+  # Require an `id` key inside the default-export block (not exact-match)
+  [[ "$v1_src" == *"id:"* ]] && [[ "$v1_src" == *'"peon-ping"'* ]]
 }
