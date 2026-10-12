@@ -967,6 +967,36 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   grep -q "myproject - Claude Code" "$TEST_DIR/terminal_notifier.log"
 }
 
+@test "desktop notification title renders pw code label when PW_PROJECT_DIR is set" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_title_ide'] = True
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  export PW_PROJECT_DIR=/tmp/myproject
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"20261012-115236-78094276","permission_mode":"default"}'
+  unset PW_PROJECT_DIR
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q "myproject - pw code" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "pw code SessionStart source=startup is still detected as pw code" {
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_templates'] = {'stop': '{ide_id}: done'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  export PW_PROJECT_DIR=/tmp/myproject
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s-1","source":"startup","permission_mode":"default"}'
+  unset PW_PROJECT_DIR
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-message pwcode: done" "$TEST_DIR/terminal_notifier.log"
+}
+
 @test "desktop notification title titlecases unknown IDE id when flag enabled" {
   /usr/bin/python3 -c "
 import json

@@ -1467,6 +1467,80 @@ print('Copilot CLI hooks registered for: ' + ', '.join(events))
 "
 fi
 
+# --- Register pw code hooks if pw's config dir exists ---
+# pw code (Parallel Works) reads Claude Code-compatible hooks from the "hooks"
+# key of its user settings and sends Claude Code's payload shape, so peon.sh
+# is wired directly. peon.sh recognizes it by PW_PROJECT_DIR.
+PWCODE_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/pw"
+PWCODE_SETTINGS="$PWCODE_CONFIG_DIR/code.json"
+PWCODE_PEON_SCRIPT="$INSTALL_DIR/peon.sh"
+
+if [ "$LOCAL_MODE" != true ] && [ -d "$PWCODE_CONFIG_DIR" ]; then
+  echo ""
+  echo "Detected pw code installation, registering hooks..."
+
+  # PreToolUse is omitted: pw code runs PreToolUse hooks synchronously, which
+  # would delay every tool call. PermissionRequest is synchronous for the same
+  # reason, but only fires on an approval prompt.
+  python3 -c "
+import json, os, tempfile
+
+settings_file = '$(py_path "$PWCODE_SETTINGS")'
+peon_script = '$(py_path "$PWCODE_PEON_SCRIPT")'
+
+events = {
+    'SessionStart': ('', False),
+    'SessionEnd': ('', True),
+    'SubagentStart': ('', True),
+    'SubagentStop': ('', True),
+    'UserPromptSubmit': ('', True),
+    'Stop': ('', True),
+    'Notification': ('', True),
+    'PermissionRequest': ('', False),
+    'PostToolUseFailure': ('Bash', True),
+    'PreCompact': ('', True),
+}
+
+data = {}
+if os.path.exists(settings_file):
+    try:
+        with open(settings_file) as f:
+            data = json.load(f)
+    except Exception as e:
+        print('Skipping pw code hooks: could not parse ' + settings_file + ': ' + str(e))
+        raise SystemExit(0)
+if not isinstance(data, dict):
+    print('Skipping pw code hooks: ' + settings_file + ' is not a JSON object')
+    raise SystemExit(0)
+
+hooks = data.get('hooks')
+if not isinstance(hooks, dict):
+    hooks = {}
+
+def is_peon(group):
+    return any('peon-ping/' in str(h.get('command', '')) for h in group.get('hooks', []) if isinstance(h, dict))
+
+for evt, (matcher, run_async) in events.items():
+    groups = [g for g in hooks.get(evt, []) if isinstance(g, dict) and not is_peon(g)]
+    hook = {'type': 'command', 'command': peon_script, 'timeout': 10}
+    if run_async:
+        hook['async'] = True
+    groups.append({'matcher': matcher, 'hooks': [hook]})
+    hooks[evt] = groups
+data['hooks'] = hooks
+
+mode = os.stat(settings_file).st_mode & 0o777 if os.path.exists(settings_file) else 0o600
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(settings_file), prefix='.code.json.')
+with os.fdopen(fd, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+os.chmod(tmp, mode)
+os.replace(tmp, settings_file)
+
+print('pw code hooks registered for: ' + ', '.join(events))
+"
+fi
+
 # --- Register Grok Build hooks if ~/.grok exists ---
 # Wires user-level hooks at ~/.grok/hooks/peon-ping.json pointing at
 # adapters/grok.sh. Grok's stdin is camelCase with snake_case event

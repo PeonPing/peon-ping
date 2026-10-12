@@ -6,11 +6,11 @@
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![MSYS2](https://img.shields.io/badge/MSYS2-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Grok Build](https://img.shields.io/badge/Grok_Build-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01) ![Qwen Code](https://img.shields.io/badge/Qwen_Code-adapter-ffab01) ![iFlow CLI](https://img.shields.io/badge/iFlow_CLI-adapter-ffab01) ![Trae](https://img.shields.io/badge/Trae-adapter-ffab01) ![Kiro IDE](https://img.shields.io/badge/Kiro_IDE-adapter-ffab01) ![ECA](https://img.shields.io/badge/ECA-adapter-ffab01)
+![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Grok Build](https://img.shields.io/badge/Grok_Build-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01) ![Qwen Code](https://img.shields.io/badge/Qwen_Code-adapter-ffab01) ![iFlow CLI](https://img.shields.io/badge/iFlow_CLI-adapter-ffab01) ![Trae](https://img.shields.io/badge/Trae-adapter-ffab01) ![Kiro IDE](https://img.shields.io/badge/Kiro_IDE-adapter-ffab01) ![ECA](https://img.shields.io/badge/ECA-adapter-ffab01) ![pw code](https://img.shields.io/badge/pw_code-hook-ffab01)
 
 **当你的 AI 编程助手需要关注时，播放游戏角色语音 + 显示视觉覆盖通知 — 或通过 MCP 让 AI 自行选择音效。**
 
-AI 编程助手完成任务或需要权限时不会通知你。你切换标签页、失去焦点，然后浪费 15 分钟重新进入状态。peon-ping 通过魔兽争霸、星际争霸、传送门、塞尔达等游戏的角色语音和醒目的屏幕横幅来解决这个问题 — 支持 **Claude Code**、**Amp**、**Gemini CLI**、**GitHub Copilot**、**Codex**、**Grok Build**、**Cursor**、**OpenCode**、**Kilo CLI**、**Kiro**、**Kimi Code**、**Windsurf**、**Google Antigravity**、**Rovo Dev CLI**、**DeepAgents**、**Qwen Code**、**iFlow CLI**、**Trae**、**Kiro IDE**、**ECA** 及任何 MCP 客户端.
+AI 编程助手完成任务或需要权限时不会通知你。你切换标签页、失去焦点，然后浪费 15 分钟重新进入状态。peon-ping 通过魔兽争霸、星际争霸、传送门、塞尔达等游戏的角色语音和醒目的屏幕横幅来解决这个问题 — 支持 **Claude Code**、**Amp**、**Gemini CLI**、**GitHub Copilot**、**Codex**、**Grok Build**、**Cursor**、**OpenCode**、**Kilo CLI**、**Kiro**、**Kimi Code**、**Windsurf**、**Google Antigravity**、**Rovo Dev CLI**、**DeepAgents**、**Qwen Code**、**iFlow CLI**、**Trae**、**Kiro IDE**、**ECA**、**pw code** 及任何 MCP 客户端.
 
 **查看演示** &rarr; [peonping.com](https://peonping.com/)
 
@@ -618,6 +618,7 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 | **GitHub Copilot CLI** | 内置（自动检测） | 当 `~/.copilot` 存在时，`install.sh` / `install.ps1` 自动在 `~/.copilot/hooks/peon-ping.json` 注册钩子。也可通过 `adapters/copilot.sh` / `.ps1` 进行逐仓库手动配置（[设置](#github-copilot-cli-设置)） |
 | **OpenAI Codex** | 内置（自动检测） | 如果 `~/.codex` 存在，`install.sh` / `install.ps1` 会自动在 `~/.codex/config.toml` 注册 stable hooks。也可手动接入适配器（[设置](#openai-codex-设置)） |
 | **Grok Build** | 内置（自动检测） | 如果 `~/.grok` 存在，`install.sh` / `install.ps1` 会自动在 `~/.grok/hooks/peon-ping.json` 注册钩子。也可手动接入适配器（[设置](#grok-build-设置)） |
+| **pw code** | 内置（自动检测） | 如果 `~/.config/pw` 存在，`install.sh` 会把钩子合并进 `~/.config/pw/code.json`（[设置](#pw-code-设置)） |
 | **Cursor** | 内置 | `curl \| bash`、`peon-ping-setup` 或 Windows `install.ps1` 自动检测并注册钩子。在 Windows 上，请在 **设置 → 功能 → 第三方技能** 中启用，以便 Cursor 加载 `~/.claude/settings.json` 以播放 SessionStart/Stop 音效。 |
 | **OpenCode** | 适配器 | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1`（[设置](#opencode-设置)） |
 | **Kilo CLI** | 适配器 | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1`（[设置](#kilo-cli-设置)） |
@@ -672,6 +673,16 @@ Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notif
 3. 如果安装时 Codex 已经在运行，请重启 Codex。
 
 peon-ping 会把 inline hooks 写入 `~/.codex/config.toml`，而不是创建 `hooks.json`，这符合 [Codex hooks 文档](https://developers.openai.com/codex/hooks) 对同一配置层不要混用两种 hook 表示的建议。旧版 `notify` 接法仍作为回退兼容，但新安装应使用 stable hooks 路径。
+
+### pw code 设置
+
+[pw code](https://parallel.works)（Parallel Works `pw` CLI 的编程助手）从 `~/.config/pw/code.json` 的 `hooks` 键读取与 Claude Code 兼容的钩子，并发送与 Claude Code 相同的负载格式，因此无需适配器，直接调用 `peon.sh`。pw code 会为每个钩子设置 `PW_PROJECT_DIR` 环境变量，peon-ping 据此将其与 Claude Code 区分，并在通知中标注为 "pw code"。
+
+如果 `~/.config/pw`（或 `$XDG_CONFIG_HOME/pw`）存在，`install.sh` 会把 peon-ping 的钩子合并进 `code.json`，只替换它自己之前写入的条目，文件其余部分保持不变。`uninstall.sh` 会将其移除。如果之后才安装 pw，请重新运行 peon-ping 安装器。
+
+注册的事件：`SessionStart`、`SessionEnd`、`SubagentStart`、`SubagentStop`、`UserPromptSubmit`、`Stop`、`Notification`、`PermissionRequest`、`PostToolUseFailure`（仅 Bash）和 `PreCompact`。未注册 `PreToolUse`，因为 pw code 会在每次工具调用前同步执行它。
+
+已在运行的 pw code 会话执行 `/hooks reload` 后生效。pw code 在后台守护进程中托管会话；会把客户端终端信息转发给钩子的 pw 版本中，点击聚焦和标签页标题会跟随你正在使用的终端，旧版本则指向启动守护进程的那个终端。
 
 ### Amp 设置
 

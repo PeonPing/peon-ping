@@ -1693,6 +1693,8 @@ IDE_ALIASES = {
     'rovo': 'rovodev',
     'grok': 'grok',
     'grok-build': 'grok',
+    'pwcode': 'pwcode',
+    'pw-code': 'pwcode',
 }
 
 def normalize_ide_id(value):
@@ -2861,9 +2863,10 @@ IDE_ALIASES = {
     'deep-agents': 'deepagents', 'deep_agents': 'deepagents', 'openclaw': 'openclaw',
     'open-claw': 'openclaw', 'open_claw': 'openclaw', 'rovodev': 'rovodev', 'rovo': 'rovodev',
     'grok': 'grok', 'grok-build': 'grok',
+    'pwcode': 'pwcode', 'pw-code': 'pwcode',
 }
 KNOWN_IDES = ['claude', 'codex', 'cursor', 'opencode', 'kilo', 'kiro', 'gemini', 'copilot', 'windsurf',
-              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev', 'grok']
+              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev', 'grok', 'pwcode']
 
 def normalize_ide_id(value):
     raw = str(value or '').strip().lower()
@@ -2932,6 +2935,7 @@ IDE_ALIASES = {
     'deep-agents': 'deepagents', 'deep_agents': 'deepagents', 'openclaw': 'openclaw',
     'open-claw': 'openclaw', 'open_claw': 'openclaw', 'rovodev': 'rovodev', 'rovo': 'rovodev',
     'grok': 'grok', 'grok-build': 'grok',
+    'pwcode': 'pwcode', 'pw-code': 'pwcode',
 }
 
 def normalize_ide_id(value):
@@ -2974,9 +2978,10 @@ IDE_ALIASES = {
     'deep-agents': 'deepagents', 'deep_agents': 'deepagents', 'openclaw': 'openclaw',
     'open-claw': 'openclaw', 'open_claw': 'openclaw', 'rovodev': 'rovodev', 'rovo': 'rovodev',
     'grok': 'grok', 'grok-build': 'grok',
+    'pwcode': 'pwcode', 'pw-code': 'pwcode',
 }
 KNOWN_IDES = ['claude', 'codex', 'cursor', 'opencode', 'kilo', 'kiro', 'gemini', 'copilot', 'windsurf',
-              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev', 'grok']
+              'kimi', 'antigravity', 'amp', 'deepagents', 'openclaw', 'rovodev', 'grok', 'pwcode']
 
 def normalize_ide_id(value):
     raw = str(value or '').strip().lower()
@@ -5513,6 +5518,8 @@ IDE_ALIASES = {
     'eca': 'eca',
     'grok': 'grok',
     'grok-build': 'grok',
+    'pwcode': 'pwcode',
+    'pw-code': 'pwcode',
 }
 
 def normalize_ide_id(value):
@@ -5523,6 +5530,10 @@ def normalize_ide_id(value):
     return IDE_ALIASES.get(key, key)
 
 def detect_session_ide(source_value, event_payload, session_value):
+    # pw code sends Claude Code's payload shape (source=startup on SessionStart),
+    # but sets PW_PROJECT_DIR on every hook process; Claude Code never does.
+    if os.environ.get('PW_PROJECT_DIR'):
+        return 'pwcode'
     source_key = normalize_ide_id(source_value)
     if source_key and source_key not in ('resume', 'compact'):
         return source_key
@@ -5580,6 +5591,7 @@ IDE_DISPLAY_NAMES = {
     'kiro-ide': 'Kiro IDE',
     'eca': 'ECA',
     'grok': 'Grok Build',
+    'pwcode': 'pw code',
 }
 
 def display_ide_name(ide_id):

@@ -171,6 +171,56 @@ print('OK')
   [ ! -f "$TEST_HOME/.grok/hooks/peon-ping.json" ]
 }
 
+@test "fresh install merges pw code hooks into an existing code.json" {
+  export XDG_CONFIG_HOME="$TEST_HOME/.config"
+  mkdir -p "$XDG_CONFIG_HOME/pw"
+  cat > "$XDG_CONFIG_HOME/pw/code.json" <<'JSON'
+{"model": "m", "hooks": {"Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "/usr/local/bin/mine.sh"}]}]}}
+JSON
+  chmod 600 "$XDG_CONFIG_HOME/pw/code.json"
+  bash "$CLONE_DIR/install.sh"
+  bash "$CLONE_DIR/install.sh"
+  /usr/bin/python3 -c "
+import json, os, stat
+path = '$XDG_CONFIG_HOME/pw/code.json'
+data = json.load(open(path))
+assert data['model'] == 'm'
+hooks = data['hooks']
+for event in ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest', 'PostToolUseFailure', 'PreCompact']:
+    cmds = [h['command'] for g in hooks[event] for h in g['hooks']]
+    assert sum('peon-ping/peon.sh' in c for c in cmds) == 1, f'{event}: {cmds}'
+assert '/usr/local/bin/mine.sh' in [h['command'] for g in hooks['Stop'] for h in g['hooks']]
+assert 'PreToolUse' not in hooks
+assert hooks['PostToolUseFailure'][-1]['matcher'] == 'Bash'
+assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+print('OK')
+"
+}
+
+@test "--local install does not modify pw code settings" {
+  export XDG_CONFIG_HOME="$TEST_HOME/.config"
+  mkdir -p "$XDG_CONFIG_HOME/pw"
+  cd "$PROJECT_DIR"
+  bash "$CLONE_DIR/install.sh" --local
+  [ ! -f "$XDG_CONFIG_HOME/pw/code.json" ]
+}
+
+@test "uninstall removes only peon-ping hooks from pw code settings" {
+  export XDG_CONFIG_HOME="$TEST_HOME/.config"
+  mkdir -p "$XDG_CONFIG_HOME/pw"
+  echo '{"model": "m", "hooks": {"Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "/usr/local/bin/mine.sh"}]}]}}' > "$XDG_CONFIG_HOME/pw/code.json"
+  bash "$CLONE_DIR/install.sh"
+  bash "$INSTALL_DIR/uninstall.sh"
+  /usr/bin/python3 -c "
+import json
+data = json.load(open('$XDG_CONFIG_HOME/pw/code.json'))
+assert data['model'] == 'm'
+assert list(data['hooks']) == ['Stop'], data['hooks']
+assert [h['command'] for g in data['hooks']['Stop'] for h in g['hooks']] == ['/usr/local/bin/mine.sh']
+print('OK')
+"
+}
+
 @test "fresh install registers Codex stable hooks when ~/.codex exists" {
   mkdir -p "$TEST_HOME/.codex"
   cat > "$TEST_HOME/.codex/config.toml" <<TOML

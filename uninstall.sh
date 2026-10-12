@@ -185,6 +185,47 @@ _remove_copilot_hooks() {
   echo "Removed Copilot CLI hooks: $copilot_hooks"
 }
 
+# Remove peon-ping hooks from pw code's settings, keeping everything else
+_remove_pwcode_hooks() {
+  local pw_settings="${XDG_CONFIG_HOME:-$HOME/.config}/pw/code.json"
+  [ -f "$pw_settings" ] || return 0
+  PW_SETTINGS="$pw_settings" python3 -c "
+import json, os, tempfile
+path = os.environ['PW_SETTINGS']
+try:
+    data = json.load(open(path))
+except Exception:
+    raise SystemExit(0)
+hooks = data.get('hooks') if isinstance(data, dict) else None
+if not isinstance(hooks, dict):
+    raise SystemExit(0)
+def is_peon(group):
+    return isinstance(group, dict) and any('peon-ping/' in str(h.get('command', '')) for h in group.get('hooks', []) if isinstance(h, dict))
+changed = False
+for evt in list(hooks):
+    groups = hooks[evt] if isinstance(hooks[evt], list) else []
+    kept = [g for g in groups if not is_peon(g)]
+    if len(kept) != len(groups):
+        changed = True
+        if kept:
+            hooks[evt] = kept
+        else:
+            del hooks[evt]
+if not changed:
+    raise SystemExit(0)
+if not hooks:
+    del data['hooks']
+mode = os.stat(path).st_mode & 0o777
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix='.code.json.')
+with os.fdopen(fd, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\\n')
+os.chmod(tmp, mode)
+os.replace(tmp, path)
+print('Removed pw code hooks from ' + path)
+"
+}
+
 # Remove Grok Build hooks if ~/.grok/hooks/peon-ping.json exists
 _remove_grok_hooks() {
   local grok_hooks="$HOME/.grok/hooks/peon-ping.json"
@@ -230,6 +271,10 @@ _remove_copilot_hooks
 # Remove Grok Build hooks
 echo "Removing Grok Build hooks..."
 _remove_grok_hooks
+
+# Remove pw code hooks
+echo "Removing pw code hooks..."
+_remove_pwcode_hooks
 
 # Remove OpenAI Codex hooks
 echo "Removing Codex hooks..."
