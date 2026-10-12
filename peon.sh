@@ -2027,6 +2027,20 @@ if os.path.isdir(grok_dir):
     else:
         ides.append(('Grok Build', grok_dir, 'detected (not set up)'))
 
+pwcode_dir = os.path.join(xdg_config, 'pw')
+pwcode_settings = os.path.join(pwcode_dir, 'code.json')
+if os.path.isdir(pwcode_dir):
+    pwcode_installed = False
+    if os.path.isfile(pwcode_settings):
+        try:
+            pwcode_installed = 'peon-ping/peon.sh' in open(pwcode_settings).read()
+        except Exception:
+            pwcode_installed = False
+    if pwcode_installed:
+        ides.append(('pw code', pwcode_dir, 'installed'))
+    else:
+        ides.append(('pw code', pwcode_dir, 'detected (not set up)'))
+
 # This Antigravity adapter is a background watcher, so 'installed' here means
 # its daemon is set up to run. Native Antigravity hook registration is separate.
 ag_dir = next(
@@ -5530,12 +5544,10 @@ def normalize_ide_id(value):
     return IDE_ALIASES.get(key, key)
 
 def detect_session_ide(source_value, event_payload, session_value):
-    # pw code sends Claude Code's payload shape (source=startup on SessionStart),
-    # but sets PW_PROJECT_DIR on every hook process; Claude Code never does.
-    if os.environ.get('PW_PROJECT_DIR'):
-        return 'pwcode'
     source_key = normalize_ide_id(source_value)
-    if source_key and source_key not in ('resume', 'compact'):
+    # Claude Code (and pw code, which mirrors its payload) uses SessionStart's
+    # source for the start reason, not the IDE, so those values never name one.
+    if source_key and source_key not in ('startup', 'resume', 'clear', 'compact'):
         return source_key
     if event_payload.get('workspace_roots'):
         return 'cursor'
@@ -5566,6 +5578,11 @@ def detect_session_ide(source_value, event_payload, session_value):
     for prefix, ide in prefix_map:
         if sid.startswith(prefix):
             return ide
+    # pw code sends Claude Code's payload shape but sets PW_PROJECT_DIR on every
+    # hook process; Claude Code never does. Checked last so an inherited
+    # PW_PROJECT_DIR never overrides an adapter's explicit source or session id.
+    if os.environ.get('PW_PROJECT_DIR'):
+        return 'pwcode'
     return 'claude'
 
 IDE_DISPLAY_NAMES = {

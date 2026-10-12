@@ -7,6 +7,9 @@
 setup() {
   TEST_HOME="$(mktemp -d)"
   export HOME="$TEST_HOME"
+  # install.sh/uninstall.sh edit ${XDG_CONFIG_HOME:-$HOME/.config}/pw/code.json;
+  # never let an exported XDG_CONFIG_HOME point them at the real one.
+  export XDG_CONFIG_HOME="$TEST_HOME/.config"
 
   # Create minimal .claude directory (prerequisite)
   mkdir -p "$TEST_HOME/.claude"
@@ -186,7 +189,7 @@ path = '$XDG_CONFIG_HOME/pw/code.json'
 data = json.load(open(path))
 assert data['model'] == 'm'
 hooks = data['hooks']
-for event in ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest', 'PostToolUseFailure', 'PreCompact']:
+for event in ['SessionStart', 'SessionEnd', 'SubagentStart', 'SubagentStop', 'UserPromptSubmit', 'Stop', 'Notification', 'PermissionRequest', 'PostToolUseFailure', 'PreCompact']:
     cmds = [h['command'] for g in hooks[event] for h in g['hooks']]
     assert sum('peon-ping/peon.sh' in c for c in cmds) == 1, f'{event}: {cmds}'
 assert '/usr/local/bin/mine.sh' in [h['command'] for g in hooks['Stop'] for h in g['hooks']]
@@ -219,6 +222,49 @@ assert list(data['hooks']) == ['Stop'], data['hooks']
 assert [h['command'] for g in data['hooks']['Stop'] for h in g['hooks']] == ['/usr/local/bin/mine.sh']
 print('OK')
 "
+}
+
+@test "pw code re-install and uninstall keep user hooks that share peon-ping's group" {
+  mkdir -p "$XDG_CONFIG_HOME/pw"
+  bash "$CLONE_DIR/install.sh"
+  /usr/bin/python3 -c "
+import json
+path = '$XDG_CONFIG_HOME/pw/code.json'
+data = json.load(open(path))
+data['hooks']['Stop'][-1]['hooks'].append({'type': 'command', 'command': '/usr/local/bin/mine.sh'})
+json.dump(data, open(path, 'w'))
+"
+  bash "$CLONE_DIR/install.sh"
+  /usr/bin/python3 -c "
+import json
+cmds = [h['command'] for g in json.load(open('$XDG_CONFIG_HOME/pw/code.json'))['hooks']['Stop'] for h in g['hooks']]
+assert '/usr/local/bin/mine.sh' in cmds, cmds
+assert sum('peon-ping/peon.sh' in c for c in cmds) == 1, cmds
+"
+  bash "$INSTALL_DIR/uninstall.sh"
+  /usr/bin/python3 -c "
+import json
+cmds = [h['command'] for g in json.load(open('$XDG_CONFIG_HOME/pw/code.json'))['hooks']['Stop'] for h in g['hooks']]
+assert cmds == ['/usr/local/bin/mine.sh'], cmds
+"
+}
+
+@test "pw code install keeps a symlinked code.json a symlink" {
+  mkdir -p "$XDG_CONFIG_HOME/pw" "$TEST_HOME/dotfiles"
+  echo '{"model": "m"}' > "$TEST_HOME/dotfiles/code.json"
+  ln -s "$TEST_HOME/dotfiles/code.json" "$XDG_CONFIG_HOME/pw/code.json"
+  bash "$CLONE_DIR/install.sh"
+  [ -L "$XDG_CONFIG_HOME/pw/code.json" ]
+  grep -q 'peon-ping/peon.sh' "$TEST_HOME/dotfiles/code.json"
+}
+
+@test "uninstalling a local copy keeps pw code hooks that point at the global install" {
+  mkdir -p "$XDG_CONFIG_HOME/pw"
+  bash "$CLONE_DIR/install.sh"
+  cd "$PROJECT_DIR"
+  bash "$CLONE_DIR/install.sh" --local
+  bash "$LOCAL_INSTALL_DIR/uninstall.sh"
+  grep -q "$INSTALL_DIR/peon.sh" "$XDG_CONFIG_HOME/pw/code.json"
 }
 
 @test "fresh install registers Codex stable hooks when ~/.codex exists" {

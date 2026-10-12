@@ -6,11 +6,11 @@
 ![macOS](https://img.shields.io/badge/macOS-blue) ![WSL2](https://img.shields.io/badge/WSL2-blue) ![Linux](https://img.shields.io/badge/Linux-blue) ![Windows](https://img.shields.io/badge/Windows-blue) ![MSYS2](https://img.shields.io/badge/MSYS2-blue) ![SSH](https://img.shields.io/badge/SSH-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Grok Build](https://img.shields.io/badge/Grok_Build-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01)
+![Claude Code](https://img.shields.io/badge/Claude_Code-hook-ffab01) ![Amp](https://img.shields.io/badge/Amp-adapter-ffab01) ![Gemini CLI](https://img.shields.io/badge/Gemini_CLI-adapter-ffab01) ![GitHub Copilot](https://img.shields.io/badge/GitHub_Copilot-adapter-ffab01) ![Codex](https://img.shields.io/badge/Codex-adapter-ffab01) ![Grok Build](https://img.shields.io/badge/Grok_Build-adapter-ffab01) ![Cursor](https://img.shields.io/badge/Cursor-adapter-ffab01) ![OpenCode](https://img.shields.io/badge/OpenCode-adapter-ffab01) ![Kilo CLI](https://img.shields.io/badge/Kilo_CLI-adapter-ffab01) ![Kiro](https://img.shields.io/badge/Kiro-adapter-ffab01) ![Kimi Code](https://img.shields.io/badge/Kimi_Code-adapter-ffab01) ![Windsurf](https://img.shields.io/badge/Windsurf-adapter-ffab01) ![Antigravity](https://img.shields.io/badge/Antigravity-adapter-ffab01) ![OpenClaw](https://img.shields.io/badge/OpenClaw-adapter-ffab01) ![Rovo Dev CLI](https://img.shields.io/badge/Rovo_Dev_CLI-adapter-ffab01) ![DeepAgents](https://img.shields.io/badge/DeepAgents-adapter-ffab01) ![oh-my-pi](https://img.shields.io/badge/oh--my--pi-adapter-ffab01) ![pw code](https://img.shields.io/badge/pw_code-hook-ffab01)
 
 **AIコーディングエージェントが注意を必要とする時に、ゲームキャラクターのボイスライン＋ビジュアルオーバーレイ通知を再生 — またはMCPでエージェント自身にサウンドを選ばせることも可能。**
 
-AIコーディングエージェントは、完了時や許可が必要な時に通知してくれません。タブを切り替えて集中力を失い、フローに戻るのに15分も無駄にしてしまいます。peon-pingは、Warcraft、StarCraft、Portal、Zelda などのゲームのボイスラインと目立つ画面バナーでこの問題を解決します — **Claude Code**、**Amp**、**GitHub Copilot**、**Codex**、**Cursor**、**OpenCode**、**Kilo CLI**、**Kiro**、**Kimi Code**、**Windsurf**、**Google Antigravity**、**Rovo Dev CLI**、**DeepAgents**、および任意のMCPクライアントに対応。
+AIコーディングエージェントは、完了時や許可が必要な時に通知してくれません。タブを切り替えて集中力を失い、フローに戻るのに15分も無駄にしてしまいます。peon-pingは、Warcraft、StarCraft、Portal、Zelda などのゲームのボイスラインと目立つ画面バナーでこの問題を解決します — **Claude Code**、**Amp**、**GitHub Copilot**、**Codex**、**Cursor**、**OpenCode**、**Kilo CLI**、**Kiro**、**Kimi Code**、**Windsurf**、**Google Antigravity**、**Rovo Dev CLI**、**DeepAgents**、**pw code**、および任意のMCPクライアントに対応。
 
 **デモを見る** &rarr; [peonping.com](https://peonping.com/)
 
@@ -618,6 +618,7 @@ peon-ping はフックをサポートする任意のエージェント型 IDE �
 | **GitHub Copilot** | アダプター | `.github/hooks/hooks.json` に `adapters/copilot.sh`（または `.ps1`）を指すフックを追加（[セットアップ](#github-copilot-セットアップ)） |
 | **OpenAI Codex** | 組み込み（自動検出） | `~/.codex` が存在する場合、`install.sh` / `install.ps1` が `~/.codex/config.toml` に stable hooks を自動登録。アダプターの手動接続も可能（[セットアップ](#openai-codex-セットアップ)） |
 | **Grok Build** | 組み込み（自動検出） | `~/.grok` が存在する場合、`install.sh` / `install.ps1` が `~/.grok/hooks/peon-ping.json` にフックを自動登録。アダプターの手動接続も可能（[セットアップ](#grok-build-セットアップ)） |
+| **pw code** | 組み込み（自動検出） | `~/.config/pw` が存在する場合、`install.sh` が `~/.config/pw/code.json` にフックをマージ（[セットアップ](#pw-code-セットアップ)） |
 | **Cursor** | 組み込み | `curl \| bash`、`peon-ping-setup`、または Windows `install.ps1` が自動検出して登録。Windows では **設定 → 機能 → サードパーティスキル** を有効にして、Cursor が `~/.claude/settings.json` を読み込み SessionStart/Stop サウンドを再生するようにしてください。 |
 | **OpenCode** | アダプター | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1`（[セットアップ](#opencode-セットアップ)） |
 | **Kilo CLI** | アダプター | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1`（[セットアップ](#kilo-cli-セットアップ)） |
@@ -665,6 +666,16 @@ Grok Build のフック入力は camelCase（`hookEventName`、`sessionId`）で
 3. インストール中に Codex が起動していた場合は、Codex を再起動してください。
 
 peon-ping は `hooks.json` を作成せず、inline hooks を `~/.codex/config.toml` に書き込みます。これは同じ設定レイヤーで 2 種類の hook 表現を混在させないという [Codex hooks documentation](https://developers.openai.com/codex/hooks) の推奨に合わせたものです。旧来の `notify` 接続は互換用の fallback として残りますが、新規インストールでは stable hooks を使ってください。
+
+### pw code セットアップ
+
+[pw code](https://parallel.works)（Parallel Works の `pw` CLI のコーディングエージェント）は `~/.config/pw/code.json` の `hooks` キーから Claude Code 互換のフックを読み込み、Claude Code と同じ形式のペイロードを送るため、アダプターなしで `peon.sh` を直接呼び出します。pw code はすべてのフックに `PW_PROJECT_DIR` 環境変数を設定するので、peon-ping はそれで Claude Code と区別し、通知には "pw code" と表示します。
+
+`~/.config/pw`（または `$XDG_CONFIG_HOME/pw`）が存在する場合、`install.sh` は peon-ping のフックを `code.json` にマージします。置き換えるのは peon-ping 自身が以前書き込んだエントリだけで、ファイルの他の部分はそのまま残ります。`uninstall.sh` はそれらを再び削除します。pw を後からインストールした場合は peon-ping インストーラーを再実行してください。
+
+登録イベント: `SessionStart`、`SessionEnd`、`SubagentStart`、`SubagentStop`、`UserPromptSubmit`、`Stop`、`Notification`、`PermissionRequest`、`PostToolUseFailure`（Bash のみ）、`PreCompact`。`PreToolUse` は、pw code がすべてのツール呼び出しの前に同期実行するため登録しません。
+
+既に起動中の pw code セッションは `/hooks reload` で反映されます。pw code はセッションをバックグラウンドのデーモンでホストします。クライアントの端末情報をフックに渡す pw のリリースでは、クリックでのフォーカスとタブタイトルは操作中の端末に従い、古いリリースではデーモンを起動した端末を指します。
 
 ### Amp セットアップ
 

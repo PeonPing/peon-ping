@@ -106,8 +106,8 @@ complete -c peon -n "__peon_packs_subcommand bind" -a "(
     end
   end
 )"
-complete -c peon -n "__peon_packs_subcommand ide-bind" -a "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev"
-complete -c peon -n "__peon_packs_subcommand ide-unbind" -a "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev"
+complete -c peon -n "__peon_packs_subcommand ide-bind" -a "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev pwcode"
+complete -c peon -n "__peon_packs_subcommand ide-unbind" -a "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev pwcode"
 complete -c peon -n "__peon_packs_subcommand ide-bind; and test (count (commandline -opc)) -eq 4" -a "(
   set -l packs_dir (set -q CLAUDE_PEON_DIR; and echo \$CLAUDE_PEON_DIR; or echo \$HOME/.claude/hooks/peon-ping)/packs
   if not test -d \$packs_dir; and test -d \$HOME/.openpeon/packs
