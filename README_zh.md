@@ -618,7 +618,7 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 | **GitHub Copilot CLI** | 内置（自动检测） | 当 `~/.copilot` 存在时，`install.sh` / `install.ps1` 自动在 `~/.copilot/hooks/peon-ping.json` 注册钩子。也可通过 `adapters/copilot.sh` / `.ps1` 进行逐仓库手动配置（[设置](#github-copilot-cli-设置)） |
 | **OpenAI Codex** | 内置（自动检测） | 如果 `~/.codex` 存在，`install.sh` / `install.ps1` 会自动在 `~/.codex/config.toml` 注册 stable hooks。也可手动接入适配器（[设置](#openai-codex-设置)） |
 | **Grok Build** | 内置（自动检测） | 如果 `~/.grok` 存在，`install.sh` / `install.ps1` 会自动在 `~/.grok/hooks/peon-ping.json` 注册钩子。也可手动接入适配器（[设置](#grok-build-设置)） |
-| **pw code** | 内置（自动检测） | 如果 `~/.config/pw` 存在，`install.sh` 会把钩子合并进 `~/.config/pw/code.json`（[设置](#pw-code-设置)） |
+| **pw code** | 内置（自动检测） | 如果 `~/.config/pw` 存在，`install.sh` 会把钩子合并进 `~/.config/pw/code.json`（[设置](#pw-code-设置)，[文档](https://parallelworks.com/docs/ai/code/hooks)） |
 | **Cursor** | 内置 | `curl \| bash`、`peon-ping-setup` 或 Windows `install.ps1` 自动检测并注册钩子。在 Windows 上，请在 **设置 → 功能 → 第三方技能** 中启用，以便 Cursor 加载 `~/.claude/settings.json` 以播放 SessionStart/Stop 音效。 |
 | **OpenCode** | 适配器 | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1`（[设置](#opencode-设置)） |
 | **Kilo CLI** | 适配器 | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1`（[设置](#kilo-cli-设置)） |
@@ -676,7 +676,9 @@ peon-ping 会把 inline hooks 写入 `~/.codex/config.toml`，而不是创建 `h
 
 ### pw code 设置
 
-[pw code](https://parallel.works)（Parallel Works `pw` CLI 的编程助手）从 `~/.config/pw/code.json` 的 `hooks` 键读取与 Claude Code 兼容的钩子，并发送与 Claude Code 相同的负载格式，因此无需适配器，直接调用 `peon.sh`。pw code 会为每个钩子设置 `PW_PROJECT_DIR` 环境变量，peon-ping 据此将其与 Claude Code 区分，并在通知中标注为 "pw code"。
+[pw code](https://parallelworks.com/docs/ai/code) 是 [Parallel Works](https://parallelworks.com) 的 `pw` CLI 中的终端编程助手。Parallel Works 的 ACTIVATE 平台是面向 HPC 与 AI 的联合控制台，连接你的集群、云和 GPU 资源。
+
+pw code 从 `~/.config/pw/code.json` 的 `hooks` 键读取与 Claude Code 兼容的[钩子](https://parallelworks.com/docs/ai/code/hooks)，并发送与 Claude Code 相同的负载格式，因此无需适配器，直接调用 `peon.sh`。pw code 会为每个钩子设置 `PW_PROJECT_DIR` 环境变量，peon-ping 据此将其与 Claude Code 区分，并在通知中标注为 "pw code"。
 
 如果 `~/.config/pw`（或 `$XDG_CONFIG_HOME/pw`）存在，`install.sh` 会把 peon-ping 的钩子合并进 `code.json`，只替换它自己之前写入的条目，文件其余部分保持不变。`uninstall.sh` 会将其移除。如果之后才安装 pw，请重新运行 peon-ping 安装器。
 

@@ -728,7 +728,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **GitHub Copilot CLI** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers hooks at `~/.copilot/hooks/peon-ping.json` if `~/.copilot` exists. Per-repo manual wiring also available via `adapters/copilot.sh` / `.ps1` ([setup](#github-copilot-cli-setup)) |
 | **OpenAI Codex** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers stable hooks in `~/.codex/config.toml` if `~/.codex` exists. The adapter is also available for manual wiring ([setup](#openai-codex-setup)) |
 | **Grok Build** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-register hooks at `~/.grok/hooks/peon-ping.json` if `~/.grok` exists. The adapter is also available for manual wiring ([setup](#grok-build-setup)) |
-| **pw code** | Built-in (auto-detect) | `install.sh` merges hooks into `~/.config/pw/code.json` if `~/.config/pw` exists ([setup](#pw-code-setup)) |
+| **pw code** | Built-in (auto-detect) | `install.sh` merges hooks into `~/.config/pw/code.json` if `~/.config/pw` exists ([setup](#pw-code-setup), [docs](https://parallelworks.com/docs/ai/code/hooks)) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
 | **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
 | **Kilo CLI** | Adapter | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1` ([setup](#kilo-cli-setup)) |
@@ -792,7 +792,9 @@ Grok can also scan `~/.claude/settings.json`. Those Claude hooks still call `peo
 
 ### pw code setup
 
-[pw code](https://parallel.works) (the Parallel Works `pw` CLI's coding agent) reads Claude Code-compatible hooks from the `hooks` key of `~/.config/pw/code.json` and sends Claude Code's payload shape, so it calls `peon.sh` directly with no adapter. peon-ping tells it apart from Claude Code by the `PW_PROJECT_DIR` variable pw code sets on every hook, and labels its notifications "pw code".
+[pw code](https://parallelworks.com/docs/ai/code) is the terminal coding agent in the `pw` CLI from [Parallel Works](https://parallelworks.com), whose ACTIVATE platform is a federated console for HPC and AI that connects your clusters, clouds, and GPU capacity.
+
+pw code reads Claude Code-compatible [hooks](https://parallelworks.com/docs/ai/code/hooks) from the `hooks` key of `~/.config/pw/code.json` and sends Claude Code's payload shape, so it calls `peon.sh` directly with no adapter. peon-ping tells it apart from Claude Code by the `PW_PROJECT_DIR` variable pw code sets on every hook, and labels its notifications "pw code".
 
 If `~/.config/pw` (or `$XDG_CONFIG_HOME/pw`) exists, `install.sh` merges peon-ping's hooks into `code.json`, replacing only its own earlier entries and leaving the rest of the file alone. `uninstall.sh` removes them again. If you install pw later, re-run the peon-ping installer.
 

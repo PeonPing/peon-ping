@@ -324,7 +324,7 @@ peon-ping은 훅을 지원하는 모든 에이전트 기반 IDE에서 동작합�
 | **GitHub Copilot** | 어댑터 | `.github/hooks/hooks.json`에 `adapters/copilot.sh` 훅 추가 ([설정](#github-copilot-설정)) |
 | **OpenAI Codex** | 내장(자동 감지) | `~/.codex`가 있으면 `install.sh` / `install.ps1`이 `~/.codex/config.toml`에 stable hooks를 자동 등록. 수동 어댑터 연결도 가능 ([설정](#openai-codex-설정)) |
 | **Grok Build** | 내장(자동 감지) | `~/.grok`가 있으면 `install.sh` / `install.ps1`이 `~/.grok/hooks/peon-ping.json`에 훅을 자동 등록. 수동 어댑터 연결도 가능 ([설정](#grok-build-설정)) |
-| **pw code** | 내장(자동 감지) | `~/.config/pw`가 있으면 `install.sh`가 `~/.config/pw/code.json`에 훅을 병합 ([설정](#pw-code-설정)) |
+| **pw code** | 내장(자동 감지) | `~/.config/pw`가 있으면 `install.sh`가 `~/.config/pw/code.json`에 훅을 병합 ([설정](#pw-code-설정), [문서](https://parallelworks.com/docs/ai/code/hooks)) |
 | **Cursor** | 내장 | `curl \| bash` 또는 `peon-ping-setup`이 자동 감지 후 Cursor 훅 등록 |
 | **OpenCode** | 어댑터 | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh \| bash` ([설정](#opencode-설정)) |
 | **Kilo CLI** | 어댑터 | `curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/kilo.sh \| bash` ([설정](#kilo-cli-설정)) |
@@ -370,7 +370,9 @@ peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.t
 
 ### pw code 설정
 
-[pw code](https://parallel.works)(Parallel Works `pw` CLI의 코딩 에이전트)는 `~/.config/pw/code.json`의 `hooks` 키에서 Claude Code 호환 훅을 읽고 Claude Code와 같은 형식의 페이로드를 보내므로, 어댑터 없이 `peon.sh`를 직접 호출합니다. pw code는 모든 훅에 `PW_PROJECT_DIR` 환경 변수를 설정하며, peon-ping은 이 값으로 Claude Code와 구분하고 알림에 "pw code"라고 표시합니다.
+[pw code](https://parallelworks.com/docs/ai/code)는 [Parallel Works](https://parallelworks.com)의 `pw` CLI에 포함된 터미널 코딩 에이전트입니다. Parallel Works의 ACTIVATE 플랫폼은 클러스터, 클라우드, GPU 자원을 연결하는 HPC 및 AI용 연합 콘솔입니다.
+
+pw code는 `~/.config/pw/code.json`의 `hooks` 키에서 Claude Code 호환 [훅](https://parallelworks.com/docs/ai/code/hooks)을 읽고 Claude Code와 같은 형식의 페이로드를 보내므로, 어댑터 없이 `peon.sh`를 직접 호출합니다. pw code는 모든 훅에 `PW_PROJECT_DIR` 환경 변수를 설정하며, peon-ping은 이 값으로 Claude Code와 구분하고 알림에 "pw code"라고 표시합니다.
 
 `~/.config/pw`(또는 `$XDG_CONFIG_HOME/pw`)가 있으면 `install.sh`가 peon-ping 훅을 `code.json`에 병합합니다. peon-ping이 이전에 쓴 항목만 교체하고 파일의 나머지는 그대로 둡니다. `uninstall.sh`는 이 항목들을 다시 제거합니다. pw를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
 

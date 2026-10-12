@@ -618,7 +618,7 @@ peon-ping はフックをサポートする任意のエージェント型 IDE �
 | **GitHub Copilot** | アダプター | `.github/hooks/hooks.json` に `adapters/copilot.sh`（または `.ps1`）を指すフックを追加（[セットアップ](#github-copilot-セットアップ)） |
 | **OpenAI Codex** | 組み込み（自動検出） | `~/.codex` が存在する場合、`install.sh` / `install.ps1` が `~/.codex/config.toml` に stable hooks を自動登録。アダプターの手動接続も可能（[セットアップ](#openai-codex-セットアップ)） |
 | **Grok Build** | 組み込み（自動検出） | `~/.grok` が存在する場合、`install.sh` / `install.ps1` が `~/.grok/hooks/peon-ping.json` にフックを自動登録。アダプターの手動接続も可能（[セットアップ](#grok-build-セットアップ)） |
-| **pw code** | 組み込み（自動検出） | `~/.config/pw` が存在する場合、`install.sh` が `~/.config/pw/code.json` にフックをマージ（[セットアップ](#pw-code-セットアップ)） |
+| **pw code** | 組み込み（自動検出） | `~/.config/pw` が存在する場合、`install.sh` が `~/.config/pw/code.json` にフックをマージ（[セットアップ](#pw-code-セットアップ)、[ドキュメント](https://parallelworks.com/docs/ai/code/hooks)） |
 | **Cursor** | 組み込み | `curl \| bash`、`peon-ping-setup`、または Windows `install.ps1` が自動検出して登録。Windows では **設定 → 機能 → サードパーティスキル** を有効にして、Cursor が `~/.claude/settings.json` を読み込み SessionStart/Stop サウンドを再生するようにしてください。 |
 | **OpenCode** | アダプター | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1`（[セットアップ](#opencode-セットアップ)） |
 | **Kilo CLI** | アダプター | `bash adapters/kilo.sh` / `powershell adapters/kilo.ps1`（[セットアップ](#kilo-cli-セットアップ)） |
@@ -669,7 +669,9 @@ peon-ping は `hooks.json` を作成せず、inline hooks を `~/.codex/config.t
 
 ### pw code セットアップ
 
-[pw code](https://parallel.works)（Parallel Works の `pw` CLI のコーディングエージェント）は `~/.config/pw/code.json` の `hooks` キーから Claude Code 互換のフックを読み込み、Claude Code と同じ形式のペイロードを送るため、アダプターなしで `peon.sh` を直接呼び出します。pw code はすべてのフックに `PW_PROJECT_DIR` 環境変数を設定するので、peon-ping はそれで Claude Code と区別し、通知には "pw code" と表示します。
+[pw code](https://parallelworks.com/docs/ai/code) は [Parallel Works](https://parallelworks.com) の `pw` CLI に含まれるターミナル向けコーディングエージェントです。Parallel Works の ACTIVATE プラットフォームは、クラスター、クラウド、GPU リソースをつなぐ HPC と AI のためのフェデレーテッドコンソールです。
+
+pw code は `~/.config/pw/code.json` の `hooks` キーから Claude Code 互換の[フック](https://parallelworks.com/docs/ai/code/hooks)を読み込み、Claude Code と同じ形式のペイロードを送るため、アダプターなしで `peon.sh` を直接呼び出します。pw code はすべてのフックに `PW_PROJECT_DIR` 環境変数を設定するので、peon-ping はそれで Claude Code と区別し、通知には "pw code" と表示します。
 
 `~/.config/pw`（または `$XDG_CONFIG_HOME/pw`）が存在する場合、`install.sh` は peon-ping のフックを `code.json` にマージします。置き換えるのは peon-ping 自身が以前書き込んだエントリだけで、ファイルの他の部分はそのまま残ります。`uninstall.sh` はそれらを再び削除します。pw を後からインストールした場合は peon-ping インストーラーを再実行してください。
 
