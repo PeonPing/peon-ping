@@ -68,18 +68,9 @@ json.dump({'last_active': {'session_id': 'other', 'pack': 'peon',
                          'timestamp': time.time(), 'event': 'UserPromptSubmit'}},
           open(root + '/.state.json', 'w'))
 PYTHON
-  # Control only pack randomness; sound choice and the hook remain real.
-  cat > "$TEST_DIR/sitecustomize.py" <<'PYTHON'
-import random
-choice = random.choice
-def choose(values):
-    if values == ['peon', 'sc_kerrigan']:
-        return 'sc_kerrigan'
-    return choice(values)
-random.choice = choose
-PYTHON
-  export PYTHONPATH="$TEST_DIR${PYTHONPATH:+:$PYTHONPATH}"
+  export PEON_TEST_RANDOM_SEED=0
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/project","session_id":"new"}'
+  unset PEON_TEST_RANDOM_SEED
   assert_session_pack new sc_kerrigan
 }
 

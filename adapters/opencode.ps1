@@ -25,9 +25,6 @@ $DefaultPack = "peon"
 $PluginsDir = if ($env:XDG_CONFIG_HOME) { Join-Path $env:XDG_CONFIG_HOME "opencode\plugins" }
               else { Join-Path $env:USERPROFILE ".config\opencode\plugins" }
 
-$PeonConfigDir = if ($env:XDG_CONFIG_HOME) { Join-Path $env:XDG_CONFIG_HOME "opencode\peon-ping" }
-                 else { Join-Path $env:USERPROFILE ".config\opencode\peon-ping" }
-
 $PacksDir = Join-Path $env:USERPROFILE ".openpeon\packs"
 
 # --- Uninstall ---
@@ -36,8 +33,7 @@ if ($Uninstall) {
     Remove-Item (Join-Path $PluginsDir "peon-ping.ts") -Force -ErrorAction SilentlyContinue
     Remove-Item (Join-Path $PluginsDir "peon-ping-v1.ts") -Force -ErrorAction SilentlyContinue
     Remove-Item (Join-Path $PluginsDir "peon-ping-v2.ts") -Force -ErrorAction SilentlyContinue
-    Remove-Item $PeonConfigDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "> Plugin and config removed."
+    Write-Host "> Plugin removed."
     Write-Host "> Sound packs in $PacksDir were preserved (shared with other adapters)."
     Write-Host "> To remove packs too: Remove-Item -Recurse $PacksDir"
     exit 0
@@ -75,46 +71,6 @@ Remove-Item $pluginPath -Force -ErrorAction SilentlyContinue
 Write-Host "> Downloading peon-ping.ts plugin..."
 Invoke-WebRequest -Uri $PluginUrl -OutFile $pluginPath -UseBasicParsing
 Write-Host "> Plugin installed to $pluginPath"
-
-# Create default config
-New-Item -ItemType Directory -Path $PeonConfigDir -Force | Out-Null
-$configPath = Join-Path $PeonConfigDir "config.json"
-
-if (-not (Test-Path $configPath)) {
-    $config = @{
-        default_pack          = "peon"
-        volume                = 0.5
-        enabled               = $true
-        categories            = @{
-            "session.start"    = $true
-            "session.end"      = $true
-            "task.acknowledge" = $true
-            "task.complete"    = $true
-            "task.error"       = $true
-            "task.progress"    = $true
-            "input.required"   = $true
-            "resource.limit"   = $true
-            "user.spam"        = $true
-        }
-        spam_threshold        = 3
-        spam_window_seconds   = 10
-        pack_rotation         = @()
-        debounce_ms           = 500
-    }
-    $prevCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
-    try {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::InvariantCulture
-        # UTF-8 without a BOM: Set-Content -Encoding UTF8 writes one on Windows
-        # PowerShell 5.1, and a BOM trips strict JSON parsers.
-        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-        [System.IO.File]::WriteAllText($configPath, (($config | ConvertTo-Json -Depth 3) + [Environment]::NewLine), $utf8NoBom)
-    } finally {
-        [System.Threading.Thread]::CurrentThread.CurrentCulture = $prevCulture
-    }
-    Write-Host "> Config created at $configPath"
-} else {
-    Write-Host "> Config already exists, preserved."
-}
 
 # Install default sound pack from registry
 New-Item -ItemType Directory -Path $PacksDir -Force | Out-Null
@@ -161,7 +117,6 @@ Write-Host ""
 Write-Host "> peon-ping installed for OpenCode!" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Plugin:  $pluginPath"
-Write-Host "  Config:  $configPath"
 Write-Host "  Packs:   $PacksDir"
 Write-Host ""
 Write-Host "> Restart OpenCode to activate. Your Peon awaits."

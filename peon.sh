@@ -5255,6 +5255,8 @@ _PEON_PY_TMP=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/peon-py-$$.py")
 trap 'rm -f "$_PEON_PY_TMP"' EXIT
 cat > "$_PEON_PY_TMP" <<PEON_LOCAL_PY_EOF
 import sys, json, os, re, random, time, shlex, tempfile, fnmatch
+if (seed := os.environ.get('PEON_TEST_RANDOM_SEED')):
+    random.seed(int(seed))
 q = shlex.quote
 _peon_start = time.monotonic()
 
