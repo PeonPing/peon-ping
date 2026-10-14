@@ -1586,7 +1586,7 @@ case "${1:-}" in
     export PEON_ENV_HEADPHONES_DETECTED="$_headphones_detected"
     export PEON_ENV_VERBOSE="$_verbose_flag"
     python3 -c "
-import json, os, sys, fnmatch, datetime
+import json, os, sys, fnmatch, datetime, re
 
 config_path = os.environ.get('PEON_ENV_CONFIG', '')
 global_config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
@@ -2010,6 +2010,32 @@ if os.path.isdir(codex_dir):
             )
         except Exception:
             codex_installed = False
+    codex_hooks = os.path.join(codex_dir, 'hooks.json')
+    if not codex_installed and os.path.isfile(codex_hooks):
+        try:
+            with open(codex_hooks, encoding='utf-8-sig') as f:
+                codex_hooks_cfg = json.load(f)
+            events = codex_hooks_cfg.get('hooks', {}) if isinstance(codex_hooks_cfg, dict) else {}
+            if isinstance(events, dict):
+                for groups in events.values():
+                    if not isinstance(groups, list):
+                        continue
+                    for group in groups:
+                        handlers = group.get('hooks', []) if isinstance(group, dict) else []
+                        if not isinstance(handlers, list):
+                            continue
+                        for handler in handlers:
+                            if not isinstance(handler, dict) or handler.get('type') != 'command':
+                                continue
+                            for key in ('command', 'commandWindows'):
+                                command = handler.get(key)
+                                if isinstance(command, str) and re.search(
+                                    r'(?<![\w.-])adapters/codex\.(?:sh|ps1)(?![\w./-])',
+                                    command.replace(chr(92), '/'), re.IGNORECASE,
+                                ):
+                                    codex_installed = True
+        except (OSError, ValueError):
+            pass
     if codex_installed:
         ides.append(('OpenAI Codex', codex_dir, 'installed'))
     else:
