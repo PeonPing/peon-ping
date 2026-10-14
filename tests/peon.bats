@@ -6917,3 +6917,72 @@ PY
   [ ! -f "$TEST_DIR/hijacked" ]
   afplay_was_called
 }
+
+@test "status detects Codex command hooks in hooks.json only" {
+  local fake_home="$TEST_DIR/status-home"
+  local codex_home="$TEST_DIR/custom-codex"
+  mkdir -p "$fake_home" "$codex_home"
+  cat > "$codex_home/hooks.json" <<'JSON'
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash /some/path/adapters/codex.sh"}]}]}}
+JSON
+  run env HOME="$fake_home" CODEX_HOME="$codex_home" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] OpenAI Codex $codex_home (installed)"* ]] || return 1
+}
+
+@test "status detects Codex Windows command and commandWindows hooks" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  for field in command commandWindows; do
+    "$PEON_PY" - "$fake_home/.codex/hooks.json" "$field" <<'PY'
+import json, sys
+json.dump({'hooks': {'Stop': [{'hooks': [{'type': 'command', 'command': 'echo fallback', sys.argv[2]: 'powershell -File "C:\\Users\\me\\adapters\\codex.ps1"'}]}]}}, open(sys.argv[1], 'w'))
+PY
+    run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[x] OpenAI Codex"* ]] || return 1
+  done
+}
+
+@test "status ignores Codex adapter mentions outside command hooks" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  cat > "$fake_home/.codex/hooks.json" <<'JSON'
+{"description":"bash /some/path/adapters/codex.sh","hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash /some/path/adapters/codex.sh.bak"},{"type":"prompt","command":"bash /some/path/adapters/codex.sh"}]}]}}
+JSON
+  run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[ ] OpenAI Codex"* ]] || return 1
+  [[ "$output" != *"[x] OpenAI Codex"* ]] || return 1
+}
+
+@test "status tolerates malformed or unexpected Codex hooks JSON" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  for content in '{"hooks":' '[]' '{"hooks": []}' '{"hooks": {"Stop": [null, {"hooks": null}]}}'; do
+    printf '%s' "$content" > "$fake_home/.codex/hooks.json"
+    run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[ ] OpenAI Codex"* ]] || return 1
+    [[ "$output" != *"Traceback"* ]] || return 1
+  done
+}
+
+@test "status retains Codex TOML detection with malformed hooks JSON" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  printf 'notify = ["bash", "/some/path/adapters/codex.sh"]\n' > "$fake_home/.codex/config.toml"
+  printf '{invalid' > "$fake_home/.codex/hooks.json"
+  run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] OpenAI Codex"* ]] || return 1
+}
+
+@test "status detects UTF-8 BOM Codex hooks JSON" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  printf '\357\273\277%s' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash /some/path/adapters/codex.sh"}]}]}}' > "$fake_home/.codex/hooks.json"
+  run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] OpenAI Codex"* ]] || return 1
+}
