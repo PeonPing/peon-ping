@@ -161,10 +161,12 @@ PY
   esac
 }
 
+_peon_invoked_dir=""
 if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
   PEON_DIR="$CLAUDE_PEON_DIR"
 else
   _peon_script="${BASH_SOURCE[0]}"
+  _peon_invoked_dir="$(cd "$(dirname "$_peon_script")" && pwd)"
   while [ -L "$_peon_script" ]; do
     _peon_link="$(readlink "$_peon_script")" || break
     case "$_peon_link" in
@@ -178,12 +180,14 @@ fi
 # Save original install directory for finding bundled scripts (Nix, Homebrew)
 _INSTALL_DIR="$PEON_DIR"
 # Homebrew/Nix/adapter installs: script lives in read-only store but packs/config are elsewhere.
-# Priority: Claude hooks dir first (matches where the hook actually runs from),
-# then CESP shared path as fallback (fixes #250: CLI must write config to the
+# Priority: the invoking hooks dir with packs, then the configured Claude hooks
+# dir, then CESP shared path as fallback (fixes #250: CLI must write config to the
 # same location the hook reads from).
 if [ ! -d "$PEON_DIR/packs" ]; then
   _hooks_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
-  if [ -d "$_hooks_dir/packs" ]; then
+  if [ -n "$_peon_invoked_dir" ] && [ -d "$_peon_invoked_dir/packs" ]; then
+    PEON_DIR="$_peon_invoked_dir"
+  elif [ -d "$_hooks_dir/packs" ]; then
     PEON_DIR="$_hooks_dir"
   elif [ -d "$HOME/.openpeon/packs" ]; then
     PEON_DIR="$HOME/.openpeon"
@@ -193,6 +197,7 @@ if [ ! -d "$PEON_DIR/packs" ]; then
   fi
   unset _hooks_dir
 fi
+unset _peon_invoked_dir
 # Ensure the data dir exists before any config/state write (#561: fresh install
 # has no ~/.openpeon yet, and the setup wizard writes config.json directly).
 mkdir -p "$PEON_DIR" 2>/dev/null || true
