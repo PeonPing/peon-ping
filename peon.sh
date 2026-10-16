@@ -4354,6 +4354,10 @@ if 'focus_detect_mode' not in cfg:
     cfg['focus_detect_mode'] = 'all'
     changed = True
     migrations.append('focus_detect_mode')
+if 'sound_cooldown_seconds' not in cfg:
+    cfg['sound_cooldown_seconds'] = 0
+    changed = True
+    migrations.append('sound_cooldown_seconds')
 if changed:
     json.dump(cfg, open(config_path, 'w'), indent=2)
     print('peon-ping: config keys updated (' + ', '.join(migrations) + ')')
@@ -6367,6 +6371,22 @@ if sound_file:
 elif category and not paused:
     log('sound', error='no sound found', pack=active_pack, fallback='none')
 
+# --- Global sound cooldown: drop any sound within N seconds of the last one played ---
+# Integers only; floats, bools, strings and negatives leave it off.
+# Notifications are unaffected; only the audio cue (sound + its TTS) is dropped.
+sound_cooldown = cfg.get('sound_cooldown_seconds', 0)
+if type(sound_cooldown) is not int or sound_cooldown < 0:
+    sound_cooldown = 0
+sound_cooldown_hit = False
+if sound_file and sound_cooldown:
+    if now - state.get('last_sound_time', 0) < sound_cooldown:
+        log('route', category=category, suppressed=True, reason='sound_cooldown')
+        sound_file = ''
+        sound_cooldown_hit = True
+    else:
+        state['last_sound_time'] = now
+        state_dirty = True
+
 # --- Trainer reminder check ---
 trainer_sound = ''
 trainer_msg = ''
@@ -6557,7 +6577,7 @@ tts_rate = tts_cfg.get('rate', 1.0)
 tts_volume = tts_cfg.get('volume', 0.5)
 tts_mode = tts_cfg.get('mode', 'sound-then-speak')
 
-if tts_enabled and category:
+if tts_enabled and category and not sound_cooldown_hit:
     # Chain: manifest speech_text -> notification template -> default
     if pick and pick.get('speech_text'):
         _speech_tpl = pick['speech_text']

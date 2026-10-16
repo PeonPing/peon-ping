@@ -624,6 +624,63 @@ json.dump(state, open('$TEST_DIR/.state.json', 'w'))
 }
 
 # ============================================================
+# Sound cooldown (drop sounds shortly after one played)
+# ============================================================
+
+@test "sound_cooldown drops a sound inside the cooldown, across sessions" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "sound_cooldown_seconds": 30 }
+JSON
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$(afplay_call_count)" = "1" ]
+  t1=$(/usr/bin/python3 -c "import json; print(repr(json.load(open('$TEST_DIR/.state.json'))['last_sound_time']))")
+  run_peon '{"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" = "1" ]
+  # Dropped sound must not restart the cooldown
+  t2=$(/usr/bin/python3 -c "import json; print(repr(json.load(open('$TEST_DIR/.state.json'))['last_sound_time']))")
+  [ "$t1" = "$t2" ]
+}
+
+@test "sound_cooldown plays again once the cooldown has passed" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "sound_cooldown_seconds": 30 }
+JSON
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$(afplay_call_count)" = "1" ]
+  /usr/bin/python3 -c "
+import json, time
+state = json.load(open('$TEST_DIR/.state.json'))
+state['last_sound_time'] = time.time() - 31
+json.dump(state, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" = "2" ]
+}
+
+@test "sound_cooldown ignores non-integer values" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "sound_cooldown_seconds": 2.5 }
+JSON
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  run_peon '{"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s2","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" = "2" ]
+}
+
+@test "sound_cooldown keeps the desktop notification for a dropped sound" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "categories": {}, "notification_style": "standard", "sound_cooldown_seconds": 30 }
+JSON
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  rm -f "$TEST_DIR/terminal_notifier.log"
+  run_peon '{"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s2","permission_mode":"default"}'
+  [ "$(afplay_call_count)" = "1" ]
+  [ -s "$TEST_DIR/terminal_notifier.log" ]
+}
+
+# ============================================================
 # suppress_subagent_complete
 # ============================================================
 

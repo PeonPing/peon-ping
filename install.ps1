@@ -3093,6 +3093,21 @@ if ($iconCandidate) {
     }
 }
 
+# Global sound cooldown: drop any sound within N seconds of the last one played.
+# Integers only; floats, bools, strings and negatives leave it off.
+# Notifications are unaffected; only the audio cue (sound + its TTS) is dropped.
+$soundCooldown = $config.sound_cooldown_seconds
+$soundCooldownHit = $false
+if (($soundCooldown -is [int] -or $soundCooldown -is [long]) -and $soundCooldown -gt 0) {
+    $lastSound = if ($state.ContainsKey("last_sound_time")) { $state["last_sound_time"] } else { 0 }
+    if (($now - $lastSound) -lt $soundCooldown) {
+        & $peonLog 'route' @{ category = $category; suppressed = 'True'; reason = 'sound_cooldown' }
+        $soundCooldownHit = $true
+    } else {
+        $state["last_sound_time"] = $now
+    }
+}
+
 # Save last played
 $state[$lastKey] = $soundFile
 try {
@@ -3158,7 +3173,9 @@ function Play-Sound {
     }
 }
 
-if ($ttsEnabled -and $ttsText) {
+if ($soundCooldownHit) {
+    # Dropped: still inside sound_cooldown_seconds
+} elseif ($ttsEnabled -and $ttsText) {
     switch ($ttsMode) {
         "sound-then-speak" {
             Play-Sound $soundPath $volume

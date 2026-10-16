@@ -36,6 +36,7 @@ The config file is at `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/confi
 - **annoyed_threshold** (number): How many rapid prompts trigger user.spam sounds
 - **annoyed_window_seconds** (number): Time window for the annoyed threshold
 - **silent_window_seconds** (number): Suppress task.complete sounds for tasks shorter than this many seconds
+- **sound_cooldown_seconds** (integer, default: `0`): After a sound plays, drop any other sound within the next N seconds. `0` disables. Integers only
 - **session_ttl_days** (number, default: 7): Expire stale per-session pack assignments older than N days (when using session_override mode)
 - **desktop_notifications** (boolean): Toggle notification popups independently from sounds (default: `true`)
 - **use_sound_effects_device** (boolean): Route audio through macOS Sound Effects device (`true`) or default output via afplay (`false`). Only affects macOS. Default: `true`
