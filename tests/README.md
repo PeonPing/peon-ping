@@ -54,3 +54,19 @@ a different profile or the shared directory. The slow path validates
 private directory descriptors and uses atomic directory creation, never opening
 an existing session marker for writing. Unsafe storage or ambiguous JSON falls
 back to full hook handling.
+
+# Targeted Windows Codex cleanup fixtures
+
+To check Codex cleanup wiring without running the large adapter suite:
+
+```powershell
+$config = New-PesterConfiguration
+$config.Run.Path = 'tests/adapters-windows.Tests.ps1'
+$config.Filter.FullName = @('*cleans up Codex hooks', '*Codex cleanup removes only the current install root')
+Invoke-Pester -Configuration $config
+```
+
+These three cases execute cleanup with the real shared Codex helper. They check
+default and custom CODEX_HOME paths, installation ownership, preserved user hooks
+and metadata, multiline examples, CRLF output, and repeated cleanup. The file
+fixtures place legacy notify keys at the TOML root, before table headers.

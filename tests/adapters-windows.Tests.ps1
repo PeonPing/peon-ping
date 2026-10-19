@@ -1198,10 +1198,56 @@ Describe "uninstall.ps1" {
     }
 
     It "cleans up Codex hooks" {
-        $script:uninstallContent | Should -Match '\.codex\\config\.toml'
-        $script:uninstallContent | Should -Match 'peon-ping Codex hooks begin'
-        $script:uninstallContent | Should -Match ([regex]::Escape('adapters[\\/]+codex\.(sh|ps1)'))
-        $script:uninstallContent | Should -Match '\[System\.IO\.File\]::Replace'
+        # Run only the real removal section; the rest of uninstall must never
+        # reach installed settings, sounds, skills or CLI paths from this test.
+        $start = $script:uninstallContent.IndexOf('# --- Remove OpenAI Codex hooks ---')
+        $end = $script:uninstallContent.IndexOf('# --- Remove skills ---', $start)
+        $start | Should -BeGreaterOrEqual 0
+        $end | Should -BeGreaterThan $start
+        $cleanup = [scriptblock]::Create($script:uninstallContent.Substring($start, $end - $start))
+        . (Join-Path $script:RepoRoot 'scripts/install-utils.ps1')
+        $oldUserProfile = $env:USERPROFILE
+        $oldCodexHome = $env:CODEX_HOME
+        try {
+            $env:USERPROFILE = Join-Path $TestDrive 'codex-cleanup-profile'
+            $InstallDir = Join-Path $TestDrive 'peon-ping'
+            $otherInstall = Join-Path $TestDrive 'peon-ping-other'
+            $scripts = Join-Path $InstallDir 'scripts'
+            $defaultHome = Join-Path $env:USERPROFILE '.codex'
+            $customHome = Join-Path $TestDrive 'codex-custom'
+            New-Item -ItemType Directory -Path $scripts, $defaultHome, $customHome -Force | Out-Null
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts/codex-hooks.ps1') -Destination $scripts
+            $ownAdapter = (Join-Path $InstallDir 'adapters/codex.ps1').Replace('\', '\\')
+            $otherCommand = 'powershell -File "' + (Join-Path $otherInstall 'adapters/codex.ps1') + '"'
+            $toml = "model = 'keep'`n" + 'notify = ["powershell", "' + $ownAdapter + '"]' + "`n"
+            $json = @{ version = 1; keep = 'metadata'; hooks = @{ Stop = @(@{ hooks = @(
+                @{ type = 'command'; command = ('powershell -File "' + (Join-Path $InstallDir 'adapters/codex.ps1') + '"') },
+                @{ type = 'command'; command = $otherCommand }
+            ) }) } } | ConvertTo-Json -Depth 10
+            foreach ($homePath in @($defaultHome, $customHome)) {
+                [System.IO.File]::WriteAllText((Join-Path $homePath 'config.toml'), $toml)
+                [System.IO.File]::WriteAllText((Join-Path $homePath 'hooks.json'), $json)
+            }
+            foreach ($mode in @('default', 'custom')) {
+                $env:CODEX_HOME = if ($mode -eq 'custom') { $customHome } else { $null }
+                $selected = if ($mode -eq 'custom') { $customHome } else { $defaultHome }
+                $untouched = if ($mode -eq 'custom') { $defaultHome } else { $customHome }
+                $untouchedToml = [System.IO.File]::ReadAllText((Join-Path $untouched 'config.toml'))
+                $untouchedJson = [System.IO.File]::ReadAllText((Join-Path $untouched 'hooks.json'))
+                & $cleanup
+                (Get-Content -LiteralPath (Join-Path $selected 'config.toml') -Raw).Trim() | Should -Be "model = 'keep'"
+                $document = Get-Content -LiteralPath (Join-Path $selected 'hooks.json') -Raw | ConvertFrom-Json
+                $document.keep | Should -Be 'metadata'
+                $document.version | Should -Be 1
+                @($document.hooks.Stop[0].hooks).Count | Should -Be 1
+                $document.hooks.Stop[0].hooks[0].command | Should -Be $otherCommand
+                [System.IO.File]::ReadAllText((Join-Path $untouched 'config.toml')) | Should -BeExactly $untouchedToml
+                [System.IO.File]::ReadAllText((Join-Path $untouched 'hooks.json')) | Should -BeExactly $untouchedJson
+            }
+        } finally {
+            $env:USERPROFILE = $oldUserProfile
+            $env:CODEX_HOME = $oldCodexHome
+        }
     }
 
     It "Codex cleanup removes only the current install root" {
@@ -1225,6 +1271,8 @@ Describe "uninstall.ps1" {
         }, $true))
         $functions.Count | Should -Be $wanted.Count
         . ([scriptblock]::Create(($functions | ForEach-Object { $_.Extent.Text }) -join "`n"))
+        # Production loads the shared lexer alongside these extracted helpers.
+        . (Join-Path $script:RepoRoot 'scripts/codex-hooks.ps1')
 
         $oldUserProfile = $env:USERPROFILE
         try {
@@ -1232,8 +1280,16 @@ Describe "uninstall.ps1" {
             $currentInstall = "C:\Users\me[1]\.claude\hooks\peon-ping"
             $otherInstall = "C:\Users\me[1]\.openpeon\hooks\peon-ping"
             $oldPrefixInstall = "$currentInstall-old"
+            # Legacy notify is a root key, so place it before the first table.
             $content = @"
 model = "gpt-5"
+
+notify = [
+  "powershell",
+  "-NoProfile",
+  "-File",
+  "$currentInstall\adapters\codex.ps1"
+]
 
 documentation = """
 [[hooks.Stop]]
@@ -1297,12 +1353,6 @@ command = "powershell -NoProfile -File '$oldPrefixInstall\adapters\codex.ps1'"
 timeout = 10
 # peon-ping Codex hooks end
 
-notify = [
-  "powershell",
-  "-NoProfile",
-  "-File",
-  "$currentInstall\adapters\codex.ps1"
-]
 "@
             $cleaned = Remove-PeonCodexConfigText $content $currentInstall
             $cleaned | Should -Not -Match ([regex]::Escape("$currentInstall\adapters\codex.ps1"))
@@ -2066,14 +2116,24 @@ exit 37
         }, $true))
         $functions.Count | Should -Be $wanted.Count
         . ([scriptblock]::Create(($functions | ForEach-Object { $_.Extent.Text }) -join "`n"))
+        # Production loads the shared lexer alongside these extracted helpers.
+        . (Join-Path $script:RepoRoot 'scripts/codex-hooks.ps1')
 
         $oldUserProfile = $env:USERPROFILE
         try {
             $env:USERPROFILE = "C:\Users\me[1]"
             $currentInstall = "C:\Users\me[1]\.claude\hooks\peon-ping"
             $oldPrefixInstall = "$currentInstall-old"
+            # Legacy notify is a root key, so place it before the first table.
             $content = @"
 model = "gpt-5"
+
+notify = [
+  "powershell",
+  "-NoProfile",
+  "-File",
+  "$currentInstall\adapters\codex.ps1"
+]
 
 documentation = """
 [[hooks.Stop]]
@@ -2128,12 +2188,6 @@ command = "powershell -NoProfile -File '$oldPrefixInstall\adapters\codex.ps1'"
 timeout = 10
 # peon-ping Codex hooks end
 
-notify = [
-  "powershell",
-  "-NoProfile",
-  "-File",
-  "$currentInstall\adapters\codex.ps1"
-]
 "@
             $cleaned = Remove-PeonCodexConfigText $content $currentInstall
             $cleaned | Should -Not -Match ([regex]::Escape("$currentInstall\adapters\codex.ps1"))
