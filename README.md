@@ -751,7 +751,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 
 ### OpenAI Codex setup
 
-Codex support uses the stable Codex hooks API plus the peon-ping adapter. The Unix installer uses `$CODEX_HOME` (default `~/.codex`) and reuses an existing `hooks.json`; otherwise it adds a managed block to `config.toml`. The Windows installer adds managed inline TOML hooks. If Codex is installed later, re-run the peon-ping installer.
+Codex support uses the stable Codex hooks API plus the peon-ping adapter. Both installers use `CODEX_HOME` (default `~/.codex`) and reuse an existing `hooks.json`; otherwise they add a managed block to `config.toml`. If Codex is installed later, re-run the peon-ping installer.
 
 The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PreCompact`, `SubagentStart`, `SubagentStop`, and `Stop`. `SessionStart` is matched for `startup`, `resume`, and `clear`; Codex compaction is handled by `PreCompact`, so compact-triggered `SessionStart` is skipped. `PreToolUse`, `PostToolUse`, and `PostCompact` are intentionally not registered; `PostToolUse` is ignored by the Codex adapter because Codex does not provide a separate failure-only hook and successful tool hooks are too noisy for peon-ping.
 
@@ -773,7 +773,7 @@ The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionR
 
 3. Restart Codex if it was already running during installation.
 
-On Unix, existing JSON hooks keep their format, user handlers and metadata. Updates replace only this installation's handlers, and uninstall removes them from either format. If unrelated inline TOML events and `hooks.json` already coexist, installation stops with a consolidation message instead of adding duplicate events. `peon status --verbose` detects command hooks in either file. This follows the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to use one representation per config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
+On Unix and Windows, existing JSON hooks keep their format, user handlers and metadata. Updates replace only this installation's handlers, and uninstall removes them from either format. If unrelated inline TOML events and `hooks.json` already coexist, installation stops with a consolidation message instead of adding duplicate events. `peon status --verbose` detects command hooks in either file. This follows the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to use one representation per config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
 
 ### Grok Build setup
 

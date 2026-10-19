@@ -356,6 +356,7 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - 启用手机推送但不显示桌面弹窗：设置 `desktop_notifications: false` 和 `mobile_notify.enabled: true`
 
 - **volume**：0.0–1.0（适合办公室使用的音量）
+  - macOS 的 `peon-play` 优先使用音效输出设备。300 ms 静音前导和 500 ms 静音尾部用于保护 Bluetooth 音频边缘。并发事件会串行完成停止、启动和 PID 发布，新声音只会打断经身份验证的前一个播放器。直接调用可用 `-p <ms>` 和 `-t <ms>` 调整；`-t 0` 禁用尾部静音。
   - 在 macOS 上，`peon-play` 会在可用时使用系统音效输出设备。播放前的 300 毫秒静音用于唤醒空闲设备，播放后的 500 毫秒静音让缓冲的音频完整输出后再退出。macOS 上的并发本地事件共用一个播放事务，新声音会中断之前由程序启动的播放器，避免多段语音重叠。直接调用辅助程序时，可使用 `-p <毫秒>` 和 `-t <毫秒>` 调整；`-t 0` 可关闭尾部静音。
 - **desktop_notifications**：`true`/`false` — 独立于声音控制桌面通知弹窗（默认：`true`）。禁用时，声音继续播放但视觉弹窗被抑制。手机通知不受影响。
 - **notification_style**：`"overlay"` 或 `"standard"` — 控制桌面通知显示方式（默认：`"overlay"`）
@@ -641,19 +642,9 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 
 ### OpenAI Codex 设置
 
-Codex 支持使用 stable Codex hooks API 和 peon-ping 适配器。Unix 安装器使用 `$CODEX_HOME`（默认 `~/.codex`），优先复用已有的 `hooks.json`，否则向 `config.toml` 写入管理块。Windows 安装器使用 inline TOML hooks。如果你先安装了 peon-ping、之后才安装 Codex，请重新运行 peon-ping 安装器。
+Codex 支持使用 stable Codex hooks API 和 peon-ping 适配器。Unix 和 Windows 安装器使用 `CODEX_HOME`（默认 `~/.codex`），优先复用已有的 `hooks.json`，否则向 `config.toml` 写入管理块。如果你先安装了 peon-ping、之后才安装 Codex，请重新运行 peon-ping 安装器。
 
 默认注册的 Codex 事件包括 `SessionStart`、`UserPromptSubmit`、`PermissionRequest`、`PreCompact`、`SubagentStart`、`SubagentStop` 和 `Stop`。`SessionStart` 只匹配 `startup`、`resume` 和 `clear`；Codex 的上下文压缩由 `PreCompact` 处理，因此会跳过 compact 触发的 `SessionStart`。`PreToolUse`、`PostToolUse` 和 `PostCompact` 会刻意跳过；Codex 适配器会忽略 `PostToolUse`，因为 Codex 没有单独的失败专用 hook，而成功工具调用 hook 对 peon-ping 来说过于频繁。
-
-### Grok Build 设置
-
-Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notificationType`），事件值是 snake_case（`session_start`、`stop`），`peon.sh` 无法直接识别。因此 peon-ping 提供 `adapters/grok.sh`（Windows 上为 `grok.ps1`）。
-
-如果 `~/.grok` 已存在，Unix 和 Windows 安装器会自动写入 `~/.grok/hooks/peon-ping.json`。如果你先装了 peon-ping、之后才装 Grok Build，请重新运行安装器。
-
-默认注册的事件：`SessionStart`、`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`Notification`、`SubagentStart`、`SubagentStop`、`PostToolUseFailure`、`PreCompact`。`PreToolUse`、`PostToolUse`、`PostCompact` 和 `PermissionDenied` 不会注册。会话结束时的 `Stop`（`reason: shutdown` / `channel_closed`）只做清理，不会播放完成音。shell 失败的 `toolName` 是 `run_terminal_command`，适配器会改写成 Bash，这样 `task.error` 仍会响。
-
-若 Grok 会话已经在跑，用 `/hooks` 然后按 `r` 重载，或新开一个会话。Grok 也会扫描 `~/.claude/settings.json` 里的 hook，但那些调用带着 Grok 的 camelCase 负载，`peon.sh` 会静音；真正发声的是 `~/.grok/hooks/peon-ping.json`。若不想在 `/hooks` 里看到那批静音的 Claude 条目，可在 `~/.grok/config.toml` 里设置 `[compat.claude] hooks = false`。
 
 **设置步骤：**
 
@@ -673,7 +664,17 @@ Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notif
 
 3. 如果安装时 Codex 已经在运行，请重启 Codex。
 
-Unix 会保留已有 JSON 格式、用户 handlers 和 metadata，只更新或卸载本次安装的 handlers。若已有不属于本次安装的 inline TOML events 与 `hooks.json` 混用，安装会停止并提示先合并配置，避免重复执行。`peon status --verbose` 可以检测两种文件里的 command hooks。这符合 [Codex hooks 文档](https://developers.openai.com/codex/hooks) 对同一配置层使用一种表示的建议。旧版 `notify` 接法仍作为回退兼容，但新安装应使用 stable hooks 路径。
+Unix 和 Windows 会保留已有 JSON 格式、用户 handlers 和 metadata，只更新或卸载本次安装的 handlers。若已有不属于本次安装的 inline TOML events 与 `hooks.json` 混用，安装会停止并提示先合并配置，避免重复执行。`peon status --verbose` 可以检测两种文件里的 command hooks。这符合 [Codex hooks 文档](https://developers.openai.com/codex/hooks) 对同一配置层使用一种表示的建议。旧版 `notify` 接法仍作为回退兼容，但新安装应使用 stable hooks 路径。
+
+### Grok Build 设置
+
+Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notificationType`），事件值是 snake_case（`session_start`、`stop`），`peon.sh` 无法直接识别。因此 peon-ping 提供 `adapters/grok.sh`（Windows 上为 `grok.ps1`）。
+
+如果 `~/.grok` 已存在，Unix 和 Windows 安装器会自动写入 `~/.grok/hooks/peon-ping.json`。如果你先装了 peon-ping、之后才装 Grok Build，请重新运行安装器。
+
+默认注册的事件：`SessionStart`、`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`Notification`、`SubagentStart`、`SubagentStop`、`PostToolUseFailure`、`PreCompact`。`PreToolUse`、`PostToolUse`、`PostCompact` 和 `PermissionDenied` 不会注册。会话结束时的 `Stop`（`reason: shutdown` / `channel_closed`）只做清理，不会播放完成音。shell 失败的 `toolName` 是 `run_terminal_command`，适配器会改写成 Bash，这样 `task.error` 仍会响。
+
+若 Grok 会话已经在跑，用 `/hooks` 然后按 `r` 重载，或新开一个会话。Grok 也会扫描 `~/.claude/settings.json` 里的 hook，但那些调用带着 Grok 的 camelCase 负载，`peon.sh` 会静音；真正发声的是 `~/.grok/hooks/peon-ping.json`。若不想在 `/hooks` 里看到那批静音的 Claude 条目，可在 `~/.grok/config.toml` 里设置 `[compat.claude] hooks = false`。
 
 ### Amp 设置
 

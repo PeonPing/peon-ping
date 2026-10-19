@@ -191,7 +191,9 @@ Claude에게 직접 설정을 변경해달라고 요청할 수도 있습니다 �
 ```
 
 - **volume**: 0.0–1.0 (사무실에서도 적당한 볼륨)
+  - macOS의 `peon-play`는 가능하면 사운드 효과 출력 장치를 사용합니다. 300 ms 무음 도입부와 500 ms 무음 꼬리가 Bluetooth 오디오의 앞뒤 잘림을 줄입니다. 동시 이벤트의 재생 처리를 직렬화하여 확인된 이전 플레이어를 중단한 뒤 새 소리를 재생합니다. `-p <ms>`와 `-t <ms>`로 조정하며 `-t 0`은 꼬리 무음을 끕니다.
 - **desktop_notifications**: `true`/`false` — 소리와 독립적으로 데스크톱 알림 팝업 토글 (기본값: `true`)
+  - Ghostty 직접 세션의 `standard` 스타일은 OSC 777을 실제 세션 PTY로 보내 클릭 시 해당 탭이나 분할 창을 선택합니다. herdr, tmux, cmux, 사용자 클릭 명령 또는 TTY를 사용할 수 없으면 기존 시스템 알림을 사용합니다. 포커스 억제는 정확한 TTY가 확인될 때만 적용하며, 지원하지 않는 스크립트 API에서는 제목이나 경로로 추측하지 않습니다.
 - **notification_style**: `"overlay"` 또는 `"standard"` — 데스크톱 알림 표시 방식 (기본값: `"overlay"`)
   - **overlay**: 크고 잘 보이는 배너 — macOS에서는 JXA Cocoa 오버레이, WSL에서는 Windows Forms 팝업. 오버레이를 클릭하면 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원)
   - **standard**: 시스템 알림 — macOS에서는 [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript`, WSL에서는 Windows toast. `terminal-notifier`를 설치하면 (`brew install terminal-notifier`) 알림 클릭 시 자동으로 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원)
@@ -335,17 +337,9 @@ peon-ping은 훅을 지원하는 모든 에이전트 기반 IDE에서 동작합�
 
 ### OpenAI Codex 설정
 
-`~/.codex`가 이미 있으면 Unix/Windows 설치 관리자가 `~/.codex/config.toml`에 peon-ping 관리 stable hooks 블록을 자동으로 추가합니다. Codex를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
+Unix/Windows 설치 관리자는 `CODEX_HOME`(기본값 `~/.codex`)을 사용합니다. 기존 `hooks.json`이 있으면 재사용하고, 없으면 `config.toml`에 peon-ping 관리 stable hooks 블록을 추가합니다. Codex를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
 
 등록되는 이벤트는 `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PreCompact`, `SubagentStart`, `SubagentStop`, `Stop`입니다. `SessionStart`는 `startup`, `resume`, `clear`에만 매칭되며, 압축 흐름은 `PreCompact`가 처리합니다. `PreToolUse`, `PostToolUse`, `PostCompact`는 등록하지 않으며, Codex 어댑터는 `PostToolUse`를 무시합니다. Codex가 요청하면 `/hooks`에서 peon-ping 명령을 검토하고 신뢰 처리하세요.
-
-### Grok Build 설정
-
-Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트 값은 snake_case(`session_start`, `stop`)입니다. `peon.sh`는 이 형식을 바로 읽지 못하므로 `adapters/grok.sh`(Windows는 `grok.ps1`)를 사용합니다.
-
-`~/.grok`가 이미 있으면 설치 관리자가 `~/.grok/hooks/peon-ping.json`을 자동으로 씁니다. Grok Build를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
-
-등록 이벤트: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`, `PostToolUseFailure`, `PreCompact`. 세션 종료 `Stop`(`shutdown` / `channel_closed`)은 완료음이 아니라 정리로 처리합니다. 이미 실행 중인 Grok에서는 `/hooks` 후 `r`로 다시 읽거나 새 세션을 여세요.
 
 **설정 방법:**
 
@@ -365,7 +359,15 @@ Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트
 
 3. 설치 중 Codex가 이미 실행 중이었다면 Codex를 다시 시작합니다.
 
-peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.toml`에 씁니다. 기존 `notify` 연결은 호환용 fallback으로 유지되지만, 새 설치는 stable hooks 경로를 사용해야 합니다.
+기존 JSON 형식과 사용자 핸들러, 메타데이터를 보존하며 이 설치의 핸들러만 업데이트하거나 제거합니다. 관련 없는 inline TOML 이벤트와 `hooks.json`이 공존하면 중복을 추가하지 않고 설정 통합을 요청합니다. 신뢰 상태만 담은 TOML은 유지됩니다. `peon status --verbose`는 두 파일 형식을 모두 인식합니다. 기존 `notify` 연결은 호환용 fallback으로 유지되지만, 새 설치는 stable hooks 경로를 사용해야 합니다.
+
+### Grok Build 설정
+
+Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트 값은 snake_case(`session_start`, `stop`)입니다. `peon.sh`는 이 형식을 바로 읽지 못하므로 `adapters/grok.sh`(Windows는 `grok.ps1`)를 사용합니다.
+
+`~/.grok`가 이미 있으면 설치 관리자가 `~/.grok/hooks/peon-ping.json`을 자동으로 씁니다. Grok Build를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
+
+등록 이벤트: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`, `PostToolUseFailure`, `PreCompact`. 세션 종료 `Stop`(`shutdown` / `channel_closed`)은 완료음이 아니라 정리로 처리합니다. 이미 실행 중인 Grok에서는 `/hooks` 후 `r`로 다시 읽거나 새 세션을 여세요.
 
 ### Amp 설정
 
