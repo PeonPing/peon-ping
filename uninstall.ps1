@@ -213,7 +213,9 @@ if (Test-Path $CopilotHooksFile) {
 }
 
 # --- Remove OpenAI Codex hooks ---
-$CodexConfigFile = Join-Path $env:USERPROFILE ".codex\config.toml"
+$CodexDir = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
+$CodexConfigFile = Join-Path $CodexDir "config.toml"
+$CodexHooksFile = Join-Path $CodexDir "hooks.json"
 
 function Normalize-PeonCodexPath([string]$Value) {
     if ([string]::IsNullOrWhiteSpace($Value)) { return "" }
@@ -470,37 +472,41 @@ function Set-PeonCodexConfigAtomic([string]$Path, [string]$Content) {
     $backupPath = "$tempPath.backup"
     try {
         Write-PeonTextFile -Path $tempPath -Content $Content
-        if (Test-Path $Path) {
+        if (Test-Path -LiteralPath $Path) {
             [System.IO.File]::Replace($tempPath, $Path, $backupPath)
         } else {
             Move-Item -Path $tempPath -Destination $Path
         }
     } finally {
-        Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
     }
 }
 
-if (Test-Path $CodexConfigFile) {
+if ((Test-Path -LiteralPath $CodexConfigFile) -or (Test-Path -LiteralPath $CodexHooksFile)) {
     Write-Host ""
     Write-Host "Removing Codex hooks..."
-    try {
-        $codexContent = Remove-Utf8Bom (Get-Content $CodexConfigFile -Raw)
-        $originalCodexContent = $codexContent
-        $codexNewline = if ($codexContent.Contains("`r`n")) { "`r`n" } else { "`n" }
-
-        $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
-        if ($codexContent) { $codexContent = "$codexContent$codexNewline" }
-
-        if ($codexContent -ne $originalCodexContent) {
-            Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
-            Write-Host "  Removed Codex hooks from $CodexConfigFile" -ForegroundColor Green
-        } else {
-            Write-Host "  No peon-ping Codex hooks found" -ForegroundColor DarkGray
+    $codexContent = if (Test-Path -LiteralPath $CodexConfigFile) { Remove-Utf8Bom (Get-Content -LiteralPath $CodexConfigFile -Raw) } else { '' }
+    $originalCodexContent = $codexContent
+    $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
+    if (Test-Path -LiteralPath $CodexHooksFile) {
+        $codexHelper = Join-Path $InstallDir "scripts\codex-hooks.ps1"
+        if (-not (Test-Path -LiteralPath $codexHelper)) {
+            throw "Cannot update Codex hooks.json: the installed Codex helper is missing. Reinstall peon-ping and retry uninstall."
         }
-    } catch {
-        Write-Host "  Warning: Could not update ${CodexConfigFile}: $_" -ForegroundColor Yellow
+        . $codexHelper
+        # Parse/validate JSON before touching either file. Failed cleanup stops
+        # uninstall so an installed command is never left pointing at removed files.
+        $originalCodexJson = [System.IO.File]::ReadAllText($CodexHooksFile)
+        $codexJsonContent = Get-PeonCodexJsonContent -Path $CodexHooksFile -InstallRoot $InstallDir
+        if ($codexJsonContent -ne $originalCodexJson) {
+            Set-PeonCodexConfigAtomic $CodexHooksFile $codexJsonContent
+        }
     }
+    if ($codexContent.TrimEnd("`r", "`n") -ne $originalCodexContent.TrimEnd("`r", "`n")) {
+        Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
+    }
+    Write-Host "  Removed this installation's Codex hooks" -ForegroundColor Green
 }
 
 # --- Remove skills ---
