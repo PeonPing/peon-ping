@@ -2,6 +2,7 @@
 """Safely register and remove peon-ping hooks in Codex's existing format."""
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -26,6 +27,33 @@ PATH_CHARS = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 TABLE_RE = re.compile(r'^\s*(\[\[|\[)\s*(.*?)\s*(\]\]|\])\s*(?:#.*)?(?:\r?\n)?$')
 INSTALL_DIR_RE = re.compile(r'^\s*#\s*install_dir\s*=\s*(.*?)\s*(?:\r?\n)?$')
 COMMAND_RE = re.compile(r'^\s*(command|command_windows)\s*=\s*(.*?)\s*(?:\r?\n)?$')
+KEY_TOKEN_RE = re.compile(r'''\s*("(?:[^"\\]|\\.)*"|'[^']*'|[A-Za-z0-9_-]+)\s*''')
+
+
+def toml_key_path(text):
+    """Read bare, literal or escaped basic TOML keys without splitting quoted dots."""
+    parts = []
+    position = 0
+    while position < len(text):
+        match = KEY_TOKEN_RE.match(text, position)
+        if not match:
+            return ()
+        token = match.group(1)
+        if token.startswith('"'):
+            try:
+                token = ast.literal_eval(token)
+            except (ValueError, SyntaxError):
+                return ()
+        elif token.startswith("'"):
+            token = token[1:-1]
+        parts.append(token)
+        position = match.end()
+        if position == len(text):
+            return tuple(parts)
+        if text[position] != '.':
+            return ()
+        position += 1
+    return ()
 
 
 def normalize_path(value):
@@ -171,7 +199,7 @@ class CodexConfigEditor:
                 current = [line]
                 current_header = (
                     'array' if header.group(1) == '[[' else 'table',
-                    tuple(part.strip() for part in header.group(2).split('.')),
+                    toml_key_path(header.group(2)),
                 )
             else:
                 current.append(line)
@@ -342,14 +370,16 @@ def build_command(install_dir, adapter_path):
 
 def has_inline_hooks(text):
     for header, lines in CodexConfigEditor._split_sections(text):
-        if header and header[1][0] == 'hooks':
+        if header and header[1] and header[1][0] == 'hooks':
             if len(header[1]) == 1 or header[1][1] != 'state':
                 return True
         if header is None:
             multiline = None
             for line in lines:
-                if multiline is None and re.match(r'^\s*hooks\s*=', line):
-                    return True
+                if multiline is None and '=' in line:
+                    path = toml_key_path(line.split('=', 1)[0])
+                    if path and path[0] == 'hooks' and (len(path) == 1 or path[1] != 'state'):
+                        return True
                 multiline = CodexConfigEditor._advance_multiline_state(line, multiline)
     return False
 

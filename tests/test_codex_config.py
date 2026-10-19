@@ -119,6 +119,24 @@ class CodexJsonConfigTests(unittest.TestCase):
         self.assertEqual(self.invoke('clean').returncode, 0)
         self.assertEqual(json.loads(target.read_text())['hooks'], {})
 
+    def test_quoted_and_dotted_toml_hook_keys_refuse_json_collision(self):
+        definitions = (
+            '[["hooks".Stop]]\n[["hooks".Stop.hooks]]\ntype="command"\ncommand="echo keep"\n',
+            "[['hooks'.Stop]]\n[['hooks'.Stop.hooks]]\ntype='command'\ncommand='echo keep'\n",
+            'hooks.Stop = [{hooks=[{type="command",command="echo keep"}]}]\n',
+            '"h\\u006foks".Stop = [{hooks=[{type="command",command="echo keep"}]}]\n',
+            '[["h\\U0000006foks".Stop]]\n[["h\\U0000006foks".Stop.hooks]]\ncommand="echo keep"\n',
+        )
+        self.write_hooks({'hooks': {}})
+        for definition in definitions:
+            with self.subTest(definition=definition):
+                self.config.write_text(definition)
+                before = (self.config.read_bytes(), self.hooks.read_bytes())
+                result = self.invoke()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('both', result.stderr)
+                self.assertEqual((self.config.read_bytes(), self.hooks.read_bytes()), before)
+
 
 if __name__ == '__main__':
     unittest.main()
