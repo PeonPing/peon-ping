@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Safely register and remove peon-ping's inline Codex hooks."""
+"""Safely register and remove peon-ping hooks in Codex's existing format."""
 
 import argparse
 import json
@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import stat
+import sys
 import tempfile
 
 
@@ -316,10 +317,7 @@ def read_config(path):
 
 
 def build_block(install_dir, adapter_path, newline='\n'):
-    command = 'if [ -f {adapter} ]; then CLAUDE_PEON_DIR={install_dir} bash {adapter} >/dev/null 2>&1 || true; fi'.format(
-        install_dir=shlex.quote(install_dir),
-        adapter=shlex.quote(adapter_path),
-    )
+    command = build_command(install_dir, adapter_path)
     block = [BEGIN_MARKER, '# install_dir = ' + install_dir]
     for event, matcher in EVENTS:
         block.append('[[hooks.{}]]'.format(event))
@@ -335,6 +333,68 @@ def build_block(install_dir, adapter_path, newline='\n'):
     return newline.join(block) + newline
 
 
+def build_command(install_dir, adapter_path):
+    return 'if [ -f {adapter} ]; then CLAUDE_PEON_DIR={install_dir} bash {adapter} >/dev/null 2>&1 || true; fi'.format(
+        install_dir=shlex.quote(install_dir),
+        adapter=shlex.quote(adapter_path),
+    )
+
+
+def has_inline_hooks(text):
+    for header, lines in CodexConfigEditor._split_sections(text):
+        if header and header[1][0] == 'hooks':
+            if len(header[1]) == 1 or header[1][1] != 'state':
+                return True
+        if header is None:
+            multiline = None
+            for line in lines:
+                if multiline is None and re.match(r'^\s*hooks\s*=', line):
+                    return True
+                multiline = CodexConfigEditor._advance_multiline_state(line, multiline)
+    return False
+
+
+def edit_json_hooks(original, editor, adapter_path=None):
+    document = json.loads(original.lstrip('\ufeff'))
+    if not isinstance(document, dict) or not isinstance(document.get('hooks', {}), dict):
+        raise ValueError('hooks.json must contain an object with a hooks object')
+    events = document.setdefault('hooks', {})
+    for event, groups in list(events.items()):
+        if not isinstance(groups, list):
+            raise ValueError('hooks.json event groups must be arrays')
+        kept_groups = []
+        for group in groups:
+            if not isinstance(group, dict) or not isinstance(group.get('hooks'), list):
+                raise ValueError('hooks.json groups must contain a hooks array')
+            kept_handlers = []
+            for handler in group['hooks']:
+                if not isinstance(handler, dict):
+                    raise ValueError('hooks.json handlers must be objects')
+                owned = handler.get('type') == 'command' and any(
+                    isinstance(handler.get(key), str) and editor.is_current_adapter_text(handler[key])
+                    for key in ('command', 'commandWindows', 'command_windows')
+                )
+                if not owned:
+                    kept_handlers.append(handler)
+            if kept_handlers or not group['hooks']:
+                group['hooks'] = kept_handlers
+                kept_groups.append(group)
+        if kept_groups:
+            events[event] = kept_groups
+        else:
+            del events[event]
+    if adapter_path:
+        command = build_command(editor.install_dir, adapter_path)
+        for event, matcher in EVENTS:
+            group = {'hooks': [{'type': 'command', 'command': command, 'timeout': 30}]}
+            if matcher:
+                group['matcher'] = matcher
+            events.setdefault(event, []).append(group)
+    if document == json.loads(original.lstrip('\ufeff')):
+        return original
+    return json.dumps(document, indent=2, ensure_ascii=False) + '\n'
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('install', 'clean'))
@@ -347,6 +407,28 @@ def main():
     original = read_config(args.config)
     newline = '\r\n' if '\r\n' in original else '\n'
     content = editor.clean(original, newline)
+
+    hooks_path = os.path.join(os.path.dirname(args.config), 'hooks.json')
+    if os.path.isfile(hooks_path):
+        try:
+            hooks_original = read_config(hooks_path)
+            if args.action == 'install':
+                if not args.adapter:
+                    parser.error('--adapter is required for install')
+                if has_inline_hooks(content):
+                    raise ValueError('both hooks.json and unrelated inline hooks exist; '
+                                     'consolidate the Codex hook definitions before installing')
+            hooks_content = edit_json_hooks(
+                hooks_original, editor, args.adapter if args.action == 'install' else None,
+            )
+            if hooks_content != hooks_original:
+                atomic_write(hooks_path, hooks_content)
+            if content != original:
+                atomic_write(args.config, content)
+        except (OSError, ValueError) as error:
+            print('Cannot update Codex hooks.json: {}'.format(error), file=sys.stderr)
+            return 1
+        return 0
 
     if args.action == 'install':
         if not args.adapter:

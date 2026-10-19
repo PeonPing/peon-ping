@@ -634,7 +634,7 @@ peon-ping はフックをサポートする任意のエージェント型 IDE �
 
 ### OpenAI Codex セットアップ
 
-Codex サポートは stable Codex hooks API と peon-ping アダプターを使用します。`~/.codex` がすでに存在する場合、Unix / Windows インストーラーは `~/.codex/config.toml` に peon 管理の設定ブロックを自動で追加します。Codex を後からインストールした場合は、peon-ping インストーラーを再実行してください。
+Codex サポートは stable Codex hooks API と peon-ping アダプターを使用します。Unix インストーラーは `$CODEX_HOME`（既定は `~/.codex`）を使用し、既存の `hooks.json` があれば再利用し、なければ `config.toml` に管理ブロックを追加します。Windows インストーラーは inline TOML hooks を追加します。Codex を後からインストールした場合は、peon-ping インストーラーを再実行してください。
 
 登録される Codex イベントは `SessionStart`、`UserPromptSubmit`、`PermissionRequest`、`PreCompact`、`SubagentStart`、`SubagentStop`、`Stop` です。`SessionStart` は `startup`、`resume`、`clear` にだけマッチします。Codex のコンテキスト圧縮は `PreCompact` で扱うため、compact 起点の `SessionStart` はスキップします。`PreToolUse`、`PostToolUse`、`PostCompact` は意図的に登録しません。Codex には失敗専用の別 hook がなく、成功したツール hook は peon-ping には多すぎるため、Codex アダプターは `PostToolUse` を無視します。
 
@@ -664,7 +664,7 @@ Grok Build のフック入力は camelCase（`hookEventName`、`sessionId`）で
 
 3. インストール中に Codex が起動していた場合は、Codex を再起動してください。
 
-peon-ping は `hooks.json` を作成せず、inline hooks を `~/.codex/config.toml` に書き込みます。これは同じ設定レイヤーで 2 種類の hook 表現を混在させないという [Codex hooks documentation](https://developers.openai.com/codex/hooks) の推奨に合わせたものです。旧来の `notify` 接続は互換用の fallback として残りますが、新規インストールでは stable hooks を使ってください。
+Unix では既存の JSON 形式、ユーザーの handlers と metadata を保持し、このインストールの handlers だけを更新・削除します。無関係な inline TOML events と `hooks.json` が混在する場合は、重複を追加せず整理を求めて停止します。`peon status --verbose` は両形式の command hooks を検出します。[Codex hooks documentation](https://developers.openai.com/codex/hooks) の推奨どおり、設定レイヤーごとに一つの形式を使用します。旧来の `notify` 接続は互換用の fallback として残りますが、新規インストールでは stable hooks を使ってください。
 
 ### Amp セットアップ
 

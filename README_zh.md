@@ -639,7 +639,7 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 
 ### OpenAI Codex 设置
 
-Codex 支持使用 stable Codex hooks API 和 peon-ping 适配器。如果 `~/.codex` 已存在，Unix 和 Windows 安装器会自动向 `~/.codex/config.toml` 写入 peon 管理的配置块。如果你先安装了 peon-ping、之后才安装 Codex，请重新运行 peon-ping 安装器。
+Codex 支持使用 stable Codex hooks API 和 peon-ping 适配器。Unix 安装器使用 `$CODEX_HOME`（默认 `~/.codex`），优先复用已有的 `hooks.json`，否则向 `config.toml` 写入管理块。Windows 安装器使用 inline TOML hooks。如果你先安装了 peon-ping、之后才安装 Codex，请重新运行 peon-ping 安装器。
 
 默认注册的 Codex 事件包括 `SessionStart`、`UserPromptSubmit`、`PermissionRequest`、`PreCompact`、`SubagentStart`、`SubagentStop` 和 `Stop`。`SessionStart` 只匹配 `startup`、`resume` 和 `clear`；Codex 的上下文压缩由 `PreCompact` 处理，因此会跳过 compact 触发的 `SessionStart`。`PreToolUse`、`PostToolUse` 和 `PostCompact` 会刻意跳过；Codex 适配器会忽略 `PostToolUse`，因为 Codex 没有单独的失败专用 hook，而成功工具调用 hook 对 peon-ping 来说过于频繁。
 
@@ -671,7 +671,7 @@ Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notif
 
 3. 如果安装时 Codex 已经在运行，请重启 Codex。
 
-peon-ping 会把 inline hooks 写入 `~/.codex/config.toml`，而不是创建 `hooks.json`，这符合 [Codex hooks 文档](https://developers.openai.com/codex/hooks) 对同一配置层不要混用两种 hook 表示的建议。旧版 `notify` 接法仍作为回退兼容，但新安装应使用 stable hooks 路径。
+Unix 会保留已有 JSON 格式、用户 handlers 和 metadata，只更新或卸载本次安装的 handlers。若已有不属于本次安装的 inline TOML events 与 `hooks.json` 混用，安装会停止并提示先合并配置，避免重复执行。`peon status --verbose` 可以检测两种文件里的 command hooks。这符合 [Codex hooks 文档](https://developers.openai.com/codex/hooks) 对同一配置层使用一种表示的建议。旧版 `notify` 接法仍作为回退兼容，但新安装应使用 stable hooks 路径。
 
 ### Amp 设置
 

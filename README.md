@@ -726,7 +726,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Amp** | Adapter | `bash adapters/amp.sh` / `powershell adapters/amp.ps1` ([setup](#amp-setup)) |
 | **Gemini CLI** | Adapter | Add hooks pointing to `adapters/gemini.sh` (or `.ps1` on Windows) ([setup](#gemini-cli-setup)) |
 | **GitHub Copilot CLI** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers hooks at `~/.copilot/hooks/peon-ping.json` if `~/.copilot` exists. Per-repo manual wiring also available via `adapters/copilot.sh` / `.ps1` ([setup](#github-copilot-cli-setup)) |
-| **OpenAI Codex** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers stable hooks in `~/.codex/config.toml` if `~/.codex` exists. The adapter is also available for manual wiring ([setup](#openai-codex-setup)) |
+| **OpenAI Codex** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers stable hooks; Unix reuses existing `hooks.json` or writes inline TOML, Windows writes inline TOML. The adapter is also available for manual wiring ([setup](#openai-codex-setup)) |
 | **Grok Build** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-register hooks at `~/.grok/hooks/peon-ping.json` if `~/.grok` exists. The adapter is also available for manual wiring ([setup](#grok-build-setup)) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
 | **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
@@ -749,7 +749,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 
 ### OpenAI Codex setup
 
-Codex support uses the stable Codex hooks API plus the peon-ping adapter. If `~/.codex` already exists, the Unix and Windows installers add a peon-managed block to `~/.codex/config.toml` automatically. If Codex is installed later, re-run the peon-ping installer.
+Codex support uses the stable Codex hooks API plus the peon-ping adapter. The Unix installer uses `$CODEX_HOME` (default `~/.codex`) and reuses an existing `hooks.json`; otherwise it adds a managed block to `config.toml`. The Windows installer adds managed inline TOML hooks. If Codex is installed later, re-run the peon-ping installer.
 
 The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PreCompact`, `SubagentStart`, `SubagentStop`, and `Stop`. `SessionStart` is matched for `startup`, `resume`, and `clear`; Codex compaction is handled by `PreCompact`, so compact-triggered `SessionStart` is skipped. `PreToolUse`, `PostToolUse`, and `PostCompact` are intentionally not registered; `PostToolUse` is ignored by the Codex adapter because Codex does not provide a separate failure-only hook and successful tool hooks are too noisy for peon-ping.
 
@@ -771,7 +771,7 @@ The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionR
 
 3. Restart Codex if it was already running during installation.
 
-peon-ping writes inline hooks to `~/.codex/config.toml` instead of creating `hooks.json`, matching the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to avoid mixing both hook representations in the same config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
+On Unix, existing JSON hooks keep their format, user handlers and metadata. Updates replace only this installation's handlers, and uninstall removes them from either format. If unrelated inline TOML events and `hooks.json` already coexist, installation stops with a consolidation message instead of adding duplicate events. `peon status --verbose` detects command hooks in either file. This follows the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to use one representation per config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
 
 ### Grok Build setup
 
