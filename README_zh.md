@@ -356,7 +356,7 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - 启用手机推送但不显示桌面弹窗：设置 `desktop_notifications: false` 和 `mobile_notify.enabled: true`
 
 - **volume**：0.0–1.0（适合办公室使用的音量）
-  - 在 macOS 上，`peon-play` 会在可用时使用系统音效输出设备。播放前的 300 毫秒静音用于唤醒空闲设备，播放后的 500 毫秒静音让缓冲的音频完整输出后再退出。新声音仍可立即中断播放。直接调用辅助程序时，可使用 `-p <毫秒>` 和 `-t <毫秒>` 调整；`-t 0` 可关闭尾部静音。
+  - 在 macOS 上，`peon-play` 会在可用时使用系统音效输出设备。播放前的 300 毫秒静音用于唤醒空闲设备，播放后的 500 毫秒静音让缓冲的音频完整输出后再退出。macOS 上的并发本地事件共用一个播放事务，新声音会中断之前由程序启动的播放器，避免多段语音重叠。直接调用辅助程序时，可使用 `-p <毫秒>` 和 `-t <毫秒>` 调整；`-t 0` 可关闭尾部静音。
 - **desktop_notifications**：`true`/`false` — 独立于声音控制桌面通知弹窗（默认：`true`）。禁用时，声音继续播放但视觉弹窗被抑制。手机通知不受影响。
 - **notification_style**：`"overlay"` 或 `"standard"` — 控制桌面通知显示方式（默认：`"overlay"`）
   - **overlay**：大型醒目横幅 — macOS 上使用 JXA Cocoa 覆盖，WSL/MSYS2 上使用 Windows Forms 弹窗。点击覆盖层可聚焦终端（支持 Ghostty、Warp、iTerm2、Zed、Terminal.app）。在 iTerm2 上，点击可聚焦到正确的标签页/窗格/窗口。

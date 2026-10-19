@@ -467,6 +467,74 @@ play_linux_sound() {
 }
 
 # --- Kill any previously playing peon-ping sound ---
+# macOS must stop/register/start under one kernel lock. Separate shell reads and
+# writes let simultaneous hooks all kill the same prior PID, then overlap. flock
+# releases automatically after crashes; no polling lock processes or stale locks.
+_start_mac_sound() {
+  python3 -I - "$PEON_DIR/.sound.pid" "$@" <<'PY_AUDIO'
+import fcntl, json, os, pathlib, signal, subprocess, sys, tempfile, time
+
+pidfile = pathlib.Path(sys.argv[1])
+identityfile = pidfile.with_name('.sound.identity')
+
+def identity(pid):
+    if pid <= 1:
+        return None
+    try:
+        if os.getpgid(pid) != pid:
+            return None
+        fields = subprocess.check_output(
+            ['ps', '-p', str(pid), '-o', 'lstart=', '-o', 'stat=', '-o', 'command='],
+            text=True, stderr=subprocess.DEVNULL).strip().split(None, 6)
+        if len(fields) != 7 or fields[5].startswith('Z'):
+            return None
+        return [' '.join(fields[:5]), fields[6]]
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+def write_atomic(path, text):
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=path.name + '.')
+    try:
+        with os.fdopen(fd, 'w') as output:
+            output.write(text)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+with open(pidfile.with_name('.sound.lock'), 'a') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        old_pid = int(pidfile.read_text().strip())
+        old = json.loads(identityfile.read_text())
+    except (OSError, ValueError):
+        old_pid, old = 0, {}
+    # Never signal a legacy/reused/unrelated PID merely because its number is
+    # in a file. This record is written only for a detached player we launched.
+    recorded_identity = old.get('identity') if isinstance(old, dict) else None
+    if (old_pid > 1 and isinstance(recorded_identity, list) and len(recorded_identity) == 2
+            and old.get('pid') == old_pid and recorded_identity == identity(old_pid)):
+        try:
+            os.kill(old_pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + 0.3
+        while identity(old_pid) == old.get('identity'):
+            if time.monotonic() >= deadline:
+                sys.exit(0)  # a backend ignoring TERM must not cause overlap
+            time.sleep(0.01)
+    child = subprocess.Popen(sys.argv[2:], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    child_identity = identity(child.pid)
+    if child_identity is None and child.poll() is None:
+        child.terminate()  # cannot safely identify this backend for later interruption
+    if child_identity is not None:
+        write_atomic(identityfile, json.dumps({'pid': child.pid, 'identity': child_identity}))
+        write_atomic(pidfile, str(child.pid) + '\n')
+PY_AUDIO
+}
+
 kill_previous_sound() {
   local pidfile="$PEON_DIR/.sound.pid"
   if [ -f "$pidfile" ]; then
@@ -591,7 +659,7 @@ ssh_audio_mode() {
 play_sound() {
   local file="$1" vol="$2"
   _peon_log play "backend=$PEON_PLATFORM file=$(basename "$file") volume=$vol async=true"
-  kill_previous_sound
+  [ "$PEON_PLATFORM" = "mac" ] || kill_previous_sound
   case "$PEON_PLATFORM" in
     mac)
       local player="afplay"
@@ -602,8 +670,7 @@ play_sound() {
       if [ "${PEON_TEST:-0}" = "1" ]; then
         "$player" -v "$vol" "$file" >/dev/null 2>&1
       else
-        nohup "$player" -v "$vol" "$file" >/dev/null 2>&1 &
-        save_sound_pid $!
+        _start_mac_sound "$player" -v "$vol" "$file"
       fi
       ;;
     wsl)

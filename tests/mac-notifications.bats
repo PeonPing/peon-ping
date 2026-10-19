@@ -9,3 +9,8 @@
   run python3 "$BATS_TEST_DIRNAME/ghostty_focus.py"
   [ "$status" -eq 0 ]
 }
+
+@test "concurrent macOS sound launches do not overlap or kill unrelated PIDs" {
+  run python3 "$BATS_TEST_DIRNAME/sound_concurrency.py"
+  [ "$status" -eq 0 ]
+}
