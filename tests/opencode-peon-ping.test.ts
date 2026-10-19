@@ -136,6 +136,76 @@ describe("peon-ping event mapping", () => {
     vi.unstubAllEnvs()
   })
 
+  it("v1 permissions use native Windows bridge and resolve resumed child sessions before forwarding", async () => {
+    vi.mocked(os.platform).mockReturnValue("win32")
+    vi.stubEnv("CLAUDE_PEON_DIR", "/custom hook")
+    const hooks = await plugin.server({
+      directory: "/tmp/example-project",
+      client: { session: { get: async ({ path: { id } }: any) => ({ data: {
+        id, directory: "/tmp/example-project", parentID: id === "child" ? "parent" : undefined,
+      } }) } },
+    })
+    await hooks.event!({ event: { type: "permission.asked", properties: { sessionID: "parent" } } })
+    await hooks.event!({ event: { type: "permission.asked", properties: { sessionID: "child" } } })
+    expect(payloads()).toHaveLength(1)
+    expect(payloads()[0]).toMatchObject({ hook_event_name: "PermissionRequest", session_id: "opencode-parent" })
+    expect(spawn).toHaveBeenCalledWith("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", path.join("/custom hook", "peon.ps1")], { stdio: ["pipe", "ignore", "ignore"] })
+    await hooks.event!({ event: { type: "server.instance.disposed" } })
+  })
+
+  it("v1 contains host session lookup failures without rejecting the event callback", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {})
+    const hooks = await plugin.server({
+      directory: "/tmp/example-project",
+      client: { session: { get: async () => { throw new Error("session was removed") } } },
+    })
+    try {
+      await expect(hooks.event!({ event: { type: "session.idle", properties: { sessionID: "gone" } } })).resolves.toBeUndefined()
+      expect(payloads()).toEqual([])
+      expect(log).toHaveBeenCalled()
+    } finally {
+      await hooks.event!({ event: { type: "server.instance.disposed" } })
+    }
+  })
+
+  it("v1 host disposal releases project ownership for the next plugin generation", async () => {
+    const ctx = { directory: "/tmp/example-project" }
+    const original = await plugin.server(ctx)
+    expect(original.dispose).toBeTypeOf("function")
+    await original.dispose!()
+    const replacement = await plugin.server(ctx)
+    try {
+      await replacement.event!({ event: { type: "session.created", properties: { info: { id: "after-reload", directory: ctx.directory } } } })
+      expect(payloads().map(p => p.session_id)).toEqual(["opencode-after-reload"])
+    } finally {
+      await replacement.dispose!()
+    }
+  })
+
+  it("v1 session creation does not leave a delayed first prompt marked busy", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(0)
+    const ctx = { directory: "/tmp/example-project", client: { session: { get: async () => ({ data: { directory: "/tmp/example-project" } }) } } }
+    const hooks = await plugin.server(ctx)
+    try {
+      await hooks.event!({ event: { type: "session.created", properties: { info: { id: "first-turn", directory: ctx.directory } } } })
+      now.mockReturnValue(4000)
+      await hooks.event!({ event: { type: "session.status", properties: { sessionID: "first-turn", status: { type: "busy" } } } })
+      expect(hookEvents()).toEqual(["SessionStart", "UserPromptSubmit"])
+    } finally {
+      await hooks.dispose!()
+    }
+  })
+
+  it("v1 metadata updates do not announce a new primary session", async () => {
+    const hooks = await plugin.server({ directory: "/tmp/example-project" })
+    try {
+      await hooks.event!({ event: { type: "session.updated", properties: { info: { id: "background", directory: "/tmp/example-project" } } } })
+      expect(hookEvents()).toEqual([])
+    } finally {
+      await hooks.dispose!()
+    }
+  })
+
   it("maps session execution lifecycle onto peon hook events", async () => {
     const host = await createHost([
       { id: "evt_1", type: "session.execution.started", data: { sessionID: "ses_a" } },
@@ -184,7 +254,7 @@ describe("peon-ping event mapping", () => {
         hook_event_name: "Notification",
         notification_type: "elicitation_dialog",
         cwd: "/tmp/example-project",
-        session_id: expect.stringMatching(/^oc-\d+$/),
+        session_id: "opencode-primary-session",
         permission_mode: "",
         source: "opencode",
       },

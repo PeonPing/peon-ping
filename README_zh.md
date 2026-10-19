@@ -798,7 +798,7 @@ powershell -NoProfile -Command "Set-ExecutionPolicy -Scope CurrentUser -Executio
 
 ### OpenCode 设置
 
-[OpenCode v2](https://opencode.ai/v2/docs/build/plugins) 的轻量 TypeScript 适配器，将事件转发给已安装的 peon-ping 钩子。请先使用平台安装程序安装 peon-ping。
+[OpenCode v1](https://opencode.ai/docs/plugins/) 和 [v2](https://opencode.ai/v2/docs/build/plugins) 的轻量 TypeScript 适配器。单个插件支持两代 API，无需在安装时检测版本；同一项目中的独立会话保留各自的原生会话标识。该适配器将事件转发给已安装的 peon-ping 钩子。请先使用平台安装程序安装 peon-ping。
 
 **快速安装：**
 

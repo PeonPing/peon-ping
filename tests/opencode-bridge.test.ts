@@ -53,7 +53,7 @@ $reader.Close()
       hook_event_name: "PermissionRequest",
       notification_type: "",
       cwd: directory,
-      session_id: expect.stringMatching(/^oc-\d+$/),
+      session_id: "opencode-ses_primary",
       permission_mode: "",
       source: "opencode",
     })

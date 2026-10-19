@@ -915,7 +915,7 @@ Add additional events from the table above as desired. The adapter translates Co
 
 ### OpenCode setup
 
-A thin TypeScript adapter for [OpenCode v2](https://opencode.ai/v2/docs/build/plugins) that routes events through the installed peon-ping hook. Install peon-ping first using the platform installer above.
+A thin TypeScript adapter for [OpenCode v1](https://opencode.ai/docs/plugins/) and [v2](https://opencode.ai/v2/docs/build/plugins) that routes events through the installed peon-ping hook. Install peon-ping first using the platform installer above.
 
 **Quick install:**
 
@@ -925,7 +925,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/op
 
 The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/`, respecting `XDG_CONFIG_HOME`. On native Windows, run `powershell -NoProfile -File adapters/opencode.ps1` from a clone after installing peon-ping. The Windows adapter uses the same OpenCode discovery directory and invokes the installed `peon.ps1` directly, without Git Bash. Config, packs and playback are handled by the main peon-ping installation; use `peon config` and `peon packs` to manage them. `CLAUDE_PEON_DIR` selects a custom hook installation.
 
-This adapter requires OpenCode v2. See [the event mapping and compatibility notes](docs/opencode-v2-events.md) for its API contract and validation requirements.
+One plugin supports both OpenCode API generations without install-time version detection. Independent sessions in the same project retain their native session identities. See [the event mapping and compatibility notes](docs/opencode-v2-events.md) for its API contract and validation requirements.
 
 **Features:**
 

@@ -461,7 +461,7 @@ peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.t
 
 ### OpenCode 설정
 
-[OpenCode](https://opencode.ai/)용 네이티브 TypeScript 플러그인으로, [CESP v1.0](https://github.com/PeonPing/openpeon) 표준을 완전히 준수합니다.
+[OpenCode v1](https://opencode.ai/docs/plugins/)과 [v2](https://opencode.ai/v2/docs/build/plugins)를 지원하는 TypeScript 어댑터입니다. 하나의 플러그인으로 두 API를 지원하므로 설치 시 버전 감지가 필요 없습니다. 같은 프로젝트의 독립 세션은 각각의 네이티브 세션 ID를 유지합니다.
 
 **빠른 설치:**
 
@@ -469,7 +469,7 @@ peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.t
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh | bash
 ```
 
-설치 프로그램이 `peon-ping.ts`를 `~/.config/opencode/plugins/`에 복사하고, `~/.config/opencode/peon-ping/config.json`에 설정 파일을 생성합니다. 사운드 팩은 공유 CESP 경로(`~/.openpeon/packs/`)에 저장됩니다.
+먼저 peon-ping을 설치하세요. 설치 프로그램은 `XDG_CONFIG_HOME`을 따르며 `peon-ping.ts`를 `~/.config/opencode/plugins/`에 복사합니다. Windows에서는 `powershell -NoProfile -File adapters/opencode.ps1`을 실행하세요. 어댑터가 `peon.ps1`을 직접 호출하므로 Git Bash는 필요 없습니다. 설정, 팩, 재생은 기본 peon-ping 설치가 관리합니다.
 
 **기능:**
 

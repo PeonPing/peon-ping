@@ -769,7 +769,7 @@ Unix では既存の JSON 形式、ユーザーの handlers と metadata を保�
 
 ### OpenCode セットアップ
 
-[OpenCode v2](https://opencode.ai/v2/docs/build/plugins) 用の薄い TypeScript アダプター。イベントをインストール済みの peon-ping フックに転送します。先にプラットフォーム用の peon-ping インストーラーを実行してください。
+[OpenCode v1](https://opencode.ai/docs/plugins/) と [v2](https://opencode.ai/v2/docs/build/plugins) 用の薄い TypeScript アダプター。単一のプラグインで両方の API に対応し、インストール時のバージョン検出は不要です。同じプロジェクト内の独立したセッションは、それぞれのネイティブ ID を保持します。イベントをインストール済みの peon-ping フックに転送します。先にプラットフォーム用の peon-ping インストーラーを実行してください。
 
 **クイックインストール：**
 
