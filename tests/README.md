@@ -32,3 +32,19 @@ AppleEvent responses. No session TTY is preseeded. It checks focused suppression
 with the default sound-focus setting, delivery to a background terminal, and
 notification delivery when session identity or Ghostty TTY scripting is unavailable.
 The focused case also requires reuse of the hook's single process-table read.
+
+For repeated-tool fast exits and marker-path security, run:
+
+```bash
+bats tests/fast-path-review.bats
+```
+
+These run the real hook with nested, escaped and duplicate JSON identity fields;
+shared-TMPDIR and data-dir symlinks; unvalidated marker storage; and separate
+install paths. Canonical repeated tool events, including a 100 KB tool response,
+are invoked with no executable commands on PATH to prove the exit stays builtin
+only. Default markers live in a private per-install user cache; an explicit
+CLAUDE_PEON_DIR keeps markers under that data directory. The slow path validates
+private directory descriptors and uses atomic directory creation, never opening
+an existing session marker for writing. Unsafe storage or ambiguous JSON falls
+back to full hook handling.

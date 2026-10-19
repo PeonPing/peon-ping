@@ -3,41 +3,90 @@
 # Replaces notify.sh — handles sounds, tab titles, and notifications
 set -uo pipefail
 
-# Fast path for repeated tool events. Claude Code fires PreToolUse and PostToolUse on
-# every tool call, subagents included. For those events the full path below only marks
-# the session "working" and dismisses its stale popups, so once a session is working
-# every further tool call changes nothing, yet each one starts over a hundred processes.
-# With several busy sessions those pile up faster than they finish and can exhaust the
-# per-user process limit. So when the session is already marked working and has no
-# popup, exit here, having used only builtins.
-# - The marker is written and removed further down, right after the Python block sets
-#   STATUS, so any event that moves the session to another status clears it.
-# - Its directory is computed with builtins too: PEON_DIR is resolved later with
-#   cd/dirname. CLAUDE_PEON_DIR, when set, keeps it per data dir (and per test).
-# - _PEON_FAST_INPUT is set first because bash 3.2 leaves it unset when `read -t` times
-#   out, and `set -u` would then fail the hook.
-# - The regexes live in variables because bash 3.2 matches quoted parts of an inline
-#   `=~` pattern literally.
-# - `$# -eq 0` and a non-terminal stdin keep this to hook calls: the script is also the
-#   `peon` CLI.
+# Repeated tool events need no full hook work once this session is working.
+# Identify only unescaped primitive ROOT fields in a bounded prefix. Stop before
+# nested values, and fall back if either identity key occurs again anywhere in
+# the tail (including nested data), or Unicode key escapes make that uncertain.
+# The tail checks are native regex scans, not a Bash character loop over large
+# tool responses. Canonical root metadata remains a zero-external-command exit.
 _PEON_FAST_READ=false
 _PEON_FAST_SID=""
 _PEON_FAST_INPUT=""
+_PEON_FAST_DIR=""
 if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
   _PEON_FAST_DIR="$CLAUDE_PEON_DIR/.working"
 else
-  _PEON_FAST_DIR="${TMPDIR:-/tmp}"
-  _PEON_FAST_DIR="${_PEON_FAST_DIR%/}/peon-ping-working-${UID:-0}"
+  # TMPDIR is shared/untrusted. Keep default markers in a private user cache,
+  # namespaced by invoked install path using reversible builtin-only escaping.
+  _peon_fast_install="${BASH_SOURCE[0]}"
+  [[ $_peon_fast_install = /* ]] || _peon_fast_install="$PWD/$_peon_fast_install"
+  _peon_fast_install="${_peon_fast_install//!/!!}"
+  _peon_fast_install="${_peon_fast_install//\//!s}"
+  if [ -n "${HOME:-}" ] && [ "${#_peon_fast_install}" -le 240 ]; then
+    _PEON_FAST_DIR="$HOME/.cache/peon-ping/working/$_peon_fast_install"
+  fi
 fi
 if [ $# -eq 0 ] && [ ! -t 0 ]; then
   IFS= read -r -d '' -t 2 _PEON_FAST_INPUT || true
   _PEON_FAST_READ=true
-  _peon_re='"session_id"[[:space:]]*:[[:space:]]*"([A-Za-z0-9_.-]+)"'
-  [[ $_PEON_FAST_INPUT =~ $_peon_re ]] && _PEON_FAST_SID=${BASH_REMATCH[1]}
-  _peon_re='"hook_event_name"[[:space:]]*:[[:space:]]*"(PreToolUse|PostToolUse)"'
-  if [ -n "$_PEON_FAST_SID" ] && [[ $_PEON_FAST_INPUT =~ $_peon_re ]] \
-     && [ -f "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] \
-     && [ ! -f "/tmp/peon-ping-popups/.session-$_PEON_FAST_SID" ]; then
+  _peon_fast_prefix="${_PEON_FAST_INPUT:0:4096}"
+  _peon_fast_offset=0
+  _peon_fast_event=""
+  _peon_fast_event_seen=false
+  _peon_fast_sid_seen=false
+  _peon_fast_root='^[[:space:]]*\{[[:space:]]*'
+  _peon_fast_pair='^[[:space:]]*"([A-Za-z_][A-Za-z0-9_]*)"[[:space:]]*:[[:space:]]*("([^"\\]*)"|true|false|null|-?[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?)[[:space:]]*([,}])'
+  if [[ $_peon_fast_prefix =~ $_peon_fast_root ]]; then
+    _peon_fast_offset=${#BASH_REMATCH[0]}
+    _peon_fast_prefix="${_peon_fast_prefix:$_peon_fast_offset}"
+    for ((_peon_fast_fields=0; _peon_fast_fields<32; _peon_fast_fields++)); do
+      [[ $_peon_fast_prefix =~ $_peon_fast_pair ]] || break
+      _peon_fast_match=${#BASH_REMATCH[0]}
+      _peon_fast_key=${BASH_REMATCH[1]}
+      _peon_fast_value=${BASH_REMATCH[3]:-}
+      case "$_peon_fast_key" in
+        hook_event_name)
+          [ "$_peon_fast_event_seen" = false ] || break
+          _peon_fast_event_seen=true
+          _peon_fast_event=$_peon_fast_value ;;
+        session_id)
+          [ "$_peon_fast_sid_seen" = false ] || break
+          _peon_fast_sid_seen=true
+          _PEON_FAST_SID=$_peon_fast_value ;;
+      esac
+      _peon_fast_offset=$((_peon_fast_offset + _peon_fast_match))
+      _peon_fast_prefix="${_peon_fast_prefix:$_peon_fast_match}"
+      [ "$_peon_fast_event_seen" = true ] && [ "$_peon_fast_sid_seen" = true ] && break
+    done
+  fi
+  _peon_fast_identity='^[A-Za-z0-9_.-]{1,128}$'
+  _peon_fast_repeated='"(hook_event_name|session_id)"[[:space:]]*:'
+  _peon_fast_unicode='\\u'
+  _peon_fast_tail="${_PEON_FAST_INPUT:$_peon_fast_offset}"
+  _peon_fast_trusted=false
+  if [ -n "$_PEON_FAST_DIR" ] && [ -d "$_PEON_FAST_DIR" ] &&
+     [ -O "$_PEON_FAST_DIR" ] && [ ! -L "$_PEON_FAST_DIR" ] &&
+     [ -d "$_PEON_FAST_DIR/@private" ] && [ -O "$_PEON_FAST_DIR/@private" ] &&
+     [ ! -L "$_PEON_FAST_DIR/@private" ]; then
+    if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
+      [ -O "$CLAUDE_PEON_DIR" ] && [ ! -L "$CLAUDE_PEON_DIR" ] && _peon_fast_trusted=true
+    elif [ -O "$HOME" ] && [ ! -L "$HOME" ] &&
+         [ -O "$HOME/.cache" ] && [ ! -L "$HOME/.cache" ] &&
+         [ -O "$HOME/.cache/peon-ping" ] && [ ! -L "$HOME/.cache/peon-ping" ] &&
+         [ -O "$HOME/.cache/peon-ping/working" ] && [ ! -L "$HOME/.cache/peon-ping/working" ]; then
+      _peon_fast_trusted=true
+    fi
+  fi
+  if [ "$_peon_fast_trusted" = true ] &&
+     { [ "$_peon_fast_event" = PreToolUse ] || [ "$_peon_fast_event" = PostToolUse ]; } &&
+     [[ $_PEON_FAST_SID =~ $_peon_fast_identity ]] &&
+     [ "$_PEON_FAST_SID" != . ] && [ "$_PEON_FAST_SID" != .. ] &&
+     ! [[ $_peon_fast_tail =~ $_peon_fast_repeated ]] &&
+     ! [[ $_PEON_FAST_INPUT =~ $_peon_fast_unicode ]] &&
+     [ -d "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] &&
+     [ -O "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] &&
+     [ ! -L "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] &&
+     [ ! -e "/tmp/peon-ping-popups/.session-$_PEON_FAST_SID" ]; then
     exit 0
   fi
 fi
@@ -5619,6 +5668,8 @@ ntype = event_data.get('notification_type', '')
 _roots = event_data.get('workspace_roots', [])
 cwd = event_data.get('cwd', '') or (_roots[0] if _roots else '')
 session_id = event_data.get('session_id', '') or event_data.get('conversation_id', '')
+# Marker updates use the authoritative decoded root identity, including fallback paths.
+print('_PEON_FAST_SID=' + q(session_id if isinstance(session_id, str) and session_id not in ('.', '..') and re.fullmatch('[A-Za-z0-9_.-]{1,128}', session_id) else ''))
 perm_mode = event_data.get('permission_mode', '')
 session_source = event_data.get('source', '')
 # Claude Code sets agent_id only on hook events fired from inside a Task-tool
@@ -6824,19 +6875,71 @@ PEON_LOCAL_PY_EOF
 _PEON_PYOUT=$(python3 -I "$_PEON_PY_TMP" <<< "$INPUT")
 eval "$_PEON_PYOUT"
 
-# Keep the fast path's marker (top of file) in step with the session's status: present
-# while the session is working, gone after any event that moves it to another status.
-# This sits before the PEON_EXIT check so early-exit events update it too.
-if [ -n "$_PEON_FAST_SID" ]; then
-  if [ "${STATUS:-}" = "working" ]; then
-    [ -d "$_PEON_FAST_DIR" ] || mkdir -p "$_PEON_FAST_DIR" 2>/dev/null
-    : > "$_PEON_FAST_DIR/$_PEON_FAST_SID" 2>/dev/null || true
-  elif [ -f "$_PEON_FAST_DIR/$_PEON_FAST_SID" ]; then
-    rm -f "$_PEON_FAST_DIR/$_PEON_FAST_SID"
-  fi
+# Update the optimization only through an owned, private directory descriptor.
+# Directory markers are created atomically with mkdirat: an existing marker
+# symlink is never followed or truncated. Unsafe cache paths merely disable the
+# optimization and leave the full hook behavior available.
+if [ -n "$_PEON_FAST_DIR" ] && [ -n "$_PEON_FAST_SID" ]; then
+  python3 -I - "$_PEON_FAST_DIR" "$_PEON_FAST_SID" "${STATUS:-}" <<'PEON_WORKING_MARKER'
+import os, stat, sys
+root, sid, status = sys.argv[1:]
+fds = []
+try:
+    uid = os.getuid()
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    # Resolve platform-owned aliases such as /var -> /private/var first, then
+    # walk descriptors without following replaceable path components.
+    parent, leaf = os.path.split(os.path.abspath(root))
+    parent = os.path.realpath(parent)
+    fd = os.open(os.path.sep, flags)
+    fds.append(fd)
+    for part in parent.split(os.path.sep):
+        if not part:
+            continue
+        try:
+            os.mkdir(part, 0o700, dir_fd=fd)
+        except FileExistsError:
+            pass
+        child = os.open(part, flags, dir_fd=fd)
+        fds.append(child)
+        info = os.fstat(child)
+        sticky_root = info.st_uid == 0 and info.st_mode & stat.S_ISVTX
+        if info.st_uid not in (0, uid) or (info.st_mode & 0o022 and not sticky_root):
+            raise PermissionError('unsafe marker parent')
+        fd = child
+    try:
+        os.mkdir(leaf, 0o700, dir_fd=fd)
+    except FileExistsError:
+        pass
+    fd = os.open(leaf, flags, dir_fd=fd)
+    fds.append(fd)
+    info = os.fstat(fd)
+    if info.st_uid != uid or info.st_mode & 0o077:
+        raise PermissionError('marker directory must be private')
+    # This owned directory attests that the slow path validated this cache.
+    # '@' cannot occur in a session ID, so it cannot alias a session marker.
+    try:
+        os.mkdir('@private', 0o700, dir_fd=fd)
+    except FileExistsError:
+        pass
+    if status == 'working':
+        try:
+            os.mkdir(sid, 0o700, dir_fd=fd)
+        except FileExistsError:
+            pass  # no replacement and no following an existing symlink
+    else:
+        try:
+            os.rmdir(sid, dir_fd=fd)
+        except FileNotFoundError:
+            pass
+except (OSError, AttributeError, NotImplementedError):
+    pass
+finally:
+    for fd in reversed(fds):
+        os.close(fd)
+PEON_WORKING_MARKER
 fi
 
-# --- Override PROJECT with cmux workspace title ---
 # A cmux workspace's title is set by the user and doesn't have to match cwd/git
 # remote, so ask cmux directly when CMUX_WORKSPACE_ID is in the env.
 if [ "${PROJECT_FROM_TITLE_OVERRIDE:-false}" != "true" ] && [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then

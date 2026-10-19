@@ -3656,7 +3656,7 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 @test "repeat tool events in a working session leave state untouched" {
   run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
   [ "$PEON_EXIT" -eq 0 ]
-  [ -f "$TEST_DIR/.working/s1" ]
+  [ -e "$TEST_DIR/.working/s1" ]
   before=$(cksum < "$TEST_DIR/.state.json")
   run_peon '{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -3667,20 +3667,20 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
 
 @test "a status change clears the working marker, so the next tool event runs in full" {
   run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
-  [ -f "$TEST_DIR/.working/s1" ]
+  [ -e "$TEST_DIR/.working/s1" ]
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
-  [ ! -f "$TEST_DIR/.working/s1" ]
+  [ ! -e "$TEST_DIR/.working/s1" ]
   before=$(cksum < "$TEST_DIR/.state.json")
   run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
   [ "$(cksum < "$TEST_DIR/.state.json")" != "$before" ]
-  [ -f "$TEST_DIR/.working/s1" ]
+  [ -e "$TEST_DIR/.working/s1" ]
 }
 
 @test "a tool event in a working session with a pending popup still dismisses it" {
   sid="fastpath-popup-$$"
   popup="/tmp/peon-ping-popups/.session-$sid"
   run_peon "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$sid\"}"
-  [ -f "$TEST_DIR/.working/$sid" ]
+  [ -e "$TEST_DIR/.working/$sid" ]
   mkdir -p /tmp/peon-ping-popups
   echo "0|" > "$popup"
   run_peon "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$sid\"}"
