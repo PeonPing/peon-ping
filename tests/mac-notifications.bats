@@ -12,5 +12,8 @@
 
 @test "concurrent macOS sound launches do not overlap or kill unrelated PIDs" {
   run python3 "$BATS_TEST_DIRNAME/sound_concurrency.py"
-  [ "$status" -eq 0 ]
+  if [ "$status" -ne 0 ]; then
+    printf '%s\n' "$output" >&2
+    return 1
+  fi
 }

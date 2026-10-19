@@ -8,6 +8,10 @@ controlled; the routing and emitted bytes are real. The same targeted BATS file
 also runs `sound_concurrency.py`, which forces six local macOS launchers through
 the previous PID-read race using long-lived owned audio fixture processes, and
 checks that stale or incomplete PID ownership records cannot authorize a signal.
+The concurrency check compiles a small native player fixture with `cc` (provided
+by Xcode Command Line Tools on macOS). Like the shipped players, it keeps a
+stable executable identity; an env/Python wrapper would change its recorded
+command during startup. BATS prints the underlying traceback on failure.
 
 To compile and play an actual silent WAV through AVFoundation on a logged-in Mac:
 

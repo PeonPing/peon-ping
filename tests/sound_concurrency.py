@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
@@ -13,27 +14,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SoundConcurrencyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.native = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.native.cleanup)
+        cls.player = Path(cls.native.name) / "sound-player"
+        # The shipped afplay and peon-play are native executables. An env/Python
+        # script changes its ps command after launch, which correctly makes its
+        # recorded ownership identity ineligible for interruption.
+        source = Path(__file__).parent / "fixtures" / "sound-player.c"
+        result = subprocess.run(["cc", "-Wall", "-Wextra", "-Werror", str(source),
+                                 "-o", str(cls.player)], capture_output=True, text=True)
+        if result.returncode:
+            raise AssertionError(f"Cannot compile native audio fixture:\n{result.stderr}")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.folder = Path(self.temp.name)
         self.bin = self.folder / "bin"
         self.bin.mkdir()
         (self.folder / "alive").mkdir()
-        self.fixture = self.bin / "afplay"
-        self.fixture.write_text('''#!/usr/bin/env python3
-import os, pathlib, signal, time
-root=pathlib.Path(os.environ['PEON_DIR'])
-marker=root/'alive'/str(os.getpid())
-def stop(*args):
-    marker.unlink(missing_ok=True)
-    raise SystemExit(0)
-signal.signal(signal.SIGTERM,stop)
-marker.write_text('owned test audio')
-with (root/'children').open('a') as f: f.write(str(os.getpid())+'\\n')
-time.sleep(10)
-stop()
-''')
-        self.fixture.chmod(0o755)
+        self.fixture = self.folder / "scripts" / "peon-play"
+        self.fixture.parent.mkdir()
+        shutil.copy2(self.player, self.fixture)
         # Arrange for every old read/kill transaction to observe the same prior
         # PID before any contender can launch+publish its replacement.
         cat = self.bin / "cat"
@@ -59,7 +62,7 @@ sys.stdout.write(data)
         self.runner = self.folder / "play.sh"
         self.runner.write_text("find_bundled_script() {" + resolver + "\n}\n" + audio + '\nplay_sound fixture.wav 0\n')
         self.env = dict(os.environ, PEON_DIR=str(self.folder), PEON_PLATFORM="mac",
-                        PEON_TEST="0", USE_SOUND_EFFECTS_DEVICE="false",
+                        PEON_TEST="0", USE_SOUND_EFFECTS_DEVICE="true",
                         PATH=str(self.bin) + os.pathsep + os.environ["PATH"])
 
     def tearDown(self):
@@ -88,7 +91,8 @@ sys.stdout.write(data)
             time.sleep(.01)
         time.sleep(.1)  # allow already-sent SIGTERM handlers to remove their markers
         playing = list((self.folder / "alive").iterdir())
-        self.assertEqual(len(playing), 1)
+        self.assertEqual(len(playing), 1,
+                         f"active fixture PIDs: {sorted(p.name for p in playing)}")
         self.assertEqual((self.folder / ".sound.pid").read_text().strip(), playing[0].name)
 
     def test_incomplete_identity_record_cannot_authorize_a_signal(self):
