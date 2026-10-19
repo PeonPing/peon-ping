@@ -4012,18 +4012,7 @@ if ((-not $Local) -and (Test-Path -LiteralPath $CodexDir)) {
         $multilineDelimiter = ""
         for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
             $structuralLine[$lineIndex] = -not $multilineDelimiter
-            if ($multilineDelimiter) {
-                if ($lines[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-                continue
-            }
-            if ($lines[$lineIndex].TrimStart().StartsWith('#')) { continue }
-            foreach ($delimiter in @('"""', "'''")) {
-                $delimiterCount = ([regex]::Matches($lines[$lineIndex], [regex]::Escape($delimiter))).Count
-                if (($delimiterCount % 2) -eq 1) {
-                    $multilineDelimiter = $delimiter
-                    break
-                }
-            }
+            $multilineDelimiter = Get-PeonTomlMultilineState $lines[$lineIndex] $multilineDelimiter
         }
         $kept = New-Object System.Collections.Generic.List[string]
         for ($i = 0; $i -lt $lines.Count; $i++) {
@@ -4077,7 +4066,7 @@ if ((-not $Local) -and (Test-Path -LiteralPath $CodexDir)) {
                         foreach ($childLine in $childBlock) { $kept.Add($childLine) }
                     }
                 }
-            } elseif ($line.Trim() -match '^notify\s*=') {
+            } elseif ($structuralLine[$i] -and $line.Trim() -match '^notify\s*=') {
                 $blockLines = New-Object System.Collections.Generic.List[string]
                 $blockLines.Add($line)
                 $balance = Get-PeonTomlBracketDelta $line
@@ -4102,18 +4091,7 @@ if ((-not $Local) -and (Test-Path -LiteralPath $CodexDir)) {
         $multilineDelimiter = ""
         for ($lineIndex = 0; $lineIndex -lt $kept.Count; $lineIndex++) {
             $markerStructuralLine[$lineIndex] = -not $multilineDelimiter
-            if ($multilineDelimiter) {
-                if ($kept[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-                continue
-            }
-            if ($kept[$lineIndex].TrimStart().StartsWith('#')) { continue }
-            foreach ($delimiter in @('"""', "'''")) {
-                $delimiterCount = ([regex]::Matches($kept[$lineIndex], [regex]::Escape($delimiter))).Count
-                if (($delimiterCount % 2) -eq 1) {
-                    $multilineDelimiter = $delimiter
-                    break
-                }
-            }
+            $multilineDelimiter = Get-PeonTomlMultilineState $kept[$lineIndex] $multilineDelimiter
         }
         $withoutMarkers = New-Object System.Collections.Generic.List[string]
         $insideTargetMarkers = $false

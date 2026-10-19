@@ -1,28 +1,106 @@
 # Shared Codex hooks.json editing for the native installer and uninstaller.
 # The caller supplies the existing TOML/path helpers. This file has no side effects.
 
+# Read TOML key segments rather than their raw spelling: quoted keys can contain
+# dots or Unicode escapes, so a prefix regex cannot distinguish them safely.
+function Get-PeonTomlKeyPrefix([string]$Line, [int]$Start = 0) {
+    $token = [regex]'\G\s*(?:([A-Za-z0-9_-]+)|"((?:\\.|[^"\\])*)"|''([^'']*)'')\s*'
+    $parts = New-Object System.Collections.Generic.List[string]
+    $cursor = $Start
+    while ($cursor -lt $Line.Length) {
+        $match = $token.Match($Line, $cursor)
+        if (-not $match.Success) { return $null }
+        if ($match.Groups[1].Success) { $value = $match.Groups[1].Value }
+        elseif ($match.Groups[3].Success) { $value = $match.Groups[3].Value }
+        else {
+            try {
+                $value = [regex]::Replace($match.Groups[2].Value, '\\(?:u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|[btnfr"\\])', {
+                    param($escape)
+                    if ($escape.Value[1] -ceq 'u' -or $escape.Value[1] -ceq 'U') {
+                        return [char]::ConvertFromUtf32([Convert]::ToInt32($escape.Value.Substring(2), 16))
+                    }
+                    switch ($escape.Value.Substring(1)) {
+                        'b' { return [string][char]8 }
+                        't' { return "`t" }
+                        'n' { return "`n" }
+                        'f' { return [string][char]12 }
+                        'r' { return "`r" }
+                        default { return $escape.Value.Substring(1) }
+                    }
+                })
+            } catch { return $null }
+        }
+        $parts.Add($value)
+        $cursor = $match.Index + $match.Length
+        if ($cursor -ge $Line.Length) { return $null }
+        if ($Line[$cursor] -ne '.') {
+            return [PSCustomObject]@{ Parts = @($parts.ToArray()); Delimiter = [string]$Line[$cursor] }
+        }
+        $cursor++
+    }
+    return $null
+}
+
+# Track string syntax so hook-looking examples and escaped triple quotes are
+# never mistaken for actual tables. State is only the active multiline marker.
+function Get-PeonTomlMultilineState([string]$Line, [string]$State) {
+    $cursor = 0
+    while ($cursor -lt $Line.Length) {
+        if ($State) {
+            $end = $Line.IndexOf($State, $cursor, [System.StringComparison]::Ordinal)
+            if ($end -lt 0) { return $State }
+            if ($State -eq '"""') {
+                $slashes = 0
+                for ($i = $end - 1; $i -ge 0 -and $Line[$i] -eq [char]92; $i--) { $slashes++ }
+                if (($slashes % 2) -eq 1) { $cursor = $end + 1; continue }
+            }
+            $cursor = $end + 3
+            $State = ''
+            continue
+        }
+        $character = $Line[$cursor]
+        if ($character -eq '#') { break }
+        if ($character -eq '"' -or $character -eq "'") {
+            $quote = [string]$character
+            if ($cursor + 3 -le $Line.Length -and $Line.Substring($cursor, 3) -eq ($quote * 3)) {
+                $State = $quote * 3
+                $cursor += 3
+                continue
+            }
+            $cursor++
+            while ($cursor -lt $Line.Length) {
+                if ($quote -eq '"' -and $Line[$cursor] -eq [char]92) { $cursor += 2; continue }
+                if ([string]$Line[$cursor] -eq $quote) { $cursor++; break }
+                $cursor++
+            }
+            continue
+        }
+        $cursor++
+    }
+    return $State
+}
+
 function Test-PeonCodexInlineHooks([string]$Content) {
     $multilineDelimiter = ''
     $atRoot = $true
     foreach ($line in ($Content -split "\r?\n")) {
-        if ($multilineDelimiter) {
-            if ($line.Contains($multilineDelimiter)) { $multilineDelimiter = '' }
-            continue
-        }
-        if ($line.TrimStart().StartsWith('#')) { continue }
-        if ($line -match '^\s*\[') {
-            $atRoot = $false
-            # Codex's trust state is configuration, not an inline hook definition.
-            if ($line -match '^\s*\[\s*(?:hooks|"hooks"|''hooks'')\s*\.\s*(?:state|"state"|''state'')\s*(?:\.|\])') { continue }
-            if ($line -match '^\s*\[\[?\s*(?:hooks|"hooks"|''hooks'')\s*(?:\.|\])') { return $true }
-        }
-        if ($atRoot -and $line -match '^\s*(?:hooks|"hooks"|''hooks'')\s*(?:=|\.)') { return $true }
-        foreach ($delimiter in @('"""', "'''")) {
-            if ((([regex]::Matches($line, [regex]::Escape($delimiter))).Count % 2) -eq 1) {
-                $multilineDelimiter = $delimiter
-                break
+        if (-not $multilineDelimiter) {
+            $header = [regex]::Match($line, '^\s*\[\[?')
+            $key = $null
+            if ($header.Success) {
+                $atRoot = $false
+                $key = Get-PeonTomlKeyPrefix $line $header.Length
+                if ($null -ne $key -and $key.Delimiter -ne ']') { $key = $null }
+            } elseif ($atRoot) {
+                $key = Get-PeonTomlKeyPrefix $line
+                if ($null -ne $key -and $key.Delimiter -ne '=') { $key = $null }
+            }
+            if ($null -ne $key -and $key.Parts[0] -ceq 'hooks') {
+                # Trust state is configuration, including quoted/dotted keys.
+                if ($key.Parts.Count -lt 2 -or $key.Parts[1] -cne 'state') { return $true }
             }
         }
+        $multilineDelimiter = Get-PeonTomlMultilineState $line $multilineDelimiter
     }
     return $false
 }

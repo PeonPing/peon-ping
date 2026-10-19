@@ -329,18 +329,7 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
     $multilineDelimiter = ""
     for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
         $structuralLine[$lineIndex] = -not $multilineDelimiter
-        if ($multilineDelimiter) {
-            if ($lines[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-            continue
-        }
-        if ($lines[$lineIndex].TrimStart().StartsWith('#')) { continue }
-        foreach ($delimiter in @('"""', "'''")) {
-            $delimiterCount = ([regex]::Matches($lines[$lineIndex], [regex]::Escape($delimiter))).Count
-            if (($delimiterCount % 2) -eq 1) {
-                $multilineDelimiter = $delimiter
-                break
-            }
-        }
+        $multilineDelimiter = Get-PeonTomlMultilineState $lines[$lineIndex] $multilineDelimiter
     }
     $kept = New-Object System.Collections.Generic.List[string]
     for ($i = 0; $i -lt $lines.Count; $i++) {
@@ -394,7 +383,7 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
                     foreach ($childLine in $childBlock) { $kept.Add($childLine) }
                 }
             }
-        } elseif ($line.Trim() -match '^notify\s*=') {
+        } elseif ($structuralLine[$i] -and $line.Trim() -match '^notify\s*=') {
             $blockLines = New-Object System.Collections.Generic.List[string]
             $blockLines.Add($line)
             $balance = Get-PeonTomlBracketDelta $line
@@ -419,18 +408,7 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
     $multilineDelimiter = ""
     for ($lineIndex = 0; $lineIndex -lt $kept.Count; $lineIndex++) {
         $markerStructuralLine[$lineIndex] = -not $multilineDelimiter
-        if ($multilineDelimiter) {
-            if ($kept[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-            continue
-        }
-        if ($kept[$lineIndex].TrimStart().StartsWith('#')) { continue }
-        foreach ($delimiter in @('"""', "'''")) {
-            $delimiterCount = ([regex]::Matches($kept[$lineIndex], [regex]::Escape($delimiter))).Count
-            if (($delimiterCount % 2) -eq 1) {
-                $multilineDelimiter = $delimiter
-                break
-            }
-        }
+        $multilineDelimiter = Get-PeonTomlMultilineState $kept[$lineIndex] $multilineDelimiter
     }
     $withoutMarkers = New-Object System.Collections.Generic.List[string]
     $insideTargetMarkers = $false
@@ -486,15 +464,19 @@ function Set-PeonCodexConfigAtomic([string]$Path, [string]$Content) {
 if ((Test-Path -LiteralPath $CodexConfigFile) -or (Test-Path -LiteralPath $CodexHooksFile)) {
     Write-Host ""
     Write-Host "Removing Codex hooks..."
+    $codexHelper = Join-Path $InstallDir "scripts\codex-hooks.ps1"
+    if (-not (Test-Path -LiteralPath $codexHelper) -and $PSScriptRoot) {
+        # Running the source uninstaller against an older installation.
+        $codexHelper = Join-Path $PSScriptRoot "scripts\codex-hooks.ps1"
+    }
+    if (-not (Test-Path -LiteralPath $codexHelper)) {
+        throw "Cannot update Codex hooks: the Codex configuration helper is missing. Reinstall peon-ping and retry uninstall."
+    }
+    . $codexHelper
     $codexContent = if (Test-Path -LiteralPath $CodexConfigFile) { Remove-Utf8Bom (Get-Content -LiteralPath $CodexConfigFile -Raw) } else { '' }
     $originalCodexContent = $codexContent
     $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
     if (Test-Path -LiteralPath $CodexHooksFile) {
-        $codexHelper = Join-Path $InstallDir "scripts\codex-hooks.ps1"
-        if (-not (Test-Path -LiteralPath $codexHelper)) {
-            throw "Cannot update Codex hooks.json: the installed Codex helper is missing. Reinstall peon-ping and retry uninstall."
-        }
-        . $codexHelper
         # Parse/validate JSON before touching either file. Failed cleanup stops
         # uninstall so an installed command is never left pointing at removed files.
         $originalCodexJson = [System.IO.File]::ReadAllText($CodexHooksFile)

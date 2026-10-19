@@ -123,6 +123,23 @@ Describe 'Native Windows Codex configuration representation' {
         Get-Content -LiteralPath $script:HooksFile -Raw | Should -Be $json
     }
 
+    It 'refuses mixed JSON and <Form> TOML hook keys without writes' -ForEach @(
+        @{ Form = 'literal triple quote value'; Toml = "example = '" + '"""' + "'`n[[hooks.Stop]]`n[[hooks.Stop.hooks]]`ntype = 'command'`ncommand = 'echo external'" },
+        @{ Form = 'inline comment triple quote'; Toml = 'model = "test" # """' + "`n[[hooks.Stop]]`n[[hooks.Stop.hooks]]`ntype = 'command'`ncommand = 'echo external'" },
+        @{ Form = 'quoted tables'; Toml = '[[' + '"hooks".Stop]]' + "`n" + '[[' + '"hooks".Stop.hooks]]' + "`n" + 'type = "command"' + "`n" + 'command = "echo external"' },
+        @{ Form = 'dotted root'; Toml = 'hooks.Stop = [{hooks=[{type="command",command="echo external"}]}]' },
+        @{ Form = 'escaped table'; Toml = '[["h\u006foks".Stop]]' + "`n" + '[["h\u006foks".Stop.hooks]]' + "`n" + 'type = "command"' + "`n" + 'command = "echo external"' },
+        @{ Form = 'escaped dotted root'; Toml = '"h\u006foks".Stop = [{hooks=[{type="command",command="echo external"}]}]' },
+        @{ Form = 'UTF32 dotted root'; Toml = '"h\U0000006foks".Stop = [{hooks=[{type="command",command="echo external"}]}]' },
+        @{ Form = 'spaced quoted dotted root'; Toml = '"hooks" . "Stop" = [{hooks=[{type="command",command="echo external"}]}]' }
+    ) {
+        [System.IO.File]::WriteAllText($script:ConfigFile, $Toml)
+        $json = Get-Content -LiteralPath $script:HooksFile -Raw
+        { Invoke-CodexInstall } | Should -Throw '*consolidate*'
+        Get-Content -LiteralPath $script:ConfigFile -Raw | Should -Be $Toml
+        Get-Content -LiteralPath $script:HooksFile -Raw | Should -Be $json
+    }
+
     It 'refuses malformed JSON on <Action> without changing TOML or JSON' -ForEach @(@{ Action = 'install' }, @{ Action = 'uninstall' }) {
         [System.IO.File]::WriteAllText($script:ConfigFile, "model = 'keep'`n")
         [System.IO.File]::WriteAllText($script:HooksFile, '{ broken')
@@ -173,7 +190,7 @@ command = "echo documentation"
 """
 [features]
 hooks = true
-[hooks.state.saved]
+["h\u006foks"."st\u0061te".saved]
 enabled = true
 trusted_hash = "keep"
 '@
@@ -181,6 +198,43 @@ trusted_hash = "keep"
         Invoke-CodexInstall
         Get-Content -LiteralPath $script:ConfigFile -Raw | Should -Be $toml
         @((Read-Hooks).hooks.PSObject.Properties.Name).Count | Should -Be 7
+    }
+
+    It 'preserves escaped multiline quote markers containing hook table text' {
+        $toml = @'
+model = 'keep'
+example = """
+escaped quotes: \"""
+[["hooks".Stop]]
+[["hooks".Stop.hooks]]
+"""
+'@
+        [System.IO.File]::WriteAllText($script:ConfigFile, $toml)
+        Invoke-CodexInstall
+        Get-Content -LiteralPath $script:ConfigFile -Raw | Should -Be $toml
+        @((Read-Hooks).hooks.PSObject.Properties.Name).Count | Should -Be 7
+    }
+
+    It 'preserves <Form> hooks.state-only root keys beside JSON' -ForEach @(
+        @{ Form = 'dotted'; Toml = 'hooks.state.saved = {enabled = true, trusted_hash = "keep"}' },
+        @{ Form = 'escaped dotted'; Toml = '"h\u006foks"."st\u0061te".saved = {enabled = true, trusted_hash = "keep"}' }
+    ) {
+        [System.IO.File]::WriteAllText($script:ConfigFile, $Toml)
+        Invoke-CodexInstall
+        Get-Content -LiteralPath $script:ConfigFile -Raw | Should -Be $Toml
+        @((Read-Hooks).hooks.PSObject.Properties.Name).Count | Should -Be 7
+    }
+
+    It 'preserves peon-looking notify examples inside multiline TOML on <Action>' -ForEach @(@{ Action = 'install' }, @{ Action = 'uninstall' }) {
+        $example = 'notify = ["powershell", "' + (Join-Path $script:InstallRoot 'adapters/codex.ps1') + '"]'
+        $toml = "example = '''`n$example`n'''`n"
+        [System.IO.File]::WriteAllText($script:ConfigFile, $toml)
+        if ($Action -eq 'install') { Invoke-CodexInstall }
+        else {
+            Copy-Item (Join-Path $script:RepoRoot 'scripts/codex-hooks.ps1') (Join-Path $script:InstallRoot 'scripts/codex-hooks.ps1')
+            Invoke-CodexUninstall
+        }
+        Get-Content -LiteralPath $script:ConfigFile -Raw | Should -Be $toml
     }
 
 }
