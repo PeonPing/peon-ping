@@ -15,7 +15,12 @@ _PEON_FAST_INPUT=""
 _PEON_FAST_DIR=""
 _PEON_FAST_INSTALL_DIR=""
 if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
-  _PEON_FAST_DIR="$CLAUDE_PEON_DIR/.working"
+  # The data resolver keeps this override only when it contains packs. A
+  # packless override can select profile/shared fallback data, so decline the
+  # shortcut rather than trusting a marker for an unproven data root.
+  if [ -d "$CLAUDE_PEON_DIR/packs" ]; then
+    _PEON_FAST_DIR="$CLAUDE_PEON_DIR/.working"
+  fi
 else
   # TMPDIR is shared/untrusted. Keep default markers in a private user cache,
   # namespaced by invoked install path AND Claude profile. Package launchers
