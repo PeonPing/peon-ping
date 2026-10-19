@@ -42,8 +42,8 @@ function Get-PeonTomlKeyPrefix([string]$Line, [int]$Start = 0) {
 }
 
 # Track string syntax so hook-looking examples and escaped triple quotes are
-# never mistaken for actual tables. State is only the active multiline marker.
-function Get-PeonTomlMultilineState([string]$Line, [string]$State) {
+# never mistaken for actual tables. Depth tracks value containers across lines.
+function Get-PeonTomlMultilineState([string]$Line, [string]$State, [ref]$Depth = $null) {
     $cursor = 0
     while ($cursor -lt $Line.Length) {
         if ($State) {
@@ -75,6 +75,10 @@ function Get-PeonTomlMultilineState([string]$Line, [string]$State) {
             }
             continue
         }
+        if ($null -ne $Depth) {
+            if ($character -eq '[' -or $character -eq '{') { $Depth.Value++ }
+            elseif ($character -eq ']' -or $character -eq '}') { $Depth.Value-- }
+        }
         $cursor++
     }
     return $State
@@ -83,8 +87,9 @@ function Get-PeonTomlMultilineState([string]$Line, [string]$State) {
 function Test-PeonCodexInlineHooks([string]$Content) {
     $multilineDelimiter = ''
     $atRoot = $true
+    $depth = 0
     foreach ($line in ($Content -split "\r?\n")) {
-        if (-not $multilineDelimiter) {
+        if (-not $multilineDelimiter -and $depth -eq 0) {
             $header = [regex]::Match($line, '^\s*\[\[?')
             $key = $null
             if ($header.Success) {
@@ -100,7 +105,7 @@ function Test-PeonCodexInlineHooks([string]$Content) {
                 if ($key.Parts.Count -lt 2 -or $key.Parts[1] -cne 'state') { return $true }
             }
         }
-        $multilineDelimiter = Get-PeonTomlMultilineState $line $multilineDelimiter
+        $multilineDelimiter = Get-PeonTomlMultilineState $line $multilineDelimiter ([ref]$depth)
     }
     return $false
 }

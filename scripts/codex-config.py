@@ -148,7 +148,7 @@ class CodexConfigEditor:
         return ''.join(line for index, line in enumerate(lines) if index not in remove)
 
     @staticmethod
-    def _advance_multiline_state(line, state):
+    def _scan_toml_line(line, state, depth=0):
         index = 0
         while index < len(line):
             if state:
@@ -162,8 +162,12 @@ class CodexConfigEditor:
                 continue
             character = line[index]
             if character == '#':
-                return None
+                break
             if character not in ('"', "'"):
+                if character in '[{':
+                    depth += 1
+                elif character in ']}':
+                    depth -= 1
                 index += 1
                 continue
             if line.startswith(character * 3, index):
@@ -182,7 +186,11 @@ class CodexConfigEditor:
                     break
                 else:
                     index += 1
-        return state
+        return state, depth
+
+    @classmethod
+    def _advance_multiline_state(cls, line, state):
+        return cls._scan_toml_line(line, state)[0]
 
     @classmethod
     def _split_sections(cls, text):
@@ -191,9 +199,10 @@ class CodexConfigEditor:
         current = []
         current_header = None
         multiline_state = None
+        depth = 0
 
         for line in lines:
-            header = None if multiline_state else TABLE_RE.match(line)
+            header = None if multiline_state or depth else TABLE_RE.match(line)
             if header and ((header.group(1) == '[[') == (header.group(3) == ']]')):
                 if current:
                     sections.append((current_header, current))
@@ -204,7 +213,7 @@ class CodexConfigEditor:
                 )
             else:
                 current.append(line)
-            multiline_state = cls._advance_multiline_state(line, multiline_state)
+            multiline_state, depth = cls._scan_toml_line(line, multiline_state, depth)
 
         if current:
             sections.append((current_header, current))
@@ -290,22 +299,28 @@ class CodexConfigEditor:
         kept = []
         index = 0
         multiline_state = None
+        depth = 0
+        at_root = True
         while index < len(lines):
             line = lines[index]
-            if multiline_state is None and re.match(r'^\s*notify\s*=', line):
-                block = [line]
-                balance = self._bracket_delta(line)
-                index += 1
-                while balance > 0 and index < len(lines):
-                    block.append(lines[index])
-                    balance += self._bracket_delta(lines[index])
+            structural = multiline_state is None and depth == 0
+            if structural and TABLE_RE.match(line):
+                at_root = False
+            key = toml_key_path(line.split('=', 1)[0]) if '=' in line else ()
+            if structural and at_root and key == ('notify',):
+                block = []
+                while index < len(lines):
+                    line = lines[index]
+                    block.append(line)
+                    multiline_state, depth = self._scan_toml_line(line, multiline_state, depth)
                     index += 1
-                if self.is_current_adapter_text(''.join(block)):
-                    continue
-                kept.extend(block)
+                    if multiline_state is None and depth == 0:
+                        break
+                if not self.is_current_adapter_text(''.join(block)):
+                    kept.extend(block)
                 continue
             kept.append(line)
-            multiline_state = self._advance_multiline_state(line, multiline_state)
+            multiline_state, depth = self._scan_toml_line(line, multiline_state, depth)
             index += 1
         return ''.join(kept)
 
@@ -376,12 +391,13 @@ def has_inline_hooks(text):
                 return True
         if header is None:
             multiline = None
+            depth = 0
             for line in lines:
-                if multiline is None and '=' in line:
+                if multiline is None and depth == 0 and '=' in line:
                     path = toml_key_path(line.split('=', 1)[0])
                     if path and path[0] == 'hooks' and (len(path) == 1 or path[1] != 'state'):
                         return True
-                multiline = CodexConfigEditor._advance_multiline_state(line, multiline)
+                multiline, depth = CodexConfigEditor._scan_toml_line(line, multiline, depth)
     return False
 
 

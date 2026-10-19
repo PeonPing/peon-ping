@@ -326,14 +326,20 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
     $newline = if ($Content.Contains("`r`n")) { "`r`n" } else { "`n" }
     $lines = @($Content -split "\r?\n")
     $structuralLine = New-Object 'bool[]' $lines.Count
+    $rootLine = New-Object 'bool[]' $lines.Count
+    $atRoot = $true
     $multilineDelimiter = ""
+    $valueDepth = 0
     for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
-        $structuralLine[$lineIndex] = -not $multilineDelimiter
-        $multilineDelimiter = Get-PeonTomlMultilineState $lines[$lineIndex] $multilineDelimiter
+        $structuralLine[$lineIndex] = (-not $multilineDelimiter -and $valueDepth -eq 0)
+        if ($structuralLine[$lineIndex] -and $lines[$lineIndex] -match '^\s*\[') { $atRoot = $false }
+        $rootLine[$lineIndex] = $atRoot
+        $multilineDelimiter = Get-PeonTomlMultilineState $lines[$lineIndex] $multilineDelimiter ([ref]$valueDepth)
     }
     $kept = New-Object System.Collections.Generic.List[string]
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
+        $rootKey = if ($rootLine[$i] -and $structuralLine[$i]) { Get-PeonTomlKeyPrefix $line } else { $null }
         $parentMatch = if ($structuralLine[$i]) {
             [regex]::Match($line, '^\s*\[\[hooks\.([^\.\]]+)\]\]\s*(?:#.*)?$')
         } else { [System.Text.RegularExpressions.Match]::Empty }
@@ -383,14 +389,15 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
                     foreach ($childLine in $childBlock) { $kept.Add($childLine) }
                 }
             }
-        } elseif ($structuralLine[$i] -and $line.Trim() -match '^notify\s*=') {
+        } elseif ($null -ne $rootKey -and $rootKey.Delimiter -eq '=' -and $rootKey.Parts.Count -eq 1 -and $rootKey.Parts[0] -ceq 'notify') {
             $blockLines = New-Object System.Collections.Generic.List[string]
             $blockLines.Add($line)
-            $balance = Get-PeonTomlBracketDelta $line
-            while ($balance -gt 0 -and ($i + 1) -lt $lines.Count) {
+            $blockDepth = 0
+            $blockString = Get-PeonTomlMultilineState $line '' ([ref]$blockDepth)
+            while (($blockDepth -gt 0 -or $blockString) -and ($i + 1) -lt $lines.Count) {
                 $i++
                 $blockLines.Add($lines[$i])
-                $balance += Get-PeonTomlBracketDelta $lines[$i]
+                $blockString = Get-PeonTomlMultilineState $lines[$i] $blockString ([ref]$blockDepth)
             }
             $blockText = $blockLines -join "`n"
             if (Test-PeonCodexTextForInstall $blockText $InstallRoot) {
@@ -406,9 +413,10 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
     # only the marker lines for this install root, never the content between.
     $markerStructuralLine = New-Object 'bool[]' $kept.Count
     $multilineDelimiter = ""
+    $valueDepth = 0
     for ($lineIndex = 0; $lineIndex -lt $kept.Count; $lineIndex++) {
         $markerStructuralLine[$lineIndex] = -not $multilineDelimiter
-        $multilineDelimiter = Get-PeonTomlMultilineState $kept[$lineIndex] $multilineDelimiter
+        $multilineDelimiter = Get-PeonTomlMultilineState $kept[$lineIndex] $multilineDelimiter ([ref]$valueDepth)
     }
     $withoutMarkers = New-Object System.Collections.Generic.List[string]
     $insideTargetMarkers = $false

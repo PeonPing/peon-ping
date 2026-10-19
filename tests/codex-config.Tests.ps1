@@ -114,6 +114,24 @@ Describe 'Native Windows Codex configuration representation' {
         (Read-Hooks).hooks.Stop[0].hooks[0].command | Should -Match '^powershell '
     }
 
+    It 'cleans root legacy <Key> with a multiline value' -ForEach @(
+        @{ Key = 'notify' }, @{ Key = '"notify"' }, @{ Key = '"n\u006ftify"' }
+    ) {
+        $adapter = (Join-Path $script:InstallRoot 'adapters/codex.ps1').Replace('\', '\\')
+        $toml = $Key + ' = ["' + $adapter + '", """' + "`n]`n" + '"""]' + "`nmodel='keep'`n"
+        [System.IO.File]::WriteAllText($script:ConfigFile, $toml)
+        Invoke-CodexInstall
+        (Get-Content -LiteralPath $script:ConfigFile -Raw).Trim() | Should -Be "model='keep'"
+    }
+
+    It 'preserves nested notify properties that mention this adapter' {
+        $adapter = (Join-Path $script:InstallRoot 'adapters/codex.ps1').Replace('\', '\\')
+        $toml = '[mcp_servers.example]' + "`n" + 'notify = ["' + $adapter + '"]' + "`n"
+        [System.IO.File]::WriteAllText($script:ConfigFile, $toml)
+        Invoke-CodexInstall
+        (Get-Content -LiteralPath $script:ConfigFile -Raw).Trim() | Should -Be $toml.Trim()
+    }
+
     It 'refuses unrelated mixed representations before changing either file' {
         $toml = "model = 'keep'`n[[hooks.Stop]]`n[[hooks.Stop.hooks]]`ntype = 'command'`ncommand = 'echo user'`n"
         [System.IO.File]::WriteAllText($script:ConfigFile, $toml)
@@ -124,6 +142,7 @@ Describe 'Native Windows Codex configuration representation' {
     }
 
     It 'refuses mixed JSON and <Form> TOML hook keys without writes' -ForEach @(
+        @{ Form = 'nested array element'; Toml = "example = [`n  [" + '"text"' + "]`n]`nhooks.Stop = [{hooks=[{type='command',command='echo external'}]}]" },
         @{ Form = 'literal triple quote value'; Toml = "example = '" + '"""' + "'`n[[hooks.Stop]]`n[[hooks.Stop.hooks]]`ntype = 'command'`ncommand = 'echo external'" },
         @{ Form = 'inline comment triple quote'; Toml = 'model = "test" # """' + "`n[[hooks.Stop]]`n[[hooks.Stop.hooks]]`ntype = 'command'`ncommand = 'echo external'" },
         @{ Form = 'quoted tables'; Toml = '[[' + '"hooks".Stop]]' + "`n" + '[[' + '"hooks".Stop.hooks]]' + "`n" + 'type = "command"' + "`n" + 'command = "echo external"' },

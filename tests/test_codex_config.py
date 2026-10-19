@@ -150,6 +150,31 @@ class CodexJsonConfigTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual((self.config.read_bytes(), self.hooks.read_bytes()), before)
 
+    def test_legacy_notify_cleanup_respects_root_keys_and_multiline_values(self):
+        self.write_hooks({'hooks': {}})
+        for key in ('notify', '"notify"', '"n\\u006ftify"'):
+            with self.subTest(key=key):
+                self.config.write_text(key + ' = ["' + str(self.adapter) + '", """\n]\n"""]\nmodel="keep"\n')
+                result = self.invoke()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.config.read_text(), 'model="keep"\n')
+        nested = '[mcp_servers.example]\nnotify = ["bash", "' + str(self.adapter) + '"]\n'
+        self.config.write_text(nested)
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.read_text(), nested)
+
+    def test_nested_array_lines_do_not_hide_root_hook_definitions(self):
+        self.write_hooks({'hooks': {}})
+        for prefix in ('example = [\n  ["text"]\n]\n',
+                       'example = [\n  {text = "[hooks.Stop]", values = ["x"]}\n]\n'):
+            with self.subTest(prefix=prefix):
+                self.config.write_text(prefix + 'hooks.Stop = [{hooks=[{type="command",command="echo keep"}]}]\n')
+                before = (self.config.read_bytes(), self.hooks.read_bytes())
+                result = self.invoke()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((self.config.read_bytes(), self.hooks.read_bytes()), before)
+
     def test_multiline_hook_examples_and_root_trust_state_preserve_json_format(self):
         content = ('notes = """\n[[hooks.Stop]]\ncommand="echo example"\n"""\n'
                    'hooks.state.saved = { enabled = false, trusted_hash = "keep" }\n')
