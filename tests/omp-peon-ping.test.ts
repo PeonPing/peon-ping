@@ -129,7 +129,7 @@ describe("omp adapter", () => {
 
   it("a failed spawn or a closed stdin does not throw into omp", async () => {
     const emit = loadExtension()
-    await emit("agent_start")
+    await emit("session_start")
     const [proc] = spawned
 
     // Both arrive asynchronously in real life. An EventEmitter with no "error"

@@ -1213,6 +1213,8 @@ The installer copies `peon-ping.ts` and `package.json` to `~/.omp/agent/extensio
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
+Tool steps within one agent loop do not trigger extra acknowledgement or completion sounds. Subagent events are skipped when omp provides `ctx.agent` (18.3.2+); older versions retain their subagent events. An `agent_end` scheduled to continue does not emit completion.
+
 **Uninstall:**
 
 ```bash
@@ -1629,6 +1631,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **Audio playback** — plays the sound asynchronously via `afplay` (macOS), PowerShell `MediaPlayer` (WSL2/MSYS2 fallback), or `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` (Linux/MSYS2)
 4. **Notifications** — updates the Terminal tab title and sends a desktop notification if the terminal isn't focused
 5. **Remote routing** — in SSH sessions, devcontainers, and Codespaces, audio and notification requests are forwarded over HTTP to a [relay server](#remote-development-ssh--devcontainers--codespaces) on your local machine
+
+Repeated tool events exit with no child processes once the session is already working, unless a pending popup needs clearing. Meeting, Focus and tab-focus checks run only when they can suppress sound or a desktop notification.
 
 Sound packs are downloaded from the [OpenPeon registry](https://github.com/PeonPing/registry) at install time. The official packs are hosted in [PeonPing/og-packs](https://github.com/PeonPing/og-packs). Sound files are property of their respective publishers (Blizzard, Valve, EA, etc.) and are distributed under fair use for personal notification purposes.
 

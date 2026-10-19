@@ -1056,6 +1056,8 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
+同じエージェントループ内のツール処理では、確認音や完了音が余分に鳴りません。omp が `ctx.agent` を提供する場合（18.3.2 以降）、サブエージェントのイベントを無視します。旧バージョンでは引き続き発生します。継続が予定されている `agent_end` は完了を通知しません。
+
 **アンインストール：**
 
 ```bash
@@ -1327,6 +1329,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **オーディオ再生** — `afplay`（macOS）、PowerShell `MediaPlayer`（WSL2/MSYS2 フォールバック）、または `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay`（Linux/MSYS2）で非同期にサウンドを再生
 4. **通知** — ターミナルタブタイトルを更新し、ターミナルがフォーカスされていない場合はデスクトップ通知を送信
 5. **リモートルーティング** — SSH セッション、devcontainers、Codespaces では、オーディオと通知リクエストがローカルマシンの[リレーサーバー](#リモート開発ssh--devcontainers--codespaces)に HTTP 経由で転送
+
+セッションが作業中の場合、繰り返しのツールイベントは子プロセスを起動せずに終了します。ただし、保留中のポップアップを閉じる必要がある場合は通常処理を行います。会議、集中モード、タブのフォーカス確認は、サウンドやデスクトップ通知を抑制できる場合にのみ実行されます。
 
 サウンドパックはインストール時に [OpenPeon レジストリ](https://github.com/PeonPing/registry) からダウンロードされます。公式パックは [PeonPing/og-packs](https://github.com/PeonPing/og-packs) でホストされています。サウンドファイルは各パブリッシャー（Blizzard、Valve、EA など）の所有物であり、個人的な通知目的のフェアユースに基づいて配布されています。
 

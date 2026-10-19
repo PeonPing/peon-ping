@@ -1093,6 +1093,8 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
+同一次 agent 循环中的工具步骤不会触发额外的确认或完成音效。omp 提供 `ctx.agent`（18.3.2+）时会跳过子代理事件；旧版本仍会发出子代理事件。计划继续运行的 `agent_end` 不会发出完成通知。
+
 **卸载：**
 
 ```bash
@@ -1459,6 +1461,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **音频播放** — 通过 `afplay`（macOS）、PowerShell `MediaPlayer`（WSL2/MSYS2 回退）或 `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay`（Linux/MSYS2）异步播放声音
 4. **通知** — 更新终端标签页标题，如果终端未获得焦点则发送桌面通知
 5. **远程路由** — 在 SSH 会话、devcontainers 和 Codespaces 中，音频和通知请求通过 HTTP 转发到本地机器上的[中继服务器](#远程开发ssh--devcontainers--codespaces)
+
+会话已处于工作状态时，重复的工具事件不会启动子进程，除非需要清除待处理的弹窗。会议、专注模式和标签页焦点检测仅在可能抑制声音或桌面通知时运行。
 
 语音包在安装时从 [OpenPeon 注册表](https://github.com/PeonPing/registry)下载。官方语音包托管在 [PeonPing/og-packs](https://github.com/PeonPing/og-packs)。声音文件归各自发行商（Blizzard、Valve、EA 等）所有，根据合理使用原则分发用于个人通知目的。
 

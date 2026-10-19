@@ -646,6 +646,8 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
+같은 에이전트 루프의 도구 단계는 추가 확인음이나 완료음을 발생시키지 않습니다. omp가 `ctx.agent`를 제공하면(18.3.2 이상) 하위 에이전트 이벤트를 건너뜁니다. 이전 버전에서는 하위 에이전트 이벤트가 유지됩니다. 계속 실행될 예정인 `agent_end`는 완료를 알리지 않습니다.
+
 **제거:**
 
 ```bash
@@ -887,6 +889,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **오디오 재생** — `afplay` (macOS), PowerShell `MediaPlayer` (WSL2), 또는 `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` (Linux)를 통해 비동기 재생
 4. **알림** — 터미널 탭 제목을 업데이트하고, 터미널이 포커스되지 않았으면 데스크톱 알림 전송
 5. **원격 라우팅** — SSH 세션, 데브컨테이너, Codespaces에서는 오디오와 알림 요청이 HTTP를 통해 로컬 머신의 [릴레이 서버](#원격-개발-ssh--devcontainers--codespaces)로 전달
+
+세션이 이미 작업 중이면 반복되는 도구 이벤트는 자식 프로세스를 시작하지 않고 종료합니다. 단, 대기 중인 팝업을 닫아야 할 때는 전체 처리를 실행합니다. 회의, 집중 모드, 탭 포커스 확인은 소리나 데스크톱 알림을 억제할 수 있을 때만 실행됩니다.
 
 사운드 팩은 설치 시 [OpenPeon 레지스트리](https://github.com/PeonPing/registry)에서 다운로드됩니다. 공식 팩은 [PeonPing/og-packs](https://github.com/PeonPing/og-packs)에 호스팅됩니다. 사운드 파일은 각 배급사(Blizzard, Valve, EA 등)의 소유이며, 개인 알림 목적의 공정 사용으로 배포됩니다.
 
