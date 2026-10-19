@@ -446,6 +446,7 @@ This means you can:
 - Enable mobile push without desktop popups: set `desktop_notifications: false` and `mobile_notify.enabled: true`
 
 - **volume**: 0.0–1.0 (quiet enough for the office)
+  - On macOS, `peon-play` routes audio to the Sound Effects output device when available. A 300 ms silent lead-in wakes idle devices, and a 500 ms silent tail lets buffered audio finish before the player exits. New sounds can still interrupt immediately. Direct helper calls can tune these with `-p <milliseconds>` and `-t <milliseconds>`; `-t 0` disables the tail.
 - **desktop_notifications**: `true`/`false` — toggle desktop notification popups independently from sounds (default: `true`). When disabled, sounds continue playing but visual popups are suppressed. Mobile notifications are unaffected.
 - **notification_style**: `"overlay"` or `"standard"` — controls how desktop notifications appear (default: `"overlay"`)
   - **overlay**: large, visible banners — JXA Cocoa overlay on macOS, Windows Forms popup on WSL/MSYS2. Clicking the overlay focuses your terminal (supports Ghostty, Warp, iTerm2, Zed, Terminal.app). On iTerm2, clicking focuses the correct tab/pane/window — not just the app.
