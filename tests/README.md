@@ -59,6 +59,18 @@ private directory descriptors and uses atomic directory creation, never opening
 an existing session marker for writing. Unsafe storage or ambiguous JSON falls
 back to full hook handling.
 
+For deterministic random rotation and interpreter accounting, run:
+
+```bash
+bats tests/pack-rotation.bats -f 'random independently selects a pack'
+bats tests/peon.bats -f 'debug=false: hook uses one routing interpreter'
+```
+
+The random fixture bootstraps the unchanged routing file inside an isolated
+interpreter; `PYTHONPATH` injection does not reach `python3 -I`. The subprocess
+check requires one routing invocation and one exact secure-marker invocation,
+including its marker side effect, and rejects additional debug probes.
+
 # Targeted Windows Codex cleanup fixtures
 
 To check Codex cleanup wiring without running the large adapter suite:

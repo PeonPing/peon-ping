@@ -6239,21 +6239,40 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ -z "${_PEON_LOG_FILE:-}" ]
 }
 
-@test "debug=false: a hook event starts python3 only once" {
-  # The routing block folds config, state and routing into one python3 call,
-  # and emits PEON_AUTO_PRUNE itself, so nothing else on the event path
-  # should start a second interpreter just to ask whether debug is on.
+@test "debug=false: hook uses one routing interpreter and one secure marker interpreter" {
+  # Config, state, routing and PEON_AUTO_PRUNE share one interpreter. The secure
+  # marker update needs a separate isolated interpreter, but debug must not
+  # introduce another probe. Capture complete argv so a third call or a debug
+  # check replacing either legitimate call cannot pass a raw-count assertion.
   # UserPromptSubmit runs the full path but sends no desktop notification,
   # whose helper (scripts/notify.sh) starts python3 for its own reasons.
-  cat > "$MOCK_BIN/python3" <<SCRIPT
+  cat > "$MOCK_BIN/python3" <<'SCRIPT'
 #!/bin/bash
-echo "\$1" >> "\$CLAUDE_PEON_DIR/python3.log"
-exec "$PEON_PY" "\$@"
+printf '%s\0' "$#" "$@" >> "$CLAUDE_PEON_DIR/python3.argv"
+exec "$PEON_PY" "$@"
 SCRIPT
   chmod +x "$MOCK_BIN/python3"
   run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
-  [ "$(wc -l < "$TEST_DIR/python3.log")" -eq 1 ]
+  "$PEON_PY" - "$TEST_DIR" <<'PYTHON'
+import os, sys
+root = sys.argv[1]
+with open(root + '/python3.argv', 'rb') as recorded:
+    fields = recorded.read().split(b'\0')
+assert fields.pop() == b'', fields
+calls = []
+while fields:
+    argc = int(fields.pop(0))
+    assert 0 <= argc <= len(fields), fields
+    calls.append(fields[:argc])
+    del fields[:argc]
+assert len(calls) == 2, calls
+routing, marker = calls
+assert len(routing) == 2 and routing[0] == b'-I', routing
+assert os.path.isabs(routing[1]), routing
+assert marker == [b'-I', b'-', os.fsencode(root + '/.working'), b's1', b'working'], marker
+assert os.path.isdir(root + '/.working/s1')
+PYTHON
 }
 
 # --- PRD-002 Failure Scenario Tests ---

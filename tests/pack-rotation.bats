@@ -74,17 +74,27 @@ json.dump({'last_active': {'session_id': 'other', 'pack': 'peon',
                          'timestamp': time.time(), 'event': 'UserPromptSubmit'}},
           open(root + '/.state.json', 'w'))
 PYTHON
-  # Control only pack randomness; sound choice and the hook remain real.
-  cat > "$TEST_DIR/sitecustomize.py" <<'PYTHON'
-import random
+  # The routing interpreter is isolated (-I), so PYTHONPATH/sitecustomize is
+  # intentionally ignored. Bootstrap the unchanged routing file in that same
+  # isolated interpreter, controlling only pack randomness, not sound choice.
+  cat > "$MOCK_BIN/python3" <<'SCRIPT'
+#!/bin/bash
+if [ "$#" -eq 2 ] && [ "$1" = -I ] && [ -f "$2" ]; then
+  exec "$PEON_PY" -I -c '
+import random, runpy, sys
 choice = random.choice
 def choose(values):
-    if values == ['peon', 'sc_kerrigan']:
-        return 'sc_kerrigan'
+    if values == ["peon", "sc_kerrigan"]:
+        return "sc_kerrigan"
     return choice(values)
 random.choice = choose
-PYTHON
-  export PYTHONPATH="$TEST_DIR${PYTHONPATH:+:$PYTHONPATH}"
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0], run_name="__main__")
+' "$2"
+fi
+exec "$PEON_PY" "$@"
+SCRIPT
+  chmod +x "$MOCK_BIN/python3"
   run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/project","session_id":"new"}'
   assert_session_pack new sc_kerrigan
 }
