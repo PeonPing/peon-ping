@@ -1367,7 +1367,14 @@ terminal_is_focused() {
           done
           return 1  # Different tab/pane is active in all windows — notify
           ;;
-        Ghostty|ghostty) _ghostty_terminal_is_current ; return $? ;;
+        Ghostty|ghostty)
+          # Desktop focus gating runs before send_notification(), even when
+          # sound-focus suppression is off. Resolve our session identity here;
+          # the cached hook TTY avoids a second process-tree walk.
+          _resolve_session_tty
+          _ghostty_terminal_is_current
+          return $?
+          ;;
         cmux|cmux\ *)
           if _is_cmux_session; then
             _cmux_surface_is_current

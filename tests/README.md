@@ -20,3 +20,15 @@ the default trailing buffer keeps playback alive after the file, and that SIGTER
 can interrupt even a long tail immediately. It writes only into a temporary
 folder and plays silence at volume zero. It does not verify audible Bluetooth
 playback or imply that an unavailable Bluetooth device was tested.
+
+For the complete hook-to-desktop-notification path, run:
+
+```bash
+bats tests/ghostty-focus-integration.bats
+```
+
+This isolates real hook configuration/state while controlling process-table and
+AppleEvent responses. No session TTY is preseeded. It checks focused suppression
+with the default sound-focus setting, delivery to a background terminal, and
+notification delivery when session identity or Ghostty TTY scripting is unavailable.
+The focused case also requires reuse of the hook's single process-table read.
