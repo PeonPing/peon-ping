@@ -1,42 +1,33 @@
 # OpenCode v2 event mapping
 
-`adapters/opencode/peon-ping.ts` targets the OpenCode **v2** plugin API
-(`opencode >= 2.0`). Two things changed together in v2, and both are required
-for the adapter to load and fire.
+`adapters/opencode/peon-ping.ts` supports both OpenCode API generations in
+one file. It exports a default object with `id`, `server` (v1), and `setup`
+(v2). Each host reads its own entrypoint and accepts the other key, so the
+existing installers need no version detection or alternate download.
 
 ## 1. Plugin module format
 
-v2 removed the v1 server plugin API entirely. Local plugins under
-`~/.config/opencode/plugin{,s}/` are loaded by
-`packages/core/src/plugin/module.ts`, which decodes the module's default export
-against:
+OpenCode v1.19.3 reads `default.server` and requires an `id` for a local
+file plugin. Its `readV1Plugin` checks `server` and `tui`; it does not reject
+an additional `setup` property. OpenCode v2.0.32 decodes `default.id` and
+`default.setup` (or `effect`); additional properties do not fail decoding.
+The adapter has no runtime package imports, so both entrypoints can share
+the same native process bridge and configuration discovery.
 
-```ts
-Schema.Struct({
-  default: Schema.Union([
-    Schema.Struct({ id: Schema.String, effect: /* (ctx) => Effect */ }),
-    Schema.Struct({ id: Schema.String, setup: /* (ctx) => Promise<Cleanup|void> */ }),
-  ]),
-})
-```
+The v1 entrypoint translates `properties` payloads into the bridge's v2
+shape. It uses the v1 SDK's `client.session.get({ path: { id } })` response
+to resolve resumed sessions and suppress children even when their creation
+was not observed. Its `dispose` hook releases project ownership when the
+host reloads. The legacy `server.instance.disposed` event does the same.
+The v2 entrypoint subscribes to the event stream and aborts it on cleanup.
+Both paths contain lookup failures and asynchronous process/pipe errors.
 
-A v1 adapter — whose default export is a bare async function — fails with:
-
-```
-PluginModule.LoadError: Plugin must export a default definition with an id and
-an effect or setup function.
-cause: SchemaError(Expected object at ["default"])
-```
-
-`Expected object` rather than `Missing key` is the tell: the key is present, it
-just is not an object.
-
-The v2 package is `@opencode/plugin`. This single-file adapter uses the
-definition object directly and has no runtime package import.
+These contracts were checked against the [v1 loader](https://github.com/anomalyco/opencode/blob/v1.19.3/packages/opencode/src/plugin/shared.ts)
+and [v2 module decoder](https://github.com/anomalyco/opencode/blob/d4a6223d017e17f1beaa91d3e6ecc6511c5132ad/packages/core/src/plugin/module.ts).
 
 ## 2. Event taxonomy
 
-v2 also replaced the event names the adapter used to switch on. The v1 targets
+The v2 entrypoint uses a different event taxonomy from v1. The v1 targets
 no longer exist; `session.idle` survives only as a `// deprecated` definition
 and `session.status` is defined but never published.
 
@@ -60,10 +51,17 @@ for await (const event of ctx.event.subscribe()) {
 
 ## Notes
 
-- The first execution in each primary session emits `SessionStart`. Later
+- Both entrypoints forward `session_id` as `opencode-<native session ID>`,
+  so independent sessions in one physical project do not share a pack assignment.
+- The first execution in each primary v2 session emits `SessionStart`. Later
   executions emit `UserPromptSubmit` after the existing 3s startup debounce.
   Repeated starts while the session is busy are ignored. Success, failure,
   interruption and deletion clear busy state.
+- Failed executions forward their native `error.message` (or v1
+  `error.data.message`) on `PostToolUseFailure`. A provided tool name stays
+  unchanged; execution failures without a tool name do not invent one. The core
+  accepts explicit OpenCode and omp failures with error text as `task.error`,
+  while retaining Claude Code's existing Bash-only filter.
 - A tool failure surfaces as `session.execution.failed`. There is no longer a
   per-tool error event, so `PostToolUseFailure` now covers any failed
   execution, not just tool errors.
@@ -125,8 +123,8 @@ all 12 plugin setups received cleanup and closed their streams. A local
 OpenAI-compatible fixture supplied model responses without external model
 calls. These macOS checks complement the required native Windows jobs.
 
-This adapter targets OpenCode v2. OpenCode v1 uses a different export and
-event contract. The Kilo installers download the preserved v1 server
+OpenCode v1 and v2 share this adapter through their respective entrypoints.
+Kilo retains its separate export and event contract. The Kilo installers download the preserved v1 server
 adapter from `adapters/kilo/peon-ping.ts` directly, so the OpenCode v2
 migration does not change Kilo's event contract. The dedicated adapter
 exports a `server` function and reads v1 `properties` payloads, matching
@@ -141,3 +139,25 @@ directory in the official `@kilocode/cli-darwin-arm64@7.8.3` binary. Actual
 delivered `SessionStart` through Bash, and a child carrying `parentID`
 remained silent. The host was isolated in temporary HOME and XDG directories
 and terminated after validation.
+
+## Native compatibility verification (2026-10-19)
+
+The same single-file candidate loaded in the official macOS ARM64 binaries
+`opencode-darwin-arm64@1.19.3` and `@opencode/cli-darwin-arm64@2.0.32`.
+Each host created two independent native sessions in one physical project.
+For v1, real `session.created` and `session.idle` events delivered one
+`SessionStart` and one `Stop` per session through the Bash hook. A child
+session's creation and shell completion stayed silent. Disposing and
+reloading the project released the old bridge.
+
+For v2, a local OpenAI-compatible provider supplied fixture responses at no
+model cost. Real `session.execution.started` and
+`session.execution.succeeded` events delivered exactly one `SessionStart`
+and one `Stop` per session, with distinct native session identities. Real
+forms in both primary sessions delivered private notifications; a child's
+form stayed silent. The host's update manifest identified v2 source commit
+`d4a6223d017e17f1beaa91d3e6ecc6511c5132ad`.
+
+These macOS runs prove the host contracts and process bridge. Native Windows
+execution remains a separate gate: the Windows bridge and Pester jobs must
+pass on the exact integration commit before shipping a Windows fix.

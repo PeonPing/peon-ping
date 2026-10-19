@@ -213,7 +213,9 @@ if (Test-Path $CopilotHooksFile) {
 }
 
 # --- Remove OpenAI Codex hooks ---
-$CodexConfigFile = Join-Path $env:USERPROFILE ".codex\config.toml"
+$CodexDir = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
+$CodexConfigFile = Join-Path $CodexDir "config.toml"
+$CodexHooksFile = Join-Path $CodexDir "hooks.json"
 
 function Normalize-PeonCodexPath([string]$Value) {
     if ([string]::IsNullOrWhiteSpace($Value)) { return "" }
@@ -324,25 +326,20 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
     $newline = if ($Content.Contains("`r`n")) { "`r`n" } else { "`n" }
     $lines = @($Content -split "\r?\n")
     $structuralLine = New-Object 'bool[]' $lines.Count
+    $rootLine = New-Object 'bool[]' $lines.Count
+    $atRoot = $true
     $multilineDelimiter = ""
+    $valueDepth = 0
     for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
-        $structuralLine[$lineIndex] = -not $multilineDelimiter
-        if ($multilineDelimiter) {
-            if ($lines[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-            continue
-        }
-        if ($lines[$lineIndex].TrimStart().StartsWith('#')) { continue }
-        foreach ($delimiter in @('"""', "'''")) {
-            $delimiterCount = ([regex]::Matches($lines[$lineIndex], [regex]::Escape($delimiter))).Count
-            if (($delimiterCount % 2) -eq 1) {
-                $multilineDelimiter = $delimiter
-                break
-            }
-        }
+        $structuralLine[$lineIndex] = (-not $multilineDelimiter -and $valueDepth -eq 0)
+        if ($structuralLine[$lineIndex] -and $lines[$lineIndex] -match '^\s*\[') { $atRoot = $false }
+        $rootLine[$lineIndex] = $atRoot
+        $multilineDelimiter = Get-PeonTomlMultilineState $lines[$lineIndex] $multilineDelimiter ([ref]$valueDepth)
     }
     $kept = New-Object System.Collections.Generic.List[string]
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
+        $rootKey = if ($rootLine[$i] -and $structuralLine[$i]) { Get-PeonTomlKeyPrefix $line } else { $null }
         $parentMatch = if ($structuralLine[$i]) {
             [regex]::Match($line, '^\s*\[\[hooks\.([^\.\]]+)\]\]\s*(?:#.*)?$')
         } else { [System.Text.RegularExpressions.Match]::Empty }
@@ -392,14 +389,15 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
                     foreach ($childLine in $childBlock) { $kept.Add($childLine) }
                 }
             }
-        } elseif ($line.Trim() -match '^notify\s*=') {
+        } elseif ($null -ne $rootKey -and $rootKey.Delimiter -eq '=' -and $rootKey.Parts.Count -eq 1 -and $rootKey.Parts[0] -ceq 'notify') {
             $blockLines = New-Object System.Collections.Generic.List[string]
             $blockLines.Add($line)
-            $balance = Get-PeonTomlBracketDelta $line
-            while ($balance -gt 0 -and ($i + 1) -lt $lines.Count) {
+            $blockDepth = 0
+            $blockString = Get-PeonTomlMultilineState $line '' ([ref]$blockDepth)
+            while (($blockDepth -gt 0 -or $blockString) -and ($i + 1) -lt $lines.Count) {
                 $i++
                 $blockLines.Add($lines[$i])
-                $balance += Get-PeonTomlBracketDelta $lines[$i]
+                $blockString = Get-PeonTomlMultilineState $lines[$i] $blockString ([ref]$blockDepth)
             }
             $blockText = $blockLines -join "`n"
             if (Test-PeonCodexTextForInstall $blockText $InstallRoot) {
@@ -415,20 +413,10 @@ function Remove-PeonCodexConfigText([string]$Content, [string]$InstallRoot) {
     # only the marker lines for this install root, never the content between.
     $markerStructuralLine = New-Object 'bool[]' $kept.Count
     $multilineDelimiter = ""
+    $valueDepth = 0
     for ($lineIndex = 0; $lineIndex -lt $kept.Count; $lineIndex++) {
         $markerStructuralLine[$lineIndex] = -not $multilineDelimiter
-        if ($multilineDelimiter) {
-            if ($kept[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-            continue
-        }
-        if ($kept[$lineIndex].TrimStart().StartsWith('#')) { continue }
-        foreach ($delimiter in @('"""', "'''")) {
-            $delimiterCount = ([regex]::Matches($kept[$lineIndex], [regex]::Escape($delimiter))).Count
-            if (($delimiterCount % 2) -eq 1) {
-                $multilineDelimiter = $delimiter
-                break
-            }
-        }
+        $multilineDelimiter = Get-PeonTomlMultilineState $kept[$lineIndex] $multilineDelimiter ([ref]$valueDepth)
     }
     $withoutMarkers = New-Object System.Collections.Generic.List[string]
     $insideTargetMarkers = $false
@@ -470,37 +458,45 @@ function Set-PeonCodexConfigAtomic([string]$Path, [string]$Content) {
     $backupPath = "$tempPath.backup"
     try {
         Write-PeonTextFile -Path $tempPath -Content $Content
-        if (Test-Path $Path) {
+        if (Test-Path -LiteralPath $Path) {
             [System.IO.File]::Replace($tempPath, $Path, $backupPath)
         } else {
             Move-Item -Path $tempPath -Destination $Path
         }
     } finally {
-        Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
     }
 }
 
-if (Test-Path $CodexConfigFile) {
+if ((Test-Path -LiteralPath $CodexConfigFile) -or (Test-Path -LiteralPath $CodexHooksFile)) {
     Write-Host ""
     Write-Host "Removing Codex hooks..."
-    try {
-        $codexContent = Remove-Utf8Bom (Get-Content $CodexConfigFile -Raw)
-        $originalCodexContent = $codexContent
-        $codexNewline = if ($codexContent.Contains("`r`n")) { "`r`n" } else { "`n" }
-
-        $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
-        if ($codexContent) { $codexContent = "$codexContent$codexNewline" }
-
-        if ($codexContent -ne $originalCodexContent) {
-            Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
-            Write-Host "  Removed Codex hooks from $CodexConfigFile" -ForegroundColor Green
-        } else {
-            Write-Host "  No peon-ping Codex hooks found" -ForegroundColor DarkGray
-        }
-    } catch {
-        Write-Host "  Warning: Could not update ${CodexConfigFile}: $_" -ForegroundColor Yellow
+    $codexHelper = Join-Path $InstallDir "scripts\codex-hooks.ps1"
+    if (-not (Test-Path -LiteralPath $codexHelper) -and $PSScriptRoot) {
+        # Running the source uninstaller against an older installation.
+        $codexHelper = Join-Path $PSScriptRoot "scripts\codex-hooks.ps1"
     }
+    if (-not (Test-Path -LiteralPath $codexHelper)) {
+        throw "Cannot update Codex hooks: the Codex configuration helper is missing. Reinstall peon-ping and retry uninstall."
+    }
+    . $codexHelper
+    $codexContent = if (Test-Path -LiteralPath $CodexConfigFile) { Remove-Utf8Bom (Get-Content -LiteralPath $CodexConfigFile -Raw) } else { '' }
+    $originalCodexContent = $codexContent
+    $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
+    if (Test-Path -LiteralPath $CodexHooksFile) {
+        # Parse/validate JSON before touching either file. Failed cleanup stops
+        # uninstall so an installed command is never left pointing at removed files.
+        $originalCodexJson = [System.IO.File]::ReadAllText($CodexHooksFile)
+        $codexJsonContent = Get-PeonCodexJsonContent -Path $CodexHooksFile -InstallRoot $InstallDir
+        if ($codexJsonContent -ne $originalCodexJson) {
+            Set-PeonCodexConfigAtomic $CodexHooksFile $codexJsonContent
+        }
+    }
+    if ($codexContent.TrimEnd("`r", "`n") -ne $originalCodexContent.TrimEnd("`r", "`n")) {
+        Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
+    }
+    Write-Host "  Removed this installation's Codex hooks" -ForegroundColor Green
 }
 
 # --- Remove skills ---

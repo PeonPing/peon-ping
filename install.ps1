@@ -418,6 +418,18 @@ if (Test-Path $ttsNativeSource) {
     }
 }
 
+# --- Install Codex configuration helper ---
+# Ship the shared JSON editor with the installation, including one-line installs.
+$codexHelper = Join-Path $InstallDir "scripts\codex-hooks.ps1"
+$codexHelperSource = Join-Path $ScriptDir "scripts\codex-hooks.ps1"
+if (Test-Path -LiteralPath $codexHelperSource) {
+    if ([System.IO.Path]::GetFullPath($codexHelperSource) -ne [System.IO.Path]::GetFullPath($codexHelper)) {
+        Copy-Item -LiteralPath $codexHelperSource -Destination $codexHelper -Force
+    }
+} else {
+    Invoke-WebRequest -Uri "$RepoBase/scripts/codex-hooks.ps1" -OutFile $codexHelper -UseBasicParsing -ErrorAction Stop
+}
+
 # --- Install the main hook script (PowerShell) ---
 $hookScript = @'
 # peon-ping hook for Claude Code (Windows native)
@@ -3868,15 +3880,16 @@ if ((-not $Local) -and (Test-Path $GrokDir)) {
 }
 
 # --- Register OpenAI Codex hooks if ~/.codex exists ---
-# Codex supports inline hooks in config.toml and hooks.json. Use a managed
-# config.toml block so we do not create hooks.json beside an existing inline
-# config, which Codex warns about at startup.
-$CodexDir = Join-Path $env:USERPROFILE ".codex"
+# Reuse hooks.json when present; otherwise retain the managed config.toml path.
+$CodexDir = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE ".codex" }
 $CodexConfigFile = Join-Path $CodexDir "config.toml"
 
-if ((-not $Local) -and (Test-Path $CodexDir)) {
+if ((-not $Local) -and (Test-Path -LiteralPath $CodexDir)) {
     Write-Host ""
     Write-Host "Detected OpenAI Codex installation, registering stable hooks..."
+
+    $codexHelper = Join-Path $InstallDir "scripts\codex-hooks.ps1"
+    . $codexHelper
 
     function ConvertTo-TomlBasicString([string]$Value) {
         $escaped = $Value.Replace('\', '\\').Replace('"', '\"').Replace("`r", '\r').Replace("`n", '\n')
@@ -3996,25 +4009,20 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
         $newline = if ($Content.Contains("`r`n")) { "`r`n" } else { "`n" }
         $lines = @($Content -split "\r?\n")
         $structuralLine = New-Object 'bool[]' $lines.Count
+        $rootLine = New-Object 'bool[]' $lines.Count
+        $atRoot = $true
         $multilineDelimiter = ""
+        $valueDepth = 0
         for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
-            $structuralLine[$lineIndex] = -not $multilineDelimiter
-            if ($multilineDelimiter) {
-                if ($lines[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-                continue
-            }
-            if ($lines[$lineIndex].TrimStart().StartsWith('#')) { continue }
-            foreach ($delimiter in @('"""', "'''")) {
-                $delimiterCount = ([regex]::Matches($lines[$lineIndex], [regex]::Escape($delimiter))).Count
-                if (($delimiterCount % 2) -eq 1) {
-                    $multilineDelimiter = $delimiter
-                    break
-                }
-            }
+            $structuralLine[$lineIndex] = (-not $multilineDelimiter -and $valueDepth -eq 0)
+            if ($structuralLine[$lineIndex] -and $lines[$lineIndex] -match '^\s*\[') { $atRoot = $false }
+            $rootLine[$lineIndex] = $atRoot
+            $multilineDelimiter = Get-PeonTomlMultilineState $lines[$lineIndex] $multilineDelimiter ([ref]$valueDepth)
         }
         $kept = New-Object System.Collections.Generic.List[string]
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $line = $lines[$i]
+            $rootKey = if ($rootLine[$i] -and $structuralLine[$i]) { Get-PeonTomlKeyPrefix $line } else { $null }
             $parentMatch = if ($structuralLine[$i]) {
                 [regex]::Match($line, '^\s*\[\[hooks\.([^\.\]]+)\]\]\s*(?:#.*)?$')
             } else { [System.Text.RegularExpressions.Match]::Empty }
@@ -4064,14 +4072,15 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
                         foreach ($childLine in $childBlock) { $kept.Add($childLine) }
                     }
                 }
-            } elseif ($line.Trim() -match '^notify\s*=') {
+            } elseif ($null -ne $rootKey -and $rootKey.Delimiter -eq '=' -and $rootKey.Parts.Count -eq 1 -and $rootKey.Parts[0] -ceq 'notify') {
                 $blockLines = New-Object System.Collections.Generic.List[string]
                 $blockLines.Add($line)
-                $balance = Get-PeonTomlBracketDelta $line
-                while ($balance -gt 0 -and ($i + 1) -lt $lines.Count) {
+                $blockDepth = 0
+                $blockString = Get-PeonTomlMultilineState $line '' ([ref]$blockDepth)
+                while (($blockDepth -gt 0 -or $blockString) -and ($i + 1) -lt $lines.Count) {
                     $i++
                     $blockLines.Add($lines[$i])
-                    $balance += Get-PeonTomlBracketDelta $lines[$i]
+                    $blockString = Get-PeonTomlMultilineState $lines[$i] $blockString ([ref]$blockDepth)
                 }
                 $blockText = $blockLines -join "`n"
                 if (Test-PeonCodexTextForInstall $blockText $InstallRoot) {
@@ -4087,20 +4096,10 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
         # only the marker lines for this install root, never the content between.
         $markerStructuralLine = New-Object 'bool[]' $kept.Count
         $multilineDelimiter = ""
+        $valueDepth = 0
         for ($lineIndex = 0; $lineIndex -lt $kept.Count; $lineIndex++) {
             $markerStructuralLine[$lineIndex] = -not $multilineDelimiter
-            if ($multilineDelimiter) {
-                if ($kept[$lineIndex].Contains($multilineDelimiter)) { $multilineDelimiter = "" }
-                continue
-            }
-            if ($kept[$lineIndex].TrimStart().StartsWith('#')) { continue }
-            foreach ($delimiter in @('"""', "'''")) {
-                $delimiterCount = ([regex]::Matches($kept[$lineIndex], [regex]::Escape($delimiter))).Count
-                if (($delimiterCount % 2) -eq 1) {
-                    $multilineDelimiter = $delimiter
-                    break
-                }
-            }
+            $multilineDelimiter = Get-PeonTomlMultilineState $kept[$lineIndex] $multilineDelimiter ([ref]$valueDepth)
         }
         $withoutMarkers = New-Object System.Collections.Generic.List[string]
         $insideTargetMarkers = $false
@@ -4142,14 +4141,14 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
         $backupPath = "$tempPath.backup"
         try {
             Write-PeonTextFile -Path $tempPath -Content $Content
-            if (Test-Path $Path) {
+            if (Test-Path -LiteralPath $Path) {
                 [System.IO.File]::Replace($tempPath, $Path, $backupPath)
             } else {
                 Move-Item -Path $tempPath -Destination $Path
             }
         } finally {
-            Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
-            Remove-Item -Path $backupPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
         }
     }
 
@@ -4172,40 +4171,55 @@ if ((-not $Local) -and (Test-Path $CodexDir)) {
 
     $codexContent = ""
     $codexNewline = "`n"
-    if (Test-Path $CodexConfigFile) {
-        $codexContent = Remove-Utf8Bom (Get-Content $CodexConfigFile -Raw)
+    if (Test-Path -LiteralPath $CodexConfigFile) {
+        $codexContent = Remove-Utf8Bom (Get-Content -LiteralPath $CodexConfigFile -Raw)
         if ($codexContent.Contains("`r`n")) { $codexNewline = "`r`n" }
     }
 
+    $originalCodexContent = $codexContent
     $codexContent = Remove-PeonCodexConfigText $codexContent $InstallDir
 
-    $codexBlock = New-Object System.Collections.Generic.List[string]
-    $codexBlock.Add($codexBegin)
-    $codexBlock.Add("# install_dir = $InstallDir")
-    foreach ($evt in $codexEvents) {
-        $codexBlock.Add("[[hooks.$($evt.Name)]]")
-        if ($evt.Matcher) {
-            $codexBlock.Add("matcher = $(ConvertTo-TomlBasicString $evt.Matcher)")
+    $codexHooksFile = Join-Path $CodexDir "hooks.json"
+    if (Test-Path -LiteralPath $codexHooksFile) {
+        # Validate both representations before replacing either file. Only our
+        # legacy TOML hooks may be migrated; user inline hooks remain their choice.
+        if (Test-PeonCodexInlineHooks $codexContent) {
+            throw "Cannot update Codex hooks.json: both JSON and unrelated inline hooks exist; consolidate the Codex hook definitions and retry."
         }
-        $codexBlock.Add("")
-        $codexBlock.Add("[[hooks.$($evt.Name).hooks]]")
-        $codexBlock.Add('type = "command"')
-        $codexBlock.Add("command = $(ConvertTo-TomlBasicString $codexHookCommand)")
-        $codexBlock.Add("command_windows = $(ConvertTo-TomlBasicString $codexHookCommand)")
-        $codexBlock.Add("timeout = 30")
-        $codexBlock.Add("")
-    }
-    $codexBlock.Add($codexEnd)
-
-    $codexBlockText = $codexBlock -join $codexNewline
-    if ($codexContent) {
-        $codexContent = "$codexContent$codexNewline$codexNewline$codexBlockText$codexNewline"
+        $codexJsonContent = Get-PeonCodexJsonContent -Path $codexHooksFile -InstallRoot $InstallDir -Command $codexHookCommand -Events $codexEvents
+        Set-PeonCodexConfigAtomic $codexHooksFile $codexJsonContent
+        if ($codexContent.TrimEnd("`r", "`n") -ne $originalCodexContent.TrimEnd("`r", "`n")) {
+            Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
+        }
     } else {
-        $codexContent = "$codexBlockText$codexNewline"
-    }
+        $codexBlock = New-Object System.Collections.Generic.List[string]
+        $codexBlock.Add($codexBegin)
+        $codexBlock.Add("# install_dir = $InstallDir")
+        foreach ($evt in $codexEvents) {
+            $codexBlock.Add("[[hooks.$($evt.Name)]]")
+            if ($evt.Matcher) {
+                $codexBlock.Add("matcher = $(ConvertTo-TomlBasicString $evt.Matcher)")
+            }
+            $codexBlock.Add("")
+            $codexBlock.Add("[[hooks.$($evt.Name).hooks]]")
+            $codexBlock.Add('type = "command"')
+            $codexBlock.Add("command = $(ConvertTo-TomlBasicString $codexHookCommand)")
+            $codexBlock.Add("command_windows = $(ConvertTo-TomlBasicString $codexHookCommand)")
+            $codexBlock.Add("timeout = 30")
+            $codexBlock.Add("")
+        }
+        $codexBlock.Add($codexEnd)
 
-    New-Item -ItemType Directory -Path $CodexDir -Force | Out-Null
-    Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
+        $codexBlockText = $codexBlock -join $codexNewline
+        if ($codexContent) {
+            $codexContent = "$codexContent$codexNewline$codexNewline$codexBlockText$codexNewline"
+        } else {
+            $codexContent = "$codexBlockText$codexNewline"
+        }
+
+        New-Item -ItemType Directory -Path $CodexDir -Force | Out-Null
+        Set-PeonCodexConfigAtomic $CodexConfigFile $codexContent
+    }
     Write-Host "  Codex hooks registered for: $($codexEvents.Name -join ', ')" -ForegroundColor Green
     Write-Host "  Open Codex /hooks to review and trust the peon-ping commands if prompted." -ForegroundColor Yellow
 }

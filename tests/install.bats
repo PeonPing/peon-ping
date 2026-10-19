@@ -96,6 +96,51 @@ SCRIPT
   export PATH="$MOCK_BIN:$PATH"
 }
 
+@test "Codex existing hooks JSON stays the only event representation" {
+  mkdir -p "$TEST_HOME/.codex"
+  printf '%s\n' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo keep"}]}]}}' > "$TEST_HOME/.codex/hooks.json"
+  run bash "$CLONE_DIR/install.sh"
+  [ "$status" -eq 0 ]
+  [ ! -f "$TEST_HOME/.codex/config.toml" ]
+  /usr/bin/python3 - "$TEST_HOME/.codex/hooks.json" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+handlers=[h for groups in d['hooks'].values() for group in groups for h in group['hooks']]
+assert len(handlers)==8, handlers
+assert any(h['command']=='echo keep' for h in handlers), handlers
+PY
+}
+
+@test "Codex JSON-only hooks are removed during uninstall" {
+  mkdir -p "$TEST_HOME/.codex"
+  printf '%s\n' '{"hooks":{}}' > "$TEST_HOME/.codex/hooks.json"
+  bash "$CLONE_DIR/install.sh"
+  run bash "$INSTALL_DIR/uninstall.sh"
+  [ "$status" -eq 0 ]
+  /usr/bin/python3 - "$TEST_HOME/.codex/hooks.json" <<'PY'
+import json,sys
+assert json.load(open(sys.argv[1]))['hooks']=={}
+PY
+}
+
+@test "Codex custom CODEX_HOME is used for JSON install and uninstall" {
+  export CODEX_HOME="$TEST_HOME/custom-codex"
+  mkdir -p "$CODEX_HOME"
+  printf '%s\n' '{"hooks":{}}' > "$CODEX_HOME/hooks.json"
+  run bash "$CLONE_DIR/install.sh"
+  [ "$status" -eq 0 ]
+  /usr/bin/python3 - "$CODEX_HOME/hooks.json" <<'PY'
+import json,sys
+assert len(json.load(open(sys.argv[1]))['hooks'])==7
+PY
+  run bash "$INSTALL_DIR/uninstall.sh"
+  [ "$status" -eq 0 ]
+  /usr/bin/python3 - "$CODEX_HOME/hooks.json" <<'PY'
+import json,sys
+assert json.load(open(sys.argv[1]))['hooks']=={}
+PY
+}
+
 teardown() {
   rm -rf "$TEST_HOME" "$CLONE_DIR" "$PROJECT_DIR" "$MOCK_BIN"
 }

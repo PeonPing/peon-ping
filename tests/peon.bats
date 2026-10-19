@@ -3641,6 +3641,59 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   ! afplay_was_called
 }
 
+@test "PostToolUseFailure from native adapters without an error stays silent" {
+  for source in omp opencode; do
+    run_peon "{\"hook_event_name\":\"PostToolUseFailure\",\"source\":\"$source\",\"tool_name\":\"read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$source-empty\"}"
+    [ "$PEON_EXIT" -eq 0 ]
+    ! afplay_was_called
+  done
+}
+
+# ============================================================
+# Repeat tool events take the fast exit once the session is working
+# ============================================================
+
+@test "repeat tool events in a working session leave state untouched" {
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -e "$TEST_DIR/.working/s1" ]
+  before=$(cksum < "$TEST_DIR/.state.json")
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  run_peon '{"hook_event_name":"PostToolUse","tool_name":"Bash","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(cksum < "$TEST_DIR/.state.json")" = "$before" ]
+}
+
+@test "a status change clears the working marker, so the next tool event runs in full" {
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ -e "$TEST_DIR/.working/s1" ]
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ ! -e "$TEST_DIR/.working/s1" ]
+  before=$(cksum < "$TEST_DIR/.state.json")
+  run_peon '{"hook_event_name":"PreToolUse","tool_name":"Read","cwd":"/tmp/myproject","session_id":"s1"}'
+  [ "$(cksum < "$TEST_DIR/.state.json")" != "$before" ]
+  [ -e "$TEST_DIR/.working/s1" ]
+}
+
+@test "a tool event in a working session with a pending popup still dismisses it" {
+  sid="fastpath-popup-$$"
+  popup="/tmp/peon-ping-popups/.session-$sid"
+  run_peon "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$sid\"}"
+  [ -e "$TEST_DIR/.working/$sid" ]
+  mkdir -p /tmp/peon-ping-popups
+  echo "0|" > "$popup"
+  run_peon "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$sid\"}"
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$popup" ]
+}
+
+@test "stdin that arrives after the 2s read limit still exits cleanly" {
+  run bash -c '{ sleep 3; echo "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"s1\"}"; } | bash "$1"' _ "$PEON_SH"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"unbound variable"* ]]
+}
+
 @test "PreCompact plays resource.limit sound" {
   run_peon '{"hook_event_name":"PreCompact","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -5015,6 +5068,82 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+@test "focus_detect_mode=notifications: Focus still blocks the desktop notification" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['focus_detect'] = True
+c['focus_detect_mode'] = 'notifications'
+c['notification_style'] = 'standard'
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  _write_focus_fixture inactive
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(wc -l < "$TEST_DIR/terminal_notifier.log")" -eq 1 ]
+
+  _write_focus_fixture active
+  # Clear the 5s Stop debounce, which would otherwise drop the second notification.
+  /usr/bin/python3 -c "
+import json
+s = json.load(open('$TEST_DIR/.state.json'))
+s['last_stop_time'] = 0
+json.dump(s, open('$TEST_DIR/.state.json', 'w'))
+"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(afplay_call_count)" -eq 2 ]
+  [ "$(wc -l < "$TEST_DIR/terminal_notifier.log")" -eq 1 ]
+}
+
+@test "meeting_detect: the mic is only checked when there is a sound to play" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['meeting_detect'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  cat > "$TEST_DIR/scripts/meeting-detect" <<'SCRIPT'
+#!/bin/bash
+echo called >> "$CLAUDE_PEON_DIR/meeting-detect.log"
+echo MIC_NOT_IN_USE
+SCRIPT
+  chmod +x "$TEST_DIR/scripts/meeting-detect"
+
+  # task.acknowledge is off in the test config, so a prompt has nothing to play.
+  run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$TEST_DIR/meeting-detect.log" ]
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(grep -c called "$TEST_DIR/meeting-detect.log")" -eq 1 ]
+}
+
+@test "suppress_sound_when_tab_focused: the terminal is only queried when there is a sound to play" {
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  mv "$MOCK_BIN/osascript" "$MOCK_BIN/osascript.real"
+  cat > "$MOCK_BIN/osascript" <<'SCRIPT'
+#!/bin/bash
+[[ "$*" == *frontmost* ]] && echo frontmost >> "$CLAUDE_PEON_DIR/frontmost.log"
+exec "$(dirname "$0")/osascript.real" "$@"
+SCRIPT
+  chmod +x "$MOCK_BIN/osascript"
+
+  run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ ! -f "$TEST_DIR/frontmost.log" ]
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ -f "$TEST_DIR/frontmost.log" ]
+}
+
 @test "focus_detect_mode: invalid value falls back to all (suppresses sound)" {
   /usr/bin/python3 -c "
 import json
@@ -5072,6 +5201,29 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
   afplay_was_called
+}
+
+@test "terminal lookup reads the process table once, not twice per ancestor" {
+  # Tab-focus suppression resolves the session tty a second time, so this
+  # also checks that the second lookup reuses the first walk.
+  "$PEON_PY" -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['suppress_sound_when_tab_focused'] = True
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  unset TMUX
+  cat > "$MOCK_BIN/ps" <<'SCRIPT'
+#!/bin/bash
+echo "$*" >> "$TEST_DIR/ps.log"
+exec /bin/ps "$@"
+SCRIPT
+  chmod +x "$MOCK_BIN/ps"
+
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  [ "$(grep -c -- '-A -o pid=,ppid=,tty=' "$TEST_DIR/ps.log")" -eq 1 ]
+  [ "$(grep -c -- '-o tty=$' "$TEST_DIR/ps.log")" -eq 0 ]
 }
 
 @test "Linux focus detection uses xdotool window class for zellij in Alacritty" {
@@ -6087,6 +6239,42 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   [ -z "${_PEON_LOG_FILE:-}" ]
 }
 
+@test "debug=false: hook uses one routing interpreter and one secure marker interpreter" {
+  # Config, state, routing and PEON_AUTO_PRUNE share one interpreter. The secure
+  # marker update needs a separate isolated interpreter, but debug must not
+  # introduce another probe. Capture complete argv so a third call or a debug
+  # check replacing either legitimate call cannot pass a raw-count assertion.
+  # UserPromptSubmit runs the full path but sends no desktop notification,
+  # whose helper (scripts/notify.sh) starts python3 for its own reasons.
+  cat > "$MOCK_BIN/python3" <<'SCRIPT'
+#!/bin/bash
+printf '%s\0' "$#" "$@" >> "$CLAUDE_PEON_DIR/python3.argv"
+exec "$PEON_PY" "$@"
+SCRIPT
+  chmod +x "$MOCK_BIN/python3"
+  run_peon '{"hook_event_name":"UserPromptSubmit","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  "$PEON_PY" - "$TEST_DIR" <<'PYTHON'
+import os, sys
+root = sys.argv[1]
+with open(root + '/python3.argv', 'rb') as recorded:
+    fields = recorded.read().split(b'\0')
+assert fields.pop() == b'', fields
+calls = []
+while fields:
+    argc = int(fields.pop(0))
+    assert 0 <= argc <= len(fields), fields
+    calls.append(fields[:argc])
+    del fields[:argc]
+assert len(calls) == 2, calls
+routing, marker = calls
+assert len(routing) == 2 and routing[0] == b'-I', routing
+assert os.path.isabs(routing[1]), routing
+assert marker == [b'-I', b'-', os.fsencode(root + '/.working'), b's1', b'working'], marker
+assert os.path.isdir(root + '/.working/s1')
+PYTHON
+}
+
 # --- PRD-002 Failure Scenario Tests ---
 # 5 scenarios: missing audio backend, bad config, pack not installed, timeout, state locked
 
@@ -6916,4 +7104,73 @@ PY
   [ "$PEON_EXIT" -eq 0 ]
   [ ! -f "$TEST_DIR/hijacked" ]
   afplay_was_called
+}
+
+@test "status detects Codex command hooks in hooks.json only" {
+  local fake_home="$TEST_DIR/status-home"
+  local codex_home="$TEST_DIR/custom-codex"
+  mkdir -p "$fake_home" "$codex_home"
+  cat > "$codex_home/hooks.json" <<'JSON'
+{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash /some/path/adapters/codex.sh"}]}]}}
+JSON
+  run env HOME="$fake_home" CODEX_HOME="$codex_home" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] OpenAI Codex $codex_home (installed)"* ]] || return 1
+}
+
+@test "status detects Codex Windows command and commandWindows hooks" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  for field in command commandWindows; do
+    "$PEON_PY" - "$fake_home/.codex/hooks.json" "$field" <<'PY'
+import json, sys
+json.dump({'hooks': {'Stop': [{'hooks': [{'type': 'command', 'command': 'echo fallback', sys.argv[2]: 'powershell -File "C:\\Users\\me\\adapters\\codex.ps1"'}]}]}}, open(sys.argv[1], 'w'))
+PY
+    run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[x] OpenAI Codex"* ]] || return 1
+  done
+}
+
+@test "status ignores Codex adapter mentions outside command hooks" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  cat > "$fake_home/.codex/hooks.json" <<'JSON'
+{"description":"bash /some/path/adapters/codex.sh","hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash /some/path/adapters/codex.sh.bak"},{"type":"prompt","command":"bash /some/path/adapters/codex.sh"}]}]}}
+JSON
+  run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[ ] OpenAI Codex"* ]] || return 1
+  [[ "$output" != *"[x] OpenAI Codex"* ]] || return 1
+}
+
+@test "status tolerates malformed or unexpected Codex hooks JSON" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  for content in '{"hooks":' '[]' '{"hooks": []}' '{"hooks": {"Stop": [null, {"hooks": null}]}}'; do
+    printf '%s' "$content" > "$fake_home/.codex/hooks.json"
+    run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"[ ] OpenAI Codex"* ]] || return 1
+    [[ "$output" != *"Traceback"* ]] || return 1
+  done
+}
+
+@test "status retains Codex TOML detection with malformed hooks JSON" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  printf 'notify = ["bash", "/some/path/adapters/codex.sh"]\n' > "$fake_home/.codex/config.toml"
+  printf '{invalid' > "$fake_home/.codex/hooks.json"
+  run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] OpenAI Codex"* ]] || return 1
+}
+
+@test "status detects UTF-8 BOM Codex hooks JSON" {
+  local fake_home="$TEST_DIR/status-home"
+  mkdir -p "$fake_home/.codex"
+  printf '\357\273\277%s' '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"bash /some/path/adapters/codex.sh"}]}]}}' > "$fake_home/.codex/hooks.json"
+  run env HOME="$fake_home" CODEX_HOME="$fake_home/.codex" bash "$PEON_SH" status --verbose
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[x] OpenAI Codex"* ]] || return 1
 }

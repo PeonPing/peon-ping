@@ -3,6 +3,109 @@
 # Replaces notify.sh — handles sounds, tab titles, and notifications
 set -uo pipefail
 
+# Repeated tool events need no full hook work once this session is working.
+# Identify only unescaped primitive ROOT fields in a bounded prefix. Stop before
+# nested values, and fall back if either identity key occurs again anywhere in
+# the tail (including nested data), or Unicode key escapes make that uncertain.
+# The tail checks are native regex scans, not a Bash character loop over large
+# tool responses. Canonical root metadata remains a zero-external-command exit.
+_PEON_FAST_READ=false
+_PEON_FAST_SID=""
+_PEON_FAST_INPUT=""
+_PEON_FAST_DIR=""
+_PEON_FAST_INSTALL_DIR=""
+if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
+  # The data resolver keeps this override only when it contains packs. A
+  # packless override can select profile/shared fallback data, so decline the
+  # shortcut rather than trusting a marker for an unproven data root.
+  if [ -d "$CLAUDE_PEON_DIR/packs" ]; then
+    _PEON_FAST_DIR="$CLAUDE_PEON_DIR/.working"
+  fi
+else
+  # TMPDIR is shared/untrusted. Keep default markers in a private user cache,
+  # namespaced by invoked install path AND Claude profile. Package launchers
+  # share one script across profiles whose config, state and titles differ.
+  # Reversible builtin-only escaping keeps repeat lookups free of subprocesses.
+  _peon_fast_install="${BASH_SOURCE[0]}"
+  [[ $_peon_fast_install = /* ]] || _peon_fast_install="$PWD/$_peon_fast_install"
+  _peon_fast_install="${_peon_fast_install//!/!!}"
+  _peon_fast_install="${_peon_fast_install//\//!s}"
+  _peon_fast_profile="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
+  [[ $_peon_fast_profile = /* ]] || _peon_fast_profile="$PWD/$_peon_fast_profile"
+  _peon_fast_profile="${_peon_fast_profile//!/!!}"
+  _peon_fast_profile="${_peon_fast_profile//\//!s}"
+  if [ -n "${HOME:-}" ] && [ "${#_peon_fast_install}" -le 240 ] &&
+     [ "${#_peon_fast_profile}" -le 240 ]; then
+    _PEON_FAST_INSTALL_DIR="$HOME/.cache/peon-ping/working/$_peon_fast_install"
+    _PEON_FAST_DIR="$_PEON_FAST_INSTALL_DIR/$_peon_fast_profile"
+  fi
+fi
+if [ $# -eq 0 ] && [ ! -t 0 ]; then
+  IFS= read -r -d '' -t 2 _PEON_FAST_INPUT || true
+  _PEON_FAST_READ=true
+  _peon_fast_prefix="${_PEON_FAST_INPUT:0:4096}"
+  _peon_fast_offset=0
+  _peon_fast_event=""
+  _peon_fast_event_seen=false
+  _peon_fast_sid_seen=false
+  _peon_fast_root='^[[:space:]]*\{[[:space:]]*'
+  _peon_fast_pair='^[[:space:]]*"([A-Za-z_][A-Za-z0-9_]*)"[[:space:]]*:[[:space:]]*("([^"\\]*)"|true|false|null|-?[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?)[[:space:]]*([,}])'
+  if [[ $_peon_fast_prefix =~ $_peon_fast_root ]]; then
+    _peon_fast_offset=${#BASH_REMATCH[0]}
+    _peon_fast_prefix="${_peon_fast_prefix:$_peon_fast_offset}"
+    for ((_peon_fast_fields=0; _peon_fast_fields<32; _peon_fast_fields++)); do
+      [[ $_peon_fast_prefix =~ $_peon_fast_pair ]] || break
+      _peon_fast_match=${#BASH_REMATCH[0]}
+      _peon_fast_key=${BASH_REMATCH[1]}
+      _peon_fast_value=${BASH_REMATCH[3]:-}
+      case "$_peon_fast_key" in
+        hook_event_name)
+          [ "$_peon_fast_event_seen" = false ] || break
+          _peon_fast_event_seen=true
+          _peon_fast_event=$_peon_fast_value ;;
+        session_id)
+          [ "$_peon_fast_sid_seen" = false ] || break
+          _peon_fast_sid_seen=true
+          _PEON_FAST_SID=$_peon_fast_value ;;
+      esac
+      _peon_fast_offset=$((_peon_fast_offset + _peon_fast_match))
+      _peon_fast_prefix="${_peon_fast_prefix:$_peon_fast_match}"
+      [ "$_peon_fast_event_seen" = true ] && [ "$_peon_fast_sid_seen" = true ] && break
+    done
+  fi
+  _peon_fast_identity='^[A-Za-z0-9_.-]{1,128}$'
+  _peon_fast_repeated='"(hook_event_name|session_id)"[[:space:]]*:'
+  _peon_fast_unicode='\\u'
+  _peon_fast_tail="${_PEON_FAST_INPUT:$_peon_fast_offset}"
+  _peon_fast_trusted=false
+  if [ -n "$_PEON_FAST_DIR" ] && [ -d "$_PEON_FAST_DIR" ] &&
+     [ -O "$_PEON_FAST_DIR" ] && [ ! -L "$_PEON_FAST_DIR" ] &&
+     [ -d "$_PEON_FAST_DIR/@private" ] && [ -O "$_PEON_FAST_DIR/@private" ] &&
+     [ ! -L "$_PEON_FAST_DIR/@private" ]; then
+    if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
+      [ -O "$CLAUDE_PEON_DIR" ] && [ ! -L "$CLAUDE_PEON_DIR" ] && _peon_fast_trusted=true
+    elif [ -O "$HOME" ] && [ ! -L "$HOME" ] &&
+         [ -O "$HOME/.cache" ] && [ ! -L "$HOME/.cache" ] &&
+         [ -O "$HOME/.cache/peon-ping" ] && [ ! -L "$HOME/.cache/peon-ping" ] &&
+         [ -O "$HOME/.cache/peon-ping/working" ] && [ ! -L "$HOME/.cache/peon-ping/working" ] &&
+         [ -O "$_PEON_FAST_INSTALL_DIR" ] && [ ! -L "$_PEON_FAST_INSTALL_DIR" ]; then
+      _peon_fast_trusted=true
+    fi
+  fi
+  if [ "$_peon_fast_trusted" = true ] &&
+     { [ "$_peon_fast_event" = PreToolUse ] || [ "$_peon_fast_event" = PostToolUse ]; } &&
+     [[ $_PEON_FAST_SID =~ $_peon_fast_identity ]] &&
+     [ "$_PEON_FAST_SID" != . ] && [ "$_PEON_FAST_SID" != .. ] &&
+     ! [[ $_peon_fast_tail =~ $_peon_fast_repeated ]] &&
+     ! [[ $_PEON_FAST_INPUT =~ $_peon_fast_unicode ]] &&
+     [ -d "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] &&
+     [ -O "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] &&
+     [ ! -L "$_PEON_FAST_DIR/$_PEON_FAST_SID" ] &&
+     [ ! -e "/tmp/peon-ping-popups/.session-$_PEON_FAST_SID" ]; then
+    exit 0
+  fi
+fi
+
 # --- Platform detection ---
 detect_platform() {
   case "$(uname -s)" in
@@ -161,10 +264,12 @@ PY
   esac
 }
 
+_peon_invoked_dir=""
 if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
   PEON_DIR="$CLAUDE_PEON_DIR"
 else
   _peon_script="${BASH_SOURCE[0]}"
+  _peon_invoked_dir="$(cd "$(dirname "$_peon_script")" && pwd)"
   while [ -L "$_peon_script" ]; do
     _peon_link="$(readlink "$_peon_script")" || break
     case "$_peon_link" in
@@ -178,12 +283,14 @@ fi
 # Save original install directory for finding bundled scripts (Nix, Homebrew)
 _INSTALL_DIR="$PEON_DIR"
 # Homebrew/Nix/adapter installs: script lives in read-only store but packs/config are elsewhere.
-# Priority: Claude hooks dir first (matches where the hook actually runs from),
-# then CESP shared path as fallback (fixes #250: CLI must write config to the
+# Priority: the invoking hooks dir with packs, then the configured Claude hooks
+# dir, then CESP shared path as fallback (fixes #250: CLI must write config to the
 # same location the hook reads from).
 if [ ! -d "$PEON_DIR/packs" ]; then
   _hooks_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping"
-  if [ -d "$_hooks_dir/packs" ]; then
+  if [ -n "$_peon_invoked_dir" ] && [ -d "$_peon_invoked_dir/packs" ]; then
+    PEON_DIR="$_peon_invoked_dir"
+  elif [ -d "$_hooks_dir/packs" ]; then
     PEON_DIR="$_hooks_dir"
   elif [ -d "$HOME/.openpeon/packs" ]; then
     PEON_DIR="$HOME/.openpeon"
@@ -193,6 +300,7 @@ if [ ! -d "$PEON_DIR/packs" ]; then
   fi
   unset _hooks_dir
 fi
+unset _peon_invoked_dir
 # Ensure the data dir exists before any config/state write (#561: fresh install
 # has no ~/.openpeon yet, and the setup wizard writes config.json directly).
 mkdir -p "$PEON_DIR" 2>/dev/null || true
@@ -423,6 +531,74 @@ play_linux_sound() {
 }
 
 # --- Kill any previously playing peon-ping sound ---
+# macOS must stop/register/start under one kernel lock. Separate shell reads and
+# writes let simultaneous hooks all kill the same prior PID, then overlap. flock
+# releases automatically after crashes; no polling lock processes or stale locks.
+_start_mac_sound() {
+  python3 -I - "$PEON_DIR/.sound.pid" "$@" <<'PY_AUDIO'
+import fcntl, json, os, pathlib, signal, subprocess, sys, tempfile, time
+
+pidfile = pathlib.Path(sys.argv[1])
+identityfile = pidfile.with_name('.sound.identity')
+
+def identity(pid):
+    if pid <= 1:
+        return None
+    try:
+        if os.getpgid(pid) != pid:
+            return None
+        fields = subprocess.check_output(
+            ['ps', '-p', str(pid), '-o', 'lstart=', '-o', 'stat=', '-o', 'command='],
+            text=True, stderr=subprocess.DEVNULL).strip().split(None, 6)
+        if len(fields) != 7 or fields[5].startswith('Z'):
+            return None
+        return [' '.join(fields[:5]), fields[6]]
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+def write_atomic(path, text):
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=path.name + '.')
+    try:
+        with os.fdopen(fd, 'w') as output:
+            output.write(text)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+with open(pidfile.with_name('.sound.lock'), 'a') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    try:
+        old_pid = int(pidfile.read_text().strip())
+        old = json.loads(identityfile.read_text())
+    except (OSError, ValueError):
+        old_pid, old = 0, {}
+    # Never signal a legacy/reused/unrelated PID merely because its number is
+    # in a file. This record is written only for a detached player we launched.
+    recorded_identity = old.get('identity') if isinstance(old, dict) else None
+    if (old_pid > 1 and isinstance(recorded_identity, list) and len(recorded_identity) == 2
+            and old.get('pid') == old_pid and recorded_identity == identity(old_pid)):
+        try:
+            os.kill(old_pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + 0.3
+        while identity(old_pid) == old.get('identity'):
+            if time.monotonic() >= deadline:
+                sys.exit(0)  # a backend ignoring TERM must not cause overlap
+            time.sleep(0.01)
+    child = subprocess.Popen(sys.argv[2:], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    child_identity = identity(child.pid)
+    if child_identity is None and child.poll() is None:
+        child.terminate()  # cannot safely identify this backend for later interruption
+    if child_identity is not None:
+        write_atomic(identityfile, json.dumps({'pid': child.pid, 'identity': child_identity}))
+        write_atomic(pidfile, str(child.pid) + '\n')
+PY_AUDIO
+}
+
 kill_previous_sound() {
   local pidfile="$PEON_DIR/.sound.pid"
   if [ -f "$pidfile" ]; then
@@ -547,7 +723,7 @@ ssh_audio_mode() {
 play_sound() {
   local file="$1" vol="$2"
   _peon_log play "backend=$PEON_PLATFORM file=$(basename "$file") volume=$vol async=true"
-  kill_previous_sound
+  [ "$PEON_PLATFORM" = "mac" ] || kill_previous_sound
   case "$PEON_PLATFORM" in
     mac)
       local player="afplay"
@@ -558,8 +734,7 @@ play_sound() {
       if [ "${PEON_TEST:-0}" = "1" ]; then
         "$player" -v "$vol" "$file" >/dev/null 2>&1
       else
-        nohup "$player" -v "$vol" "$file" >/dev/null 2>&1 &
-        save_sound_pid $!
+        _start_mac_sound "$player" -v "$vol" "$file"
       fi
       ;;
     wsl)
@@ -987,48 +1162,64 @@ _resolve_session_tty() {
     # Claude Code spawns hooks from worker processes that may have their own
     # ptys, so the first tty in the tree is often a worker pty, not the
     # terminal tty. The highest ancestor with a tty is the terminal session.
-    local walk_pid="$PPID" last_tty=""
-    while [ "$walk_pid" -gt 1 ] 2>/dev/null; do
-      local walk_tty
-      walk_tty=$(ps -p "$walk_pid" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-      if [ -n "$walk_tty" ] && [ "$walk_tty" != "??" ]; then
-        last_tty="/dev/$walk_tty"
-      fi
-      walk_pid=$(ps -p "$walk_pid" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-    done
-    PEON_SESSION_TTY="$last_tty"
+    # The hook has usually done this exact walk already (_PEON_HOOK_TTY, same
+    # $PPID, same rule), so reuse it; the CLI paths that get here first walk now.
+    local last_tty
+    if [ -n "${_PEON_HOOK_TTY+set}" ]; then
+      last_tty="$_PEON_HOOK_TTY"
+    else
+      last_tty=$(_peon_walk_tty)
+    fi
+    PEON_SESSION_TTY="${last_tty:+/dev/$last_tty}"
   fi
   export PEON_SESSION_TTY
 }
 
-# --- Ghostty active terminal match (best-effort) ---
-# Ghostty exposes focused terminal metadata via AppleScript. We use it to avoid
-# suppressing notifications for every Ghostty window/tab just because the app is
-# frontmost. Title match is strongest; cwd is a fallback heuristic.
+# Prints the tty of the highest ancestor process that has one (see above for
+# why the highest). Runs on every hook event, so it reads the process table
+# with one `ps` and walks it in awk: the old walk ran a `ps | sed` pair twice
+# per ancestor, about 50 processes per event.
+_peon_walk_tty() {
+  local _w="${PPID:-}" _last="" _t
+  _last=$(ps -A -o pid=,ppid=,tty= 2>/dev/null | awk -v p="$_w" '
+    { pp[$1] = $2; tt[$1] = $3 }
+    END {
+      if (NR == 0) { print "-"; exit }   # no table: tell the caller to fall back
+      last = ""
+      # The step cap only guards against a malformed table that loops.
+      for (n = 0; p + 0 > 1 && (p in pp) && n < 256; n++) {
+        if (tt[p] != "" && tt[p] != "??") last = tt[p]
+        p = pp[p]
+      }
+      print last
+    }')
+  if [ "$_last" = "-" ]; then
+    # No process table (a ps without -A or -o): walk with one ps per step.
+    _last=""
+    while [ -n "$_w" ] && [ "$_w" -gt 1 ] 2>/dev/null; do
+      _t=$(ps -p "$_w" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+      [ -n "$_t" ] && [ "$_t" != "??" ] && _last="$_t"
+      _w=$(ps -p "$_w" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+    done
+  fi
+  echo "$_last"
+}
+
+# --- Ghostty active terminal match ---
+# Titles and working directories collide between tabs. Newer Ghostty versions
+# expose the terminal TTY; only that exact session identity can suppress a
+# notification. Older versions (or disabled scripting) must fail open and notify.
 _ghostty_terminal_is_current() {
-  local active_info active_name active_cwd
-  active_info=$(osascript -e 'tell application "Ghostty"
+  local active_tty
+  [ -n "${PEON_SESSION_TTY:-}" ] || return 1
+  active_tty=$(osascript -e 'tell application "Ghostty"
     try
-      set win to front window
-      set tab_ to selected tab of win
-      set term to focused terminal of tab_
-      return (name of term) & "	" & (working directory of term)
+      return tty of (focused terminal of selected tab of front window)
     on error
       return ""
     end try
   end tell' 2>/dev/null || true)
-  [ -z "$active_info" ] && return 0
-
-  active_name=${active_info%%$'	'*}
-  active_cwd=${active_info#*$'	'}
-  active_name=$(printf '%s' "$active_name" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-  active_cwd=$(printf '%s' "$active_cwd" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-
-  [ -n "${TITLE:-}" ] && [ "$active_name" = "$TITLE" ] && return 0
-  [ -n "${PROJECT:-}" ] && [ "$active_name" = "$PROJECT" ] && return 0
-  [ -n "${CWD:-}" ] && [ "$active_cwd" = "$CWD" ] && return 0
-
-  return 1
+  [ -n "$active_tty" ] && [ "$active_tty" = "$PEON_SESSION_TTY" ]
 }
 
 # --- Platform-aware notification ---
@@ -1240,7 +1431,14 @@ terminal_is_focused() {
           done
           return 1  # Different tab/pane is active in all windows — notify
           ;;
-        Ghostty|ghostty) _ghostty_terminal_is_current ; return $? ;;
+        Ghostty|ghostty)
+          # Desktop focus gating runs before send_notification(), even when
+          # sound-focus suppression is off. Resolve our session identity here;
+          # the cached hook TTY avoids a second process-tree walk.
+          _resolve_session_tty
+          _ghostty_terminal_is_current
+          return $?
+          ;;
         cmux|cmux\ *)
           if _is_cmux_session; then
             _cmux_surface_is_current
@@ -1581,7 +1779,7 @@ case "${1:-}" in
     export PEON_ENV_HEADPHONES_DETECTED="$_headphones_detected"
     export PEON_ENV_VERBOSE="$_verbose_flag"
     python3 -c "
-import json, os, sys, fnmatch, datetime
+import json, os, sys, fnmatch, datetime, re
 
 config_path = os.environ.get('PEON_ENV_CONFIG', '')
 global_config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
@@ -2005,6 +2203,32 @@ if os.path.isdir(codex_dir):
             )
         except Exception:
             codex_installed = False
+    codex_hooks = os.path.join(codex_dir, 'hooks.json')
+    if not codex_installed and os.path.isfile(codex_hooks):
+        try:
+            with open(codex_hooks, encoding='utf-8-sig') as f:
+                codex_hooks_cfg = json.load(f)
+            events = codex_hooks_cfg.get('hooks', {}) if isinstance(codex_hooks_cfg, dict) else {}
+            if isinstance(events, dict):
+                for groups in events.values():
+                    if not isinstance(groups, list):
+                        continue
+                    for group in groups:
+                        handlers = group.get('hooks', []) if isinstance(group, dict) else []
+                        if not isinstance(handlers, list):
+                            continue
+                        for handler in handlers:
+                            if not isinstance(handler, dict) or handler.get('type') != 'command':
+                                continue
+                            for key in ('command', 'commandWindows'):
+                                command = handler.get(key)
+                                if isinstance(command, str) and re.search(
+                                    r'(?<![\w.-])adapters/codex\.(?:sh|ps1)(?![\w./-])',
+                                    command.replace(chr(92), '/'), re.IGNORECASE,
+                                ):
+                                    codex_installed = True
+        except (OSError, ValueError):
+            pass
     if codex_installed:
         ides.append(('OpenAI Codex', codex_dir, 'installed'))
     else:
@@ -5212,7 +5436,9 @@ fi
 # timeout fires (surfacing as "SessionStart:* hook error" in the UI). Cap
 # the read at 2s; empty INPUT is handled gracefully by the Python block
 # below (json.load fails → PEON_EXIT=true → clean exit with rc 0).
-if command -v timeout >/dev/null 2>&1; then
+if [ "$_PEON_FAST_READ" = true ]; then
+  INPUT=$_PEON_FAST_INPUT
+elif command -v timeout >/dev/null 2>&1; then
   INPUT=$(timeout 2 cat 2>/dev/null) || INPUT=""
 elif command -v gtimeout >/dev/null 2>&1; then
   INPUT=$(gtimeout 2 cat 2>/dev/null) || INPUT=""
@@ -5229,16 +5455,7 @@ PAUSED=false
 # Walk the process tree to find the terminal TTY — stable across /clear (the process tree doesn't
 # change when session_id resets) and unique per terminal tab (each tab has its own PTY).
 # Using raw $PPID was unreliable because hooks run from worker subprocesses whose PIDs change per event.
-_peon_walk_tty() {
-  local _w="${PPID:-}" _last=""
-  while [ -n "$_w" ] && [ "$_w" -gt 1 ] 2>/dev/null; do
-    local _t
-    _t=$(ps -p "$_w" -o tty= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-    [ -n "$_t" ] && [ "$_t" != "??" ] && _last="$_t"
-    _w=$(ps -p "$_w" -o ppid= 2>/dev/null | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-  done
-  echo "$_last"
-}
+# (_peon_walk_tty is defined next to _resolve_session_tty.)
 _PEON_HOOK_TTY=$(_peon_walk_tty)
 export PEON_ENV_PAUSED="$PAUSED"
 export PEON_ENV_HOOK_TTY="$_PEON_HOOK_TTY"
@@ -5466,6 +5683,8 @@ ntype = event_data.get('notification_type', '')
 _roots = event_data.get('workspace_roots', [])
 cwd = event_data.get('cwd', '') or (_roots[0] if _roots else '')
 session_id = event_data.get('session_id', '') or event_data.get('conversation_id', '')
+# Marker updates use the authoritative decoded root identity, including fallback paths.
+print('_PEON_FAST_SID=' + q(session_id if isinstance(session_id, str) and session_id not in ('.', '..') and re.fullmatch('[A-Za-z0-9_.-]{1,128}', session_id) else ''))
 perm_mode = event_data.get('permission_mode', '')
 session_source = event_data.get('source', '')
 # Claude Code sets agent_id only on hook events fired from inside a Task-tool
@@ -6115,9 +6334,11 @@ elif event == 'PostToolUseFailure':
     # Claude Code labels the shell tool "Bash" and fires PostToolUseFailure for
     # every tool, so it is gated to Bash to avoid noise. Copilot CLI instead
     # sends lowercase "bash" or "unknown" (for its generic errorOccurred event)
-    # and only surfaces real failures, so any Copilot-sourced failure with an
-    # error message should sound task.error. Claude Code behavior is unchanged.
-    if error_msg and (tool_name == 'Bash' or session_source == 'copilot'):
+    # and only surfaces real failures. omp reports failed native tools and
+    # OpenCode reports failed executions, neither of which should masquerade as
+    # Bash. Their explicit failure signals with error text sound task.error;
+    # Claude Code's per-tool noise filter remains unchanged.
+    if error_msg and (tool_name == 'Bash' or session_source in ('copilot', 'omp', 'opencode')):
         category = 'task.error'
         status = 'error'
     else:
@@ -6323,12 +6544,14 @@ if category and not paused:
             state_dirty = True
             file_ref = str(pick.get('file', ''))
             if '/' in file_ref:
-                candidate = os.path.realpath(os.path.join(pack_dir, file_ref))
+                sound_path = os.path.join(pack_dir, file_ref)
             else:
-                candidate = os.path.realpath(os.path.join(pack_dir, 'sounds', file_ref))
+                sound_path = os.path.join(pack_dir, 'sounds', file_ref)
+            candidate = os.path.realpath(sound_path)
             pack_root = os.path.realpath(pack_dir) + os.sep
             if candidate.startswith(pack_root):
-                sound_file = candidate
+                # Preserve the install path so relay requests stay relative when packs is a symlink.
+                sound_file = sound_path
             # Icon resolution chain (CESP §5.5)
             icon_candidate = ''
             if pick.get('icon'):
@@ -6667,7 +6890,71 @@ PEON_LOCAL_PY_EOF
 _PEON_PYOUT=$(python3 -I "$_PEON_PY_TMP" <<< "$INPUT")
 eval "$_PEON_PYOUT"
 
-# --- Override PROJECT with cmux workspace title ---
+# Update the optimization only through an owned, private directory descriptor.
+# Directory markers are created atomically with mkdirat: an existing marker
+# symlink is never followed or truncated. Unsafe cache paths merely disable the
+# optimization and leave the full hook behavior available.
+if [ -n "$_PEON_FAST_DIR" ] && [ -n "$_PEON_FAST_SID" ]; then
+  python3 -I - "$_PEON_FAST_DIR" "$_PEON_FAST_SID" "${STATUS:-}" <<'PEON_WORKING_MARKER'
+import os, stat, sys
+root, sid, status = sys.argv[1:]
+fds = []
+try:
+    uid = os.getuid()
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    # Resolve platform-owned aliases such as /var -> /private/var first, then
+    # walk descriptors without following replaceable path components.
+    parent, leaf = os.path.split(os.path.abspath(root))
+    parent = os.path.realpath(parent)
+    fd = os.open(os.path.sep, flags)
+    fds.append(fd)
+    for part in parent.split(os.path.sep):
+        if not part:
+            continue
+        try:
+            os.mkdir(part, 0o700, dir_fd=fd)
+        except FileExistsError:
+            pass
+        child = os.open(part, flags, dir_fd=fd)
+        fds.append(child)
+        info = os.fstat(child)
+        sticky_root = info.st_uid == 0 and info.st_mode & stat.S_ISVTX
+        if info.st_uid not in (0, uid) or (info.st_mode & 0o022 and not sticky_root):
+            raise PermissionError('unsafe marker parent')
+        fd = child
+    try:
+        os.mkdir(leaf, 0o700, dir_fd=fd)
+    except FileExistsError:
+        pass
+    fd = os.open(leaf, flags, dir_fd=fd)
+    fds.append(fd)
+    info = os.fstat(fd)
+    if info.st_uid != uid or info.st_mode & 0o077:
+        raise PermissionError('marker directory must be private')
+    # This owned directory attests that the slow path validated this cache.
+    # '@' cannot occur in a session ID, so it cannot alias a session marker.
+    try:
+        os.mkdir('@private', 0o700, dir_fd=fd)
+    except FileExistsError:
+        pass
+    if status == 'working':
+        try:
+            os.mkdir(sid, 0o700, dir_fd=fd)
+        except FileExistsError:
+            pass  # no replacement and no following an existing symlink
+    else:
+        try:
+            os.rmdir(sid, dir_fd=fd)
+        except FileNotFoundError:
+            pass
+except (OSError, AttributeError, NotImplementedError):
+    pass
+finally:
+    for fd in reversed(fds):
+        os.close(fd)
+PEON_WORKING_MARKER
+fi
+
 # A cmux workspace's title is set by the user and doesn't have to match cwd/git
 # remote, so ask cmux directly when CMUX_WORKSPACE_ID is in the env.
 if [ "${PROJECT_FROM_TITLE_OVERRIDE:-false}" != "true" ] && [ -n "${CMUX_WORKSPACE_ID:-}" ] && [ -n "${MSG:-}" ]; then
@@ -6747,49 +7034,9 @@ if [ "${PEON_EXIT:-true}" = "true" ]; then
   exit 0
 fi
 
-# --- Auto-prune old log files (non-blocking, when debug logging is enabled) ---
-if [ "${PEON_DEBUG:-0}" = "1" ] || python3 -c "
-import json, os
-config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-exit(0 if cfg.get('debug', False) else 1)
-" 2>/dev/null; then
-  (
-    _retention=$(python3 -c "
-import json, os
-config_path = os.environ.get('PEON_ENV_GLOBAL_CONFIG', '')
-try:
-    cfg = json.load(open(config_path))
-except Exception:
-    cfg = {}
-print(cfg.get('debug_retention_days', 7))
-" 2>/dev/null)
-    _retention="${_retention:-7}"
-    _prune_old_logs "$_retention"
-  ) &>/dev/null &
-fi
-
 # Test-mode flag: evaluated once, used for sync/async dispatch and test observability writes.
 _PEON_SYNC=false
 [ "${PEON_TEST:-0}" = "1" ] && _PEON_SYNC=true
-
-HEADPHONES_DETECTED=true
-if [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
-  detect_headphones || HEADPHONES_DETECTED=false
-fi
-
-IN_MEETING=false
-if [ "${MEETING_DETECT:-false}" = "true" ]; then
-  detect_meeting && IN_MEETING=true
-fi
-
-IN_FOCUS=false
-if [ "${FOCUS_DETECT:-false}" = "true" ]; then
-  detect_focus && IN_FOCUS=true
-fi
 
 # Resolve session tty early so _run_sound_and_notify can check tab focus
 if [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
@@ -6973,25 +7220,35 @@ _run_sound_and_notify() {
   fi
 
   local _focused=""  # lazy: empty = not yet checked
+  local _in_focus=""  # lazy: empty = not yet checked
+
+  # The checks below each start processes (a CoreAudio query, a Focus file
+  # parse, osascript), and most events have nothing to play or show. So run
+  # each one only when its answer could change what happens.
+  local _would_play=false _would_notify=false
+  [ -n "${SOUND_FILE:-}" ] && [ -f "$SOUND_FILE" ] && _would_play=true
+  [ "${TTS_ENABLED:-false}" = "true" ] && [ -n "${TTS_TEXT:-}" ] && _would_play=true
+  [ -n "${NOTIFY:-}" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ] && _would_notify=true
 
   # --- Shared suppression checks (apply to both sound and TTS) ---
   local _skip_sound=false
   # Check headphones_only: skip sound if enabled but no headphones detected
-  if [ "${HEADPHONES_ONLY:-false}" = "true" ] && [ "${HEADPHONES_DETECTED:-true}" = "false" ]; then
-    _skip_sound=true
+  if [ "$_would_play" = "true" ] && [ "${HEADPHONES_ONLY:-false}" = "true" ]; then
+    detect_headphones || _skip_sound=true
   fi
   # Check meeting_detect: skip sound if in a meeting
-  if [ "$_skip_sound" = "false" ] && [ "${MEETING_DETECT:-false}" = "true" ] && [ "${IN_MEETING:-false}" = "true" ]; then
-    _skip_sound=true
+  if [ "$_would_play" = "true" ] && [ "$_skip_sound" = "false" ] && [ "${MEETING_DETECT:-false}" = "true" ]; then
+    detect_meeting && _skip_sound=true
   fi
   # Check focus_detect: skip sound if a macOS Focus / Do Not Disturb mode is
   # active and the suppression scope covers sound (mode 'all' or 'sound').
-  if [ "$_skip_sound" = "false" ] && [ "${FOCUS_DETECT:-false}" = "true" ] && [ "${IN_FOCUS:-false}" = "true" ] \
+  if [ "$_would_play" = "true" ] && [ "$_skip_sound" = "false" ] && [ "${FOCUS_DETECT:-false}" = "true" ] \
      && { [ "${FOCUS_DETECT_MODE:-all}" = "all" ] || [ "${FOCUS_DETECT_MODE:-all}" = "sound" ]; }; then
-    _skip_sound=true
+    [ -z "$_in_focus" ] && { detect_focus && _in_focus=true || _in_focus=false; }
+    [ "$_in_focus" = "true" ] && _skip_sound=true
   fi
   # Check suppress_sound_when_tab_focused: skip sound if tab is focused
-  if [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
+  if [ "$_would_play" = "true" ] && [ "$_skip_sound" = "false" ] && [ "${SUPPRESS_SOUND_WHEN_TAB_FOCUSED:-false}" = "true" ]; then
     [ -z "$_focused" ] && { terminal_is_focused && _focused=true || _focused=false; }
     [ "$_focused" = "true" ] && _skip_sound=true
   fi
@@ -7034,9 +7291,10 @@ _run_sound_and_notify() {
   # only when the suppression scope covers notifications (mode 'all' or
   # 'notifications').
   local _focus_block=false
-  if [ "${FOCUS_DETECT:-false}" = "true" ] && [ "${IN_FOCUS:-false}" = "true" ] \
+  if [ "$_would_notify" = "true" ] && [ "${FOCUS_DETECT:-false}" = "true" ] \
      && { [ "${FOCUS_DETECT_MODE:-all}" = "all" ] || [ "${FOCUS_DETECT_MODE:-all}" = "notifications" ]; }; then
-    _focus_block=true
+    [ -z "$_in_focus" ] && { detect_focus && _in_focus=true || _in_focus=false; }
+    [ "$_in_focus" = "true" ] && _focus_block=true
   fi
   if [ -n "$NOTIFY" ] && [ "$PAUSED" != "true" ] && [ "${DESKTOP_NOTIF:-true}" = "true" ] && [ "$_focus_block" = "false" ]; then
     local _force_cmux_standard_notify=false

@@ -191,7 +191,9 @@ Claude에게 직접 설정을 변경해달라고 요청할 수도 있습니다 �
 ```
 
 - **volume**: 0.0–1.0 (사무실에서도 적당한 볼륨)
+  - macOS의 `peon-play`는 가능하면 사운드 효과 출력 장치를 사용합니다. 300 ms 무음 도입부와 500 ms 무음 꼬리가 Bluetooth 오디오의 앞뒤 잘림을 줄입니다. 동시 이벤트의 재생 처리를 직렬화하여 확인된 이전 플레이어를 중단한 뒤 새 소리를 재생합니다. `-p <ms>`와 `-t <ms>`로 조정하며 `-t 0`은 꼬리 무음을 끕니다.
 - **desktop_notifications**: `true`/`false` — 소리와 독립적으로 데스크톱 알림 팝업 토글 (기본값: `true`)
+  - Ghostty 직접 세션의 `standard` 스타일은 OSC 777을 실제 세션 PTY로 보내 클릭 시 해당 탭이나 분할 창을 선택합니다. herdr, tmux, cmux, 사용자 클릭 명령 또는 TTY를 사용할 수 없으면 기존 시스템 알림을 사용합니다. 포커스 억제는 정확한 TTY가 확인될 때만 적용하며, 지원하지 않는 스크립트 API에서는 제목이나 경로로 추측하지 않습니다.
 - **notification_style**: `"overlay"` 또는 `"standard"` — 데스크톱 알림 표시 방식 (기본값: `"overlay"`)
   - **overlay**: 크고 잘 보이는 배너 — macOS에서는 JXA Cocoa 오버레이, WSL에서는 Windows Forms 팝업. 오버레이를 클릭하면 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원)
   - **standard**: 시스템 알림 — macOS에서는 [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript`, WSL에서는 Windows toast. `terminal-notifier`를 설치하면 (`brew install terminal-notifier`) 알림 클릭 시 자동으로 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원)
@@ -335,17 +337,9 @@ peon-ping은 훅을 지원하는 모든 에이전트 기반 IDE에서 동작합�
 
 ### OpenAI Codex 설정
 
-`~/.codex`가 이미 있으면 Unix/Windows 설치 관리자가 `~/.codex/config.toml`에 peon-ping 관리 stable hooks 블록을 자동으로 추가합니다. Codex를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
+Unix/Windows 설치 관리자는 `CODEX_HOME`(기본값 `~/.codex`)을 사용합니다. 기존 `hooks.json`이 있으면 재사용하고, 없으면 `config.toml`에 peon-ping 관리 stable hooks 블록을 추가합니다. Codex를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
 
 등록되는 이벤트는 `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PreCompact`, `SubagentStart`, `SubagentStop`, `Stop`입니다. `SessionStart`는 `startup`, `resume`, `clear`에만 매칭되며, 압축 흐름은 `PreCompact`가 처리합니다. `PreToolUse`, `PostToolUse`, `PostCompact`는 등록하지 않으며, Codex 어댑터는 `PostToolUse`를 무시합니다. Codex가 요청하면 `/hooks`에서 peon-ping 명령을 검토하고 신뢰 처리하세요.
-
-### Grok Build 설정
-
-Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트 값은 snake_case(`session_start`, `stop`)입니다. `peon.sh`는 이 형식을 바로 읽지 못하므로 `adapters/grok.sh`(Windows는 `grok.ps1`)를 사용합니다.
-
-`~/.grok`가 이미 있으면 설치 관리자가 `~/.grok/hooks/peon-ping.json`을 자동으로 씁니다. Grok Build를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
-
-등록 이벤트: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`, `PostToolUseFailure`, `PreCompact`. 세션 종료 `Stop`(`shutdown` / `channel_closed`)은 완료음이 아니라 정리로 처리합니다. 이미 실행 중인 Grok에서는 `/hooks` 후 `r`로 다시 읽거나 새 세션을 여세요.
 
 **설정 방법:**
 
@@ -365,7 +359,15 @@ Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트
 
 3. 설치 중 Codex가 이미 실행 중이었다면 Codex를 다시 시작합니다.
 
-peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.toml`에 씁니다. 기존 `notify` 연결은 호환용 fallback으로 유지되지만, 새 설치는 stable hooks 경로를 사용해야 합니다.
+기존 JSON 형식과 사용자 핸들러, 메타데이터를 보존하며 이 설치의 핸들러만 업데이트하거나 제거합니다. 관련 없는 inline TOML 이벤트와 `hooks.json`이 공존하면 중복을 추가하지 않고 설정 통합을 요청합니다. 신뢰 상태만 담은 TOML은 유지됩니다. `peon status --verbose`는 두 파일 형식을 모두 인식합니다. 기존 `notify` 연결은 호환용 fallback으로 유지되지만, 새 설치는 stable hooks 경로를 사용해야 합니다.
+
+### Grok Build 설정
+
+Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트 값은 snake_case(`session_start`, `stop`)입니다. `peon.sh`는 이 형식을 바로 읽지 못하므로 `adapters/grok.sh`(Windows는 `grok.ps1`)를 사용합니다.
+
+`~/.grok`가 이미 있으면 설치 관리자가 `~/.grok/hooks/peon-ping.json`을 자동으로 씁니다. Grok Build를 나중에 설치했다면 peon-ping 설치 관리자를 다시 실행하세요.
+
+등록 이벤트: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `Stop`, `StopFailure`, `Notification`, `SubagentStart`, `SubagentStop`, `PostToolUseFailure`, `PreCompact`. 세션 종료 `Stop`(`shutdown` / `channel_closed`)은 완료음이 아니라 정리로 처리합니다. 이미 실행 중인 Grok에서는 `/hooks` 후 `r`로 다시 읽거나 새 세션을 여세요.
 
 ### Amp 설정
 
@@ -461,7 +463,9 @@ peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.t
 
 ### OpenCode 설정
 
-[OpenCode](https://opencode.ai/)용 네이티브 TypeScript 플러그인으로, [CESP v1.0](https://github.com/PeonPing/openpeon) 표준을 완전히 준수합니다.
+[OpenCode v1](https://opencode.ai/docs/plugins/)과 [v2](https://opencode.ai/v2/docs/build/plugins)를 지원하는 TypeScript 어댑터입니다. 하나의 플러그인으로 두 API를 지원하므로 설치 시 버전 감지가 필요 없습니다. 같은 프로젝트의 독립 세션은 각각의 네이티브 세션 ID를 유지합니다.
+
+OpenCode 실행이 실패하면 `task.error`가 재생됩니다. 어댑터는 실제 오류 메시지와 제공된 도구 이름을 전달하며, 세션 실패를 Bash 실패로 표시하지 않습니다.
 
 **빠른 설치:**
 
@@ -469,7 +473,7 @@ peon-ping은 `hooks.json`을 만들지 않고 inline hooks를 `~/.codex/config.t
 curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/opencode.sh | bash
 ```
 
-설치 프로그램이 `peon-ping.ts`를 `~/.config/opencode/plugins/`에 복사하고, `~/.config/opencode/peon-ping/config.json`에 설정 파일을 생성합니다. 사운드 팩은 공유 CESP 경로(`~/.openpeon/packs/`)에 저장됩니다.
+먼저 peon-ping을 설치하세요. 설치 프로그램은 `XDG_CONFIG_HOME`을 따르며 `peon-ping.ts`를 `~/.config/opencode/plugins/`에 복사합니다. Windows에서는 `powershell -NoProfile -File adapters/opencode.ps1`을 실행하세요. 어댑터가 `peon.ps1`을 직접 호출하므로 Git Bash는 필요 없습니다. 설정, 팩, 재생은 기본 peon-ping 설치가 관리합니다.
 
 **기능:**
 
@@ -627,6 +631,8 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/ki
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）용 네이티브 TypeScript 확장으로, [CESP v1.0](https://github.com/PeonPing/openpeon) 표준을 완전히 준수합니다. omp의 `ExtensionAPI` 생명주기 이벤트를 구독하고 `peon.sh`를 통해 라우팅하여 omp 사용자가 peon-ping의 모든 기능을 사용할 수 있게 합니다: 사운드 팩, 데스크톱 알림, 트레이너 알림, 모바일 푸시, SSH/devcontainer 릴레이, 탭 제목 업데이트.
 
+셸 이외의 도구를 포함하여 omp 도구가 실패하면 `task.error`가 재생됩니다. 실패 결과의 텍스트와 원래 도구 이름을 전달합니다.
+
 **빠른 설치:**
 
 ```bash
@@ -640,11 +646,13 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | omp 이벤트                             | peon-ping 이벤트      |
 |----------------------------------------|-----------------------|
 | `session_start`                        | `SessionStart`        |
-| `turn_start`                           | `UserPromptSubmit`    |
-| `turn_end`                             | `Stop`                |
+| `agent_start`                          | `UserPromptSubmit`    |
+| `agent_end` (unless `willContinue`)    | `Stop`                |
 | `tool_result` with `isError: true`     | `PostToolUseFailure`  |
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
+
+같은 에이전트 루프의 도구 단계는 추가 확인음이나 완료음을 발생시키지 않습니다. omp가 `ctx.agent`를 제공하면(18.3.2 이상) 하위 에이전트 이벤트를 건너뜁니다. 이전 버전에서는 하위 에이전트 이벤트가 유지됩니다. 계속 실행될 예정인 `agent_end`는 완료를 알리지 않습니다.
 
 **제거:**
 
@@ -887,6 +895,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **오디오 재생** — `afplay` (macOS), PowerShell `MediaPlayer` (WSL2), 또는 `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` (Linux)를 통해 비동기 재생
 4. **알림** — 터미널 탭 제목을 업데이트하고, 터미널이 포커스되지 않았으면 데스크톱 알림 전송
 5. **원격 라우팅** — SSH 세션, 데브컨테이너, Codespaces에서는 오디오와 알림 요청이 HTTP를 통해 로컬 머신의 [릴레이 서버](#원격-개발-ssh--devcontainers--codespaces)로 전달
+
+세션이 이미 작업 중이면 반복되는 도구 이벤트는 자식 프로세스를 시작하지 않고 종료합니다. 단, 대기 중인 팝업을 닫아야 할 때는 전체 처리를 실행합니다. 회의, 집중 모드, 탭 포커스 확인은 소리나 데스크톱 알림을 억제할 수 있을 때만 실행됩니다.
 
 사운드 팩은 설치 시 [OpenPeon 레지스트리](https://github.com/PeonPing/registry)에서 다운로드됩니다. 공식 팩은 [PeonPing/og-packs](https://github.com/PeonPing/og-packs)에 호스팅됩니다. 사운드 파일은 각 배급사(Blizzard, Valve, EA 등)의 소유이며, 개인 알림 목적의 공정 사용으로 배포됩니다.
 

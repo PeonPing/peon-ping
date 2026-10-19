@@ -337,7 +337,9 @@ peon-ping には3つの独立したコントロールがあり、自由に組み
 - デスクトップポップアップなしでモバイルプッシュを有効化: `desktop_notifications: false` と `mobile_notify.enabled: true` を設定
 
 - **volume**: 0.0〜1.0（オフィスでも使える音量）
+  - macOS の `peon-play` は利用可能ならサウンドエフェクト出力を使用します。300 ms の無音の前置きと 500 ms の無音の後置きで Bluetooth の音切れを防ぎます。同時イベントの再生処理を直列化し、前の所有プレーヤーを停止してから次を再生します。ヘルパーの `-p <ms>` と `-t <ms>` で調整でき、`-t 0` は後置きを無効にします。
 - **desktop_notifications**: `true`/`false` — サウンドとは独立にデスクトップ通知ポップアップを切り替え（デフォルト: `true`）。無効にするとサウンドは再生されますがビジュアルポップアップは抑制されます。モバイル通知には影響しません。
+  - Ghostty の直接セッションでは `standard` スタイルが OSC 777 を実際のセッション PTY に送り、発信元のタブや分割ペインをクリック対象にします。herdr、tmux、cmux、独自クリックコマンド、TTY が使えない場合は既存のシステム通知を使います。フォーカス抑制には正確な TTY が必要で、未対応のスクリプト API ではタイトルやディレクトリから推測せず通知を保持します。
 - **notification_style**: `"overlay"` または `"standard"` — デスクトップ通知の表示方法を制御（デフォルト: `"overlay"`）
   - **overlay**: 大型の目立つバナー — macOS では JXA Cocoa オーバーレイ、WSL/MSYS2 では Windows Forms ポップアップ。オーバーレイをクリックするとターミナルにフォーカス（Ghostty、Warp、iTerm2、Zed、Terminal.app に対応）。iTerm2 ではクリックで正しいタブ/ペイン/ウィンドウにフォーカスします。
   - **standard**: システム通知 — macOS では [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript`、WSL/MSYS2 では Windows toast。`terminal-notifier` がインストールされている場合（`brew install terminal-notifier`）、通知をクリックすると自動的にターミナルにフォーカス（Ghostty、Warp、iTerm2、Zed、Terminal.app に対応）。ネイティブ Windows では、toast 通知をクリックすると IDE またはターミナルウィンドウにフォーカス（VS Code、Cursor、Windsurf、Windows Terminal、PowerShell に対応）。複数ウィンドウが開いている場合、PID ベースのプロセスツリーマッチングにより、イベントを発生させた正確なウィンドウが通知のターゲットになります。
@@ -634,17 +636,9 @@ peon-ping はフックをサポートする任意のエージェント型 IDE �
 
 ### OpenAI Codex セットアップ
 
-Codex サポートは stable Codex hooks API と peon-ping アダプターを使用します。`~/.codex` がすでに存在する場合、Unix / Windows インストーラーは `~/.codex/config.toml` に peon 管理の設定ブロックを自動で追加します。Codex を後からインストールした場合は、peon-ping インストーラーを再実行してください。
+Codex サポートは stable Codex hooks API と peon-ping アダプターを使用します。Unix と Windows のインストーラーは `CODEX_HOME`（既定は `~/.codex`）を使用し、既存の `hooks.json` があれば再利用し、なければ `config.toml` に管理ブロックを追加します。Codex を後からインストールした場合は、peon-ping インストーラーを再実行してください。
 
 登録される Codex イベントは `SessionStart`、`UserPromptSubmit`、`PermissionRequest`、`PreCompact`、`SubagentStart`、`SubagentStop`、`Stop` です。`SessionStart` は `startup`、`resume`、`clear` にだけマッチします。Codex のコンテキスト圧縮は `PreCompact` で扱うため、compact 起点の `SessionStart` はスキップします。`PreToolUse`、`PostToolUse`、`PostCompact` は意図的に登録しません。Codex には失敗専用の別 hook がなく、成功したツール hook は peon-ping には多すぎるため、Codex アダプターは `PostToolUse` を無視します。
-
-### Grok Build セットアップ
-
-Grok Build のフック入力は camelCase（`hookEventName`、`sessionId`）で、イベント値は snake_case（`session_start`、`stop`）です。`peon.sh` はその形式を直接読めないため、`adapters/grok.sh`（Windows では `grok.ps1`）を使います。
-
-`~/.grok` が既にあれば、インストーラーが `~/.grok/hooks/peon-ping.json` を自動で書き込みます。Grok Build を後から入れた場合は peon-ping インストーラーを再実行してください。
-
-登録イベント: `SessionStart`、`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`Notification`、`SubagentStart`、`SubagentStop`、`PostToolUseFailure`、`PreCompact`。セッション終了時の `Stop`（`shutdown` / `channel_closed`）は完了音ではなくクリーンアップとして扱います。既に起動中の Grok では `/hooks` のあと `r` で再読み込みするか、新しいセッションを開いてください。
 
 **セットアップ：**
 
@@ -664,7 +658,15 @@ Grok Build のフック入力は camelCase（`hookEventName`、`sessionId`）で
 
 3. インストール中に Codex が起動していた場合は、Codex を再起動してください。
 
-peon-ping は `hooks.json` を作成せず、inline hooks を `~/.codex/config.toml` に書き込みます。これは同じ設定レイヤーで 2 種類の hook 表現を混在させないという [Codex hooks documentation](https://developers.openai.com/codex/hooks) の推奨に合わせたものです。旧来の `notify` 接続は互換用の fallback として残りますが、新規インストールでは stable hooks を使ってください。
+Unix と Windows では既存の JSON 形式、ユーザーの handlers と metadata を保持し、このインストールの handlers だけを更新・削除します。無関係な inline TOML events と `hooks.json` が混在する場合は、重複を追加せず整理を求めて停止します。`peon status --verbose` は両形式の command hooks を検出します。[Codex hooks documentation](https://developers.openai.com/codex/hooks) の推奨どおり、設定レイヤーごとに一つの形式を使用します。旧来の `notify` 接続は互換用の fallback として残りますが、新規インストールでは stable hooks を使ってください。
+
+### Grok Build セットアップ
+
+Grok Build のフック入力は camelCase（`hookEventName`、`sessionId`）で、イベント値は snake_case（`session_start`、`stop`）です。`peon.sh` はその形式を直接読めないため、`adapters/grok.sh`（Windows では `grok.ps1`）を使います。
+
+`~/.grok` が既にあれば、インストーラーが `~/.grok/hooks/peon-ping.json` を自動で書き込みます。Grok Build を後から入れた場合は peon-ping インストーラーを再実行してください。
+
+登録イベント: `SessionStart`、`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`Notification`、`SubagentStart`、`SubagentStop`、`PostToolUseFailure`、`PreCompact`。セッション終了時の `Stop`（`shutdown` / `channel_closed`）は完了音ではなくクリーンアップとして扱います。既に起動中の Grok では `/hooks` のあと `r` で再読み込みするか、新しいセッションを開いてください。
 
 ### Amp セットアップ
 
@@ -769,7 +771,9 @@ peon-ping は `hooks.json` を作成せず、inline hooks を `~/.codex/config.t
 
 ### OpenCode セットアップ
 
-[OpenCode v2](https://opencode.ai/v2/docs/build/plugins) 用の薄い TypeScript アダプター。イベントをインストール済みの peon-ping フックに転送します。先にプラットフォーム用の peon-ping インストーラーを実行してください。
+[OpenCode v1](https://opencode.ai/docs/plugins/) と [v2](https://opencode.ai/v2/docs/build/plugins) 用の薄い TypeScript アダプター。単一のプラグインで両方の API に対応し、インストール時のバージョン検出は不要です。同じプロジェクト内の独立したセッションは、それぞれのネイティブ ID を保持します。イベントをインストール済みの peon-ping フックに転送します。先にプラットフォーム用の peon-ping インストーラーを実行してください。
+
+OpenCode の実行失敗は `task.error` を再生します。アダプターは実際のエラーメッセージと、提供されたツール名を転送します。セッションの失敗を Bash の失敗として扱いません。
 
 **クイックインストール：**
 
@@ -1037,6 +1041,8 @@ curl -fsSL peonping.com/install | bash -s -- --kimi
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）用のネイティブ TypeScript 拡張。[CESP v1.0](https://github.com/PeonPing/openpeon) に完全準拠。omp の `ExtensionAPI` ライフサイクルイベントを購読し、`peon.sh` を通じてルーティングします。omp ユーザーが peon-ping のすべての機能を利用できます：サウンドパック、デスクトップ通知、トレーナーリマインダー、モバイルプッシュ、SSH/devcontainer リレー、タブタイトル更新。
 
+シェル以外を含む omp ツールの失敗は `task.error` を再生します。失敗結果のテキストと実際のツール名を転送します。
+
 **クイックインストール：**
 
 ```bash
@@ -1050,11 +1056,13 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | omp イベント                           | peon-ping イベント    |
 |----------------------------------------|-----------------------|
 | `session_start`                        | `SessionStart`        |
-| `turn_start`                           | `UserPromptSubmit`    |
-| `turn_end`                             | `Stop`                |
+| `agent_start`                          | `UserPromptSubmit`    |
+| `agent_end` (unless `willContinue`)    | `Stop`                |
 | `tool_result` with `isError: true`     | `PostToolUseFailure`  |
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
+
+同じエージェントループ内のツール処理では、確認音や完了音が余分に鳴りません。omp が `ctx.agent` を提供する場合（18.3.2 以降）、サブエージェントのイベントを無視します。旧バージョンでは引き続き発生します。継続が予定されている `agent_end` は完了を通知しません。
 
 **アンインストール：**
 
@@ -1327,6 +1335,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **オーディオ再生** — `afplay`（macOS）、PowerShell `MediaPlayer`（WSL2/MSYS2 フォールバック）、または `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay`（Linux/MSYS2）で非同期にサウンドを再生
 4. **通知** — ターミナルタブタイトルを更新し、ターミナルがフォーカスされていない場合はデスクトップ通知を送信
 5. **リモートルーティング** — SSH セッション、devcontainers、Codespaces では、オーディオと通知リクエストがローカルマシンの[リレーサーバー](#リモート開発ssh--devcontainers--codespaces)に HTTP 経由で転送
+
+セッションが作業中の場合、繰り返しのツールイベントは子プロセスを起動せずに終了します。ただし、保留中のポップアップを閉じる必要がある場合は通常処理を行います。会議、集中モード、タブのフォーカス確認は、サウンドやデスクトップ通知を抑制できる場合にのみ実行されます。
 
 サウンドパックはインストール時に [OpenPeon レジストリ](https://github.com/PeonPing/registry) からダウンロードされます。公式パックは [PeonPing/og-packs](https://github.com/PeonPing/og-packs) でホストされています。サウンドファイルは各パブリッシャー（Blizzard、Valve、EA など）の所有物であり、個人的な通知目的のフェアユースに基づいて配布されています。
 

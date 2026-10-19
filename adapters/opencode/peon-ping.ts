@@ -65,10 +65,7 @@ type V2Event = {
   location?: { directory?: string }
 }
 
-export default {
-  id: "peon-ping",
-
-  setup: async (ctx: any) => {
+async function createBridge(ctx: any) {
     const projectName = path.basename(ctx?.location?.directory || process.cwd()) || "opencode"
     const windows = os.platform() === "win32"
     const peonScript = findPeonScript(windows)
@@ -107,14 +104,15 @@ export default {
     const sessionStarts = new Map<string, number>()
     const pendingQuestionIds = new Set<string>()
 
-    function firePeon(event: string, notificationType = ""): void {
+    function firePeon(event: string, notificationType = "", nativeSessionId?: string, failure: { error?: string; tool_name?: string } = {}): void {
       const payload = JSON.stringify({
         hook_event_name: event,
         notification_type: notificationType,
         cwd,
-        session_id: sessionId,
+        session_id: nativeSessionId ? `opencode-${nativeSessionId}` : sessionId,
         permission_mode: "",
         source: "opencode",
+        ...failure,
       })
 
       try {
@@ -176,6 +174,11 @@ export default {
       switch (event.type) {
         case "session.created": {
           if (data.parentID && typeof data.sessionID === "string") subagentSessionIds.add(data.sessionID)
+          if (ctx.greetOnCreate && typeof sid === "string" && !isSubagent(sid) && !sessionStarts.has(sid)) {
+            sessionStarts.set(sid, Date.now())
+            setTabTitle(`${projectName}: ready`)
+            firePeon("SessionStart", "", sid)
+          }
           break
         }
 
@@ -191,10 +194,10 @@ export default {
           if (lastSessionStart === undefined) {
             sessionStarts.set(sid, Date.now())
             setTabTitle(`${projectName}: ready`)
-            firePeon("SessionStart")
+            firePeon("SessionStart", "", sid)
           } else if (Date.now() - lastSessionStart > 3000) {
             setTabTitle(`${projectName}: working`)
-            firePeon("UserPromptSubmit")
+            firePeon("UserPromptSubmit", "", sid)
           }
           break
         }
@@ -204,7 +207,7 @@ export default {
           if (isSubagent(sid)) break
           if (sid) busySessions.delete(sid)
           setTabTitle(`\u25cf ${projectName}: done`)
-          firePeon("Stop")
+          firePeon("Stop", "", sid)
           break
         }
 
@@ -213,7 +216,13 @@ export default {
           if (isSubagent(sid)) break
           if (sid) busySessions.delete(sid)
           setTabTitle(`\u25cf ${projectName}: error`)
-          firePeon("PostToolUseFailure")
+          const error = data.error
+          const message = typeof error === "string" ? error : error?.message ?? error?.data?.message
+          const toolName = data.tool_name ?? data.toolName
+          firePeon("PostToolUseFailure", "", sid, {
+            error: typeof message === "string" && message ? message : "OpenCode execution failed",
+            ...(typeof toolName === "string" ? { tool_name: toolName } : {}),
+          })
           break
         }
 
@@ -225,7 +234,7 @@ export default {
         case "permission.asked": {
           if (isSubagent(data.sessionID)) break
           setTabTitle(`\u25cf ${projectName}: needs approval`)
-          firePeon("PermissionRequest")
+          firePeon("PermissionRequest", "", sid)
           break
         }
 
@@ -242,7 +251,7 @@ export default {
           }
           pendingQuestionIds.add(requestId)
           setTabTitle(`\u25cf ${projectName}: needs input`)
-          firePeon("Notification", "elicitation_dialog")
+          firePeon("Notification", "elicitation_dialog", sid)
           break
         }
 
@@ -257,14 +266,91 @@ export default {
 
     setTabTitle(`${projectName}: ready`)
 
-    const controller = new AbortController()
+    return {
+      handle,
+      cleanup() {
+        owners.delete(owner)
+        if (owners.size === 0) locationOwners.delete(pluginDirectory)
+      },
+    }
+}
 
-    // A rejection escaping this loop would take down the plugin generation, and
-    // an aborted stream is the normal shutdown path.
+/** Both host loaders inspect their own entrypoint and permit the other key. */
+export default {
+  id: "peon-ping",
+
+  // OpenCode 1.x uses properties payloads and SDK { data } responses.
+  server: async (ctx: any) => {
+    const directory = ctx.directory || process.cwd()
+    const bridge = await createBridge({
+      location: { directory },
+      greetOnCreate: true,
+      session: { get: async ({ sessionID }: { sessionID: string }) => {
+        const response = await ctx.client.session.get({ path: { id: sessionID } })
+        const info = response.data
+        return { ...info, location: { directory: info?.directory } }
+      } },
+    })
+    if (!bridge) return {}
+    async function dispatch(event: V2Event): Promise<void> {
+      try {
+        await bridge!.handle(event)
+      } catch (err: any) {
+        console.error("[peon-ping] failed to handle event:", err?.message ?? err)
+      }
+    }
+    return {
+      dispose: () => bridge.cleanup(),
+      event: async ({ event }: any) => {
+        if (event.type === "server.instance.disposed") {
+          bridge.cleanup()
+          return
+        }
+        const data = event.properties ?? {}
+        const info = data.info
+        const sessionID = data.sessionID ?? info?.id
+        const location = info?.directory ? { directory: info.directory } : undefined
+        let type: string
+        switch (event.type) {
+          case "session.created": type = "session.created"; break
+          case "session.updated":
+            if (!info?.parentID) return
+            type = "session.created"
+            break
+          case "session.deleted": type = "session.deleted"; break
+          case "session.status":
+            if (data.status?.type !== "busy" && data.status?.type !== "running") return
+            type = "session.execution.started"
+            break
+          case "session.idle": type = "session.execution.succeeded"; break
+          case "session.error": type = "session.execution.failed"; break
+          case "permission.asked": type = "permission.asked"; break
+          case "question.asked":
+          case "question.v2.asked":
+            await dispatch({ type: "form.created", data: { form: data } })
+            return
+          case "question.replied":
+          case "question.rejected":
+          case "question.v2.replied":
+          case "question.v2.rejected":
+            await dispatch({ type: "form.replied", data: { id: data.requestID ?? data.id } })
+            return
+          default: return
+        }
+        if (typeof sessionID !== "string") return
+        await dispatch({ type, location, data: { ...data, sessionID, parentID: info?.parentID } })
+      },
+    }
+  },
+
+  setup: async (ctx: any) => {
+    const bridge = await createBridge(ctx)
+    if (!bridge) return
+    const controller = new AbortController()
     void (async () => {
       for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
         try {
-          await handle(event as V2Event)
+          await bridge.handle(event as V2Event)
         } catch (err: any) {
           console.error("[peon-ping] failed to handle event:", err?.message ?? err)
         }
@@ -272,11 +358,9 @@ export default {
     })().catch((err: any) => {
       if (!controller.signal.aborted) console.error("[peon-ping] event stream ended:", err?.message ?? err)
     })
-
     return () => {
       controller.abort()
-      owners.delete(owner)
-      if (owners.size === 0) locationOwners.delete(pluginDirectory)
+      bridge.cleanup()
     }
   },
 }

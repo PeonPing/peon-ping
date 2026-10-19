@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Safely register and remove peon-ping's inline Codex hooks."""
+"""Safely register and remove peon-ping hooks in Codex's existing format."""
 
 import argparse
+import ast
 import json
 import os
 import re
 import shlex
 import stat
+import sys
 import tempfile
 
 
@@ -25,6 +27,33 @@ PATH_CHARS = set('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
 TABLE_RE = re.compile(r'^\s*(\[\[|\[)\s*(.*?)\s*(\]\]|\])\s*(?:#.*)?(?:\r?\n)?$')
 INSTALL_DIR_RE = re.compile(r'^\s*#\s*install_dir\s*=\s*(.*?)\s*(?:\r?\n)?$')
 COMMAND_RE = re.compile(r'^\s*(command|command_windows)\s*=\s*(.*?)\s*(?:\r?\n)?$')
+KEY_TOKEN_RE = re.compile(r'''\s*("(?:[^"\\]|\\.)*"|'[^']*'|[A-Za-z0-9_-]+)\s*''')
+
+
+def toml_key_path(text):
+    """Read bare, literal or escaped basic TOML keys without splitting quoted dots."""
+    parts = []
+    position = 0
+    while position < len(text):
+        match = KEY_TOKEN_RE.match(text, position)
+        if not match:
+            return ()
+        token = match.group(1)
+        if token.startswith('"'):
+            try:
+                token = ast.literal_eval(token)
+            except (ValueError, SyntaxError):
+                return ()
+        elif token.startswith("'"):
+            token = token[1:-1]
+        parts.append(token)
+        position = match.end()
+        if position == len(text):
+            return tuple(parts)
+        if text[position] != '.':
+            return ()
+        position += 1
+    return ()
 
 
 def normalize_path(value):
@@ -119,40 +148,49 @@ class CodexConfigEditor:
         return ''.join(line for index, line in enumerate(lines) if index not in remove)
 
     @staticmethod
-    def _advance_multiline_state(line, state):
+    def _scan_toml_line(line, state, depth=0):
         index = 0
-        while index <= len(line) - 3:
+        while index < len(line):
             if state:
-                marker = state
-                found = line.find(marker, index)
-                if found < 0:
-                    return state
-                if marker == '"""':
-                    backslashes = 0
-                    cursor = found - 1
-                    while cursor >= 0 and line[cursor] == '\\':
-                        backslashes += 1
-                        cursor -= 1
-                    if backslashes % 2:
-                        index = found + 3
-                        continue
-                state = None
-                index = found + 3
+                if state == '"""' and line[index] == '\\':
+                    index += 2
+                elif line.startswith(state, index):
+                    index += 3
+                    state = None
+                else:
+                    index += 1
                 continue
+            character = line[index]
+            if character == '#':
+                break
+            if character not in ('"', "'"):
+                if character in '[{':
+                    depth += 1
+                elif character in ']}':
+                    depth -= 1
+                index += 1
+                continue
+            if line.startswith(character * 3, index):
+                state = character * 3
+                index += 3
+                continue
+            # Ordinary quoted strings may themselves contain triple quotes or
+            # a hash; neither changes the lexical state of the following line.
+            quote = character
+            index += 1
+            while index < len(line):
+                if quote == '"' and line[index] == '\\':
+                    index += 2
+                elif line[index] == quote:
+                    index += 1
+                    break
+                else:
+                    index += 1
+        return state, depth
 
-            basic = line.find('"""', index)
-            literal = line.find("'''", index)
-            candidates = [(basic, '"""'), (literal, "'''")]
-            candidates = [(found, marker) for found, marker in candidates if found >= 0]
-            if not candidates:
-                return None
-            found, marker = min(candidates)
-            comment = line.find('#', index, found)
-            if comment >= 0:
-                return None
-            state = marker
-            index = found + 3
-        return state
+    @classmethod
+    def _advance_multiline_state(cls, line, state):
+        return cls._scan_toml_line(line, state)[0]
 
     @classmethod
     def _split_sections(cls, text):
@@ -161,20 +199,21 @@ class CodexConfigEditor:
         current = []
         current_header = None
         multiline_state = None
+        depth = 0
 
         for line in lines:
-            header = None if multiline_state else TABLE_RE.match(line)
+            header = None if multiline_state or depth else TABLE_RE.match(line)
             if header and ((header.group(1) == '[[') == (header.group(3) == ']]')):
                 if current:
                     sections.append((current_header, current))
                 current = [line]
                 current_header = (
                     'array' if header.group(1) == '[[' else 'table',
-                    tuple(part.strip() for part in header.group(2).split('.')),
+                    toml_key_path(header.group(2)),
                 )
             else:
                 current.append(line)
-            multiline_state = cls._advance_multiline_state(line, multiline_state)
+            multiline_state, depth = cls._scan_toml_line(line, multiline_state, depth)
 
         if current:
             sections.append((current_header, current))
@@ -260,22 +299,28 @@ class CodexConfigEditor:
         kept = []
         index = 0
         multiline_state = None
+        depth = 0
+        at_root = True
         while index < len(lines):
             line = lines[index]
-            if multiline_state is None and re.match(r'^\s*notify\s*=', line):
-                block = [line]
-                balance = self._bracket_delta(line)
-                index += 1
-                while balance > 0 and index < len(lines):
-                    block.append(lines[index])
-                    balance += self._bracket_delta(lines[index])
+            structural = multiline_state is None and depth == 0
+            if structural and TABLE_RE.match(line):
+                at_root = False
+            key = toml_key_path(line.split('=', 1)[0]) if '=' in line else ()
+            if structural and at_root and key == ('notify',):
+                block = []
+                while index < len(lines):
+                    line = lines[index]
+                    block.append(line)
+                    multiline_state, depth = self._scan_toml_line(line, multiline_state, depth)
                     index += 1
-                if self.is_current_adapter_text(''.join(block)):
-                    continue
-                kept.extend(block)
+                    if multiline_state is None and depth == 0:
+                        break
+                if not self.is_current_adapter_text(''.join(block)):
+                    kept.extend(block)
                 continue
             kept.append(line)
-            multiline_state = self._advance_multiline_state(line, multiline_state)
+            multiline_state, depth = self._scan_toml_line(line, multiline_state, depth)
             index += 1
         return ''.join(kept)
 
@@ -316,10 +361,7 @@ def read_config(path):
 
 
 def build_block(install_dir, adapter_path, newline='\n'):
-    command = 'if [ -f {adapter} ]; then CLAUDE_PEON_DIR={install_dir} bash {adapter} >/dev/null 2>&1 || true; fi'.format(
-        install_dir=shlex.quote(install_dir),
-        adapter=shlex.quote(adapter_path),
-    )
+    command = build_command(install_dir, adapter_path)
     block = [BEGIN_MARKER, '# install_dir = ' + install_dir]
     for event, matcher in EVENTS:
         block.append('[[hooks.{}]]'.format(event))
@@ -335,6 +377,71 @@ def build_block(install_dir, adapter_path, newline='\n'):
     return newline.join(block) + newline
 
 
+def build_command(install_dir, adapter_path):
+    return 'if [ -f {adapter} ]; then CLAUDE_PEON_DIR={install_dir} bash {adapter} >/dev/null 2>&1 || true; fi'.format(
+        install_dir=shlex.quote(install_dir),
+        adapter=shlex.quote(adapter_path),
+    )
+
+
+def has_inline_hooks(text):
+    for header, lines in CodexConfigEditor._split_sections(text):
+        if header and header[1] and header[1][0] == 'hooks':
+            if len(header[1]) == 1 or header[1][1] != 'state':
+                return True
+        if header is None:
+            multiline = None
+            depth = 0
+            for line in lines:
+                if multiline is None and depth == 0 and '=' in line:
+                    path = toml_key_path(line.split('=', 1)[0])
+                    if path and path[0] == 'hooks' and (len(path) == 1 or path[1] != 'state'):
+                        return True
+                multiline, depth = CodexConfigEditor._scan_toml_line(line, multiline, depth)
+    return False
+
+
+def edit_json_hooks(original, editor, adapter_path=None):
+    document = json.loads(original.lstrip('\ufeff'))
+    if not isinstance(document, dict) or not isinstance(document.get('hooks', {}), dict):
+        raise ValueError('hooks.json must contain an object with a hooks object')
+    events = document.setdefault('hooks', {})
+    for event, groups in list(events.items()):
+        if not isinstance(groups, list):
+            raise ValueError('hooks.json event groups must be arrays')
+        kept_groups = []
+        for group in groups:
+            if not isinstance(group, dict) or not isinstance(group.get('hooks'), list):
+                raise ValueError('hooks.json groups must contain a hooks array')
+            kept_handlers = []
+            for handler in group['hooks']:
+                if not isinstance(handler, dict):
+                    raise ValueError('hooks.json handlers must be objects')
+                owned = handler.get('type') == 'command' and any(
+                    isinstance(handler.get(key), str) and editor.is_current_adapter_text(handler[key])
+                    for key in ('command', 'commandWindows', 'command_windows')
+                )
+                if not owned:
+                    kept_handlers.append(handler)
+            if kept_handlers or not group['hooks']:
+                group['hooks'] = kept_handlers
+                kept_groups.append(group)
+        if kept_groups:
+            events[event] = kept_groups
+        else:
+            del events[event]
+    if adapter_path:
+        command = build_command(editor.install_dir, adapter_path)
+        for event, matcher in EVENTS:
+            group = {'hooks': [{'type': 'command', 'command': command, 'timeout': 30}]}
+            if matcher:
+                group['matcher'] = matcher
+            events.setdefault(event, []).append(group)
+    if document == json.loads(original.lstrip('\ufeff')):
+        return original
+    return json.dumps(document, indent=2, ensure_ascii=False) + '\n'
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=('install', 'clean'))
@@ -347,6 +454,28 @@ def main():
     original = read_config(args.config)
     newline = '\r\n' if '\r\n' in original else '\n'
     content = editor.clean(original, newline)
+
+    hooks_path = os.path.join(os.path.dirname(args.config), 'hooks.json')
+    if os.path.isfile(hooks_path):
+        try:
+            hooks_original = read_config(hooks_path)
+            if args.action == 'install':
+                if not args.adapter:
+                    parser.error('--adapter is required for install')
+                if has_inline_hooks(content):
+                    raise ValueError('both hooks.json and unrelated inline hooks exist; '
+                                     'consolidate the Codex hook definitions before installing')
+            hooks_content = edit_json_hooks(
+                hooks_original, editor, args.adapter if args.action == 'install' else None,
+            )
+            if hooks_content != hooks_original:
+                atomic_write(hooks_path, hooks_content)
+            if content != original:
+                atomic_write(args.config, content)
+        except (OSError, ValueError) as error:
+            print('Cannot update Codex hooks.json: {}'.format(error), file=sys.stderr)
+            return 1
+        return 0
 
     if args.action == 'install':
         if not args.adapter:

@@ -356,10 +356,13 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - 启用手机推送但不显示桌面弹窗：设置 `desktop_notifications: false` 和 `mobile_notify.enabled: true`
 
 - **volume**：0.0–1.0（适合办公室使用的音量）
+  - macOS 的 `peon-play` 优先使用音效输出设备。300 ms 静音前导和 500 ms 静音尾部用于保护 Bluetooth 音频边缘。并发事件会串行完成停止、启动和 PID 发布，新声音只会打断经身份验证的前一个播放器。直接调用可用 `-p <ms>` 和 `-t <ms>` 调整；`-t 0` 禁用尾部静音。
+  - 在 macOS 上，`peon-play` 会在可用时使用系统音效输出设备。播放前的 300 毫秒静音用于唤醒空闲设备，播放后的 500 毫秒静音让缓冲的音频完整输出后再退出。macOS 上的并发本地事件共用一个播放事务，新声音会中断之前由程序启动的播放器，避免多段语音重叠。直接调用辅助程序时，可使用 `-p <毫秒>` 和 `-t <毫秒>` 调整；`-t 0` 可关闭尾部静音。
 - **desktop_notifications**：`true`/`false` — 独立于声音控制桌面通知弹窗（默认：`true`）。禁用时，声音继续播放但视觉弹窗被抑制。手机通知不受影响。
 - **notification_style**：`"overlay"` 或 `"standard"` — 控制桌面通知显示方式（默认：`"overlay"`）
   - **overlay**：大型醒目横幅 — macOS 上使用 JXA Cocoa 覆盖，WSL/MSYS2 上使用 Windows Forms 弹窗。点击覆盖层可聚焦终端（支持 Ghostty、Warp、iTerm2、Zed、Terminal.app）。在 iTerm2 上，点击可聚焦到正确的标签页/窗格/窗口。
   - **standard**：系统通知 — macOS 上使用 [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript`，WSL/MSYS2 上使用 Windows toast。安装 `terminal-notifier`（`brew install terminal-notifier`）后，点击通知可自动聚焦终端。在原生 Windows 上，点击 toast 通知可聚焦 IDE 或终端窗口（支持 VS Code、Cursor、Windsurf、Windows Terminal、PowerShell）。当打开多个窗口时，通知会通过基于 PID 的进程树匹配精确定位到触发事件的窗口。
+  - 直接运行在 Ghostty 中的会话使用 `standard` 样式时，会通过原生 OSC 777 通知定位到发出通知的标签页或分屏。herdr、tmux、cmux、自定义点击命令或无法使用会话 TTY 时，仍走原有的系统通知路径。
 - **overlay_theme**：`"jarvis"`、`"glass"`、`"sakura"`，或留空使用默认覆盖层 — 仅 macOS（默认：无）
   - **jarvis**：圆形 HUD，带旋转弧线、刻度和进度环
   - **glass**：毛玻璃风格面板，带强调色条、进度线和时间戳
@@ -381,7 +384,7 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - **pack_rotation_mode**：`"random"`（默认）、`"round-robin"` 或 `"session_override"`。使用 `random`/`round-robin` 时，即使同一目录中有其他活跃会话，每个独立会话也会从 `pack_rotation` 中选择一个语音包。恢复或压缩已有会话时保留其语音包。压缩事件使用新的会话ID时，仅在最近活动的终端和目录均匹配时继承语音包；独立的子代理会话仅在其 `agent_id` 与父会话最近的 `SubagentStart` 匹配时继承。使用 `session_override` 时，`/peon-ping-use <pack>` 命令为每个会话分配语音包。无效或缺失的语音包会按层级回退。（`"agentskill"` 作为 `"session_override"` 的旧别名仍被接受。）
 - **session_ttl_days**（数字，默认：7）：使超过 N 天的陈旧每会话语音包分配过期。防止使用 `session_override` 模式时 `.state.json` 无限增长。
 - **headphones_only**（布尔值，默认：`false`）：仅在检测到耳机或外部音频设备时播放声音。启用后，如果内置扬声器是活动输出，声音将被静音 — 适用于开放式办公室。使用 `peon status` 查看状态。支持 macOS（通过 `system_profiler`）和 Linux（通过 PipeWire `wpctl` 或 PulseAudio `pactl`）。
-- **suppress_sound_when_tab_focused**（布尔值，默认：`false`）：当生成钩子事件的终端标签页处于当前活动/聚焦状态时，跳过声音播放。声音仍会在后台标签页中播放，提醒您其他地方发生了事件。桌面和移动通知不受影响。适用于只想在未查看的标签页中听到音频提示的用户。仅支持 macOS（使用 `osascript` 检查最前端应用和 iTerm2 标签页焦点）。
+- **suppress_sound_when_tab_focused**（布尔值，默认：`false`）：当生成钩子事件的终端标签页处于当前活动/聚焦状态时，跳过声音播放。声音仍会在后台标签页中播放，提醒您其他地方发生了事件。桌面和移动通知不受影响。适用于只想在未查看的标签页中听到音频提示的用户。仅支持 macOS（使用 `osascript` 检查最前端应用和 iTerm2 标签页焦点）。 Ghostty 只有在脚本接口返回精确的终端 TTY 时才抑制通知；不提供该属性的版本会保留通知，避免因共享标题或目录而误判。
 - **tmux_passthrough**（布尔值，默认：`false`）：将标签页标题和 iTerm2 标签页颜色转义序列通过 tmux 的 DCS 透传发送到宿主终端（需要 tmux 3.3a+ 并设置 `set -g allow-passthrough on`）。默认关闭，因为 tmux 客户端会将多个窗格/窗口复用到单个宿主终端标签页上，且没有按窗格寻址的能力：当多个 agent 会话同时运行时，每个钩子（包括来自后台窗格的）都会以"最后写入者获胜"的方式重绘那个共享标签页，使其不再反映任何单个会话。建议保持关闭，让 tmux 自身的窗口/状态栏承载每个会话的状态；仅当您每个终端标签页只运行一个 tmux 窗口（即 1 个标签页 = 1 个会话）时才启用。在 tmux 之外无效，此时转义序列始终发送。
 - **meeting_detect**：检测麦克风是否正在使用中，并在麦克风使用期间临时抑制音频播放。通知仍会正常显示。
 - **focus_detect**（布尔值，默认：`false`）：遵循 macOS 的**专注模式 / 勿扰模式**。peon-ping 通过 `afplay` 播放声音并在自定义窗口中绘制覆盖通知，两者都绕过通知中心，因此系统的专注模式开关默认对它们没有影响。启用后，peon-ping 会直接读取专注模式状态，并在**任意**专注模式（勿扰、工作、睡眠等）激活时抑制输出，关闭专注模式后自动恢复。移动推送（如已配置）不受影响，因为手机会遵循其自身的专注模式。仅支持 macOS，采用失败放行策略（若无法读取专注模式状态，则照常播放声音）。
@@ -639,19 +642,9 @@ peon-ping 适用于任何支持钩子的代理式 IDE。适配器将 IDE 特定�
 
 ### OpenAI Codex 设置
 
-Codex 支持使用 stable Codex hooks API 和 peon-ping 适配器。如果 `~/.codex` 已存在，Unix 和 Windows 安装器会自动向 `~/.codex/config.toml` 写入 peon 管理的配置块。如果你先安装了 peon-ping、之后才安装 Codex，请重新运行 peon-ping 安装器。
+Codex 支持使用 stable Codex hooks API 和 peon-ping 适配器。Unix 和 Windows 安装器使用 `CODEX_HOME`（默认 `~/.codex`），优先复用已有的 `hooks.json`，否则向 `config.toml` 写入管理块。如果你先安装了 peon-ping、之后才安装 Codex，请重新运行 peon-ping 安装器。
 
 默认注册的 Codex 事件包括 `SessionStart`、`UserPromptSubmit`、`PermissionRequest`、`PreCompact`、`SubagentStart`、`SubagentStop` 和 `Stop`。`SessionStart` 只匹配 `startup`、`resume` 和 `clear`；Codex 的上下文压缩由 `PreCompact` 处理，因此会跳过 compact 触发的 `SessionStart`。`PreToolUse`、`PostToolUse` 和 `PostCompact` 会刻意跳过；Codex 适配器会忽略 `PostToolUse`，因为 Codex 没有单独的失败专用 hook，而成功工具调用 hook 对 peon-ping 来说过于频繁。
-
-### Grok Build 设置
-
-Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notificationType`），事件值是 snake_case（`session_start`、`stop`），`peon.sh` 无法直接识别。因此 peon-ping 提供 `adapters/grok.sh`（Windows 上为 `grok.ps1`）。
-
-如果 `~/.grok` 已存在，Unix 和 Windows 安装器会自动写入 `~/.grok/hooks/peon-ping.json`。如果你先装了 peon-ping、之后才装 Grok Build，请重新运行安装器。
-
-默认注册的事件：`SessionStart`、`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`Notification`、`SubagentStart`、`SubagentStop`、`PostToolUseFailure`、`PreCompact`。`PreToolUse`、`PostToolUse`、`PostCompact` 和 `PermissionDenied` 不会注册。会话结束时的 `Stop`（`reason: shutdown` / `channel_closed`）只做清理，不会播放完成音。shell 失败的 `toolName` 是 `run_terminal_command`，适配器会改写成 Bash，这样 `task.error` 仍会响。
-
-若 Grok 会话已经在跑，用 `/hooks` 然后按 `r` 重载，或新开一个会话。Grok 也会扫描 `~/.claude/settings.json` 里的 hook，但那些调用带着 Grok 的 camelCase 负载，`peon.sh` 会静音；真正发声的是 `~/.grok/hooks/peon-ping.json`。若不想在 `/hooks` 里看到那批静音的 Claude 条目，可在 `~/.grok/config.toml` 里设置 `[compat.claude] hooks = false`。
 
 **设置步骤：**
 
@@ -671,7 +664,17 @@ Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notif
 
 3. 如果安装时 Codex 已经在运行，请重启 Codex。
 
-peon-ping 会把 inline hooks 写入 `~/.codex/config.toml`，而不是创建 `hooks.json`，这符合 [Codex hooks 文档](https://developers.openai.com/codex/hooks) 对同一配置层不要混用两种 hook 表示的建议。旧版 `notify` 接法仍作为回退兼容，但新安装应使用 stable hooks 路径。
+Unix 和 Windows 会保留已有 JSON 格式、用户 handlers 和 metadata，只更新或卸载本次安装的 handlers。若已有不属于本次安装的 inline TOML events 与 `hooks.json` 混用，安装会停止并提示先合并配置，避免重复执行。`peon status --verbose` 可以检测两种文件里的 command hooks。这符合 [Codex hooks 文档](https://developers.openai.com/codex/hooks) 对同一配置层使用一种表示的建议。旧版 `notify` 接法仍作为回退兼容，但新安装应使用 stable hooks 路径。
+
+### Grok Build 设置
+
+Grok Build 的 hook 负载是 camelCase（`hookEventName`、`sessionId`、`notificationType`），事件值是 snake_case（`session_start`、`stop`），`peon.sh` 无法直接识别。因此 peon-ping 提供 `adapters/grok.sh`（Windows 上为 `grok.ps1`）。
+
+如果 `~/.grok` 已存在，Unix 和 Windows 安装器会自动写入 `~/.grok/hooks/peon-ping.json`。如果你先装了 peon-ping、之后才装 Grok Build，请重新运行安装器。
+
+默认注册的事件：`SessionStart`、`SessionEnd`、`UserPromptSubmit`、`Stop`、`StopFailure`、`Notification`、`SubagentStart`、`SubagentStop`、`PostToolUseFailure`、`PreCompact`。`PreToolUse`、`PostToolUse`、`PostCompact` 和 `PermissionDenied` 不会注册。会话结束时的 `Stop`（`reason: shutdown` / `channel_closed`）只做清理，不会播放完成音。shell 失败的 `toolName` 是 `run_terminal_command`，适配器会改写成 Bash，这样 `task.error` 仍会响。
+
+若 Grok 会话已经在跑，用 `/hooks` 然后按 `r` 重载，或新开一个会话。Grok 也会扫描 `~/.claude/settings.json` 里的 hook，但那些调用带着 Grok 的 camelCase 负载，`peon.sh` 会静音；真正发声的是 `~/.grok/hooks/peon-ping.json`。若不想在 `/hooks` 里看到那批静音的 Claude 条目，可在 `~/.grok/config.toml` 里设置 `[compat.claude] hooks = false`。
 
 ### Amp 设置
 
@@ -796,7 +799,9 @@ powershell -NoProfile -Command "Set-ExecutionPolicy -Scope CurrentUser -Executio
 
 ### OpenCode 设置
 
-[OpenCode v2](https://opencode.ai/v2/docs/build/plugins) 的轻量 TypeScript 适配器，将事件转发给已安装的 peon-ping 钩子。请先使用平台安装程序安装 peon-ping。
+[OpenCode v1](https://opencode.ai/docs/plugins/) 和 [v2](https://opencode.ai/v2/docs/build/plugins) 的轻量 TypeScript 适配器。单个插件支持两代 API，无需在安装时检测版本；同一项目中的独立会话保留各自的原生会话标识。该适配器将事件转发给已安装的 peon-ping 钩子。请先使用平台安装程序安装 peon-ping。
+
+OpenCode 执行失败时会播放 `task.error`。适配器转发原生错误消息及已提供的工具名称，不会将会话失败伪装成 Bash 失败。
 
 **快速安装：**
 
@@ -1074,6 +1079,8 @@ curl -fsSL peonping.com/install | bash -s -- --openpeon
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）的原生 TypeScript 扩展，完全符合 [CESP v1.0](https://github.com/PeonPing/openpeon) 规范。订阅 omp 的 `ExtensionAPI` 生命周期事件，并通过 `peon.sh` 路由，让 omp 用户享受 peon-ping 的所有功能：语音包、桌面通知、训练提醒、移动推送、SSH/devcontainer 中继及标签页标题更新。
 
+omp 工具失败时会播放 `task.error`，非 Shell 工具也适用。适配器转发失败结果中的文本，并保留原生工具名称。
+
 **快速安装：**
 
 ```bash
@@ -1087,11 +1094,13 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | omp 事件                               | peon-ping 事件        |
 |----------------------------------------|-----------------------|
 | `session_start`                        | `SessionStart`        |
-| `turn_start`                           | `UserPromptSubmit`    |
-| `turn_end`                             | `Stop`                |
+| `agent_start`                          | `UserPromptSubmit`    |
+| `agent_end` (unless `willContinue`)    | `Stop`                |
 | `tool_result` with `isError: true`     | `PostToolUseFailure`  |
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
+
+同一次 agent 循环中的工具步骤不会触发额外的确认或完成音效。omp 提供 `ctx.agent`（18.3.2+）时会跳过子代理事件；旧版本仍会发出子代理事件。计划继续运行的 `agent_end` 不会发出完成通知。
 
 **卸载：**
 
@@ -1459,6 +1468,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **音频播放** — 通过 `afplay`（macOS）、PowerShell `MediaPlayer`（WSL2/MSYS2 回退）或 `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay`（Linux/MSYS2）异步播放声音
 4. **通知** — 更新终端标签页标题，如果终端未获得焦点则发送桌面通知
 5. **远程路由** — 在 SSH 会话、devcontainers 和 Codespaces 中，音频和通知请求通过 HTTP 转发到本地机器上的[中继服务器](#远程开发ssh--devcontainers--codespaces)
+
+会话已处于工作状态时，重复的工具事件不会启动子进程，除非需要清除待处理的弹窗。会议、专注模式和标签页焦点检测仅在可能抑制声音或桌面通知时运行。
 
 语音包在安装时从 [OpenPeon 注册表](https://github.com/PeonPing/registry)下载。官方语音包托管在 [PeonPing/og-packs](https://github.com/PeonPing/og-packs)。声音文件归各自发行商（Blizzard、Valve、EA 等）所有，根据合理使用原则分发用于个人通知目的。
 

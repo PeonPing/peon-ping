@@ -193,16 +193,17 @@ _remove_grok_hooks() {
   echo "Removed Grok Build hooks: $grok_hooks"
 }
 
-# Remove Codex hooks managed by peon-ping in ~/.codex/config.toml
+# Remove only this installation's Codex handlers from either representation.
 _remove_codex_hooks() {
-  local codex_config="$HOME/.codex/config.toml"
-  [ -f "$codex_config" ] || return 0
+  local codex_dir="${CODEX_HOME:-$HOME/.codex}"
+  local codex_config="$codex_dir/config.toml"
+  [ -f "$codex_config" ] || [ -f "$codex_dir/hooks.json" ] || return 0
   local codex_config_helper="$INSTALL_DIR/scripts/codex-config.py"
   if [ -f "$codex_config_helper" ]; then
     python3 "$codex_config_helper" clean \
       --config "$codex_config" \
       --install-dir "$INSTALL_DIR"
-    echo "Removed Codex hooks from ~/.codex/config.toml"
+    echo "Removed peon-ping Codex hooks from $codex_dir"
   else
     echo "Error: cannot safely remove Codex hooks because scripts/codex-config.py is missing"
     echo "Re-run the peon-ping installer to restore the helper, then uninstall again."

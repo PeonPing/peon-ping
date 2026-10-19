@@ -31,6 +31,8 @@ For Nix/Home Manager, import `inputs.peon-ping.homeManagerModules.default` and s
 
 ## What it does
 
+Repeat PreToolUse/PostToolUse events exit without child processes while a session is already working, unless a popup needs clearing. Meeting, Focus and tab-focus checks run only when their result could suppress audio or notifications.
+
 When your AI agent finishes a task, asks for permission, or hits an error, peon-ping plays a voice line from a game character. The Warcraft orc peon says "Work, work." when a task completes. GLaDOS says "Oh, it's you." when a session starts. Duke Nukem says "Son of a bitch!" when something breaks.
 
 ## MCP Server
@@ -69,10 +71,10 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - Amp (adapter — filesystem watcher for ampcode.com thread files)
 - Gemini CLI (adapter; AfterAgent owns task completion. Successful AfterTool calls are silent; native tool_response.error triggers the error sound. Legacy top-level exit_code/stderr input is also supported.)
 - GitHub Copilot CLI (built-in: install.sh and install.ps1 auto-register PascalCase hooks at ~/.copilot/hooks/peon-ping.json when ~/.copilot exists, no per-repo setup needed; PascalCase event names trigger the VS Code-compatible payload format that peon.sh/peon.ps1 reads natively. Per-repo wiring also available via adapters/copilot.sh / .ps1 with .github/hooks/hooks.json. Skips postToolUse to avoid debounce flooding; correctly maps agentStop -> Stop. Requires PowerShell 7+ on Windows.)
-- OpenAI Codex (built-in auto-detect: install.sh and install.ps1 register stable hooks in ~/.codex/config.toml when ~/.codex exists; registered events are SessionStart, UserPromptSubmit, PermissionRequest, PreCompact, SubagentStart, SubagentStop, and Stop. SessionStart matches startup/resume/clear only; compaction is handled by PreCompact. PreToolUse, PostToolUse, and PostCompact are intentionally not registered; PostToolUse is ignored because Codex has no separate failure-only hook.)
+- OpenAI Codex (built-in auto-detect: both installers respect CODEX_HOME (default ~/.codex), reuse existing hooks.json, otherwise write managed inline TOML. Unix and Windows update/uninstall preserve user handlers and other installations, refuse unrelated mixed event representations, and status detects either file; registered events are SessionStart, UserPromptSubmit, PermissionRequest, PreCompact, SubagentStart, SubagentStop, and Stop. SessionStart matches startup/resume/clear only; compaction is handled by PreCompact. PreToolUse, PostToolUse, and PostCompact are intentionally not registered; PostToolUse is ignored because Codex has no separate failure-only hook.)
 - Grok Build (built-in auto-detect: install.sh and install.ps1 write ~/.grok/hooks/peon-ping.json when ~/.grok exists, pointing at adapters/grok.sh or grok.ps1. Grok stdin is camelCase with snake_case event values, so peon.sh cannot be invoked directly. Registered events: SessionStart, SessionEnd, UserPromptSubmit, Stop, StopFailure, Notification, SubagentStart, SubagentStop, PostToolUseFailure, PreCompact. Session-end Stop (reason shutdown/channel_closed) is treated as SessionEnd. run_terminal_command failures map to Bash for task.error. Stop-gate stdout is discarded.)
 - Cursor
-- OpenCode v2 (thin server adapter; XDG plugin directory on all platforms; native Windows invokes peon.ps1 directly without Git Bash; forwards v2 execution, form, permission and session events)
+- OpenCode v1 and v2 (one thin adapter exports server and setup entrypoints; no install-time version detection; XDG plugin directory on all platforms; native Windows invokes peon.ps1 directly without Git Bash; native session identities preserve independent sessions in the same project; failed executions forward their real error text and play task.error without a fabricated Bash tool)
 - Kilo CLI (dedicated v1 server adapter from adapters/kilo/peon-ping.ts; requires the main peon-ping installation and uses its configuration and playback; manage settings and packs through the peon CLI; native session IDs preserve independent pack identities across events and plugin reloads)
 - Kiro (Amazon)
 - Kimi Code (MoonshotAI; filesystem watcher for Wire Mode events; --install registers a macOS LaunchAgent that survives reboots, falls back to nohup+pidfile on Linux or with KIMI_NO_LAUNCHD=1; install with `bash install.sh --kimi` to land files under ~/.kimi/hooks/peon-ping/ with no Claude dependency, or auto-detected when ~/.kimi exists and ~/.claude does not; when ~/.claude/hooks/peon-ping/packs/ already exists, --kimi symlinks ~/.kimi/.../packs at it so a single pack download serves both IDEs. Pass --no-shared-packs or --packs=/--all to keep them separate)
@@ -81,7 +83,7 @@ MCP resources: `peon-ping://catalog`, `peon-ping://pack/{name}`
 - OpenClaw (via adapters/openclaw.sh — call with any CESP category or Claude Code event name)
 - Rovo Dev CLI (Atlassian — adapter for on_complete, on_error, on_tool_permission, on_user_prompt, on_tool_start, on_tool_end, on_session_start, on_session_end events; install.sh --rovodev-only backfills any missing events into existing configs)
 - DeepAgents (adapter — translates deepagents-cli events to CESP JSON)
-- oh-my-pi/omp (TypeScript extension at adapters/omp/peon-ping.ts; install with `bash adapters/omp.sh`. Maps omp ExtensionAPI events — session_start, turn_start, turn_end, tool_result, auto_compaction_start, session_shutdown — to CESP via source: "omp".)
+- oh-my-pi/omp (TypeScript extension at adapters/omp/peon-ping.ts; install with `bash adapters/omp.sh`. Maps omp ExtensionAPI events (session_start, agent_start, agent_end, tool_result, auto_compaction_start, session_shutdown) to CESP via source: "omp". One lifecycle pair per agent loop; subagent events skipped on omp 18.3.2+; continuing agent_end does not emit completion. Failed tool_result events forward native toolName and text content for task.error, including non-shell tools.)
 - Qwen Code (Alibaba; adapter — Claude-Code-style stdin-JSON hooks with PascalCase CESP names, thin passthrough that re-tags the session id with a qwen- prefix and drops noisy per-tool events; configure in ~/.qwen/settings.json)
 - iFlow CLI (iflow-ai, cli.iflow.cn; adapter — Claude-Code-style stdin-JSON hooks, iflow- session prefix, maps a failed PostToolUse to PostToolUseFailure; configure in ~/.iflow/settings.json)
 - Trae (ByteDance, trae.ai; adapter — filesystem watcher like Amp/Antigravity since Trae has no synchronous shell-hook API: new session file -> SessionStart, idle timer -> Stop; watched paths overridable via TRAE_DATA_DIR/TRAE_SESSIONS_DIR/TRAE_SESSION_GLOB)
@@ -109,9 +111,11 @@ ElevenLabs key lookup: `ELEVENLABS_API_KEY` env var, then `~/.config/peon-ping/c
 ## Key Features
 
 - Volume control (0.0–1.0)
+- macOS peon-play routes to the Sound Effects output device, with 300 ms silent pre-roll and 500 ms silent tail to protect Bluetooth clip edges; direct helper options -p <ms> and -t <ms>, with -t 0 disabling tail. Concurrent local macOS events serialize the stop/start/PID-publication transaction and verify recorded player identity before signaling; new sounds interrupt the previous owned player without layering voices.
 - No-repeat logic per category
 - Category toggles (enable/disable individual events)
 - Desktop notifications (overlay or standard, with click-to-focus terminal on macOS; Windows Forms/toast on WSL/MSYS2; click-to-focus IDE window on native Windows with multi-window PID-based targeting)
+- Direct macOS Ghostty standard notifications use OSC 777 on the session PTY for exact-tab/split attribution. herdr, tmux, cmux, custom focus commands and unavailable PTYs keep the system-notification fallback. Ghostty focus suppression requires an exact TTY; missing scripting support never guesses from cwd/title.
 - Terminal tab title updates (● project: done)
 - Mobile push notifications (ntfy.sh, Pushover, Telegram)
 - Remote development support (SSH, devcontainers, Codespaces)

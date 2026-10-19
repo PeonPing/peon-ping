@@ -446,10 +446,12 @@ This means you can:
 - Enable mobile push without desktop popups: set `desktop_notifications: false` and `mobile_notify.enabled: true`
 
 - **volume**: 0.0–1.0 (quiet enough for the office)
+  - On macOS, `peon-play` routes audio to the Sound Effects output device when available. A 300 ms silent lead-in wakes idle devices, and a 500 ms silent tail lets buffered audio finish before the player exits. Concurrent local macOS events share one playback transaction, so each new sound interrupts the previous owned player instead of piling up. Direct helper calls can tune these with `-p <milliseconds>` and `-t <milliseconds>`; `-t 0` disables the tail.
 - **desktop_notifications**: `true`/`false` — toggle desktop notification popups independently from sounds (default: `true`). When disabled, sounds continue playing but visual popups are suppressed. Mobile notifications are unaffected.
 - **notification_style**: `"overlay"` or `"standard"` — controls how desktop notifications appear (default: `"overlay"`)
   - **overlay**: large, visible banners — JXA Cocoa overlay on macOS, Windows Forms popup on WSL/MSYS2. Clicking the overlay focuses your terminal (supports Ghostty, Warp, iTerm2, Zed, Terminal.app). On iTerm2, clicking focuses the correct tab/pane/window — not just the app.
   - **standard**: system notifications — [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript` on macOS, Windows toast on WSL/MSYS2. When `terminal-notifier` is installed (`brew install terminal-notifier`), clicking a standard notification focuses your terminal automatically (supports Ghostty, Warp, iTerm2, Zed, Terminal.app). On native Windows, clicking a toast notification focuses the IDE or terminal window (supports VS Code, Cursor, Windsurf, Windows Terminal, PowerShell). With multiple windows open, the notification targets the exact window that originated the event via PID-based process tree matching.
+  - Direct Ghostty sessions use native OSC 777 notifications in `standard` style, so a click targets the emitting tab/split. herdr, tmux, cmux, custom click commands, or an unavailable session TTY retain their existing system-notification route.
 - **overlay_theme**: `"jarvis"`, `"glass"`, `"sakura"`, or omit for the default overlay — macOS only (default: none)
   - **jarvis**: circular HUD with rotating arcs, graduation ticks, and progress ring
   - **glass**: glassmorphism panel with accent color bar, progress line, and timestamp
@@ -490,7 +492,7 @@ This means you can:
 - **headphones_only** (boolean, default: `false`): Only play sounds when headphones or external audio devices are detected. When enabled, sounds are suppressed if built-in speakers are the active output — useful for open offices. Check status with `peon status`. Supported on macOS (via `system_profiler`) and Linux (via PipeWire `wpctl` or PulseAudio `pactl`).
 - **terminal_tab_title** (boolean, default: `true`): Update the terminal tab title with the current session status (for example `● project: done`). Set to `false` if you already manage tab titles with your own shell prompt or terminal automation and only want peon-ping's sounds/notifications.
 - **tmux_passthrough** (boolean, default: `false`): Pass the tab title and iTerm2 tab-color escapes through tmux's DCS passthrough to the host terminal (requires tmux 3.3a+ with `set -g allow-passthrough on`). Off by default because a tmux client multiplexes many panes/windows onto a single host terminal tab with no per-pane addressing: when several agent sessions run at once, every hook (including from background panes) repaints that one shared tab on a last-writer-wins basis, so it no longer reflects any single session. Leave it off and let tmux's own window/status line carry per-session state; enable it only if you run one tmux window per terminal tab (so 1 tab = 1 session). Has no effect outside tmux, where the escapes are always emitted.
-- **suppress_sound_when_tab_focused** (boolean, default: `false`): Skip sound playback when the terminal tab that generated the hook event is the currently active/focused tab. Sounds still play for background tabs as an alert that something happened elsewhere. Desktop and mobile notifications are unaffected. Useful when you only want audio cues from tabs you're not watching. macOS only (uses `osascript` to check frontmost app and iTerm2 tab focus).
+- **suppress_sound_when_tab_focused** (boolean, default: `false`): Skip sound playback when the terminal tab that generated the hook event is the currently active/focused tab. Sounds still play for background tabs as an alert that something happened elsewhere. Desktop and mobile notifications are unaffected. Useful when you only want audio cues from tabs you're not watching. macOS only (uses `osascript` to check frontmost app and iTerm2 tab focus). Ghostty suppression requires an exact terminal TTY from its scripting API; versions without that property keep notifications enabled rather than guessing from a shared title or directory.
 - **meeting_detect** Detects if the microphone is currently being used and temporarily suppresses the audio only until the microphone is no longer in use. Notification still appears.
 - **focus_detect** (boolean, default: `false`): Honor macOS **Focus / Do Not Disturb**. peon-ping plays sounds via `afplay` and draws overlays in a custom window, and both bypass Notification Center, so the system Focus toggle has no effect on them by default. When enabled, peon-ping reads the Focus state directly and suppresses output whenever **any** Focus (Do Not Disturb, Work, Sleep, etc.) is active, then resumes automatically when you turn Focus off. Mobile push (if configured) is unaffected, since your phone honors its own Focus. macOS only, and it fails open (if the Focus state can't be read, sounds play as normal).
 - **focus_detect_mode** (string, default: `"all"`): What `focus_detect` suppresses while a Focus is active. `"all"` mutes both the sound and the overlay/desktop notification. `"sound"` mutes only the sound (notifications still appear). `"notifications"` mutes only the notification (sound still plays). Ignored when `focus_detect` is `false`.
@@ -726,7 +728,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 | **Amp** | Adapter | `bash adapters/amp.sh` / `powershell adapters/amp.ps1` ([setup](#amp-setup)) |
 | **Gemini CLI** | Adapter | Add hooks pointing to `adapters/gemini.sh` (or `.ps1` on Windows) ([setup](#gemini-cli-setup)) |
 | **GitHub Copilot CLI** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers hooks at `~/.copilot/hooks/peon-ping.json` if `~/.copilot` exists. Per-repo manual wiring also available via `adapters/copilot.sh` / `.ps1` ([setup](#github-copilot-cli-setup)) |
-| **OpenAI Codex** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers stable hooks in `~/.codex/config.toml` if `~/.codex` exists. The adapter is also available for manual wiring ([setup](#openai-codex-setup)) |
+| **OpenAI Codex** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-registers stable hooks; Unix reuses existing `hooks.json` or writes inline TOML, Windows writes inline TOML. The adapter is also available for manual wiring ([setup](#openai-codex-setup)) |
 | **Grok Build** | Built-in (auto-detect) | `install.sh` / `install.ps1` auto-register hooks at `~/.grok/hooks/peon-ping.json` if `~/.grok` exists. The adapter is also available for manual wiring ([setup](#grok-build-setup)) |
 | **Cursor** | Built-in | `curl \| bash`, `peon-ping-setup`, or Windows `install.ps1` auto-detect and register hooks. On Windows, enable **Settings → Features → Third-party skills** so Cursor loads `~/.claude/settings.json` for SessionStart/Stop sounds. |
 | **OpenCode** | Adapter | `bash adapters/opencode.sh` / `powershell adapters/opencode.ps1` ([setup](#opencode-setup)) |
@@ -749,7 +751,7 @@ peon-ping works with any agentic IDE that supports hooks. Adapters translate IDE
 
 ### OpenAI Codex setup
 
-Codex support uses the stable Codex hooks API plus the peon-ping adapter. If `~/.codex` already exists, the Unix and Windows installers add a peon-managed block to `~/.codex/config.toml` automatically. If Codex is installed later, re-run the peon-ping installer.
+Codex support uses the stable Codex hooks API plus the peon-ping adapter. Both installers use `CODEX_HOME` (default `~/.codex`) and reuse an existing `hooks.json`; otherwise they add a managed block to `config.toml`. If Codex is installed later, re-run the peon-ping installer.
 
 The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionRequest`, `PreCompact`, `SubagentStart`, `SubagentStop`, and `Stop`. `SessionStart` is matched for `startup`, `resume`, and `clear`; Codex compaction is handled by `PreCompact`, so compact-triggered `SessionStart` is skipped. `PreToolUse`, `PostToolUse`, and `PostCompact` are intentionally not registered; `PostToolUse` is ignored by the Codex adapter because Codex does not provide a separate failure-only hook and successful tool hooks are too noisy for peon-ping.
 
@@ -771,7 +773,7 @@ The registered Codex events are `SessionStart`, `UserPromptSubmit`, `PermissionR
 
 3. Restart Codex if it was already running during installation.
 
-peon-ping writes inline hooks to `~/.codex/config.toml` instead of creating `hooks.json`, matching the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to avoid mixing both hook representations in the same config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
+On Unix and Windows, existing JSON hooks keep their format, user handlers and metadata. Updates replace only this installation's handlers, and uninstall removes them from either format. If unrelated inline TOML events and `hooks.json` already coexist, installation stops with a consolidation message instead of adding duplicate events. `peon status --verbose` detects command hooks in either file. This follows the [Codex hooks documentation](https://developers.openai.com/codex/hooks) guidance to use one representation per config layer. Legacy `notify` wiring still works as a fallback, but new installs should use the stable hooks path.
 
 ### Grok Build setup
 
@@ -913,7 +915,9 @@ Add additional events from the table above as desired. The adapter translates Co
 
 ### OpenCode setup
 
-A thin TypeScript adapter for [OpenCode v2](https://opencode.ai/v2/docs/build/plugins) that routes events through the installed peon-ping hook. Install peon-ping first using the platform installer above.
+A thin TypeScript adapter for [OpenCode v1](https://opencode.ai/docs/plugins/) and [v2](https://opencode.ai/v2/docs/build/plugins) that routes events through the installed peon-ping hook. Install peon-ping first using the platform installer above.
+
+Failed OpenCode executions play `task.error`. The adapter forwards the native error message and any provided tool name; session failures are never labeled as Bash failures.
 
 **Quick install:**
 
@@ -923,7 +927,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/op
 
 The installer copies `peon-ping.ts` to `~/.config/opencode/plugins/`, respecting `XDG_CONFIG_HOME`. On native Windows, run `powershell -NoProfile -File adapters/opencode.ps1` from a clone after installing peon-ping. The Windows adapter uses the same OpenCode discovery directory and invokes the installed `peon.ps1` directly, without Git Bash. Config, packs and playback are handled by the main peon-ping installation; use `peon config` and `peon packs` to manage them. `CLAUDE_PEON_DIR` selects a custom hook installation.
 
-This adapter requires OpenCode v2. See [the event mapping and compatibility notes](docs/opencode-v2-events.md) for its API contract and validation requirements.
+One plugin supports both OpenCode API generations without install-time version detection. Independent sessions in the same project retain their native session identities. See [the event mapping and compatibility notes](docs/opencode-v2-events.md) for its API contract and validation requirements.
 
 **Features:**
 
@@ -1194,6 +1198,8 @@ Useful for an OpenPeon-branded or tool-agnostic setup: `peon.sh` auto-discovers 
 
 A native TypeScript extension for [oh-my-pi](https://github.com/can1357/oh-my-pi) (`omp`) with full [CESP v1.0](https://github.com/PeonPing/openpeon) conformance. Subscribes to omp's `ExtensionAPI` lifecycle events and routes them through `peon.sh` so omp users get every peon-ping feature: sound packs, desktop notifications, trainer reminders, mobile push, SSH/devcontainer relay, and tab-title updates.
 
+Failed omp tools play `task.error`, including non-shell tools. The adapter forwards text from the failed result and preserves the native tool name.
+
 **Quick install:**
 
 ```bash
@@ -1207,11 +1213,13 @@ The installer copies `peon-ping.ts` and `package.json` to `~/.omp/agent/extensio
 | omp event                              | peon-ping event       |
 |----------------------------------------|-----------------------|
 | `session_start`                        | `SessionStart`        |
-| `turn_start`                           | `UserPromptSubmit`    |
-| `turn_end`                             | `Stop`                |
+| `agent_start`                          | `UserPromptSubmit`    |
+| `agent_end` (unless `willContinue`)    | `Stop`                |
 | `tool_result` with `isError: true`     | `PostToolUseFailure`  |
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
+
+Tool steps within one agent loop do not trigger extra acknowledgement or completion sounds. Subagent events are skipped when omp provides `ctx.agent` (18.3.2+); older versions retain their subagent events. An `agent_end` scheduled to continue does not emit completion.
 
 **Uninstall:**
 
@@ -1629,6 +1637,8 @@ powershell -File "$env:USERPROFILE\.claude\hooks\peon-ping\uninstall.ps1" -KeepS
 3. **Audio playback** — plays the sound asynchronously via `afplay` (macOS), PowerShell `MediaPlayer` (WSL2/MSYS2 fallback), or `pw-play`/`paplay`/`ffplay`/`mpv`/`aplay` (Linux/MSYS2)
 4. **Notifications** — updates the Terminal tab title and sends a desktop notification if the terminal isn't focused
 5. **Remote routing** — in SSH sessions, devcontainers, and Codespaces, audio and notification requests are forwarded over HTTP to a [relay server](#remote-development-ssh--devcontainers--codespaces) on your local machine
+
+Repeated tool events exit with no child processes once the session is already working, unless a pending popup needs clearing. Meeting, Focus and tab-focus checks run only when they can suppress sound or a desktop notification.
 
 Sound packs are downloaded from the [OpenPeon registry](https://github.com/PeonPing/registry) at install time. The official packs are hosted in [PeonPing/og-packs](https://github.com/PeonPing/og-packs). Sound files are property of their respective publishers (Blizzard, Valve, EA, etc.) and are distributed under fair use for personal notification purposes.
 

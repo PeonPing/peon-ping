@@ -521,7 +521,33 @@ case "$PEON_PLATFORM" in
       if [ "$use_bg" = true ]; then _run_overlay & else _run_overlay; fi
     else
       # Standard notifications: terminal-native escape sequences or system notifications
-      case "${TERM_PROGRAM:-}" in
+      terminal_native="${TERM_PROGRAM:-}"
+      # Multiplexer PTYs do not identify the hosting surface. herdr consumes
+      # OSC, while tmux/custom click commands must also select an inner pane.
+      # Keep those on the existing notification/click-command path.
+      if [ -n "${HERDR_ENV:-}" ] ||
+         { [ "$terminal_native" = "ghostty" ] &&
+           { [ -n "${TMUX:-}" ] || [ "$cmux_target_ready" = "true" ] || [ -n "$click_command" ]; }; }; then
+        terminal_native=""
+      fi
+      if [ "$terminal_native" = "ghostty" ]; then
+        # Ghostty attributes OSC 777 to the emitting surface and can focus its
+        # exact tab/split. Hook stdout may belong to a worker rather than that
+        # surface, so write to the already resolved session PTY.
+        notification_tty="${PEON_SESSION_TTY:-/dev/tty}"
+        # Titles/body may contain repository names or template output. Keep
+        # control bytes from terminating OSC and starting another terminal command.
+        osc_title=$(printf '%s' "$title" | LC_ALL=C tr -d '\000-\037\177')
+        osc_title="${osc_title//;/ }"
+        osc_msg=$(printf '%s' "$msg" | LC_ALL=C tr -d '\000-\037\177')
+        if [ -c "$notification_tty" ] && [ -w "$notification_tty" ] &&
+           { printf '\e]777;notify;%s;%s\007' "$osc_title" "$osc_msg" > "$notification_tty"; } 2>/dev/null; then
+          exit 0
+        fi
+        # A missing/closed PTY must still deliver via Notification Center.
+        terminal_native=""
+      fi
+      case "$terminal_native" in
         iTerm.app)
           # iTerm2 OSC 9 — notification with iTerm2 icon
           printf '\e]9;%s\007' "$title: $msg" > /dev/tty 2>/dev/null || true

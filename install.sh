@@ -1519,10 +1519,9 @@ print('Reload hooks in a running Grok session (/hooks then r) or start a new one
 fi
 
 # --- Register OpenAI Codex hooks if ~/.codex exists ---
-# Codex supports inline hooks in config.toml and hooks.json. Use a managed
-# config.toml block so we do not create hooks.json beside an existing inline
-# config, which Codex warns about at startup.
-CODEX_DIR="$HOME/.codex"
+# Reuse hooks.json when it exists, otherwise use managed inline TOML hooks.
+# The helper refuses an unrelated mixed representation instead of duplicating it.
+CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"
 CODEX_CONFIG="$CODEX_DIR/config.toml"
 CODEX_ADAPTER="$INSTALL_DIR/adapters/codex.sh"
 

@@ -128,6 +128,100 @@ start_relay() {
 
 # ── Path traversal protection ─────────────────────────────────────────────────
 
+# Exercise the hook's file request against a real relay with mocked audio.
+check_symlinked_hook_request() {
+  touch "$TEST_DIR/.relay_available"
+  export PEON_RELAY_HOST=127.0.0.1 PEON_RELAY_PORT="$RELAY_PORT"
+  start_relay
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"symlink"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  local request
+  request=$(sed -n 's/.*\(http[^ ]*\/play?file=[^ ]*\).*/\1/p' "$TEST_DIR/relay_curl.log" | tail -1)
+  [ -n "$request" ]
+  run "$REAL_CURL" -s -o /dev/null -w "%{http_code}" "$request"
+  [ "$status" -eq 0 ]
+  [ "$output" = "200" ]
+  run "$REAL_CURL" -sf "$request"
+  [ "$output" = "OK" ]
+  [[ "$request" == *"/play?file=packs/peon/sounds/Done"* ]]
+}
+
+@test "ssh hook sends a relative file when packs is a symlink" {
+  local external="$BATS_TEST_TMPDIR/external packs"
+  mv "$TEST_DIR/packs" "$external"
+  ln -s "$external" "$TEST_DIR/packs"
+  export PEON_PLATFORM=ssh
+  check_symlinked_hook_request
+}
+
+@test "devcontainer hook sends a relative file when packs is a symlink" {
+  local external="$BATS_TEST_TMPDIR/external packs"
+  mv "$TEST_DIR/packs" "$external"
+  ln -s "$external" "$TEST_DIR/packs"
+  # Cover CESP's explicit sounds/ path as well as the legacy bare filename above.
+  python3 - "$external/peon/manifest.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+manifest = json.load(open(path))
+manifest['categories']['task.complete']['sounds'] = [{'file': 'sounds/Done1.wav'}]
+with open(path, 'w') as f:
+    json.dump(manifest, f)
+PY
+  export PEON_PLATFORM=devcontainer
+  check_symlinked_hook_request
+}
+
+@test "ssh hook blocks manifest traversal and symlink escape from a linked pack" {
+  local external="$BATS_TEST_TMPDIR/external"
+  mv "$TEST_DIR/packs" "$external"
+  ln -s "$external" "$TEST_DIR/packs"
+  touch "$external/outside.wav"
+  ln -s "$external/outside.wav" "$external/peon/sounds/escape.wav"
+  export PEON_PLATFORM=ssh
+  touch "$TEST_DIR/.relay_available"
+  local file_ref
+  for file_ref in ../outside.wav sounds/escape.wav; do
+    python3 - "$external/peon/manifest.json" "$file_ref" <<'PY'
+import json, sys
+path, file_ref = sys.argv[1:]
+manifest = json.load(open(path))
+manifest['categories']['task.complete']['sounds'] = [{'file': file_ref}]
+with open(path, 'w') as f:
+    json.dump(manifest, f)
+PY
+    echo '{}' > "$TEST_DIR/.state.json"
+    rm -f "$TEST_DIR/relay_curl.log"
+    run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"escape"}'
+    [ "$PEON_EXIT" -eq 0 ]
+    ! grep -q '/play?' "$TEST_DIR/relay_curl.log" 2>/dev/null
+  done
+}
+
+@test "relay blocks symlink escape from a linked packs directory" {
+  local external="$BATS_TEST_TMPDIR/external"
+  mv "$TEST_DIR/packs" "$external"
+  ln -s "$external" "$TEST_DIR/packs"
+  touch "$BATS_TEST_TMPDIR/outside.wav"
+  ln -s "$BATS_TEST_TMPDIR/outside.wav" "$external/peon/sounds/escape.wav"
+  start_relay
+  run "$REAL_CURL" -s -o /dev/null -w "%{http_code}" \
+    "http://127.0.0.1:$RELAY_PORT/play?file=packs/peon/sounds/escape.wav"
+  [ "$output" = "403" ]
+}
+
+@test "relay blocks paths sharing only a linked packs directory prefix" {
+  local external="$BATS_TEST_TMPDIR/external"
+  mv "$TEST_DIR/packs" "$external"
+  ln -s "$external" "$TEST_DIR/packs"
+  mkdir "$external-sibling"
+  touch "$external-sibling/outside.wav"
+  ln -s "$external-sibling" "$external/sibling"
+  start_relay
+  run "$REAL_CURL" -s -o /dev/null -w "%{http_code}" \
+    "http://127.0.0.1:$RELAY_PORT/play?file=packs/sibling/outside.wav"
+  [ "$output" = "403" ]
+}
+
 @test "relay blocks path traversal with .." {
   start_relay
   run "$REAL_CURL" -s -o /dev/null -w "%{http_code}" \
