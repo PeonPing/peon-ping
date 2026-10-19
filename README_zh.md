@@ -372,6 +372,7 @@ peon-ping 有三个独立的控制开关，可以混合使用：
 - **annoyed_threshold / annoyed_window_seconds**：在 N 秒内多少次提示触发 `user.spam` 彩蛋
 - **silent_window_seconds**：对于短于 N 秒的任务，抑制 `task.complete` 声音和通知。（例如 `10` 表示只播放超过 10 秒的任务声音）
 - **session_start_cooldown_seconds**（数字，默认：`30`）：当多个工作区同时启动时（例如用 OpenCode 或 Cursor 打开多个文件夹），对问候声音进行去重。只有第一个会话启动会播放问候声；在此窗口期内的后续会话保持静默。设为 `0` 可禁用去重，始终播放问候声。
+- **sound_cooldown_seconds**（整数，默认：`0`）：播放一个声音后，在接下来的 N 秒内丢弃其他任何声音（跨所有会话生效）。被丢弃的声音不会排队；冷却期结束后才会播放下一个声音。桌面通知和移动通知不受影响。只接受整数；`0` 或任何非整数值都会禁用冷却。
 - **suppress_idle_prompt_repeats**（布尔值，默认：`true`）：当终端未聚焦时，Claude Code 会每 ~60 秒重复触发 `idle_prompt` 通知。peon-ping 把 `idle_prompt` 路由到 `task.complete`，让你仍能在需要输入时听到提示——但若不去重，同一个声音会随每次提醒重复播放。当为 `true` 时，如果同一会话已在 `idle_prompt_suppress_window_seconds` 窗口内触发过 `task.complete`，则抑制此次 `idle_prompt`。设为 `false` 可恢复周期性提醒。
 - **idle_prompt_suppress_window_seconds**（数字，默认：`3600`）：`suppress_idle_prompt_repeats` 使用的窗口长度。在某会话播放过 `task.complete` 之后的这么多秒内，该会话后续的 `idle_prompt` 通知保持静默。设为 `0` 可禁用窗口（等同于 `suppress_idle_prompt_repeats: false`）。
 - **suppress_subagent_complete**（布尔值，默认：`false`）：抑制子 Agent 活动产生的声音和通知。当 Claude Code 的 Task 工具并行派发多个子 Agent 时，每个子 Agent 都会触发自己的事件：完成时的提示音、Bash 命令失败时的 `task.error`、权限请求时的 `input.required`。将此选项设为 `true`，则只播放父会话的声音。来自子 Agent 内部的事件通过 Claude Code 在 hook 负载中添加的 `agent_id` 字段识别；独立会话的子 Agent（旧版客户端、其他 IDE）仍通过 SubagentStart 时间窗口启发式识别。
