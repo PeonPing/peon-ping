@@ -13,17 +13,26 @@ _PEON_FAST_READ=false
 _PEON_FAST_SID=""
 _PEON_FAST_INPUT=""
 _PEON_FAST_DIR=""
+_PEON_FAST_INSTALL_DIR=""
 if [ -n "${CLAUDE_PEON_DIR:-}" ]; then
   _PEON_FAST_DIR="$CLAUDE_PEON_DIR/.working"
 else
   # TMPDIR is shared/untrusted. Keep default markers in a private user cache,
-  # namespaced by invoked install path using reversible builtin-only escaping.
+  # namespaced by invoked install path AND Claude profile. Package launchers
+  # share one script across profiles whose config, state and titles differ.
+  # Reversible builtin-only escaping keeps repeat lookups free of subprocesses.
   _peon_fast_install="${BASH_SOURCE[0]}"
   [[ $_peon_fast_install = /* ]] || _peon_fast_install="$PWD/$_peon_fast_install"
   _peon_fast_install="${_peon_fast_install//!/!!}"
   _peon_fast_install="${_peon_fast_install//\//!s}"
-  if [ -n "${HOME:-}" ] && [ "${#_peon_fast_install}" -le 240 ]; then
-    _PEON_FAST_DIR="$HOME/.cache/peon-ping/working/$_peon_fast_install"
+  _peon_fast_profile="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
+  [[ $_peon_fast_profile = /* ]] || _peon_fast_profile="$PWD/$_peon_fast_profile"
+  _peon_fast_profile="${_peon_fast_profile//!/!!}"
+  _peon_fast_profile="${_peon_fast_profile//\//!s}"
+  if [ -n "${HOME:-}" ] && [ "${#_peon_fast_install}" -le 240 ] &&
+     [ "${#_peon_fast_profile}" -le 240 ]; then
+    _PEON_FAST_INSTALL_DIR="$HOME/.cache/peon-ping/working/$_peon_fast_install"
+    _PEON_FAST_DIR="$_PEON_FAST_INSTALL_DIR/$_peon_fast_profile"
   fi
 fi
 if [ $# -eq 0 ] && [ ! -t 0 ]; then
@@ -73,7 +82,8 @@ if [ $# -eq 0 ] && [ ! -t 0 ]; then
     elif [ -O "$HOME" ] && [ ! -L "$HOME" ] &&
          [ -O "$HOME/.cache" ] && [ ! -L "$HOME/.cache" ] &&
          [ -O "$HOME/.cache/peon-ping" ] && [ ! -L "$HOME/.cache/peon-ping" ] &&
-         [ -O "$HOME/.cache/peon-ping/working" ] && [ ! -L "$HOME/.cache/peon-ping/working" ]; then
+         [ -O "$HOME/.cache/peon-ping/working" ] && [ ! -L "$HOME/.cache/peon-ping/working" ] &&
+         [ -O "$_PEON_FAST_INSTALL_DIR" ] && [ ! -L "$_PEON_FAST_INSTALL_DIR" ]; then
       _peon_fast_trusted=true
     fi
   fi

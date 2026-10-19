@@ -37,14 +37,18 @@ For repeated-tool fast exits and marker-path security, run:
 
 ```bash
 bats tests/fast-path-review.bats
+bats tests/fast-path-profiles.bats
 ```
 
 These run the real hook with nested, escaped and duplicate JSON identity fields;
 shared-TMPDIR and data-dir symlinks; unvalidated marker storage; and separate
 install paths. Canonical repeated tool events, including a 100 KB tool response,
 are invoked with no executable commands on PATH to prove the exit stays builtin
-only. Default markers live in a private per-install user cache; an explicit
-CLAUDE_PEON_DIR keeps markers under that data directory. The slow path validates
+only. The shared-launcher regression also checks separate Claude profiles with
+the same resumed session identity, each profile's title/state transitions, and
+repeated tools through the Homebrew wrapper with only its required Bash on PATH.
+Default markers live in a private per-install and per-profile user cache; an
+explicit CLAUDE_PEON_DIR keeps markers under that data directory. The slow path validates
 private directory descriptors and uses atomic directory creation, never opening
 an existing session marker for writing. Unsafe storage or ambiguous JSON falls
 back to full hook handling.
