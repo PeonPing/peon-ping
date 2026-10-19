@@ -67,7 +67,7 @@ export default function peonPingExtension(pi: ExtensionAPI): void {
   const projectName = path.basename(cwd) || "omp"
   const sessionId = `omp-${Date.now()}`
 
-  function firePeon(event: string): void {
+  function firePeon(event: string, failure: { error?: string; tool_name?: string } = {}): void {
     const payload = JSON.stringify({
       hook_event_name: event,
       notification_type: "",
@@ -75,6 +75,7 @@ export default function peonPingExtension(pi: ExtensionAPI): void {
       session_id: sessionId,
       permission_mode: "",
       source: "omp",
+      ...failure,
     })
 
     try {
@@ -122,7 +123,11 @@ export default function peonPingExtension(pi: ExtensionAPI): void {
   pi.on("tool_result", async (event, ctx) => {
     if (!event.isError || isSubagent(ctx)) return
     if (ctx.hasUI) setTabTitle(`\u25cf ${projectName}: error`)
-    firePeon("PostToolUseFailure")
+    const error = event.content?.filter(block => block.type === "text").map(block => block.text).join("\n")
+    firePeon("PostToolUseFailure", {
+      error: error || "Tool failed",
+      ...(typeof event.toolName === "string" ? { tool_name: event.toolName } : {}),
+    })
   })
 
   pi.on("auto_compaction_start", async (_event, ctx) => {

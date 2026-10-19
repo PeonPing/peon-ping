@@ -773,6 +773,8 @@ Grok Build のフック入力は camelCase（`hookEventName`、`sessionId`）で
 
 [OpenCode v1](https://opencode.ai/docs/plugins/) と [v2](https://opencode.ai/v2/docs/build/plugins) 用の薄い TypeScript アダプター。単一のプラグインで両方の API に対応し、インストール時のバージョン検出は不要です。同じプロジェクト内の独立したセッションは、それぞれのネイティブ ID を保持します。イベントをインストール済みの peon-ping フックに転送します。先にプラットフォーム用の peon-ping インストーラーを実行してください。
 
+OpenCode の実行失敗は `task.error` を再生します。アダプターは実際のエラーメッセージと、提供されたツール名を転送します。セッションの失敗を Bash の失敗として扱いません。
+
 **クイックインストール：**
 
 ```bash
@@ -1038,6 +1040,8 @@ curl -fsSL peonping.com/install | bash -s -- --kimi
 ### oh-my-pi (omp) セットアップ
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）用のネイティブ TypeScript 拡張。[CESP v1.0](https://github.com/PeonPing/openpeon) に完全準拠。omp の `ExtensionAPI` ライフサイクルイベントを購読し、`peon.sh` を通じてルーティングします。omp ユーザーが peon-ping のすべての機能を利用できます：サウンドパック、デスクトップ通知、トレーナーリマインダー、モバイルプッシュ、SSH/devcontainer リレー、タブタイトル更新。
+
+シェル以外を含む omp ツールの失敗は `task.error` を再生します。失敗結果のテキストと実際のツール名を転送します。
 
 **クイックインストール：**
 

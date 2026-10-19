@@ -57,6 +57,11 @@ for await (const event of ctx.event.subscribe()) {
   executions emit `UserPromptSubmit` after the existing 3s startup debounce.
   Repeated starts while the session is busy are ignored. Success, failure,
   interruption and deletion clear busy state.
+- Failed executions forward their native `error.message` (or v1
+  `error.data.message`) on `PostToolUseFailure`. A provided tool name stays
+  unchanged; execution failures without a tool name do not invent one. The core
+  accepts explicit OpenCode and omp failures with error text as `task.error`,
+  while retaining Claude Code's existing Bash-only filter.
 - A tool failure surfaces as `session.execution.failed`. There is no longer a
   per-tool error event, so `PostToolUseFailure` now covers any failed
   execution, not just tool errors.

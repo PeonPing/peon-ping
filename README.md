@@ -917,6 +917,8 @@ Add additional events from the table above as desired. The adapter translates Co
 
 A thin TypeScript adapter for [OpenCode v1](https://opencode.ai/docs/plugins/) and [v2](https://opencode.ai/v2/docs/build/plugins) that routes events through the installed peon-ping hook. Install peon-ping first using the platform installer above.
 
+Failed OpenCode executions play `task.error`. The adapter forwards the native error message and any provided tool name; session failures are never labeled as Bash failures.
+
 **Quick install:**
 
 ```bash
@@ -1195,6 +1197,8 @@ Useful for an OpenPeon-branded or tool-agnostic setup: `peon.sh` auto-discovers 
 ### oh-my-pi (omp) setup
 
 A native TypeScript extension for [oh-my-pi](https://github.com/can1357/oh-my-pi) (`omp`) with full [CESP v1.0](https://github.com/PeonPing/openpeon) conformance. Subscribes to omp's `ExtensionAPI` lifecycle events and routes them through `peon.sh` so omp users get every peon-ping feature: sound packs, desktop notifications, trainer reminders, mobile push, SSH/devcontainer relay, and tab-title updates.
+
+Failed omp tools play `task.error`, including non-shell tools. The adapter forwards text from the failed result and preserves the native tool name.
 
 **Quick install:**
 

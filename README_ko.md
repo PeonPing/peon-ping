@@ -465,6 +465,8 @@ Grok Build 훅 입력은 camelCase(`hookEventName`, `sessionId`)이고 이벤트
 
 [OpenCode v1](https://opencode.ai/docs/plugins/)과 [v2](https://opencode.ai/v2/docs/build/plugins)를 지원하는 TypeScript 어댑터입니다. 하나의 플러그인으로 두 API를 지원하므로 설치 시 버전 감지가 필요 없습니다. 같은 프로젝트의 독립 세션은 각각의 네이티브 세션 ID를 유지합니다.
 
+OpenCode 실행이 실패하면 `task.error`가 재생됩니다. 어댑터는 실제 오류 메시지와 제공된 도구 이름을 전달하며, 세션 실패를 Bash 실패로 표시하지 않습니다.
+
 **빠른 설치:**
 
 ```bash
@@ -628,6 +630,8 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/ki
 ### oh-my-pi (omp) 설정
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）용 네이티브 TypeScript 확장으로, [CESP v1.0](https://github.com/PeonPing/openpeon) 표준을 완전히 준수합니다. omp의 `ExtensionAPI` 생명주기 이벤트를 구독하고 `peon.sh`를 통해 라우팅하여 omp 사용자가 peon-ping의 모든 기능을 사용할 수 있게 합니다: 사운드 팩, 데스크톱 알림, 트레이너 알림, 모바일 푸시, SSH/devcontainer 릴레이, 탭 제목 업데이트.
+
+셸 이외의 도구를 포함하여 omp 도구가 실패하면 `task.error`가 재생됩니다. 실패 결과의 텍스트와 원래 도구 이름을 전달합니다.
 
 **빠른 설치:**
 

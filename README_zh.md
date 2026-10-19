@@ -801,6 +801,8 @@ powershell -NoProfile -Command "Set-ExecutionPolicy -Scope CurrentUser -Executio
 
 [OpenCode v1](https://opencode.ai/docs/plugins/) 和 [v2](https://opencode.ai/v2/docs/build/plugins) 的轻量 TypeScript 适配器。单个插件支持两代 API，无需在安装时检测版本；同一项目中的独立会话保留各自的原生会话标识。该适配器将事件转发给已安装的 peon-ping 钩子。请先使用平台安装程序安装 peon-ping。
 
+OpenCode 执行失败时会播放 `task.error`。适配器转发原生错误消息及已提供的工具名称，不会将会话失败伪装成 Bash 失败。
+
 **快速安装：**
 
 ```bash
@@ -1076,6 +1078,8 @@ curl -fsSL peonping.com/install | bash -s -- --openpeon
 ### oh-my-pi (omp) 设置
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi)（`omp`）的原生 TypeScript 扩展，完全符合 [CESP v1.0](https://github.com/PeonPing/openpeon) 规范。订阅 omp 的 `ExtensionAPI` 生命周期事件，并通过 `peon.sh` 路由，让 omp 用户享受 peon-ping 的所有功能：语音包、桌面通知、训练提醒、移动推送、SSH/devcontainer 中继及标签页标题更新。
+
+omp 工具失败时会播放 `task.error`，非 Shell 工具也适用。适配器转发失败结果中的文本，并保留原生工具名称。
 
 **快速安装：**
 

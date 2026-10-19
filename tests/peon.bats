@@ -3641,6 +3641,14 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   ! afplay_was_called
 }
 
+@test "PostToolUseFailure from native adapters without an error stays silent" {
+  for source in omp opencode; do
+    run_peon "{\"hook_event_name\":\"PostToolUseFailure\",\"source\":\"$source\",\"tool_name\":\"read\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"$source-empty\"}"
+    [ "$PEON_EXIT" -eq 0 ]
+    ! afplay_was_called
+  done
+}
+
 # ============================================================
 # Repeat tool events take the fast exit once the session is working
 # ============================================================

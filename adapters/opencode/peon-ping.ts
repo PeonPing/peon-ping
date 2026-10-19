@@ -104,7 +104,7 @@ async function createBridge(ctx: any) {
     const sessionStarts = new Map<string, number>()
     const pendingQuestionIds = new Set<string>()
 
-    function firePeon(event: string, notificationType = "", nativeSessionId?: string): void {
+    function firePeon(event: string, notificationType = "", nativeSessionId?: string, failure: { error?: string; tool_name?: string } = {}): void {
       const payload = JSON.stringify({
         hook_event_name: event,
         notification_type: notificationType,
@@ -112,6 +112,7 @@ async function createBridge(ctx: any) {
         session_id: nativeSessionId ? `opencode-${nativeSessionId}` : sessionId,
         permission_mode: "",
         source: "opencode",
+        ...failure,
       })
 
       try {
@@ -215,7 +216,13 @@ async function createBridge(ctx: any) {
           if (isSubagent(sid)) break
           if (sid) busySessions.delete(sid)
           setTabTitle(`\u25cf ${projectName}: error`)
-          firePeon("PostToolUseFailure", "", sid)
+          const error = data.error
+          const message = typeof error === "string" ? error : error?.message ?? error?.data?.message
+          const toolName = data.tool_name ?? data.toolName
+          firePeon("PostToolUseFailure", "", sid, {
+            error: typeof message === "string" && message ? message : "OpenCode execution failed",
+            ...(typeof toolName === "string" ? { tool_name: toolName } : {}),
+          })
           break
         }
 

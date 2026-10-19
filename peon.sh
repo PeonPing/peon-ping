@@ -6268,9 +6268,11 @@ elif event == 'PostToolUseFailure':
     # Claude Code labels the shell tool "Bash" and fires PostToolUseFailure for
     # every tool, so it is gated to Bash to avoid noise. Copilot CLI instead
     # sends lowercase "bash" or "unknown" (for its generic errorOccurred event)
-    # and only surfaces real failures, so any Copilot-sourced failure with an
-    # error message should sound task.error. Claude Code behavior is unchanged.
-    if error_msg and (tool_name == 'Bash' or session_source == 'copilot'):
+    # and only surfaces real failures. omp reports failed native tools and
+    # OpenCode reports failed executions, neither of which should masquerade as
+    # Bash. Their explicit failure signals with error text sound task.error;
+    # Claude Code's per-tool noise filter remains unchanged.
+    if error_msg and (tool_name == 'Bash' or session_source in ('copilot', 'omp', 'opencode')):
         category = 'task.error'
         status = 'error'
     else:
