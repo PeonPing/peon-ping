@@ -137,6 +137,29 @@ class CodexJsonConfigTests(unittest.TestCase):
                 self.assertIn('both', result.stderr)
                 self.assertEqual((self.config.read_bytes(), self.hooks.read_bytes()), before)
 
+    def test_literal_quotes_and_comments_do_not_hide_inline_hooks(self):
+        prefixes = ("example = '\"\"\"'\n", 'example = "\'\'\'"\n',
+                    'model="test" # """\n', "model='test' # '''\n")
+        self.write_hooks({'hooks': {}})
+        for prefix in prefixes:
+            with self.subTest(prefix=prefix):
+                self.config.write_text(prefix + '[[hooks.Stop]]\n[[hooks.Stop.hooks]]\n'
+                                       'type="command"\ncommand="echo keep"\n')
+                before = (self.config.read_bytes(), self.hooks.read_bytes())
+                result = self.invoke()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual((self.config.read_bytes(), self.hooks.read_bytes()), before)
+
+    def test_multiline_hook_examples_and_root_trust_state_preserve_json_format(self):
+        content = ('notes = """\n[[hooks.Stop]]\ncommand="echo example"\n"""\n'
+                   'hooks.state.saved = { enabled = false, trusted_hash = "keep" }\n')
+        self.config.write_text(content)
+        self.write_hooks({'hooks': {}})
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.config.read_text(), content)
+        self.assertEqual(len(self.handlers()), 7)
+
 
 if __name__ == '__main__':
     unittest.main()

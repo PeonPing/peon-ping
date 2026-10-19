@@ -150,37 +150,38 @@ class CodexConfigEditor:
     @staticmethod
     def _advance_multiline_state(line, state):
         index = 0
-        while index <= len(line) - 3:
+        while index < len(line):
             if state:
-                marker = state
-                found = line.find(marker, index)
-                if found < 0:
-                    return state
-                if marker == '"""':
-                    backslashes = 0
-                    cursor = found - 1
-                    while cursor >= 0 and line[cursor] == '\\':
-                        backslashes += 1
-                        cursor -= 1
-                    if backslashes % 2:
-                        index = found + 3
-                        continue
-                state = None
-                index = found + 3
+                if state == '"""' and line[index] == '\\':
+                    index += 2
+                elif line.startswith(state, index):
+                    index += 3
+                    state = None
+                else:
+                    index += 1
                 continue
-
-            basic = line.find('"""', index)
-            literal = line.find("'''", index)
-            candidates = [(basic, '"""'), (literal, "'''")]
-            candidates = [(found, marker) for found, marker in candidates if found >= 0]
-            if not candidates:
+            character = line[index]
+            if character == '#':
                 return None
-            found, marker = min(candidates)
-            comment = line.find('#', index, found)
-            if comment >= 0:
-                return None
-            state = marker
-            index = found + 3
+            if character not in ('"', "'"):
+                index += 1
+                continue
+            if line.startswith(character * 3, index):
+                state = character * 3
+                index += 3
+                continue
+            # Ordinary quoted strings may themselves contain triple quotes or
+            # a hash; neither changes the lexical state of the following line.
+            quote = character
+            index += 1
+            while index < len(line):
+                if quote == '"' and line[index] == '\\':
+                    index += 2
+                elif line[index] == quote:
+                    index += 1
+                    break
+                else:
+                    index += 1
         return state
 
     @classmethod
