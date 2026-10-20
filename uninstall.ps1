@@ -499,6 +499,93 @@ if ((Test-Path -LiteralPath $CodexConfigFile) -or (Test-Path -LiteralPath $Codex
     Write-Host "  Removed this installation's Codex hooks" -ForegroundColor Green
 }
 
+# --- Remove Kimi Code hooks ---
+# Remove the managed [[hooks]] block peon-ping registers in Kimi Code's config
+# (~/.kimi-code, or ~/.kimi for the older kimi-cli). Left behind, Kimi would run
+# a deleted adapter once per event. The adapter owns the block, so hand the work
+# to it, and stop rather than guess at the block if it is already gone.
+
+# Report hooks that run the Kimi adapter outside its managed block. Kimi Code's
+# migration from kimi-cli copies [[hooks]] out of ~/.kimi/config.toml without
+# the block markers, so such hooks can exist in a config with no block at all.
+# Only the block is ours to remove; once the install dir is gone these would
+# run a deleted adapter, so the user has to hear about them. Kept in sync with
+# Get-UnmanagedHookCount in adapters/kimi.ps1, and independent of it because the
+# adapter may already be missing.
+function Show-UnmanagedKimiHooks([string]$KimiConfig) {
+    $n = 0
+    $skip = $false
+    foreach ($line in [System.IO.File]::ReadAllLines($KimiConfig, (New-Object System.Text.UTF8Encoding $false))) {
+        if ($line.StartsWith("# peon-ping Kimi hooks begin")) { $skip = $true; continue }
+        if ($line.StartsWith("# peon-ping Kimi hooks end"))   { $skip = $false; continue }
+        if ($skip -or $line -match '^\s*#') { continue }
+        if ($line -match 'adapters[\\/]+kimi\.(sh|ps1)') { $n++ }
+    }
+    if ($n -le 0) { return }
+    Write-Host "  Warning: $KimiConfig has $n hook command(s) outside the peon-ping block that run the Kimi adapter." -ForegroundColor Yellow
+    Write-Host "  Kimi Code's migration from kimi-cli copies hooks without the block markers, so these were" -ForegroundColor Yellow
+    Write-Host "  likely carried over from ~/.kimi. They stay after this uninstall and point at an adapter" -ForegroundColor Yellow
+    Write-Host "  that is about to be deleted. Remove those [[hooks]] entries by hand." -ForegroundColor Yellow
+}
+
+$KimiAdapter = Join-Path $InstallDir "adapters\kimi.ps1"
+$kimiConfigs = @(
+    (Join-Path $env:USERPROFILE ".kimi-code\config.toml"),
+    (Join-Path $env:USERPROFILE ".kimi\config.toml")
+) | Where-Object { Test-Path -LiteralPath $_ }
+
+Write-Host ""
+Write-Host "Removing Kimi Code hooks..."
+$kimiHadBlock = $false
+foreach ($kimiConfig in $kimiConfigs) {
+    # A config that may still hold the block must stop the uninstall before the
+    # adapter its hooks run is deleted, not pass for one without it.
+    try {
+        $kimiText = [System.IO.File]::ReadAllText($kimiConfig, (New-Object System.Text.UTF8Encoding $false))
+    } catch {
+        Write-Host "  Error: cannot read Kimi config $kimiConfig, so its peon-ping hooks cannot be checked" -ForegroundColor Red
+        Write-Host "  Close whatever holds it or fix its permissions, then uninstall again." -ForegroundColor Red
+        exit 1
+    }
+    if (-not $kimiText.Contains("# peon-ping Kimi hooks begin")) {
+        Show-UnmanagedKimiHooks $kimiConfig
+        continue
+    }
+    $kimiHadBlock = $true
+    if (-not (Test-Path $KimiAdapter)) {
+        # Only the adapter knows which separator and EOF newline it added, so
+        # stripping the markers here would leave the config changed.
+        Write-Host "  Error: cannot safely remove Kimi Code hooks from $kimiConfig because adapters\kimi.ps1 is missing" -ForegroundColor Red
+        Write-Host "  Re-run the peon-ping installer to restore the adapter, then uninstall again." -ForegroundColor Red
+        exit 1
+    }
+    # stdout is the adapter's own progress report; its stderr carries errors and
+    # the warning about hooks outside the block, so let that through.
+    $env:KIMI_CONFIG = $kimiConfig
+    try {
+        & powershell -NoProfile -NonInteractive -File $KimiAdapter -Uninstall | Out-Null
+        $kimiExit = $LASTEXITCODE
+    } finally {
+        Remove-Item Env:\KIMI_CONFIG -ErrorAction SilentlyContinue
+    }
+    if ($kimiExit -ne 0) {
+        Write-Host "  Error: could not remove Kimi Code hooks from $kimiConfig" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  Removed Kimi Code hooks from $kimiConfig" -ForegroundColor Green
+}
+
+# The adapter used to be a watcher daemon rather than a hook, and -Uninstall
+# above reaps that. An install that never got as far as registering hooks can
+# still have one running, so reap it on its own -- without touching any config,
+# which the loop has already handled.
+if (-not $kimiHadBlock) {
+    if (Test-Path $KimiAdapter) {
+        & powershell -NoProfile -NonInteractive -File $KimiAdapter -StopWatcher | Out-Null
+    }
+    Write-Host "  No peon-ping Kimi Code hooks found" -ForegroundColor DarkGray
+}
+
 # --- Remove skills ---
 Write-Host ""
 Write-Host "Removing skills..."
