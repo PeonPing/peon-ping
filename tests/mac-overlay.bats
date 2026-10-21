@@ -347,6 +347,59 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   ! [[ "$(terminal_notifier_log)" == *"osascript"* ]]
 }
 
+# herdr hands every pane HERDR_PANE_ID, HERDR_SOCKET_PATH and HERDR_BIN_PATH.
+# The mock CLI records what a click asked it to do and which socket it used.
+make_mock_herdr() {
+  cat > "$MOCK_BIN/herdr" <<SCRIPT
+#!/bin/bash
+echo "\$* socket=\${HERDR_SOCKET_PATH:-}" >> "$TEST_DIR/herdr.log"
+SCRIPT
+  chmod +x "$MOCK_BIN/herdr"
+}
+
+@test "overlay click inside herdr switches herdr to the agent's pane" {
+  make_mock_herdr
+  HERDR_ENV=1 HERDR_PANE_ID="w1:p2" HERDR_SOCKET_PATH="$TEST_DIR/herdr dir/herdr.sock" \
+    HERDR_BIN_PATH="$MOCK_BIN/herdr" TERM_PROGRAM=herdr GHOSTTY_RESOURCES_DIR=/x \
+    run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  spawn_line="$(overlay_log | grep 'mac-overlay')"
+  [[ "$spawn_line" == *"com.mitchellh.ghostty"* ]]
+  click_command="${spawn_line#*PEON_CLICK_COMMAND=}"
+  [ "$click_command" != "$spawn_line" ]
+  # The overlay runs the click under a fresh `bash -lc`, without the pane's env.
+  env -i HOME="$HOME" /bin/bash -lc "$click_command"
+  [ "$(cat "$TEST_DIR/herdr.log")" = "agent focus w1:p2 socket=$TEST_DIR/herdr dir/herdr.sock" ]
+}
+
+@test "standard: a terminal-notifier click inside herdr switches herdr to the agent's pane" {
+  make_mock_herdr
+  local notify_script="$TEST_DIR/scripts/notify.sh"
+  HERDR_ENV=1 HERDR_PANE_ID="w1:p2" HERDR_SOCKET_PATH="/tmp/herdr.sock" HERDR_BIN_PATH="$MOCK_BIN/herdr" \
+    PEON_PLATFORM=mac PEON_NOTIF_STYLE=standard PEON_SYNC=1 PEON_BUNDLE_ID="com.mitchellh.ghostty" \
+    bash "$notify_script" "test msg" "test title" "blue" ""
+  [ -f "$TEST_DIR/terminal_notifier.log" ]
+  [[ "$(terminal_notifier_log)" == *"-activate com.mitchellh.ghostty"* ]]
+  # The mock logs argv joined by spaces; -execute is followed by -group.
+  execute="$(terminal_notifier_log)"
+  execute="${execute#*-execute }"
+  execute="${execute% -group *}"
+  # terminal-notifier hands -execute to /bin/sh -c, outside the pane's env.
+  env -i HOME="$HOME" /bin/sh -c "$execute"
+  [ "$(cat "$TEST_DIR/herdr.log")" = "agent focus w1:p2 socket=/tmp/herdr.sock" ]
+}
+
+@test "standard: an explicit click command keeps precedence over herdr" {
+  make_mock_herdr
+  local notify_script="$TEST_DIR/scripts/notify.sh"
+  HERDR_ENV=1 HERDR_PANE_ID="w1:p2" HERDR_BIN_PATH="$MOCK_BIN/herdr" \
+    PEON_PLATFORM=mac PEON_NOTIF_STYLE=standard PEON_SYNC=1 \
+    PEON_CLICK_COMMAND="/usr/local/bin/custom-focus arg1" \
+    bash "$notify_script" "test msg" "test title" "blue" ""
+  [[ "$(terminal_notifier_log)" == *"custom-focus"* ]]
+  ! [[ "$(terminal_notifier_log)" == *"agent focus"* ]]
+}
+
 # ============================================================
 # Standard mode fallback
 # ============================================================

@@ -27,6 +27,7 @@ setup_test_env() {
   unset CMUX_BUNDLED_CLI_PATH CMUX_BUNDLE_ID
   unset TERM_PROGRAM GHOSTTY_RESOURCES_DIR ITERM_SESSION_ID WARP_IS_LOCAL_SHELL_SESSION
   unset __CFBundleIdentifier CLAUDE_SESSION_NAME
+  unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID HERDR_WORKSPACE_ID HERDR_SOCKET_PATH HERDR_BIN_PATH
 
   # Create directory structure
   mkdir -p "$TEST_DIR/packs/peon/sounds"
@@ -288,10 +289,14 @@ elif [[ "$*" == *"iTerm2"* ]] && [[ "$*" == *"tty"* ]]; then
   fi
 elif [[ "$1" == "-l" ]] && [[ "$2" == "JavaScript" ]]; then
   # JXA call — log argv. For the overlay spawn (not the screen-count probe),
-  # also surface PEON_WARP_FOCUS_URL, which reaches it via env rather than argv.
+  # also surface PEON_WARP_FOCUS_URL and PEON_CLICK_COMMAND, which reach it via
+  # env rather than argv.
   _overlay_line="$@"
   if [[ "$*" == *mac-overlay* ]] && [ -n "${PEON_WARP_FOCUS_URL:-}" ]; then
     _overlay_line="$_overlay_line PEON_WARP_FOCUS_URL=${PEON_WARP_FOCUS_URL}"
+  fi
+  if [[ "$*" == *mac-overlay* ]] && [ -n "${PEON_CLICK_COMMAND:-}" ]; then
+    _overlay_line="$_overlay_line PEON_CLICK_COMMAND=${PEON_CLICK_COMMAND}"
   fi
   echo "$_overlay_line" >> "${CLAUDE_PEON_DIR}/overlay.log"
 else

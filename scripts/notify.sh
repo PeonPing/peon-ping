@@ -344,6 +344,21 @@ case "$PEON_PLATFORM" in
         click_command="tmux -S $_pp_tsock switch-client -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-window -t $_pp_tpane 2>/dev/null; tmux -S $_pp_tsock select-pane -t $_pp_tpane 2>/dev/null"
       fi
     fi
+    # herdr is a multiplexer too: activating the terminal app lands on whichever
+    # herdr tab was open last. `herdr agent focus <pane>` switches herdr's
+    # workspace, tab and pane to the agent that pinged. The click runs later
+    # under a fresh `bash -lc`, where PATH and the herdr env may be missing, so
+    # the CLI and socket are pinned here. herdr exports HERDR_BIN_PATH and
+    # HERDR_SOCKET_PATH into every pane.
+    if [ -z "$click_command" ] && [ -n "${HERDR_PANE_ID:-}" ]; then
+      _herdr_cli="${HERDR_BIN_PATH:-$(command -v herdr 2>/dev/null || true)}"
+      if [ -n "$_herdr_cli" ] && [ -x "$_herdr_cli" ]; then
+        click_command="$(printf '%q agent focus %q' "$_herdr_cli" "$HERDR_PANE_ID")"
+        if [ -n "${HERDR_SOCKET_PATH:-}" ]; then
+          click_command="$(printf 'HERDR_SOCKET_PATH=%q ' "$HERDR_SOCKET_PATH")$click_command"
+        fi
+      fi
+    fi
     if [ -z "$click_command" ]; then
       click_command="$(_terminal_focus_click_command "$bundle_id" "${PEON_SESSION_TTY:-}")" || true
       # The overlay focuses iTerm2 sessions natively but cannot derive an IDE

@@ -25,8 +25,8 @@ class GhosttyNotificationTests(unittest.TestCase):
                         PEON_SYNC="1", PEON_DIR=str(self.folder), TERM_PROGRAM="ghostty",
                         PEON_SESSION_TTY=os.ttyname(self.slave), PEON_BUNDLE_ID="com.mitchellh.ghostty",
                         PATH=str(self.bin) + os.pathsep + os.environ["PATH"])
-        for key in ("TMUX", "HERDR_ENV", "PEON_CLICK_COMMAND", "PEON_CMUX_CLI",
-                    "PEON_CMUX_WORKSPACE_ID", "PEON_CMUX_SURFACE_ID"):
+        for key in ("TMUX", "HERDR_ENV", "HERDR_PANE_ID", "HERDR_SOCKET_PATH", "HERDR_BIN_PATH",
+                    "PEON_CLICK_COMMAND", "PEON_CMUX_CLI", "PEON_CMUX_WORKSPACE_ID", "PEON_CMUX_SURFACE_ID"):
             self.env.pop(key, None)
 
     def tearDown(self):
