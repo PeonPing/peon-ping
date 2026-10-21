@@ -135,13 +135,13 @@ _peon() {
           ;;
         ide-bind)
           if [[ "$CURRENT" -eq 4 ]]; then
-            compadd -- claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev
+            compadd -- claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev pwcode
           else
             _peon_pack_names
           fi
           ;;
         ide-unbind)
-          compadd -- claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev
+          compadd -- claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev pwcode
           ;;
         exclude)
           compadd -- add remove list

@@ -39,9 +39,9 @@ _peon_completions() {
         elif [ "$cword" -eq 4 ] && [ "${words[2]}" = "list" ] && [ "$prev" = "--registry" ]; then
           COMPREPLY=( $(compgen -W "--lang" -- "$cur") )
         elif [ "$cword" -eq 3 ] && [ "$prev" = "ide-bind" ]; then
-          COMPREPLY=( $(compgen -W "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev" -- "$cur") )
+          COMPREPLY=( $(compgen -W "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev pwcode" -- "$cur") )
         elif [ "$cword" -eq 3 ] && [ "$prev" = "ide-unbind" ]; then
-          COMPREPLY=( $(compgen -W "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev" -- "$cur") )
+          COMPREPLY=( $(compgen -W "claude codex cursor opencode kilo kiro gemini copilot windsurf kimi antigravity amp deepagents openclaw rovodev pwcode" -- "$cur") )
         elif [ "$cword" -eq 3 ] && [ "$prev" = "exclude" ]; then
           COMPREPLY=( $(compgen -W "add remove list" -- "$cur") )
         elif [ "$cword" -eq 4 ] && [ "${words[2]}" = "ide-bind" ]; then
