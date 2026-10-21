@@ -23,8 +23,11 @@
  *
  * agent_start/agent_end fire once per prompt. turn_start/turn_end fire once per
  * model call, so a prompt that runs ten tool steps would fire peon.sh ten times.
- * Subagents load this extension too and get their own copy of every event; those
- * are skipped, so one prompt gives one Stop however many subagents it starts.
+ * Nothing fires when nobody is watching the session: subagents (which load this
+ * extension too and get their own copy of every event, so one prompt still gives
+ * one Stop however many subagents it starts) and headless runs (`omp -p`, as
+ * launched by scripts and batch jobs, which would otherwise chime and pop a
+ * notification for every run with no terminal to return to).
  *
  * Requires peon-ping installed: brew install PeonPing/tap/peon-ping
  *   or: curl -fsSL peonping.com/install | bash
@@ -93,24 +96,27 @@ export default function peonPingExtension(pi: ExtensionAPI): void {
     } catch {}
   }
 
-  // ctx.agent arrived in omp 18.3.2. On older omp it is undefined, every session
-  // looks like the main one, and events still fire as before.
-  const isSubagent = (ctx: { agent?: { kind?: string } }): boolean => ctx.agent?.kind === "sub"
+  // omp reports hasUI false only for `omp -p` (text and json output); the TUI and
+  // rpc embedders report true and keep their sounds. ctx.agent arrived in omp
+  // 18.3.2. On older omp it is undefined, every session looks like the main one,
+  // and events still fire as before.
+  const unattended = (ctx: { hasUI?: boolean; agent?: { kind?: string } }): boolean =>
+    ctx.agent?.kind === "sub" || ctx.hasUI === false
 
   pi.on("session_start", async (_event, ctx) => {
-    if (isSubagent(ctx)) return
+    if (unattended(ctx)) return
     if (ctx.hasUI) setTabTitle(`${projectName}: ready`)
     firePeon("SessionStart")
   })
 
   pi.on("agent_start", async (_event, ctx) => {
-    if (isSubagent(ctx)) return
+    if (unattended(ctx)) return
     if (ctx.hasUI) setTabTitle(`${projectName}: working`)
     firePeon("UserPromptSubmit")
   })
 
   pi.on("agent_end", async (event, ctx) => {
-    if (isSubagent(ctx)) return
+    if (unattended(ctx)) return
     // omp has already scheduled another run of the agent (a retry after an error,
     // a recovery, a reminder), which starts with its own agent_start and ends with
     // its own agent_end. Only the last one is the real stop. omp before 17.0.2
@@ -121,7 +127,7 @@ export default function peonPingExtension(pi: ExtensionAPI): void {
   })
 
   pi.on("tool_result", async (event, ctx) => {
-    if (!event.isError || isSubagent(ctx)) return
+    if (!event.isError || unattended(ctx)) return
     if (ctx.hasUI) setTabTitle(`\u25cf ${projectName}: error`)
     const error = event.content?.filter(block => block.type === "text").map(block => block.text).join("\n")
     firePeon("PostToolUseFailure", {
@@ -131,12 +137,12 @@ export default function peonPingExtension(pi: ExtensionAPI): void {
   })
 
   pi.on("auto_compaction_start", async (_event, ctx) => {
-    if (isSubagent(ctx)) return
+    if (unattended(ctx)) return
     firePeon("PreCompact")
   })
 
   pi.on("session_shutdown", async (_event, ctx) => {
-    if (isSubagent(ctx)) return
+    if (unattended(ctx)) return
     firePeon("SessionEnd")
   })
 }

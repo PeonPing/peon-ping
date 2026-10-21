@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest"
 
 class FakeStdin extends EventEmitter {
   written = ""
@@ -39,10 +39,13 @@ import peonPingExtension from "../adapters/omp/peon-ping.js"
 
 type Handler = (event: Record<string, unknown>, ctx: Record<string, unknown>) => unknown
 
-const MAIN = { hasUI: false, agent: { kind: "main", id: "0-Main", name: "main", depth: 0 } }
-const SUB = { hasUI: false, agent: { kind: "sub", id: "0-Explore", name: "explore", depth: 1, parentId: "0-Main" } }
+const MAIN = { mode: "tui", hasUI: true, agent: { kind: "main", id: "0-Main", name: "main", depth: 0 } }
+const SUB = { mode: "tui", hasUI: true, agent: { kind: "sub", id: "0-Explore", name: "explore", depth: 1, parentId: "0-Main" } }
+// `omp -p`: a main agent with nobody watching. omp reports mode "print" (or "json")
+// and hasUI false.
+const HEADLESS = { mode: "print", hasUI: false, agent: { kind: "main", id: "0-Main", name: "main", depth: 0 } }
 // omp before 18.3.2 has no ctx.agent at all.
-const OLD_OMP = { hasUI: false }
+const OLD_OMP = { hasUI: true }
 
 function loadExtension() {
   const handlers = new Map<string, Handler[]>()
@@ -65,8 +68,17 @@ function firedEvents(): string[] {
 }
 
 describe("omp adapter", () => {
+  // Interactive fixtures make the adapter set tab titles; keep the escapes out of
+  // the test output.
+  let stdoutWrite: MockInstance
+
   beforeEach(() => {
     spawned.length = 0
+    stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true)
+  })
+
+  afterEach(() => {
+    stdoutWrite.mockRestore()
   })
 
   it("fires UserPromptSubmit and Stop once per prompt, however many model turns it takes", async () => {
@@ -92,6 +104,18 @@ describe("omp adapter", () => {
     await emit("auto_compaction_start", {}, SUB)
     await emit("agent_end", {}, SUB)
     await emit("session_shutdown", {}, SUB)
+
+    expect(firedEvents()).toEqual([])
+  })
+
+  it("sends nothing to peon.sh for a headless omp -p run", async () => {
+    const emit = loadExtension()
+    await emit("session_start", {}, HEADLESS)
+    await emit("agent_start", {}, HEADLESS)
+    await emit("tool_result", { isError: true }, HEADLESS)
+    await emit("auto_compaction_start", {}, HEADLESS)
+    await emit("agent_end", {}, HEADLESS)
+    await emit("session_shutdown", {}, HEADLESS)
 
     expect(firedEvents()).toEqual([])
   })
