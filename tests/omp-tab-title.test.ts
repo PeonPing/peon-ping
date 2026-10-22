@@ -52,7 +52,9 @@ describe("omp adapter tab titles", () => {
   const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdout, "isTTY")
   let titles: string[]
 
-  function stdoutIsTerminal(isTTY: boolean) {
+  // Node and Bun leave isTTY undefined on a pipe; it is never false. The own
+  // property shadows tty.WriteStream.prototype.isTTY when the runner is on a pty.
+  function setStdoutIsTTY(isTTY: true | undefined) {
     Object.defineProperty(process.stdout, "isTTY", { value: isTTY, configurable: true })
   }
 
@@ -75,14 +77,14 @@ describe("omp adapter tab titles", () => {
   it("sets no tab title when stdout is a pipe, as in omp --mode rpc", async () => {
     // In RPC mode stdout carries the JSON-lines protocol; a title escape glued to
     // the front of a line makes it invalid JSON for the embedder.
-    stdoutIsTerminal(false)
+    setStdoutIsTTY(undefined)
     await runOnePrompt(loadExtension())
 
     expect(titles).toEqual([])
   })
 
   it("still sets the tab title when stdout is a terminal, as in the omp TUI", async () => {
-    stdoutIsTerminal(true)
+    setStdoutIsTTY(true)
     await runOnePrompt(loadExtension())
 
     expect(titles).toEqual([
