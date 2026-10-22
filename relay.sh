@@ -490,7 +490,9 @@ def send_notification_on_host(title, message, color="red", focus=None):
         # to fabricate a click target, so a relayed notification is clickable only
         # via the focus context we set below (or not at all) — never via whatever
         # shell happened to launch the daemon.
-        for _amb in ("TMUX", "TMUX_PANE", "PEON_SESSION_TTY", "PEON_CLICK_COMMAND"):
+        for _amb in ("TMUX", "TMUX_PANE", "PEON_SESSION_TTY", "PEON_CLICK_COMMAND",
+                     "HERDR_ENV", "HERDR_PANE_ID", "HERDR_TAB_ID", "HERDR_WORKSPACE_ID",
+                     "HERDR_SOCKET_PATH", "HERDR_BIN_PATH"):
             env.pop(_amb, None)
         env["PEON_PLATFORM"] = HOST_PLATFORM
         env["PEON_NOTIF_STYLE"] = config.get("notification_style", "overlay")

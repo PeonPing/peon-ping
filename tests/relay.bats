@@ -473,3 +473,23 @@ JSON
   [ -f "$TEST_DIR/terminal_notifier.log" ]
   ! [ -f "$TEST_DIR/overlay.log" ]
 }
+
+@test "relay /notify never clicks through to the herdr pane that started the daemon" {
+  cat > "$TEST_DIR/config.json" <<'JSON'
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "notification_style": "standard", "categories": {} }
+JSON
+  printf '#!/bin/bash\nexit 0\n' > "$MOCK_BIN/herdr"
+  chmod +x "$MOCK_BIN/herdr"
+  # `peon relay --daemon` keeps the environment of the pane it was started from.
+  export HERDR_ENV=1 HERDR_PANE_ID="w9:pRELAY" HERDR_TAB_ID="w9:tRELAY"
+  export HERDR_SOCKET_PATH="$TEST_DIR/herdr.sock" HERDR_BIN_PATH="$MOCK_BIN/herdr"
+  start_relay
+  unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID HERDR_SOCKET_PATH HERDR_BIN_PATH
+  run "$REAL_CURL" -sf -X POST "http://127.0.0.1:$RELAY_PORT/notify" \
+    -H "Content-Type: application/json" \
+    -d '{"title":"peon-ping","message":"From a devcontainer","color":"red"}'
+  [ "$status" -eq 0 ]
+  for _ in $(seq 1 50); do [ -s "$TEST_DIR/terminal_notifier.log" ] && break; sleep 0.1; done
+  [ -s "$TEST_DIR/terminal_notifier.log" ]
+  ! grep -q 'pRELAY' "$TEST_DIR/terminal_notifier.log"
+}

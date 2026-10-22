@@ -346,16 +346,21 @@ case "$PEON_PLATFORM" in
     fi
     # herdr is a multiplexer too: activating the terminal app lands on whichever
     # herdr tab was open last. `herdr agent focus <pane>` switches herdr's
-    # workspace, tab and pane to the agent that pinged. The click runs later
-    # under a fresh `bash -lc`, where PATH and the herdr env may be missing, so
-    # the CLI and socket are pinned here. herdr exports HERDR_BIN_PATH and
-    # HERDR_SOCKET_PATH into every pane.
+    # workspace, tab and pane to the agent that pinged; it only accepts panes where
+    # herdr detected an agent, so `herdr tab focus` is the fallback. It runs after
+    # the terminal/IDE focus below rather than replacing it, so iTerm2 still raises
+    # the tab hosting herdr. The click runs later under a fresh `bash -lc`, where
+    # PATH and the herdr env may be missing, so the CLI and socket are pinned here.
+    # herdr exports HERDR_BIN_PATH and HERDR_SOCKET_PATH into every pane.
+    herdr_click_command=""
     if [ -z "$click_command" ] && [ -n "${HERDR_PANE_ID:-}" ]; then
       _herdr_cli="${HERDR_BIN_PATH:-$(command -v herdr 2>/dev/null || true)}"
       if [ -n "$_herdr_cli" ] && [ -x "$_herdr_cli" ]; then
-        click_command="$(printf '%q agent focus %q' "$_herdr_cli" "$HERDR_PANE_ID")"
-        if [ -n "${HERDR_SOCKET_PATH:-}" ]; then
-          click_command="$(printf 'HERDR_SOCKET_PATH=%q ' "$HERDR_SOCKET_PATH")$click_command"
+        _herdr_env=""
+        [ -n "${HERDR_SOCKET_PATH:-}" ] && _herdr_env="$(printf 'HERDR_SOCKET_PATH=%q ' "$HERDR_SOCKET_PATH")"
+        herdr_click_command="$_herdr_env$(printf '%q agent focus %q' "$_herdr_cli" "$HERDR_PANE_ID")"
+        if [ -n "${HERDR_TAB_ID:-}" ]; then
+          herdr_click_command="$herdr_click_command || $_herdr_env$(printf '%q tab focus %q' "$_herdr_cli" "$HERDR_TAB_ID")"
         fi
       fi
     fi
@@ -367,6 +372,9 @@ case "$PEON_PLATFORM" in
       if [ -n "$click_command" ] && [ -z "${PEON_CLICK_COMMAND:-}" ] && [ "$bundle_id" != "com.googlecode.iterm2" ]; then
         export PEON_CLICK_COMMAND="$click_command"
       fi
+    fi
+    if [ -n "$herdr_click_command" ]; then
+      click_command="${click_command:+$click_command; }$herdr_click_command"
     fi
     _notify_debug "mac overlay_script=$(printf '%q' "$overlay_script") bundle=$(printf '%q' "$bundle_id") click_command=$(printf '%q' "$click_command") workspace=$(printf '%q' "$cmux_workspace_id") surface=$(printf '%q' "$cmux_surface_id")"
     if [ -n "$overlay_script" ]; then
