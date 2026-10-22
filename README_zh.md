@@ -1100,7 +1100,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
-同一次 agent 循环中的工具步骤不会触发额外的确认或完成音效。omp 提供 `ctx.agent`（18.3.2+）时会跳过子代理事件；旧版本仍会发出子代理事件。计划继续运行的 `agent_end` 不会发出完成通知。
+同一次 agent 循环中的工具步骤不会触发额外的确认或完成音效。子代理事件会被跳过。没有人在看的无头运行也会跳过：`omp -p`（脚本、批处理任务）以及用 `--no-ui` 启动的 rpc 嵌入方式。TUI、ACP 和不带 `--no-ui` 的 rpc 嵌入方式仍会播放。计划继续运行的 `agent_end` 不会发出完成通知。
 
 **卸载：**
 

@@ -652,7 +652,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
-같은 에이전트 루프의 도구 단계는 추가 확인음이나 완료음을 발생시키지 않습니다. omp가 `ctx.agent`를 제공하면(18.3.2 이상) 하위 에이전트 이벤트를 건너뜁니다. 이전 버전에서는 하위 에이전트 이벤트가 유지됩니다. 계속 실행될 예정인 `agent_end`는 완료를 알리지 않습니다.
+같은 에이전트 루프의 도구 단계는 추가 확인음이나 완료음을 발생시키지 않습니다. 하위 에이전트 이벤트는 건너뜁니다. 지켜보는 사람이 없는 헤드리스 실행도 건너뜁니다: `omp -p`(스크립트, 배치 작업)와 `--no-ui`로 시작한 rpc 임베더입니다. TUI, ACP, `--no-ui` 없는 rpc 임베더에서는 계속 소리가 납니다. 계속 실행될 예정인 `agent_end`는 완료를 알리지 않습니다.
 
 **제거:**
 
