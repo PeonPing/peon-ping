@@ -27,7 +27,8 @@
  * extension too and get their own copy of every event, so one prompt still gives
  * one Stop however many subagents it starts) and headless runs (`omp -p`, as
  * launched by scripts and batch jobs, which would otherwise chime and pop a
- * notification for every run with no terminal to return to).
+ * notification for every run with no terminal to return to; and rpc embedders
+ * started with `--no-ui`).
  *
  * Requires peon-ping installed: brew install PeonPing/tap/peon-ping
  *   or: curl -fsSL peonping.com/install | bash
@@ -96,10 +97,11 @@ export default function peonPingExtension(pi: ExtensionAPI): void {
     } catch {}
   }
 
-  // omp reports hasUI false only for `omp -p` (text and json output); the TUI and
-  // rpc embedders report true and keep their sounds. ctx.agent arrived in omp
-  // 18.3.2. On older omp it is undefined, every session looks like the main one,
-  // and events still fire as before.
+  // omp reports hasUI false for `omp -p` (text and json output), for `--mode rpc`
+  // and `rpc-ui` started with `--no-ui`, and for every subagent. The TUI, ACP and
+  // rpc/rpc-ui without `--no-ui` report true and keep their sounds. ctx.agent
+  // arrived in omp 18.3.2; before that, subagents are still skipped because they
+  // run without a UI.
   const unattended = (ctx: { hasUI?: boolean; agent?: { kind?: string } }): boolean =>
     ctx.agent?.kind === "sub" || ctx.hasUI === false
 

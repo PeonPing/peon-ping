@@ -1219,7 +1219,7 @@ The installer copies `peon-ping.ts` and `package.json` to `~/.omp/agent/extensio
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
-Tool steps within one agent loop do not trigger extra acknowledgement or completion sounds. Subagent events are skipped when omp provides `ctx.agent` (18.3.2+); older versions retain their subagent events. Headless `omp -p` runs (scripts, batch jobs) are skipped too, since nobody is watching them; the TUI and rpc embedders still play. An `agent_end` scheduled to continue does not emit completion.
+Tool steps within one agent loop do not trigger extra acknowledgement or completion sounds. Subagent events are skipped. Headless runs are skipped too, since nobody is watching them: `omp -p` (scripts, batch jobs) and rpc embedders started with `--no-ui`. The TUI, ACP and rpc embedders without `--no-ui` still play. An `agent_end` scheduled to continue does not emit completion.
 
 **Uninstall:**
 
