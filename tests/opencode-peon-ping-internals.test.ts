@@ -253,6 +253,12 @@ describe("loadManifest", () => {
     vi.mocked(fs.readFileSync).mockReturnValue("bad json")
     expect(loadManifest("/p")).toBeNull()
   })
+
+  it("parses manifests that start with a UTF-8 BOM", () => {
+    vi.mocked(fs.existsSync).mockImplementation((p) => String(p).endsWith("openpeon.json"))
+    vi.mocked(fs.readFileSync).mockReturnValue("\uFEFF" + JSON.stringify(makeManifest({ name: "bom" })))
+    expect(loadManifest("/p")!.name).toBe("bom")
+  })
 })
 
 // ---------------------------------------------------------------------------

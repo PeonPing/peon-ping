@@ -1,6 +1,7 @@
 ## Unreleased
 
 ### Fixed
+- **A pack manifest saved with a UTF-8 BOM no longer breaks installing, listing, switching and playing packs.** Windows-authored `openpeon.json` files can start with a byte-order mark, and `json.load(open(path))` rejects it (`Unexpected UTF-8 BOM (decode using utf-8-sig)`). `peon packs install` downloaded such a manifest and then fetched zero sounds, leaving the pack "partial", and one such pack made `peon packs list` abort the whole listing. Every pack manifest read in `peon.sh`, `scripts/pack-download.sh`, `scripts/notify.sh`, `relay.sh` and `scripts/eval-server.py` now decodes with `utf-8-sig`, the OpenCode adapter and MCP server strip the BOM before parsing, and a single unreadable manifest is reported on stderr instead of taking the whole command down. Closes #626.
 - Reduce hook subprocess spawning and skip repeated working events without dropping approval notifications. omp now reports one lifecycle pair per prompt and ignores subagent events. Incorporates PRs #616, #617 and #618, thanks @shivam-sachit.
 - Preserve invoking-install configuration through symlinks, support symlinked relay packs within confinement, and detect JSON Codex hooks in status. PRs #603, #611 and #613, thanks @widechaos.
 - Reuse existing Codex JSON hooks on Unix and Windows, preserve other handlers and metadata, honor CODEX_HOME, and refuse unrelated mixed TOML/JSON event definitions before changing files.

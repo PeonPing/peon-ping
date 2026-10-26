@@ -22,6 +22,18 @@ teardown() {
   [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
 }
 
+@test "SessionStart plays a greeting from a manifest with a UTF-8 BOM" {
+  # Windows-authored manifests can start with a UTF-8 BOM (issue #626)
+  export PEON_PLATFORM=mac
+  printf '\xef\xbb\xbf' > "$TEST_DIR/packs/peon/openpeon.json"
+  cat "$TEST_DIR/packs/peon/manifest.json" >> "$TEST_DIR/packs/peon/openpeon.json"
+  run_peon '{"hook_event_name":"SessionStart","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+  sound=$(afplay_sound)
+  [[ "$sound" == *"/packs/peon/sounds/Hello"* ]]
+}
+
 @test "SessionStart compact skips greeting" {
   run_peon '{"hook_event_name":"SessionStart","source":"compact","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
   [ "$PEON_EXIT" -eq 0 ]
@@ -1698,6 +1710,42 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   run bash "$PEON_SH" packs list
   [ "$status" -eq 0 ]
   [[ "$output" == *"sc_kerrigan"*"<-- active"* ]]
+}
+
+@test "packs list reads a manifest that starts with a UTF-8 BOM" {
+  # issue #626: a BOM made every pack listing crash on JSONDecodeError
+  printf '\xef\xbb\xbf' > "$TEST_DIR/packs/sc_kerrigan/openpeon.json"
+  cat "$TEST_DIR/packs/sc_kerrigan/manifest.json" >> "$TEST_DIR/packs/sc_kerrigan/openpeon.json"
+  run bash "$PEON_SH" packs list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"sc_kerrigan"* ]]
+  [[ "$output" == *"Sarah Kerrigan"* ]]
+}
+
+@test "packs list warns about a broken manifest instead of crashing" {
+  echo '{ not valid json' > "$TEST_DIR/packs/sc_kerrigan/openpeon.json"
+  run bash "$PEON_SH" packs list
+  [ "$status" -eq 0 ]
+  # The healthy pack is still listed
+  [[ "$output" == *"Orc Peon"* ]]
+  # The broken one is reported, not fatal
+  [[ "$output" == *"warning: skipping pack sc_kerrigan"* ]]
+}
+
+@test "packs use reads a manifest that starts with a UTF-8 BOM" {
+  printf '\xef\xbb\xbf' > "$TEST_DIR/packs/sc_kerrigan/openpeon.json"
+  cat "$TEST_DIR/packs/sc_kerrigan/manifest.json" >> "$TEST_DIR/packs/sc_kerrigan/openpeon.json"
+  run bash "$PEON_SH" packs use sc_kerrigan
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"switched to sc_kerrigan (Sarah Kerrigan (StarCraft))"* ]]
+}
+
+@test "sounds list reads a manifest that starts with a UTF-8 BOM" {
+  printf '\xef\xbb\xbf' > "$TEST_DIR/packs/peon/openpeon.json"
+  cat "$TEST_DIR/packs/peon/manifest.json" >> "$TEST_DIR/packs/peon/openpeon.json"
+  run bash "$PEON_SH" sounds list
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Hello1.wav"* ]]
 }
 
 @test "packs list works when script is not in hooks dir (Homebrew install)" {

@@ -314,7 +314,7 @@ for pack in $PACKS; do
     checksums_check="$PEON_DIR/packs/$pack/.checksums"
     pack_complete=$(CHECKSUMS="$checksums_check" PACKS_DIR="$(py_path "$PEON_DIR/packs/$pack")" python3 -c "
 import json, os, posixpath, hashlib
-m = json.load(open('$manifest_check'))
+m = json.load(open('$manifest_check', encoding='utf-8-sig'))
 checksums = {}
 cf = os.environ['CHECKSUMS']
 packs_dir = os.environ['PACKS_DIR']
@@ -415,7 +415,7 @@ for p in data.get('packs', []):
   manifest_py="$(py_path "$manifest")"
   ICON_LIST=$(python3 -c "
 import json
-m = json.load(open('$manifest_py'))
+m = json.load(open('$manifest_py', encoding='utf-8-sig'))
 seen = []
 def add(v):
     if not isinstance(v, str) or not v or v.startswith(('http://', 'https://')):
@@ -432,7 +432,7 @@ for v in seen:
 " 2>/dev/null || true)
   SOUND_COUNT=$(python3 -c "
 import json, posixpath
-m = json.load(open('$manifest_py'))
+m = json.load(open('$manifest_py', encoding='utf-8-sig'))
 seen = set()
 for cat in m.get('categories', {}).values():
     for s in cat.get('sounds', []):
@@ -488,7 +488,7 @@ print(len(seen))
         "$local_file_count" "$SOUND_COUNT" "$local_byte_count"
     done < <(python3 -c "
 import json, posixpath
-m = json.load(open('$manifest_py'))
+m = json.load(open('$manifest_py', encoding='utf-8-sig'))
 seen = set()
 for cat in m.get('categories', {}).values():
     for s in cat.get('sounds', []):
@@ -536,7 +536,7 @@ for cat in m.get('categories', {}).values():
       fi
     done < <(python3 -c "
 import json, posixpath
-m = json.load(open('$manifest_py'))
+m = json.load(open('$manifest_py', encoding='utf-8-sig'))
 seen = set()
 for cat in m.get('categories', {}).values():
     for s in cat.get('sounds', []):

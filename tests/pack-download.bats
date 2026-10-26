@@ -84,6 +84,30 @@ JSON
   [ -f "$TEST_DIR/packs/test_pack_a/.checksums" ]
 }
 
+@test "--packs downloads sounds when the manifest starts with a UTF-8 BOM" {
+  # issue #626: the BOM made the manifest unreadable, so the pack stayed
+  # "partial" with 0 sounds
+  printf '\xef\xbb\xbf' > "$TEST_DIR/.mock_manifest_json"
+  cat >> "$TEST_DIR/.mock_manifest_json" <<'JSON'
+{"cesp_version":"1.0","name":"bom","display_name":"BOM Pack","categories":{"session.start":{"sounds":[{"file":"sounds/Hello1.wav","label":"Hello"}]}}}
+JSON
+  run bash "$PACK_DL_SH" --dir="$TEST_DIR" --packs=test_pack_a
+  [ "$status" -eq 0 ]
+  [ -f "$TEST_DIR/packs/test_pack_a/sounds/Hello1.wav" ]
+  [[ "$output" == *"✅ 1 sounds"* ]]
+}
+
+@test "--packs re-sync skips a complete pack whose manifest has a UTF-8 BOM" {
+  printf '\xef\xbb\xbf' > "$TEST_DIR/.mock_manifest_json"
+  cat >> "$TEST_DIR/.mock_manifest_json" <<'JSON'
+{"cesp_version":"1.0","name":"bom","display_name":"BOM Pack","categories":{"session.start":{"sounds":[{"file":"sounds/Hello1.wav","label":"Hello"}]}}}
+JSON
+  bash "$PACK_DL_SH" --dir="$TEST_DIR" --packs=test_pack_a
+  run bash "$PACK_DL_SH" --dir="$TEST_DIR" --packs=test_pack_a
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"test_pack_a ✓"* ]]
+}
+
 @test "--packs with single pack works" {
   run bash "$PACK_DL_SH" --dir="$TEST_DIR" --packs=test_pack_a
   [ "$status" -eq 0 ]
