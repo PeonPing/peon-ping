@@ -2047,6 +2047,7 @@ pp('dismiss: ' + (str(nd) + 's' if nd > 0 else 'persistent (click to dismiss)'))
 all_screens = c.get('notification_all_screens', True)
 pp('all screens: ' + ('yes' if all_screens else 'no'))
 pp('title includes IDE: ' + ('yes' if c.get('notification_title_ide', False) else 'no'))
+pp('session title: ' + str(c.get('notification_session_title', 'off')))
 _lbl = c.get('notification_title_override', '')
 if _lbl:
     pp('label override: ' + _lbl)
@@ -4570,6 +4571,10 @@ if 'notification_title_ide' not in cfg:
     cfg['notification_title_ide'] = False
     changed = True
     migrations.append('notification_title_ide')
+if 'notification_session_title' not in cfg:
+    cfg['notification_session_title'] = 'off'
+    changed = True
+    migrations.append('notification_session_title')
 if 'focus_detect' not in cfg:
     cfg['focus_detect'] = False
     changed = True
@@ -6062,6 +6067,7 @@ if not project and hook_tty_key:
 if not project:
     _sn = os.environ.get('CLAUDE_SESSION_NAME', '').strip()
     if _sn: project = re.sub(r'[^a-zA-Z0-9 ._-]', '', _sn[:50])
+project_is_session_name = bool(project)
 
 # 1. .peon-label file in project root
 if not project and cwd:
@@ -6752,8 +6758,38 @@ if event == 'Notification':
 elif event == 'PermissionRequest':
     _tpl_key = 'permission'
 _tpl = _templates.get(_tpl_key, '')
+
+def read_session_title(path):
+    # Claude Code appends custom-title (/rename) and ai-title records; the latest wins, custom over ai.
+    custom = ai = ''
+    try:
+        with open(path, 'rb') as f:
+            for line in f:
+                if b'"custom-title"' not in line and b'"ai-title"' not in line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                if rec.get('type') == 'custom-title' and isinstance(rec.get('customTitle'), str):
+                    custom = rec['customTitle']
+                elif rec.get('type') == 'ai-title' and isinstance(rec.get('aiTitle'), str):
+                    ai = rec['aiTitle']
+    except Exception:
+        return ''
+    return re.sub(r'\s+', ' ', custom or ai).strip()[:80]
+
+session_title_placement = str(cfg.get('notification_session_title', 'off')).strip().lower()
+if session_title_placement not in ('top', 'inline', 'bottom') or project_is_session_name or cmux_notification_path:
+    session_title_placement = 'off'
+session_title = ''
+_transcript = event_data.get('transcript_path', '')
+if notify and _transcript and (session_title_placement != 'off' or '{session}' in _tpl):
+    session_title = read_session_title(_transcript)
+
 _tpl_vars = _defaultdict(str, {
     'project': project,
+    'session': session_title,
     'summary': _template_summary(event_data),
     'excerpt': message_excerpt,
     'tool_name': event_data.get('tool_name', ''),
@@ -6839,6 +6875,8 @@ print('NOTIFY_TYPE=' + q(_notify_type))
 print('MSG=' + q(msg))
 print('NOTIFY_PROJECT=' + q(notification_project))
 print('MSG_SUBTITLE=' + q(msg_subtitle))
+print('SESSION_TITLE=' + q(session_title if session_title_placement != 'off' else ''))
+print('SESSION_TITLE_PLACEMENT=' + q(session_title_placement))
 print('DESKTOP_NOTIF=' + ('true' if desktop_notif else 'false'))
 print('NOTIF_STYLE=' + q(cfg.get('notification_style', 'overlay')))
 print('NOTIF_POSITION=' + q(cfg.get('notification_position', 'top-center')))
@@ -6971,6 +7009,23 @@ if [ -n "${MSG:-}" ] && [ -n "${PROJECT:-}" ]; then
   if [ "${NOTIFICATION_TITLE_IDE:-false}" = "true" ] && [ -n "${IDE_LABEL:-}" ]; then
     NOTIFY_PROJECT="${PROJECT} - ${IDE_LABEL}"
   fi
+fi
+if [ -n "${MSG:-}" ] && [ -n "${SESSION_TITLE:-}" ]; then
+  _np="${NOTIFY_PROJECT:-$PROJECT}"
+  case "${SESSION_TITLE_PLACEMENT:-off}" in
+    top)
+      MSG="${_np:+$_np · }$MSG"
+      [ -n "${MSG_SUBTITLE:-}" ] && MSG_SUBTITLE="${_np:+$_np · }$MSG_SUBTITLE"
+      NOTIFY_PROJECT="$SESSION_TITLE"
+      ;;
+    inline)
+      NOTIFY_PROJECT="${_np:+$_np: }$SESSION_TITLE"
+      ;;
+    bottom)
+      MSG="$MSG · $SESSION_TITLE"
+      [ -n "${MSG_SUBTITLE:-}" ] && MSG_SUBTITLE="$MSG_SUBTITLE · $SESSION_TITLE"
+      ;;
+  esac
 fi
 
 # --- Bash-side debug log function for [play] and [notify] phases ---

@@ -45,6 +45,7 @@
   "notification_title_override": "",
   "notification_title_marker": "●",
   "notification_title_ide": false,
+  "notification_session_title": "off",
   "notification_title_script": "",
   "project_name_map": {},
   "debug": false,

@@ -980,6 +980,101 @@ json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
   grep -q "myproject - My Cool Ide" "$TEST_DIR/terminal_notifier.log"
 }
 
+write_session_transcript() {
+  cat > "$TEST_DIR/transcript.jsonl" <<'JSONL'
+{"type":"user","message":{"role":"user","content":"hi"}}
+{"type":"ai-title","aiTitle":"Old auto title","sessionId":"s1"}
+{"type":"ai-title","aiTitle":"Fix the login bug","sessionId":"s1"}
+JSONL
+}
+
+set_session_title_config() {
+  /usr/bin/python3 -c "
+import json, sys
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_session_title'] = sys.argv[1]
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+" "$1"
+}
+
+session_stop_event() {
+  printf '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default","transcript_path":"%s"}' "$TEST_DIR/transcript.jsonl"
+}
+
+@test "notification_session_title is off by default" {
+  write_session_transcript
+  set_session_title_config off
+  run_peon "$(session_stop_event)"
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-title myproject" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message done" "$TEST_DIR/terminal_notifier.log"
+  ! grep -q "Fix the login bug" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_session_title top puts the session title in the title" {
+  write_session_transcript
+  set_session_title_config top
+  run_peon "$(session_stop_event)"
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-title Fix the login bug" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message myproject · done" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_session_title inline appends the session title to the project" {
+  write_session_transcript
+  set_session_title_config inline
+  run_peon "$(session_stop_event)"
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-title myproject: Fix the login bug" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message done" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_session_title bottom appends the session title to the message" {
+  write_session_transcript
+  set_session_title_config bottom
+  run_peon "$(session_stop_event)"
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-title myproject" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message done · Fix the login bug" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_session_title prefers a /rename title over the auto title" {
+  write_session_transcript
+  cat >> "$TEST_DIR/transcript.jsonl" <<'JSONL'
+{"type":"custom-title","customTitle":"Login hotfix","sessionId":"s1"}
+{"type":"ai-title","aiTitle":"Newer auto title","sessionId":"s1"}
+JSONL
+  set_session_title_config top
+  run_peon "$(session_stop_event)"
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-title Login hotfix" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "notification_session_title falls back to the project without a transcript title" {
+  printf '%s\n' '{"type":"user","message":{"role":"user","content":"hi"}}' > "$TEST_DIR/transcript.jsonl"
+  set_session_title_config top
+  run_peon "$(session_stop_event)"
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-title myproject" "$TEST_DIR/terminal_notifier.log"
+  grep -q -- "-message done" "$TEST_DIR/terminal_notifier.log"
+  ! grep -q "·" "$TEST_DIR/terminal_notifier.log"
+}
+
+@test "{session} template variable renders the session title" {
+  write_session_transcript
+  /usr/bin/python3 -c "
+import json
+cfg = json.load(open('$TEST_DIR/config.json'))
+cfg['notification_style'] = 'standard'
+cfg['notification_templates'] = {'stop': '{status}: {session}'}
+json.dump(cfg, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon "$(session_stop_event)"
+  [ "$PEON_EXIT" -eq 0 ]
+  grep -q -- "-message done: Fix the login bug" "$TEST_DIR/terminal_notifier.log"
+}
+
 @test "{ide_id} template variable renders the raw normalized id" {
   /usr/bin/python3 -c "
 import json
