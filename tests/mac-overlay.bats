@@ -197,6 +197,21 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   ! [[ "$(overlay_log)" == *" Idle "* ]]
 }
 
+@test "macOS overlay shows the session title above project and status" {
+  printf '%s\n' '{"type":"ai-title","aiTitle":"Fix the login bug","sessionId":"s1"}' > "$TEST_DIR/transcript.jsonl"
+  /usr/bin/python3 -c "
+import json
+c = json.load(open('$TEST_DIR/config.json'))
+c['notification_session_title'] = 'top'
+json.dump(c, open('$TEST_DIR/config.json', 'w'))
+"
+  run_peon "{\"hook_event_name\":\"Stop\",\"cwd\":\"/tmp/myproject\",\"session_id\":\"s1\",\"permission_mode\":\"default\",\"transcript_path\":\"$TEST_DIR/transcript.jsonl\"}"
+  [ "$PEON_EXIT" -eq 0 ]
+  overlay_was_called
+  [[ "$(overlay_log)" == *"Fix the login bug"* ]]
+  [[ "$(overlay_log)" == *"myproject · done"* ]]
+}
+
 @test "overlay click helper focuses targeted cmux panel" {
   run "$TEST_DIR/scripts/cmux-focus.sh" "$MOCK_BIN/cmux" "/tmp/cmux-test.sock" "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222"
   [ "$status" -eq 0 ]
