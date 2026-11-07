@@ -36,7 +36,7 @@
           src = ./.;
 
           nativeBuildInputs = [ pkgs.makeWrapper ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.swift ];
+            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.swift ];
           dontConfigure = true;
           dontBuild = true;
 
@@ -57,7 +57,7 @@
             done
             chmod +x "$share/scripts/"*.sh 2>/dev/null || true
 
-            ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+            ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
               # Build native macOS helpers (install.sh does this for curl-based
               # installs; the Nix package needs the same step or meeting_detect /
               # the Sound Effects device path are silent no-ops). Non-fatal on
@@ -126,7 +126,7 @@
         apps.default = flake-utils.lib.mkApp {
           drv = peon-ping;
           name = "peon";
-        };
+        } // { inherit (peon-ping) meta; };
 
         devShells.default = pkgs.mkShell {
           name = "peon-ping-dev";
@@ -139,7 +139,7 @@
             curl
             jq
             coreutils
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [
             ffmpeg
             pulseaudio
             mpv
