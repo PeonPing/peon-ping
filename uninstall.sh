@@ -211,6 +211,82 @@ _remove_codex_hooks() {
   fi
 }
 
+# Report hooks that run the Kimi adapter outside its managed block. Kimi Code's
+# migration from kimi-cli copies [[hooks]] out of ~/.kimi/config.toml without
+# the block markers, so such hooks can exist in a config with no block at all.
+# Only the block is ours to remove; once the install dir is gone these would
+# run a deleted adapter, so the user has to hear about them. Kept in sync with
+# count_unmanaged_hooks in adapters/kimi.sh, and independent of it because the
+# adapter may already be missing.
+_warn_unmanaged_kimi_hooks() {
+  local kimi_config="$1" n
+  n=$(awk '
+    index($0, "# peon-ping Kimi hooks begin") == 1 { skip = 1; next }
+    index($0, "# peon-ping Kimi hooks end") == 1   { skip = 0; next }
+    skip || /^[[:space:]]*#/ { next }
+    /adapters[\/\\]+kimi\.(sh|ps1)/ { n++ }
+    END { print n + 0 }
+  ' "$kimi_config")
+  [ "$n" -gt 0 ] || return 0
+  echo "Warning: $kimi_config has $n hook command(s) outside the peon-ping block that run the Kimi adapter." >&2
+  echo "  Kimi Code's migration from kimi-cli copies hooks without the block markers, so these were" >&2
+  echo "  likely carried over from ~/.kimi. They stay after this uninstall and point at an adapter" >&2
+  echo "  that is about to be deleted. Remove those [[hooks]] entries by hand." >&2
+}
+
+# Remove the managed [[hooks]] block peon-ping registers in Kimi Code's config
+# (~/.kimi-code, or ~/.kimi for the older kimi-cli). Left behind, Kimi would run
+# a deleted adapter once per event. The adapter owns the block, so hand the work
+# to it, and stop rather than guess at the block if it is already gone.
+_remove_kimi_hooks() {
+  local kimi_adapter="$INSTALL_DIR/adapters/kimi.sh"
+  local kimi_marker="# peon-ping Kimi hooks begin"
+  local kimi_config
+  local had_block=false
+
+  for kimi_config in "$HOME/.kimi-code/config.toml" "$HOME/.kimi/config.toml"; do
+    [ -f "$kimi_config" ] || continue
+    # grep exits 1 for "no block" and 2 when it could not read the config. A
+    # config that may still hold the block must stop the uninstall before the
+    # adapter its hooks run is deleted.
+    if grep -qF "$kimi_marker" "$kimi_config"; then
+      :
+    else
+      local rc=$?
+      if [ "$rc" -eq 1 ]; then
+        _warn_unmanaged_kimi_hooks "$kimi_config"
+        continue
+      fi
+      echo "Error: cannot read Kimi config $kimi_config, so its peon-ping hooks cannot be checked"
+      echo "Fix its permissions, then uninstall again."
+      return 1
+    fi
+    had_block=true
+    if [ ! -f "$kimi_adapter" ]; then
+      # Only the adapter knows which separator and EOF newline it added, so
+      # stripping the markers here would leave the config changed.
+      echo "Error: cannot safely remove Kimi Code hooks from $kimi_config because adapters/kimi.sh is missing"
+      echo "Re-run the peon-ping installer to restore the adapter, then uninstall again."
+      return 1
+    fi
+    # stdout is the adapter's own progress report; its stderr carries errors
+    # and the warning about hooks outside the block, so keep that.
+    if ! KIMI_CONFIG="$kimi_config" bash "$kimi_adapter" --uninstall >/dev/null; then
+      echo "Error: could not remove Kimi Code hooks from $kimi_config"
+      return 1
+    fi
+    echo "Removed Kimi Code hooks from $kimi_config"
+  done
+
+  # The adapter used to be a watcher daemon rather than a hook, and --uninstall
+  # above reaps that. An install that never got as far as registering hooks can
+  # still have one running, so reap it on its own -- without touching any
+  # config, which the loop has already handled.
+  if [ "$had_block" = false ] && [ -f "$kimi_adapter" ]; then
+    bash "$kimi_adapter" --stop-watcher >/dev/null || true
+  fi
+}
+
 echo "Removing peon hooks from settings.json..."
 _remove_peon_hooks "$SETTINGS"
 
@@ -235,6 +311,10 @@ _remove_grok_hooks
 # Remove OpenAI Codex hooks
 echo "Removing Codex hooks..."
 _remove_codex_hooks
+
+# Remove Kimi Code hooks
+echo "Removing Kimi Code hooks..."
+_remove_kimi_hooks
 
 # --- Restore notify.sh backup (global install only) ---
 if [ "$IS_LOCAL" = false ] && [ -f "$NOTIFY_BACKUP" ]; then

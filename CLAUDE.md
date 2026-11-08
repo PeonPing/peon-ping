@@ -87,8 +87,9 @@ IDE triggers hook → `peon.sh` reads JSON stdin → single Python call maps eve
 - **`adapters/windsurf.sh`** — Translates Windsurf Cascade hook events to CESP JSON
 - **`adapters/antigravity.sh`** — Filesystem watcher for Google Antigravity agent events
 - **`adapters/grok.sh`** — Translates Grok Build camelCase hook events to CESP JSON
+- **`adapters/kimi.sh`** — Registers a managed `[[hooks]]` block in Kimi Code's `config.toml`, then forwards each hook event to CESP JSON
 
-All adapters have native Windows PowerShell (`.ps1`) counterparts alongside the bash originals. Windows adapters pipe CESP JSON to `peon.ps1` instead of `peon.sh`. Filesystem watchers (amp, antigravity, kimi) use .NET `FileSystemWatcher` instead of fswatch/inotifywait.
+All adapters have native Windows PowerShell (`.ps1`) counterparts alongside the bash originals. Windows adapters pipe CESP JSON to `peon.ps1` instead of `peon.sh`. Filesystem watchers (amp, antigravity) use .NET `FileSystemWatcher` instead of fswatch/inotifywait.
 
 All adapters translate IDE-specific events into the standardized CESP JSON format that `peon.sh`/`peon.ps1` expects.
 
