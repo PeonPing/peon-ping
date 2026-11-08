@@ -18,7 +18,7 @@ SERVER = None         # HTTP server instance, set in main()
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 def manifest():
-    with open(os.path.join(DRAFT, "openpeon.json")) as f:
+    with open(os.path.join(DRAFT, "openpeon.json"), encoding="utf-8-sig") as f:
         return json.load(f)
 
 def pack_summary():

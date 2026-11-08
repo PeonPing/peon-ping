@@ -250,7 +250,7 @@ for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(pack_dir, mname)
     if os.path.exists(mpath):
         try:
-            d = json.load(open(mpath))
+            d = json.load(open(mpath, encoding='utf-8-sig'))
             print(d.get('icon', ''))
         except Exception:
             print('')

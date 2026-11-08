@@ -283,7 +283,7 @@ def pick_sound_for_category(category):
         mpath = os.path.join(pack_dir, mname)
         if os.path.exists(mpath):
             try:
-                with open(mpath) as f:
+                with open(mpath, encoding="utf-8-sig") as f:
                     manifest = json.load(f)
                 break
             except Exception:

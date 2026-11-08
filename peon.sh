@@ -1836,7 +1836,7 @@ def get_display_name(pack):
         mpath = os.path.join(packs_dir, pack, mname)
         if os.path.exists(mpath):
             try:
-                return json.load(open(mpath)).get('display_name', pack)
+                return json.load(open(mpath, encoding='utf-8-sig')).get('display_name', pack)
             except Exception:
                 return pack
     return pack
@@ -2739,7 +2739,7 @@ print('peon-ping: rotation mode set to ' + mode)
           exit 0
         fi
         python3 -c "
-import json, os
+import json, os, sys
 no_color = os.environ.get('NO_COLOR', '')
 CYAN = '' if no_color else '\033[36m'
 GREEN = '' if no_color else '\033[32m'
@@ -2757,7 +2757,11 @@ for d in sorted(os.listdir(packs_dir)):
     for mname in ('openpeon.json', 'manifest.json'):
         mpath = os.path.join(packs_dir, d, mname)
         if os.path.exists(mpath):
-            info = json.load(open(mpath))
+            try:
+                info = json.load(open(mpath, encoding='utf-8-sig'))
+            except (OSError, ValueError) as exc:
+                print('  warning: skipping pack ' + d + ' — ' + mname + ' could not be read (' + str(exc) + ')', file=sys.stderr)
+                break
             display = info.get('display_name', info.get('name', d))
             sdir = os.path.join(packs_dir, d, 'sounds')
             count = len(os.listdir(sdir)) if os.path.isdir(sdir) else 0
@@ -2826,7 +2830,7 @@ if pack_arg not in names:
 manifest_path = os.path.join(packs_dir, pack_arg, 'openpeon.json')
 if os.path.exists(manifest_path):
     try:
-        m = json.load(open(manifest_path))
+        m = json.load(open(manifest_path, encoding='utf-8-sig'))
     except Exception:
         m = {}
     if m.get('x_openpeon_draft'):
@@ -2857,7 +2861,10 @@ display = pack_arg
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(packs_dir, pack_arg, mname)
     if os.path.exists(mpath):
-        display = json.load(open(mpath)).get('display_name', pack_arg)
+        try:
+            display = json.load(open(mpath, encoding='utf-8-sig')).get('display_name', pack_arg)
+        except (OSError, ValueError):
+            pass
         break
 print(f'peon-ping: switched to {pack_arg} ({display})')
 " || exit 1
@@ -3337,10 +3344,14 @@ cfg['default_pack'] = next_pack
 cfg.pop('active_pack', None)
 json.dump(cfg, open(config_path, 'w'), indent=2)
 # Read display name
+display = next_pack
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(packs_dir, next_pack, mname)
     if os.path.exists(mpath):
-        display = json.load(open(mpath)).get('display_name', next_pack)
+        try:
+            display = json.load(open(mpath, encoding='utf-8-sig')).get('display_name', next_pack)
+        except (OSError, ValueError):
+            pass
         break
 print(f'peon-ping: switched to {next_pack} ({display})')
 "
@@ -3519,8 +3530,13 @@ force = os.environ.get('LOCAL_FORCE', '0') == '1'
 packs_dir = os.path.join(os.environ.get('PEON_ENV_PEON_DIR', ''), 'packs')
 
 manifest_name = 'openpeon.json' if os.path.exists(os.path.join(src, 'openpeon.json')) else 'manifest.json'
-if os.path.exists(os.path.join(src, manifest_name)):
-    manifest = json.load(open(os.path.join(src, manifest_name)))
+manifest_path = os.path.join(src, manifest_name)
+if os.path.exists(manifest_path):
+    try:
+        manifest = json.load(open(manifest_path, encoding='utf-8-sig'))
+    except ValueError as exc:
+        print('Error: ' + manifest_name + ' is not valid JSON: ' + str(exc), file=sys.stderr)
+        sys.exit(1)
 else:
     print('Error: no openpeon.json or manifest.json found in ' + src, file=sys.stderr)
     sys.exit(1)
@@ -3810,7 +3826,7 @@ manifest = None
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(pack_dir, mname)
     if os.path.exists(mpath):
-        manifest = json.load(open(mpath))
+        manifest = json.load(open(mpath, encoding='utf-8-sig'))
         break
 if not manifest:
     print(f'Error: pack \"{pack}\" not found.', file=sys.stderr)
@@ -3872,7 +3888,7 @@ manifest = None
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(pack_dir, mname)
     if os.path.exists(mpath):
-        manifest = json.load(open(mpath))
+        manifest = json.load(open(mpath, encoding='utf-8-sig'))
         break
 if not manifest:
     print(f'Error: pack \"{pack}\" not found.', file=sys.stderr)
@@ -4195,7 +4211,7 @@ manifest = None
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(pack_dir, mname)
     if os.path.exists(mpath):
-        manifest = json.load(open(mpath))
+        manifest = json.load(open(mpath, encoding='utf-8-sig'))
         break
 if not manifest:
     print('peon-ping: no manifest found for pack \"' + active_pack + '\".', file=sys.stderr)
@@ -4238,7 +4254,7 @@ manifest = None
 for mname in ('openpeon.json', 'manifest.json'):
     mpath = os.path.join(pack_dir, mname)
     if os.path.exists(mpath):
-        manifest = json.load(open(mpath))
+        manifest = json.load(open(mpath, encoding='utf-8-sig'))
         break
 if not manifest:
     print('ERROR:No manifest found for pack \"' + active_pack + '\".', file=sys.stderr)
@@ -4402,7 +4418,7 @@ if os.path.exists(dest):
 os.makedirs(os.path.dirname(dest), exist_ok=True)
 shutil.copytree(src, dest)
 manifest_path = os.path.join(dest, 'openpeon.json')
-m = json.load(open(manifest_path))
+m = json.load(open(manifest_path, encoding='utf-8-sig'))
 m['x_openpeon_draft'] = True
 json.dump(m, open(manifest_path, 'w'), indent=2)
 
@@ -6526,7 +6542,7 @@ if category and not paused:
         for mname in ('openpeon.json', 'manifest.json'):
             mpath = os.path.join(pack_dir, mname)
             if os.path.exists(mpath):
-                manifest = json.load(open(mpath))
+                manifest = json.load(open(mpath, encoding='utf-8-sig'))
                 break
         if not manifest:
             manifest = {}

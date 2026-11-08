@@ -51,7 +51,9 @@ function loadCatalog() {
       if (!entry.isDirectory()) continue;
       const manifest = join(dir, entry.name, "openpeon.json");
       if (!existsSync(manifest)) continue;
-      try { packs.set(entry.name, JSON.parse(readFileSync(manifest, "utf-8"))); } catch {}
+      // Strip a UTF-8 BOM: manifests authored on Windows carry one, and
+      // JSON.parse rejects the leading U+FEFF.
+      try { packs.set(entry.name, JSON.parse(readFileSync(manifest, "utf-8").replace(/^\uFEFF/, ""))); } catch {}
     }
   }
   catalog = { dir, packs };

@@ -235,8 +235,7 @@ export function loadManifest(packDir: string): CESPManifest | null {
   const cespPath = path.join(packDir, "openpeon.json")
   if (fs.existsSync(cespPath)) {
     try {
-      const raw = fs.readFileSync(cespPath, "utf8")
-      return JSON.parse(raw) as CESPManifest
+      return parseManifestFile(cespPath) as CESPManifest
     } catch {
       return null
     }
@@ -246,8 +245,7 @@ export function loadManifest(packDir: string): CESPManifest | null {
   const legacyPath = path.join(packDir, "manifest.json")
   if (fs.existsSync(legacyPath)) {
     try {
-      const raw = fs.readFileSync(legacyPath, "utf8")
-      const legacy = JSON.parse(raw)
+      const legacy = parseManifestFile(legacyPath)
       return migrateLegacyManifest(legacy)
     } catch {
       return null
@@ -255,6 +253,12 @@ export function loadManifest(packDir: string): CESPManifest | null {
   }
 
   return null
+}
+
+// Manifests authored on Windows may start with a UTF-8 BOM. `utf8` decoding keeps
+// it, and JSON.parse then fails on the leading U+FEFF, so strip it before parsing.
+function parseManifestFile(filePath: string): any {
+  return JSON.parse(fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, ""))
 }
 
 export function migrateLegacyManifest(legacy: any): CESPManifest {
