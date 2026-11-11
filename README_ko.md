@@ -195,8 +195,8 @@ Claude에게 직접 설정을 변경해달라고 요청할 수도 있습니다 �
 - **desktop_notifications**: `true`/`false` — 소리와 독립적으로 데스크톱 알림 팝업 토글 (기본값: `true`)
   - Ghostty 직접 세션의 `standard` 스타일은 OSC 777을 실제 세션 PTY로 보내 클릭 시 해당 탭이나 분할 창을 선택합니다. herdr, tmux, cmux, 사용자 클릭 명령 또는 TTY를 사용할 수 없으면 기존 시스템 알림을 사용합니다. 포커스 억제는 정확한 TTY가 확인될 때만 적용하며, 지원하지 않는 스크립트 API에서는 제목이나 경로로 추측하지 않습니다.
 - **notification_style**: `"overlay"` 또는 `"standard"` — 데스크톱 알림 표시 방식 (기본값: `"overlay"`)
-  - **overlay**: 크고 잘 보이는 배너 — macOS에서는 JXA Cocoa 오버레이, WSL에서는 Windows Forms 팝업. 오버레이를 클릭하면 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원)
-  - **standard**: 시스템 알림 — macOS에서는 [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript`, WSL에서는 Windows toast. `terminal-notifier`를 설치하면 (`brew install terminal-notifier`) 알림 클릭 시 자동으로 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원)
+  - **overlay**: 크고 잘 보이는 배너 — macOS에서는 JXA Cocoa 오버레이, WSL에서는 Windows Forms 팝업. 오버레이를 클릭하면 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원). [herdr](https://herdr.dev) 안에서는 클릭하면 herdr도 에이전트의 패널로 전환하고, herdr가 그 패널에서 에이전트를 감지하지 못했으면 해당 탭으로 전환 (herdr 안의 tmux에서 실행 중인 에이전트는 제외; 이 경우 tmux 패널 전환이 실행됨)
+  - **standard**: 시스템 알림 — macOS에서는 [`terminal-notifier`](https://github.com/julienXX/terminal-notifier) / `osascript`, WSL에서는 Windows toast. `terminal-notifier`를 설치하면 (`brew install terminal-notifier`) 알림 클릭 시 자동으로 터미널로 포커스 이동 (Ghostty, Warp, iTerm2, Zed, Terminal.app 지원). herdr 안에서는 위와 같이 herdr도 에이전트의 패널로 전환
 - **categories**: 개별 CESP 사운드 카테고리를 켜거나 끌 수 있음 (예: `"session.start": false`로 인사 소리 비활성화)
 - **annoyed_threshold / annoyed_window_seconds**: N초 내 몇 번의 프롬프트가 `user.spam` 이스터에그를 트리거하는지
 - **silent_window_seconds**: N초 미만으로 완료된 작업의 `task.complete` 소리와 알림을 억제 (예: `10`으로 설정하면 10초 이상 걸린 작업에서만 소리가 남)
