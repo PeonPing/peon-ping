@@ -57,10 +57,17 @@ describe.skipIf(process.platform === "win32")("native adapter failures reach the
     if (kind === "omp") {
       const handlers = new Map<string, Function>()
       omp({ on: (name: string, handler: Function) => handlers.set(name, handler) } as any)
-      await handlers.get("tool_result")!({
-        type: "tool_result", toolName: "read", toolCallId: "call-1", input: { path: "missing.txt" },
-        content: [{ type: "text", text: "File missing: missing.txt" }], isError: true, details: undefined,
-      }, { hasUI: false, agent: { kind: "main", id: "main", depth: 0 } })
+      // An interactive session: headless omp -p runs send nothing. Its tab-title
+      // escape is muted so it stays out of the test output.
+      const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true)
+      try {
+        await handlers.get("tool_result")!({
+          type: "tool_result", toolName: "read", toolCallId: "call-1", input: { path: "missing.txt" },
+          content: [{ type: "text", text: "File missing: missing.txt" }], isError: true, details: undefined,
+        }, { mode: "tui", hasUI: true, agent: { kind: "main", id: "main", depth: 0 } })
+      } finally {
+        stdoutWrite.mockRestore()
+      }
     } else if (kind === "opencode-v1") {
       const hooks = await opencode.server({ directory: cwd, client: { session: { get: async () => ({ data: { directory: cwd } }) } } })
       cleanup = hooks.dispose

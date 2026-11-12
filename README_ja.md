@@ -1062,7 +1062,7 @@ curl -fsSL https://raw.githubusercontent.com/PeonPing/peon-ping/main/adapters/om
 | `auto_compaction_start`                | `PreCompact`          |
 | `session_shutdown`                     | `SessionEnd`          |
 
-同じエージェントループ内のツール処理では、確認音や完了音が余分に鳴りません。omp が `ctx.agent` を提供する場合（18.3.2 以降）、サブエージェントのイベントを無視します。旧バージョンでは引き続き発生します。継続が予定されている `agent_end` は完了を通知しません。
+同じエージェントループ内のツール処理では、確認音や完了音が余分に鳴りません。サブエージェントのイベントは無視します。見ている人がいないヘッドレス実行も無視します：`omp -p`（スクリプトやバッチジョブ）と、`--no-ui` 付きで起動した rpc 組み込みです。TUI、ACP、`--no-ui` なしの rpc 組み込みでは引き続き鳴ります。継続が予定されている `agent_end` は完了を通知しません。
 
 **アンインストール：**
 
