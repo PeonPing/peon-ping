@@ -27,6 +27,9 @@ setup_test_env() {
   unset CMUX_BUNDLED_CLI_PATH CMUX_BUNDLE_ID
   unset TERM_PROGRAM GHOSTTY_RESOURCES_DIR ITERM_SESSION_ID WARP_IS_LOCAL_SHELL_SESSION
   unset __CFBundleIdentifier CLAUDE_SESSION_NAME
+  # pw code sets this on hook processes; inherited, it would relabel every
+  # Claude Code event in the suite as pw code.
+  unset PW_PROJECT_DIR
 
   # Create directory structure
   mkdir -p "$TEST_DIR/packs/peon/sounds"
