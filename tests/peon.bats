@@ -4889,6 +4889,74 @@ json.dump(c, open('$TEST_DIR/config.json', 'w'))
   afplay_was_called
 }
 
+# Writes a system_profiler fixture; each argument is "Name|Transport|flags", flags
+# a comma list of "out" (Default Output Device) and "sys" (Default System Output Device).
+audio_devices() {
+  {
+    printf 'Audio:\n\n    Devices:\n\n'
+    local spec name transport flags
+    for spec in "$@"; do
+      IFS='|' read -r name transport flags <<< "$spec"
+      printf '        %s:\n\n' "$name"
+      [[ ",$flags," == *",out,"* ]] && printf '          Default Output Device: Yes\n'
+      [[ ",$flags," == *",sys,"* ]] && printf '          Default System Output Device: Yes\n'
+      printf '          Output Channels: 2\n          Transport: %s\n\n' "$transport"
+    done
+  } > "$TEST_DIR/.mock_audio_profile"
+}
+
+headphones_only_config() {
+  cat > "$TEST_DIR/config.json" <<JSON
+{ "default_pack": "peon", "volume": 0.5, "enabled": true, "headphones_only": true, "use_sound_effects_device": $1, "categories": {} }
+JSON
+}
+
+@test "headphones_only: inspects the sound effects device, not the default output" {
+  install_peon_play_mock
+  headphones_only_config true
+  audio_devices "MacBook Pro Speakers|Built-in|sys" "Microsoft Teams Audio|Virtual|" \
+    "Call Capture|Unknown|" "Call Output|Unknown|out"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  ! peon_play_was_called
+}
+
+@test "headphones_only: plays on bluetooth headphones as the sound effects device" {
+  install_peon_play_mock
+  headphones_only_config true
+  audio_devices "MacBook Pro Speakers|Built-in|out" "AirPods Pro|Bluetooth|sys"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  peon_play_was_called
+}
+
+@test "headphones_only: afplay mode follows the default output" {
+  headphones_only_config false
+  audio_devices "MacBook Pro Speakers|Built-in|sys" "AirPods Pro|Bluetooth|out"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
+@test "headphones_only: virtual and display outputs are not headphones" {
+  headphones_only_config false
+  for device in "BlackHole 2ch|Virtual|out,sys" "LG HDR 4K|DisplayPort|out,sys"; do
+    rm -f "$TEST_DIR/afplay.log"
+    audio_devices "$device"
+    run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+    [ "$PEON_EXIT" -eq 0 ]
+    [ ! -s "$TEST_DIR/afplay.log" ]
+  done
+}
+
+@test "headphones_only: built-in speakers listed next to a headset do not mute it" {
+  headphones_only_config false
+  audio_devices "MacBook Pro Speakers|Built-in|" "Jabra Evolve2 65|USB|out,sys"
+  run_peon '{"hook_event_name":"Stop","cwd":"/tmp/myproject","session_id":"s1","permission_mode":"default"}'
+  [ "$PEON_EXIT" -eq 0 ]
+  afplay_was_called
+}
+
 # ============================================================
 # Meeting detection — auto-suppress during calls
 # ============================================================

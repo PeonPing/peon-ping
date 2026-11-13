@@ -190,7 +190,9 @@ SCRIPT
   cat > "$MOCK_BIN/system_profiler" <<'SCRIPT'
 #!/bin/bash
 # Check for mock fixture files
-if [ -f "${CLAUDE_PEON_DIR}/.mock_headphones_connected" ]; then
+if [ -f "${CLAUDE_PEON_DIR}/.mock_audio_profile" ]; then
+  cat "${CLAUDE_PEON_DIR}/.mock_audio_profile"
+elif [ -f "${CLAUDE_PEON_DIR}/.mock_headphones_connected" ]; then
   cat <<'EOF'
 Audio:
 
