@@ -138,15 +138,22 @@ PEON_PLATFORM=${PEON_PLATFORM:-$(detect_platform)}
 detect_headphones() {
   case "$PEON_PLATFORM" in
     mac)
-      local output default_section
+      local output marker="Default Output Device: Yes" section
+      # play_sound routes through the sound effects device whenever peon-play is available
+      [ "${USE_SOUND_EFFECTS_DEVICE:-true}" != "false" ] && find_bundled_script "peon-play" >/dev/null \
+        && marker="Default System Output Device: Yes"
       output=$(system_profiler SPAudioDataType 2>/dev/null) || return 0
-      # Get the device section containing "Default Output Device: Yes" (10 lines before, 5 after)
-      default_section=$(echo "$output" | grep -B10 -A5 "Default Output Device: Yes" | tr '[:upper:]' '[:lower:]')
-      # Check if this section has built-in transport AND speaker in the name
-      if echo "$default_section" | grep -q "transport: built-in" && echo "$default_section" | grep -q "speaker"; then
-        return 1  # Built-in speakers, no headphones
-      fi
-      return 0  # Default: assume headphones
+      section=$(printf '%s\n' "$output" | awk -v m="$marker" '
+        /^        [^ ].*:$/ { if (hit) exit; buf = "" }
+        { buf = buf $0 "\n" }
+        index($0, m) { hit = 1 }
+        END { if (hit) printf "%s", buf }' | tr '[:upper:]' '[:lower:]')
+      [ -n "$section" ] || return 0
+      case "$section" in
+        *headphone*|*headset*|*airpod*|*buds*|*earphone*) return 0 ;;
+      esac
+      printf '%s' "$section" | grep -qE "transport: (bluetooth|usb)" && return 0
+      return 1  # Built-in, display, virtual or aggregate output
       ;;
     linux)
       local out
