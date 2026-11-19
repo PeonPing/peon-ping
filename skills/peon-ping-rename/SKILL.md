@@ -45,16 +45,26 @@ echo "$CLAUDE_SESSION_ID"
 
 ```bash
 python3 -c "
-import json, os, time
+import json, os, tempfile
 state_path = os.path.expanduser('~/.claude/hooks/peon-ping/.state.json')
 try:
-    state = json.load(open(state_path))
-except:
+    with open(state_path) as f:
+        state = json.load(f)
+except FileNotFoundError:
     state = {}
 state.setdefault('session_names', {})['SESSION_ID_HERE'] = 'My Session Name'
-json.dump(state, open(state_path, 'w'), indent=2)
+fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(state_path), suffix='.tmp')
+try:
+    with os.fdopen(fd, 'w') as f:
+        json.dump(state, f, indent=2)
+    os.replace(temp_path, state_path)
+finally:
+    if os.path.exists(temp_path):
+        os.unlink(temp_path)
 "
 ```
+
+Only a missing state file starts fresh. If reading or parsing fails, the command stops without changing the original file; resolve the reported error before retrying. Writes use a temporary file in the same directory and replace the state only after serialization succeeds.
 
 ### 3. Trigger a hook event to refresh the tab title
 
